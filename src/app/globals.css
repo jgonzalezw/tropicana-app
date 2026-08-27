@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+/* =====================================================================
+   TROPICANA — Tema oscuro por defecto, alto contraste y fuente grande
+   (NFR 8.1 / 8.4: visión limitada de la usuaria principal)
+   ===================================================================== */
+:root {
+  --fondo:            #0d1117;  /* fondo principal */
+  --fondo-panel:      #161b22;  /* tarjetas y paneles */
+  --fondo-elevado:    #1f2630;  /* inputs, filas hover */
+  --borde:            #2d3644;
+  --texto:            #f0f3f6;  /* alto contraste */
+  --texto-tenue:      #aeb9c4;
+  --primario:         #ff7a1a;  /* naranja tropical */
+  --primario-hover:   #ff9445;
+  --primario-texto:   #1a1000;
+  --exito:            #2ea043;
+  --peligro:          #f85149;
+  --advertencia:      #d29922;
+  --radio:            10px;
+}
+
+@theme inline {
+  --color-fondo: var(--fondo);
+  --color-fondo-panel: var(--fondo-panel);
+  --color-fondo-elevado: var(--fondo-elevado);
+  --color-borde: var(--borde);
+  --color-texto: var(--texto);
+  --color-texto-tenue: var(--texto-tenue);
+  --color-primario: var(--primario);
+  --color-primario-hover: var(--primario-hover);
+  --color-exito: var(--exito);
+  --color-peligro: var(--peligro);
+  --color-advertencia: var(--advertencia);
+  --font-sans: var(--font-sans-tropicana), system-ui, sans-serif;
+}
+
+html {
+  font-size: 17px; /* base grande para legibilidad */
+}
+
+body {
+  background: var(--fondo);
+  color: var(--texto);
+  font-family: var(--font-sans-tropicana), system-ui, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Foco visible y grueso para accesibilidad */
+*:focus-visible {
+  outline: 3px solid var(--primario);
+  outline-offset: 2px;
+}
+
+/* Campo de formulario reutilizable */
+.entrada {
+  width: 100%;
+  padding: 0.6rem 0.85rem;
+  font-size: 1.0625rem;
+  border-radius: var(--radio);
+  background: var(--fondo);
+  border: 1px solid var(--borde);
+  color: var(--texto);
+}
+.entrada:focus {
+  border-color: var(--primario);
+  outline: none;
+}
