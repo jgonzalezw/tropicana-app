@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { obtenerPerfilActual, tienePermiso } from "@/lib/sesion";
 import { obtenerTemas, TEMA_DEFECTO } from "@/lib/temas";
+import { puedeIniciarSesion } from "@/lib/acceso";
 import BarraLateral from "@/components/BarraLateral";
 
 export default async function LayoutPrivado({
@@ -14,13 +15,20 @@ export default async function LayoutPrivado({
     redirect("/login");
   }
 
-  if (!perfil.activo) {
+  // Defensa en profundidad: si la cuenta quedó bloqueada o dada de baja
+  // mientras había sesión abierta, se corta acá (regla única de acceso).
+  if (!puedeIniciarSesion(perfil)) {
+    const bloqueada = perfil.activo && perfil.bloqueado;
     return (
       <main className="min-h-screen flex items-center justify-center p-6">
         <div className="max-w-md text-center">
-          <h1 className="text-2xl mb-3">Cuenta inactiva</h1>
+          <h1 className="text-2xl mb-3">
+            {bloqueada ? "Cuenta bloqueada" : "Cuenta inactiva"}
+          </h1>
           <p className="text-[var(--texto-tenue)] mb-6">
-            Tu cuenta está desactivada. Comunicate con la administración.
+            {bloqueada
+              ? "Tu cuenta está bloqueada. Comunicate con la administración para que la desbloquee o te reinicie la contraseña."
+              : "Tu cuenta está desactivada. Comunicate con la administración."}
           </p>
           <form action="/auth/signout" method="post">
             <button

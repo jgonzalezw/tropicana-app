@@ -15,6 +15,13 @@ export type Perfil = {
   activo: boolean;
   /** Clave del tema visual elegido por el usuario (ver tabla `temas`). */
   tema: string | null;
+  /** Correo de acceso (denormalizado desde auth.users para buscar por email). */
+  email: string | null;
+  /** Bloqueo de acceso (por intentos fallidos o manual), independiente de `activo`. */
+  bloqueado: boolean;
+  motivo_bloqueo: "auto" | "manual" | null;
+  intentos_fallidos: number;
+  bloqueado_en: string | null;
   creado_en: string;
   actualizado_en: string;
 };

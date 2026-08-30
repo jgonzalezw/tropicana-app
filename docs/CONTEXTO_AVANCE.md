@@ -134,6 +134,39 @@ ni comportamiento.
 Archivos nuevos: `src/lib/temas.ts`, `src/lib/acciones-tema.ts`,
 `src/components/SelectorTema.tsx`, `supabase/migrations/0003_temas.sql`.
 
+## 5c. Seguridad de cuentas: contraseñas y bloqueo (2026-08-30)
+
+Ampliación del módulo **Usuarios** (gobernada por permiso `usuarios.editar`,
+no por rol). Todo el manejo de claves usa `service_role` en el servidor.
+
+- **Reiniciar/cambiar contraseña** desde la edición del usuario (botones
+  *Generar*/*Ver* compartidos con el alta): queda activa de inmediato y
+  **desbloquea** la cuenta + reinicia el contador.
+- **Desbloquear sin cambiar la clave**: levanta el bloqueo, misma contraseña.
+- **Bloquear manualmente**: la cuenta no puede entrar ni con la clave correcta.
+- **Bloqueo automático por intentos fallidos**: contador por usuario; al llegar
+  al umbral (parámetro `login_umbral_bloqueo`, default 7) se bloquea. Un login
+  exitoso antes reinicia el contador.
+
+**Modelo de estados (resuelto para no contradecirse):** `activo` = baja/alta de
+la persona; `bloqueado` (+`motivo_bloqueo` auto|manual, `intentos_fallidos`,
+`bloqueado_en`) = bloqueo de acceso. **Regla única: entra ⇔ `activo && !bloqueado`**,
+evaluada en el login (servidor) y en el layout privado. Estado de acceso
+computado con precedencia (Inactiva → Bloqueada → Activa) en `src/lib/acceso.ts`.
+
+- **Login server-side** (`src/app/login/acciones.ts`): cuenta intentos y
+  devuelve un estado tipado que distingue **credenciales** de **cuenta
+  bloqueada** (contrato que consumirá la pantalla de Login de Claude Design).
+  Aviso suave configurable (`login_umbral_aviso`, default 3) independiente del
+  bloqueo (7).
+- **A futuro (no ahora):** enviar la clave nueva / aviso por email o WhatsApp.
+  El diseño lo permite sin rehacer: las acciones de servidor son el único punto
+  donde se generará/cambiará la clave.
+
+Archivos: `src/app/login/acciones.ts`, `src/lib/acceso.ts`,
+`src/components/CampoContrasena.tsx`, ampliación de
+`.../usuarios/acciones.ts` y `FilaUsuario.tsx`, `supabase/migrations/0004_usuarios_seguridad.sql`.
+
 ## 6. Pasos manuales en Supabase
 
 - **service_role**: cargada en `.env.local` local. **Pendiente**: cargarla en Vercel
@@ -148,6 +181,11 @@ Archivos nuevos: `src/lib/temas.ts`, `src/lib/acciones-tema.ts`,
   así que va por el SQL Editor como la 0001, no por script. Mientras no se
   aplique, la app funciona igual con los dos temas *built-in* (fallback en
   `src/lib/temas.ts`); al aplicarla, el catálogo pasa a ser editable por datos.
+- **Migración 0004** (`usuarios` seguridad: columnas de bloqueo/intentos/email
+  en `perfiles` + params `login_umbral_aviso` y `login_umbral_bloqueo`):
+  **PENDIENTE de aplicar** en Supabase → SQL Editor
+  (`supabase/migrations/0004_usuarios_seguridad.sql`). Trae DDL. Hasta
+  aplicarla, el login degrada a básico y las acciones de bloqueo no persisten.
 
 ## 7. Decisiones / parámetros afectados por este cambio
 

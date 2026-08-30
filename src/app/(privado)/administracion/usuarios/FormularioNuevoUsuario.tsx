@@ -3,17 +3,8 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { Rol } from "@/lib/tipos";
+import CampoContrasena from "@/components/CampoContrasena";
 import { crearUsuario } from "./acciones";
-
-function generarPassword(): string {
-  const chars =
-    "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let out = "";
-  const arr = new Uint32Array(12);
-  crypto.getRandomValues(arr);
-  for (let i = 0; i < 12; i++) out += chars[arr[i] % chars.length];
-  return out;
-}
 
 export default function FormularioNuevoUsuario({ roles }: { roles: Rol[] }) {
   const router = useRouter();
@@ -21,7 +12,6 @@ export default function FormularioNuevoUsuario({ roles }: { roles: Rol[] }) {
   const [pendiente, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [password, setPassword] = useState("");
-  const [verPassword, setVerPassword] = useState(false);
   const [exito, setExito] = useState<string | null>(null);
 
   // Rol por defecto: el primero que no sea Administrador, si existe.
@@ -102,35 +92,12 @@ export default function FormularioNuevoUsuario({ roles }: { roles: Rol[] }) {
           />
         </Campo>
         <Campo etiqueta="Contraseña (mínimo 8 caracteres)">
-          <div className="flex gap-2">
-            <input
-              name="password"
-              type={verPassword ? "text" : "password"}
-              required
-              minLength={8}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="entrada"
-            />
-            <button
-              type="button"
-              onClick={() => setVerPassword((v) => !v)}
-              className="shrink-0 px-4 rounded-[var(--radio-control)] border border-[var(--borde)] text-sm"
-              title={verPassword ? "Ocultar" : "Ver"}
-            >
-              {verPassword ? "Ocultar" : "Ver"}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setPassword(generarPassword());
-                setVerPassword(true);
-              }}
-              className="shrink-0 px-4 rounded-[var(--radio-control)] border border-[var(--borde)] text-sm"
-            >
-              Generar
-            </button>
-          </div>
+          <CampoContrasena
+            name="password"
+            required
+            value={password}
+            onChange={setPassword}
+          />
         </Campo>
       </div>
 

@@ -2,34 +2,46 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { iniciarSesion } from "./acciones";
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
+  const [bloqueada, setBloqueada] = useState(false);
   const [cargando, setCargando] = useState(false);
 
-  async function iniciarSesion(e: React.FormEvent) {
+  async function enviar(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setAviso(null);
+    setBloqueada(false);
     setCargando(true);
 
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
+    const res = await iniciarSesion(email, password);
 
-    if (error) {
-      setError("Correo o contraseña incorrectos.");
-      setCargando(false);
+    if ("ok" in res) {
+      router.push("/");
+      router.refresh();
       return;
     }
 
-    router.push("/");
-    router.refresh();
+    setCargando(false);
+
+    if (res.estado === "bloqueada") {
+      setBloqueada(true);
+    } else if (res.estado === "error") {
+      setError(res.mensaje);
+    } else {
+      setError("Correo o contraseña incorrectos.");
+      if (res.avisar) {
+        setAviso(
+          "Ya van varios intentos. Si no recordás tu contraseña, pedile a la administración que te la reinicie."
+        );
+      }
+    }
   }
 
   return (
@@ -45,7 +57,7 @@ export default function LoginPage() {
         </div>
 
         <form
-          onSubmit={iniciarSesion}
+          onSubmit={enviar}
           className="bg-[var(--fondo-panel)] border border-[var(--borde)] rounded-[var(--radio-tarjeta)] p-8 space-y-5"
         >
           <div>
@@ -83,9 +95,28 @@ export default function LoginPage() {
             />
           </div>
 
+          {bloqueada && (
+            <div
+              className="p-4 rounded-[var(--radio-panel)] border border-[var(--peligro)] bg-[var(--peligro-fill)] text-[var(--peligro-texto)]"
+              role="alert"
+            >
+              <div className="font-semibold">Cuenta bloqueada</div>
+              <div className="text-base mt-1">
+                No podés ingresar por ahora. Pedile a la administración que
+                desbloquee tu cuenta o te reinicie la contraseña.
+              </div>
+            </div>
+          )}
+
           {error && (
             <p className="text-[var(--peligro)] text-base" role="alert">
               {error}
+            </p>
+          )}
+
+          {aviso && (
+            <p className="text-[var(--advertencia)] text-base" role="status">
+              {aviso}
             </p>
           )}
 

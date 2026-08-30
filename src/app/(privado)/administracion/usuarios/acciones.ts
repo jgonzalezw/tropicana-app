@@ -36,6 +36,107 @@ export async function actualizarUsuario(formData: FormData) {
   return { ok: true };
 }
 
+/** Campos que limpian el bloqueo de acceso (desbloquear + reiniciar contador). */
+const DESBLOQUEO = {
+  bloqueado: false,
+  motivo_bloqueo: null as string | null,
+  intentos_fallidos: 0,
+  bloqueado_en: null as string | null,
+};
+
+/**
+ * Acción 1 — Reiniciar/cambiar contraseña. Asigna una contraseña nueva
+ * (activa de inmediato) usando service_role, y de paso desbloquea la
+ * cuenta y reinicia el contador de intentos. Camino para "olvidé la clave".
+ */
+export async function resetearContrasena(id: string, password: string) {
+  if (!(await tienePermiso("usuarios", "editar"))) {
+    return { error: "Sin permiso." };
+  }
+  if (password.length < 8) {
+    return { error: "La contraseña debe tener al menos 8 caracteres." };
+  }
+
+  const admin = createAdminClient();
+  if (!admin) {
+    return {
+      error:
+        "Falta configurar la clave service_role de Supabase en el servidor. Avisá al equipo de desarrollo.",
+    };
+  }
+
+  const { error: errAuth } = await admin.auth.admin.updateUserById(id, {
+    password,
+  });
+  if (errAuth) return { error: errAuth.message };
+
+  const { error: errPerfil } = await admin
+    .from("perfiles")
+    .update({ ...DESBLOQUEO, actualizado_en: new Date().toISOString() })
+    .eq("id", id);
+  if (errPerfil) {
+    return {
+      error:
+        "La contraseña se cambió, pero no se pudo limpiar el bloqueo: " +
+        errPerfil.message,
+    };
+  }
+
+  revalidatePath("/administracion/usuarios");
+  return { ok: true };
+}
+
+/**
+ * Acción 2 — Desbloquear sin cambiar la contraseña. Levanta el bloqueo y
+ * reinicia el contador, dejando intacta la clave actual. No toca `activo`
+ * (desbloquear no revierte una baja).
+ */
+export async function desbloquearUsuario(id: string) {
+  if (!(await tienePermiso("usuarios", "editar"))) {
+    return { error: "Sin permiso." };
+  }
+
+  const admin = createAdminClient();
+  if (!admin) return { error: "Falta configurar service_role en el servidor." };
+
+  const { error } = await admin
+    .from("perfiles")
+    .update({ ...DESBLOQUEO, actualizado_en: new Date().toISOString() })
+    .eq("id", id);
+  if (error) return { error: error.message };
+
+  revalidatePath("/administracion/usuarios");
+  return { ok: true };
+}
+
+/**
+ * Acción 3 — Bloquear manualmente una cuenta (independiente de los intentos
+ * fallidos): mientras está bloqueada no puede iniciar sesión ni con la
+ * contraseña correcta. Se levanta con resetearContrasena o desbloquearUsuario.
+ */
+export async function bloquearUsuario(id: string) {
+  if (!(await tienePermiso("usuarios", "editar"))) {
+    return { error: "Sin permiso." };
+  }
+
+  const admin = createAdminClient();
+  if (!admin) return { error: "Falta configurar service_role en el servidor." };
+
+  const { error } = await admin
+    .from("perfiles")
+    .update({
+      bloqueado: true,
+      motivo_bloqueo: "manual",
+      bloqueado_en: new Date().toISOString(),
+      actualizado_en: new Date().toISOString(),
+    })
+    .eq("id", id);
+  if (error) return { error: error.message };
+
+  revalidatePath("/administracion/usuarios");
+  return { ok: true };
+}
+
 export async function crearUsuario(formData: FormData) {
   if (!(await tienePermiso("usuarios", "crear"))) {
     return { error: "Sin permiso." };
