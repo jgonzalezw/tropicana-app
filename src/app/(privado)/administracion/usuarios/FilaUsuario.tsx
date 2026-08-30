@@ -40,10 +40,10 @@ export default function FilaUsuario({
         <td className="py-3 px-4">{perfil.rol?.nombre}</td>
         <td className="py-3 px-4">
           <span
-            className={`inline-block px-2.5 py-1 rounded-full text-sm font-medium ${
+            className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
               perfil.activo
-                ? "bg-[var(--exito)]/20 text-[var(--exito)]"
-                : "bg-[var(--peligro)]/20 text-[var(--peligro)]"
+                ? "bg-[var(--exito-fill)] text-[var(--exito-texto)]"
+                : "bg-[var(--peligro-fill)] text-[var(--peligro-texto)]"
             }`}
           >
             {perfil.activo ? "Activo" : "Inactivo"}
@@ -52,7 +52,7 @@ export default function FilaUsuario({
         <td className="py-3 px-4 text-right">
           <button
             onClick={() => setEditando(true)}
-            className="px-3 py-1.5 text-base rounded-[var(--radio)] border border-[var(--borde)] hover:border-[var(--primario)] transition-colors"
+            className="px-4 py-1.5 text-base rounded-[var(--radio-control)] border border-[var(--borde)] hover:border-[var(--primario)] transition-colors"
           >
             Editar
           </button>
@@ -123,7 +123,7 @@ export default function FilaUsuario({
             <button
               type="submit"
               disabled={pendiente}
-              className="px-4 py-2 text-base font-semibold rounded-[var(--radio)] bg-[var(--primario)] text-[var(--primario-texto)] hover:bg-[var(--primario-hover)] disabled:opacity-60"
+              className="px-5 py-2 text-base font-semibold rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)] hover:bg-[var(--primario-hover)] disabled:opacity-60"
             >
               {pendiente ? "Guardando…" : "Guardar"}
             </button>
@@ -133,7 +133,7 @@ export default function FilaUsuario({
                 setEditando(false);
                 setError(null);
               }}
-              className="px-4 py-2 text-base rounded-[var(--radio)] border border-[var(--borde)]"
+              className="px-5 py-2 text-base rounded-[var(--radio-control)] border border-[var(--borde)]"
             >
               Cancelar
             </button>

@@ -57,7 +57,7 @@ export default function FilaParametro({ parametro }: { parametro: Parametro }) {
         <button
           onClick={guardar}
           disabled={!cambiado || pendiente}
-          className="shrink-0 px-4 py-2 text-base font-semibold rounded-[var(--radio)] bg-[var(--primario)] text-[var(--primario-texto)] hover:bg-[var(--primario-hover)] disabled:opacity-40 disabled:cursor-not-allowed"
+          className="shrink-0 px-5 py-2 text-base font-semibold rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)] hover:bg-[var(--primario-hover)] disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {pendiente ? "…" : guardado ? "✓" : "Guardar"}
         </button>

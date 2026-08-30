@@ -37,7 +37,7 @@ export default async function PaginaRoles() {
 
       <GestionRoles roles={listaRoles} conteos={conteos} />
 
-      <h2 className="text-xl font-semibold mb-4">Permisos por rol</h2>
+      <h2 className="text-xl mb-4">Permisos por rol</h2>
       <p className="text-[var(--texto-tenue)] mb-4">
         Elegí un rol y marcá qué acciones puede hacer en cada módulo. Los cambios
         se guardan al instante.

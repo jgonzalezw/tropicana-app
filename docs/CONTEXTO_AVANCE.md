@@ -2,7 +2,7 @@
 
 > Bitácora técnica que mantiene Claude Code entre sesiones. Fuente funcional:
 > `Tropicana_Vision_Alcance_Requerimientos_v5.3` + `claude_guia-arranque-desarrollo.md`.
-> Última actualización: **2026-08-26**.
+> Última actualización: **2026-08-30**.
 
 ## 1. Resumen
 
@@ -20,6 +20,7 @@ Construcción por etapas según las prioridades de Natalia (Sección 9 del v5.3)
 | Hosting (futuro) | Vercel |
 | Repo | GitHub `jgonzalezw/tropicana-app` |
 | Idioma UI | Español |
+| Sistema de diseño | Handoff de Claude Design en `docs/design/` (README = Design Tokens, DECISIONES = bitácora). Tema oscuro cálido Tropicana. |
 
 - Proyecto local: `C:\Users\Javier\OneDrive\Natalia\tropicana-app`
 - Supabase URL: `https://pnvhpbxjbdmbktpwebtx.supabase.co`
@@ -101,6 +102,38 @@ Se separó **"Usuarios"** como **módulo de permisos independiente** de "Adminis
 Así un Gerente puede gestionar usuarios **sin** ver Roles/Parámetros/Catálogos.
 La plantilla *Gerente (gestión)* incluye el módulo Usuarios; *Asistente (recepción)* no.
 
+## 5b. Sistema de diseño y temas conmutables (2026-08-30)
+
+Antes de Etapa 1 se **unificó el estilo visual** de las pantallas de
+Administración (Usuarios, Roles, Parámetros, Catálogos) con el sistema de
+diseño real de Tropicana. Fue un cambio de **estilo**, sin tocar estructura
+ni comportamiento.
+
+- **Fuente de verdad:** `docs/design/README.md` (sección Design Tokens) +
+  `docs/design/DECISIONES.md`, versionados en el repo junto al bundle de
+  prototipos de Etapa 1 en `docs/design/handoff/`.
+- **Tokens centrales** en `src/app/globals.css`: superficies (bg→surface→
+  elevado), rampas neutral/accent/accent-2, acento `#e08b4f`, radios por tipo
+  de elemento (tarjetas 28px, paneles 20px, controles/chips píldora 999px),
+  tipografía **Montserrat 800** títulos + **Figtree** cuerpo (vía `next/font`),
+  foco y tamaño de fuente tematizables, **sin sombras**.
+- **Temas como catálogo ampliable por datos** (línea "no hardcode"): tabla
+  `public.temas` (una fila por tema, tokens en JSON) + `src/lib/temas.ts`
+  (con temas *built-in* de fallback si la tabla no existe). Sumar una variante
+  = insertar una fila, sin tocar código.
+- **Preferencia por usuario:** columna `perfiles.tema`. Cada persona elige su
+  tema (selector en la barra lateral) y no afecta a los demás. El layout raíz
+  inyecta los tokens del tema activo desde el servidor (`data-theme` en `<html>`),
+  sin flash.
+- **Dos temas de arranque:** `tropicana` (estándar, default) y
+  `tropicana_alto_contraste` (baja visión: más contraste, fuente más grande,
+  foco/bordes marcados). Los valores del estándar salen del README; los de la
+  variante de accesibilidad son una propuesta ajustable por datos (no están en
+  el handoff).
+
+Archivos nuevos: `src/lib/temas.ts`, `src/lib/acciones-tema.ts`,
+`src/components/SelectorTema.tsx`, `supabase/migrations/0003_temas.sql`.
+
 ## 6. Pasos manuales en Supabase
 
 - **service_role**: cargada en `.env.local` local. **Pendiente**: cargarla en Vercel
@@ -110,6 +143,11 @@ La plantilla *Gerente (gestión)* incluye el módulo Usuarios; *Asistente (recep
 - Para que un rol **Gerente ya existente** tome el módulo Usuarios: reaplicar la
   plantilla "Gerente (gestión)" desde la app (1 clic).
 - Migración 0001 (esquema base + roles/permisos/parámetros/catálogos): aplicada por Javier.
+- **Migración 0003** (`temas` + `perfiles.tema`): **PENDIENTE de aplicar** en
+  Supabase → SQL Editor (pegar `supabase/migrations/0003_temas.sql`). Trae DDL,
+  así que va por el SQL Editor como la 0001, no por script. Mientras no se
+  aplique, la app funciona igual con los dos temas *built-in* (fallback en
+  `src/lib/temas.ts`); al aplicarla, el catálogo pasa a ser editable por datos.
 
 ## 7. Decisiones / parámetros afectados por este cambio
 

@@ -3,17 +3,23 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { PerfilConRol } from "@/lib/tipos";
+import SelectorTema from "@/components/SelectorTema";
 
 type ItemNav = { href: string; etiqueta: string; mostrar: boolean };
+type OpcionTema = { clave: string; nombre: string };
 
 export default function BarraLateral({
   perfil,
   puedeUsuarios,
   puedeConfig,
+  temas,
+  temaActual,
 }: {
   perfil: PerfilConRol;
   puedeUsuarios: boolean;
   puedeConfig: boolean;
+  temas: OpcionTema[];
+  temaActual: string;
 }) {
   const pathname = usePathname();
 
@@ -55,7 +61,7 @@ export default function BarraLateral({
   return (
     <aside className="w-64 shrink-0 bg-[var(--fondo-panel)] border-r border-[var(--borde)] flex flex-col">
       <div className="p-6 border-b border-[var(--borde)]">
-        <div className="text-2xl font-bold text-[var(--primario)]">Tropicana</div>
+        <div className="titulo text-2xl text-[var(--primario)]">Tropicana</div>
         <div className="text-sm text-[var(--texto-tenue)] mt-1">Gestión</div>
       </div>
 
@@ -78,7 +84,7 @@ export default function BarraLateral({
                     <li key={item.href}>
                       <Link
                         href={item.href}
-                        className={`block px-3 py-2 rounded-[var(--radio)] text-base transition-colors ${
+                        className={`block px-4 py-2.5 rounded-[var(--radio-control)] text-base transition-colors ${
                           activo
                             ? "bg-[var(--primario)] text-[var(--primario-texto)] font-semibold"
                             : "text-[var(--texto)] hover:bg-[var(--fondo-elevado)]"
@@ -96,6 +102,7 @@ export default function BarraLateral({
       </nav>
 
       <div className="p-4 border-t border-[var(--borde)]">
+        <SelectorTema temas={temas} actual={temaActual} />
         <div className="px-2 mb-3">
           <div className="text-base font-medium truncate">{nombreMostrado}</div>
           <div className="text-sm text-[var(--texto-tenue)]">
@@ -105,7 +112,7 @@ export default function BarraLateral({
         <form action="/auth/signout" method="post">
           <button
             type="submit"
-            className="w-full px-3 py-2 text-base rounded-[var(--radio)] border border-[var(--borde)] text-[var(--texto-tenue)] hover:text-[var(--texto)] hover:border-[var(--texto-tenue)] transition-colors"
+            className="w-full px-4 py-2.5 text-base rounded-[var(--radio-control)] border border-[var(--borde)] text-[var(--texto-tenue)] hover:text-[var(--texto)] hover:border-[var(--texto-tenue)] transition-colors"
           >
             Cerrar sesión
           </button>

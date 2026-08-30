@@ -14,13 +14,13 @@ export default function GestionRoles({
   const [creando, setCreando] = useState(false);
 
   return (
-    <section className="bg-[var(--fondo-panel)] border border-[var(--borde)] rounded-[var(--radio)] p-6 mb-8">
+    <section className="bg-[var(--fondo-panel)] border border-[var(--borde)] rounded-[var(--radio-tarjeta)] p-6 mb-8">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-semibold">Roles</h2>
+        <h2 className="text-xl">Roles</h2>
         {!creando && (
           <button
             onClick={() => setCreando(true)}
-            className="px-4 py-2 text-base font-semibold rounded-[var(--radio)] bg-[var(--primario)] text-[var(--primario-texto)] hover:bg-[var(--primario-hover)]"
+            className="px-4 py-2 text-base font-semibold rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)] hover:bg-[var(--primario-hover)]"
           >
             + Nuevo rol
           </button>
@@ -63,7 +63,7 @@ function FormularioNuevoRol({ onListo }: { onListo: () => void }) {
   }
 
   return (
-    <div className="bg-[var(--fondo-elevado)] border border-[var(--borde)] rounded-[var(--radio)] p-4 mb-4 space-y-3">
+    <div className="bg-[var(--fondo-elevado)] border border-[var(--borde)] rounded-[var(--radio-panel)] p-4 mb-4 space-y-3 aparecer">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <label className="block">
           <span className="block text-base font-medium mb-1.5">
@@ -98,13 +98,13 @@ function FormularioNuevoRol({ onListo }: { onListo: () => void }) {
         <button
           onClick={crear}
           disabled={pendiente || !nombre.trim()}
-          className="px-4 py-2 text-base font-semibold rounded-[var(--radio)] bg-[var(--primario)] text-[var(--primario-texto)] disabled:opacity-40"
+          className="px-4 py-2 text-base font-semibold rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)] disabled:opacity-40"
         >
           {pendiente ? "Creando…" : "Crear rol"}
         </button>
         <button
           onClick={onListo}
-          className="px-4 py-2 text-base rounded-[var(--radio)] border border-[var(--borde)]"
+          className="px-4 py-2 text-base rounded-[var(--radio-control)] border border-[var(--borde)]"
         >
           Cancelar
         </button>
@@ -168,7 +168,7 @@ function FilaRol({ rol, usuarios }: { rol: Rol; usuarios: number }) {
           <button
             onClick={guardar}
             disabled={pendiente}
-            className="px-4 py-2 text-base font-semibold rounded-[var(--radio)] bg-[var(--primario)] text-[var(--primario-texto)] disabled:opacity-40"
+            className="px-4 py-2 text-base font-semibold rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)] disabled:opacity-40"
           >
             Guardar
           </button>
@@ -179,7 +179,7 @@ function FilaRol({ rol, usuarios }: { rol: Rol; usuarios: number }) {
               setDescripcion(rol.descripcion ?? "");
               setError(null);
             }}
-            className="px-4 py-2 text-base rounded-[var(--radio)] border border-[var(--borde)]"
+            className="px-4 py-2 text-base rounded-[var(--radio-control)] border border-[var(--borde)]"
           >
             Cancelar
           </button>
@@ -194,7 +194,7 @@ function FilaRol({ rol, usuarios }: { rol: Rol; usuarios: number }) {
         <div className="flex items-center gap-2">
           <span className="text-base font-medium">{rol.nombre}</span>
           {rol.es_sistema && (
-            <span className="text-xs uppercase tracking-wide px-2 py-0.5 rounded-full border border-[var(--borde)] text-[var(--texto-tenue)]">
+            <span className="text-xs uppercase tracking-wide px-2.5 py-0.5 rounded-full border border-[var(--borde)] text-[var(--texto-tenue)]">
               Sistema
             </span>
           )}
@@ -216,7 +216,7 @@ function FilaRol({ rol, usuarios }: { rol: Rol; usuarios: number }) {
       <div className="flex gap-2 shrink-0">
         <button
           onClick={() => setEditando(true)}
-          className="px-3 py-1.5 text-base rounded-[var(--radio)] border border-[var(--borde)] hover:border-[var(--primario)]"
+          className="px-4 py-1.5 text-base rounded-[var(--radio-control)] border border-[var(--borde)] hover:border-[var(--primario)]"
         >
           Editar
         </button>
@@ -224,7 +224,7 @@ function FilaRol({ rol, usuarios }: { rol: Rol; usuarios: number }) {
           <button
             onClick={eliminar}
             disabled={pendiente}
-            className="px-3 py-1.5 text-base rounded-[var(--radio)] border border-[var(--borde)] text-[var(--peligro)] hover:border-[var(--peligro)] disabled:opacity-40"
+            className="px-4 py-1.5 text-base rounded-[var(--radio-control)] border border-[var(--borde)] text-[var(--peligro)] hover:border-[var(--peligro)] disabled:opacity-40"
           >
             Eliminar
           </button>

@@ -1,25 +1,119 @@
 @import "tailwindcss";
 
 /* =====================================================================
-   TROPICANA — Tema oscuro por defecto, alto contraste y fuente grande
-   (NFR 8.1 / 8.4: visión limitada de la usuaria principal)
+   TROPICANA — Sistema de diseño (tokens centrales)
+   ---------------------------------------------------------------------
+   Fuente de verdad de los valores: docs/design/README.md (sección
+   "Design Tokens") + docs/design/DECISIONES.md.
+
+   ┌─ Cómo está organizado ──────────────────────────────────────────┐
+   │ • Una sola estructura de pantalla. Lo único que cambia entre     │
+   │   temas son estos tokens (colores, tipografía, radios, tamaños,  │
+   │   foco, sombras).                                                 │
+   │ • Los valores de :root son el tema por defecto ("tropicana").    │
+   │ • Cada tema se aplica como bloque  :root[data-theme="clave"]{…}   │
+   │   inyectado desde el servidor (ver src/lib/temas.ts). Al tener    │
+   │   mayor especificidad que :root, siempre gana, sin importar el    │
+   │   orden en la cascada.                                            │
+   │ • El catálogo de temas es AMPLIABLE por datos (tabla `temas`):    │
+   │   sumar una variante = insertar una fila con su mapa de tokens,   │
+   │   sin tocar este archivo.                                         │
+   └──────────────────────────────────────────────────────────────────┘
    ===================================================================== */
+
 :root {
-  --fondo:            #0d1117;  /* fondo principal */
-  --fondo-panel:      #161b22;  /* tarjetas y paneles */
-  --fondo-elevado:    #1f2630;  /* inputs, filas hover */
-  --borde:            #2d3644;
-  --texto:            #f0f3f6;  /* alto contraste */
-  --texto-tenue:      #aeb9c4;
-  --primario:         #ff7a1a;  /* naranja tropical */
-  --primario-hover:   #ff9445;
-  --primario-texto:   #1a1000;
-  --exito:            #2ea043;
-  --peligro:          #f85149;
-  --advertencia:      #d29922;
-  --radio:            10px;
+  /* ── Superficies (bg → surface → elevado): la separación se logra
+        con escalones de color, NO con sombras (D3). ─────────────── */
+  --fondo:            #1c1815;  /* page ground / "tinta" sobre acento */
+  --fondo-panel:      #272220;  /* tarjetas, header, footer sticky   */
+  --fondo-elevado:    #302a25;  /* neutral-100: inputs, filas, panel  */
+  --borde:            rgba(244, 235, 221, 0.16); /* divisores / bordes */
+
+  /* ── Texto ─────────────────────────────────────────────────────── */
+  --texto:            #f4ebdd;  /* cuerpo y títulos (neutral-900)     */
+  --texto-tenue:      #c8bbaa;  /* secundario / muted (neutral-700)   */
+
+  /* ── Acento terracota (primario) ───────────────────────────────── */
+  --primario:         #e08b4f;  /* botones, badges, chevrons, caret   */
+  --primario-hover:   #f6a06b;  /* accent-600 (un paso hacia claro)   */
+  --primario-activo:  #b2622d;  /* accent-400 (pressed sobre oscuro)  */
+  --primario-texto:   #1c1815;  /* "tinta" sobre relleno de acento    */
+
+  /* ── Rampa neutral (oscura, invertida): 100 oscuro → 900 claro ─── */
+  --neutral-100: #302a25;
+  --neutral-200: #3a332d;
+  --neutral-300: #463e37;
+  --neutral-400: #6d6359;
+  --neutral-500: #8f8578;
+  --neutral-600: #ab9f91;
+  --neutral-700: #c8bbaa;
+  --neutral-800: #e2d7c6;
+  --neutral-900: #f4ebdd;
+
+  /* ── Rampa acento terracota (oscura, invertida) ────────────────── */
+  --accent-100: #37200f;
+  --accent-200: #6b3714;
+  --accent-300: #8c491a;
+  --accent-400: #b2622d;
+  --accent-500: #d67f48;
+  --accent-600: #f6a06b;
+  --accent-700: #ffc0a0;
+  --accent-800: #ffd3b5;
+  --accent-900: #fff2eb;
+
+  /* ── Rampa acento-2 sage (segunda voz; oscura, invertida) ──────── */
+  --accent-2-100: #232a18;
+  --accent-2-200: #3a4726;
+  --accent-2-300: #56633f;
+  --accent-2-400: #728157;
+  --accent-2-500: #8fa073;
+  --accent-2-600: #a8bb88;
+  --accent-2-700: #ccdbb2;
+  --accent-2-800: #dcebc4;
+  --accent-2-900: #f0fae1;
+
+  /* ── Semánticos ────────────────────────────────────────────────
+        Éxito = sage (accent-2); peligro/error = terracota (accent).
+        Cada uno viene con relleno tenue + texto legible sobre él,
+        siguiendo el patrón de "chips" del handoff. ─────────────── */
+  --exito:          #a8bb88;  /* punto/ícono            (accent-2-600) */
+  --exito-fill:     #3a4726;  /* relleno del chip       (accent-2-200) */
+  --exito-texto:    #dcebc4;  /* texto sobre el chip    (accent-2-800) */
+  --peligro:        #ffc0a0;  /* texto de error/deuda   (accent-700)   */
+  --peligro-fill:   #6b3714;  /* relleno del chip       (accent-200)   */
+  --peligro-texto:  #ffd3b5;  /* texto sobre el chip    (accent-800)   */
+  --advertencia:    #f6a06b;
+
+  /* ── Pastilla crema para el logo (sobre fondo oscuro) ──────────── */
+  --tropi-chip:     #f4ebdd;
+
+  /* ── Radios: sobre-redondeados, por tipo de elemento ───────────── */
+  --radio-tarjeta:  28px;   /* tarjetas externas (26–32) */
+  --radio-panel:    20px;   /* tarjetas internas / paneles (20–22) */
+  --radio-control:  999px;  /* inputs, botones, chips (píldora) */
+  --radio-chico:    18px;   /* rellenos chicos (18–20) */
+  --radio:          var(--radio-panel); /* alias heredado */
+
+  /* ── Tipografía ────────────────────────────────────────────────
+        Montserrat 800 para títulos y cifras; Figtree para el resto.
+        Las familias se resuelven vía next/font (ver layout.tsx). ── */
+  --font-titulo: var(--font-montserrat), "Montserrat", system-ui, sans-serif;
+  --font-cuerpo: var(--font-figtree), "Figtree", system-ui, Arial, sans-serif;
+  --peso-titulo: 800;
+  --interletra-titulo: -0.025em;
+  --interlinea-titulo: 1.12;
+
+  /* ── Escala de tamaño / accesibilidad ──────────────────────────── */
+  --fuente-base:  17px;  /* tamaño raíz; escala toda la UI (rem) */
+  --foco-grosor:  2px;   /* grosor del anillo de foco */
+  --foco-color:   var(--primario);
+  --borde-grosor: 1px;   /* grosor de bordes de inputs */
+
+  /* ── Elevación ─────────────────────────────────────────────────── */
+  --sombra: none; /* sin sombras sobre fondo oscuro (D3) */
 }
 
+/* Mapea tokens a utilidades de Tailwind (bg-fondo, text-texto, etc.). */
 @theme inline {
   --color-fondo: var(--fondo);
   --color-fondo-panel: var(--fondo-panel);
@@ -32,37 +126,64 @@
   --color-exito: var(--exito);
   --color-peligro: var(--peligro);
   --color-advertencia: var(--advertencia);
-  --font-sans: var(--font-sans-tropicana), system-ui, sans-serif;
+  --font-sans: var(--font-cuerpo);
+  --font-titulo: var(--font-titulo);
 }
 
 html {
-  font-size: 17px; /* base grande para legibilidad */
+  font-size: var(--fuente-base);
 }
 
 body {
   background: var(--fondo);
   color: var(--texto);
-  font-family: var(--font-sans-tropicana), system-ui, Arial, sans-serif;
+  font-family: var(--font-cuerpo);
   -webkit-font-smoothing: antialiased;
 }
 
-/* Foco visible y grueso para accesibilidad */
+/* Títulos y cifras: Montserrat 800 con el tracking/interlínea del sistema. */
+h1, h2, h3, h4, .titulo {
+  font-family: var(--font-titulo);
+  font-weight: var(--peso-titulo);
+  letter-spacing: var(--interletra-titulo);
+  line-height: var(--interlinea-titulo);
+}
+
+/* Foco de teclado visible y tematizado; nunca el azul del navegador. */
 *:focus-visible {
-  outline: 3px solid var(--primario);
+  outline: var(--foco-grosor) solid var(--foco-color);
   outline-offset: 2px;
 }
 
-/* Campo de formulario reutilizable */
+/* Campo de formulario reutilizable (input / select) — píldora. */
 .entrada {
   width: 100%;
-  padding: 0.6rem 0.85rem;
+  min-height: 50px;
+  padding: 0.7rem 0.95rem;
+  font-family: var(--font-cuerpo);
   font-size: 1.0625rem;
-  border-radius: var(--radio);
-  background: var(--fondo);
-  border: 1px solid var(--borde);
+  border-radius: var(--radio-control);
+  background: var(--fondo-elevado);
+  border: var(--borde-grosor) solid var(--borde);
   color: var(--texto);
+  caret-color: var(--primario);
+}
+.entrada:hover {
+  border-color: color-mix(in srgb, var(--texto) 40%, transparent);
 }
 .entrada:focus {
   border-color: var(--primario);
   outline: none;
+}
+
+/* Una sola animación de entrada, para banners y paneles en su lugar. */
+@keyframes aparecer {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.aparecer {
+  animation: aparecer 220ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .aparecer { animation: none; }
 }

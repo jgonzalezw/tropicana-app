@@ -13,7 +13,7 @@ export default async function LayoutAdministracion({
   if (!puedeUsuarios && !puedeConfig) {
     return (
       <div className="p-8 max-w-2xl">
-        <h1 className="text-2xl font-bold mb-3">Sin acceso</h1>
+        <h1 className="text-2xl mb-3">Sin acceso</h1>
         <p className="text-[var(--texto-tenue)] text-lg">
           No tenés permisos para esta sección.
         </p>

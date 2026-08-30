@@ -35,9 +35,9 @@ export default async function PaginaParametros() {
         {Object.entries(grupos).map(([grupo, items]) => (
           <section
             key={grupo}
-            className="bg-[var(--fondo-panel)] border border-[var(--borde)] rounded-[var(--radio)] p-6"
+            className="bg-[var(--fondo-panel)] border border-[var(--borde)] rounded-[var(--radio-tarjeta)] p-6"
           >
-            <h2 className="text-xl font-semibold mb-2">{grupo}</h2>
+            <h2 className="text-xl mb-2">{grupo}</h2>
             <div>
               {items.map((p) => (
                 <FilaParametro key={p.clave} parametro={p} />

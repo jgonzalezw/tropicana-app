@@ -32,7 +32,7 @@ export default function MatrizPermisos({
           <button
             key={r.id}
             onClick={() => setRolActivo(r.id)}
-            className={`px-4 py-2 text-base rounded-[var(--radio)] border transition-colors ${
+            className={`px-4 py-2 text-base rounded-[var(--radio-control)] border transition-colors ${
               rolActivo === r.id
                 ? "bg-[var(--primario)] text-[var(--primario-texto)] border-[var(--primario)] font-semibold"
                 : "border-[var(--borde)] hover:border-[var(--primario)]"
@@ -100,7 +100,7 @@ function TablaRol({
 
   return (
     <div>
-      <div className="bg-[var(--fondo-elevado)] border border-[var(--borde)] rounded-[var(--radio)] p-4 mb-4">
+      <div className="bg-[var(--fondo-elevado)] border border-[var(--borde)] rounded-[var(--radio-panel)] p-4 mb-4">
         <div className="text-base font-medium mb-2">Aplicar plantilla</div>
         <div className="flex flex-wrap gap-2">
           {PLANTILLAS.map((p) => (
@@ -109,7 +109,7 @@ function TablaRol({
               onClick={() => usarPlantilla(p.clave)}
               disabled={pendiente}
               title={p.descripcion}
-              className="px-3 py-1.5 text-base rounded-[var(--radio)] border border-[var(--borde)] hover:border-[var(--primario)] disabled:opacity-40"
+              className="px-4 py-1.5 text-base rounded-[var(--radio-control)] border border-[var(--borde)] hover:border-[var(--primario)] disabled:opacity-40"
             >
               {p.nombre}
             </button>
@@ -121,7 +121,7 @@ function TablaRol({
         </p>
       </div>
 
-      <div className="bg-[var(--fondo-panel)] border border-[var(--borde)] rounded-[var(--radio)] overflow-x-auto">
+      <div className="bg-[var(--fondo-panel)] border border-[var(--borde)] rounded-[var(--radio-tarjeta)] overflow-x-auto">
       <table className="w-full text-left">
         <thead>
           <tr className="text-sm uppercase tracking-wider text-[var(--texto-tenue)]">
@@ -146,7 +146,7 @@ function TablaRol({
                       disabled={pendiente}
                       aria-pressed={activo}
                       aria-label={`${ETIQUETA_ACCION[a]} ${ETIQUETA_MODULO[m]}`}
-                      className={`w-6 h-6 rounded-md border-2 transition-colors ${
+                      className={`w-7 h-7 rounded-[10px] border-2 transition-colors ${
                         activo
                           ? "bg-[var(--primario)] border-[var(--primario)]"
                           : "border-[var(--borde)] hover:border-[var(--texto-tenue)]"

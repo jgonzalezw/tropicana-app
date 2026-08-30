@@ -13,6 +13,8 @@ export type Perfil = {
   whatsapp: string | null;
   rol_id: number;
   activo: boolean;
+  /** Clave del tema visual elegido por el usuario (ver tabla `temas`). */
+  tema: string | null;
   creado_en: string;
   actualizado_en: string;
 };

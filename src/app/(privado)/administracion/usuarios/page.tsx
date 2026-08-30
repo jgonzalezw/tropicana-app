@@ -34,12 +34,12 @@ export default async function PaginaUsuarios() {
       <FormularioNuevoUsuario roles={listaRoles} />
 
       {listaPerfiles.length === 0 ? (
-        <div className="bg-[var(--fondo-panel)] border border-[var(--borde)] rounded-[var(--radio)] p-6 text-[var(--texto-tenue)] text-lg">
+        <div className="bg-[var(--fondo-panel)] border border-[var(--borde)] rounded-[var(--radio-tarjeta)] p-6 text-[var(--texto-tenue)] text-lg">
           Todavía no hay usuarios. Usá “+ Nuevo usuario” para crear la primera
           cuenta.
         </div>
       ) : (
-        <div className="bg-[var(--fondo-panel)] border border-[var(--borde)] rounded-[var(--radio)] overflow-hidden">
+        <div className="bg-[var(--fondo-panel)] border border-[var(--borde)] rounded-[var(--radio-tarjeta)] overflow-hidden">
           <table className="w-full text-left">
             <thead>
               <tr className="text-sm uppercase tracking-wider text-[var(--texto-tenue)]">

@@ -25,7 +25,7 @@ export default function ClienteCatalogos({
             <li key={c.id}>
               <button
                 onClick={() => setActivo(c.id)}
-                className={`w-full text-left px-3 py-2 rounded-[var(--radio)] text-base transition-colors ${
+                className={`w-full text-left px-4 py-2.5 rounded-[var(--radio-control)] text-base transition-colors ${
                   activo === c.id
                     ? "bg-[var(--primario)] text-[var(--primario-texto)] font-semibold"
                     : "hover:bg-[var(--fondo-elevado)]"
@@ -40,8 +40,8 @@ export default function ClienteCatalogos({
 
       <div className="flex-1">
         {catalogo && (
-          <div className="bg-[var(--fondo-panel)] border border-[var(--borde)] rounded-[var(--radio)] p-6">
-            <h2 className="text-xl font-semibold">{catalogo.nombre}</h2>
+          <div className="bg-[var(--fondo-panel)] border border-[var(--borde)] rounded-[var(--radio-tarjeta)] p-6">
+            <h2 className="text-xl">{catalogo.nombre}</h2>
             {catalogo.descripcion && (
               <p className="text-[var(--texto-tenue)] mt-1 mb-4">
                 {catalogo.descripcion}
@@ -96,7 +96,7 @@ function FilaValor({ valor }: { valor: CatalogoValor }) {
           setActivoValor(n);
           guardar(n);
         }}
-        className={`shrink-0 px-3 py-2 text-sm rounded-[var(--radio)] border ${
+        className={`shrink-0 px-4 py-2 text-sm rounded-[var(--radio-control)] border ${
           activo
             ? "border-[var(--exito)] text-[var(--exito)]"
             : "border-[var(--borde)] text-[var(--texto-tenue)]"
@@ -108,7 +108,7 @@ function FilaValor({ valor }: { valor: CatalogoValor }) {
         <button
           onClick={() => guardar()}
           disabled={pendiente}
-          className="shrink-0 px-3 py-2 text-sm font-semibold rounded-[var(--radio)] bg-[var(--primario)] text-[var(--primario-texto)]"
+          className="shrink-0 px-4 py-2 text-sm font-semibold rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)]"
         >
           Guardar
         </button>
@@ -146,7 +146,7 @@ function NuevoValor({ catalogoId }: { catalogoId: number }) {
         <button
           onClick={agregar}
           disabled={pendiente || !etiqueta.trim()}
-          className="shrink-0 px-4 py-2 text-base font-semibold rounded-[var(--radio)] bg-[var(--primario)] text-[var(--primario-texto)] disabled:opacity-40"
+          className="shrink-0 px-5 py-2 text-base font-semibold rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)] disabled:opacity-40"
         >
           Agregar
         </button>

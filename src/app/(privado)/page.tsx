@@ -38,7 +38,7 @@ export default async function Inicio() {
           />
         </div>
       ) : (
-        <div className="bg-[var(--fondo-panel)] border border-[var(--borde)] rounded-[var(--radio)] p-6">
+        <div className="bg-[var(--fondo-panel)] border border-[var(--borde)] rounded-[var(--radio-tarjeta)] p-6">
           <p className="text-[var(--texto-tenue)] text-lg">
             Los módulos de tu rol aparecerán acá a medida que se construyan.
           </p>
@@ -60,9 +60,9 @@ function TarjetaAcceso({
   return (
     <Link
       href={href}
-      className="block bg-[var(--fondo-panel)] border border-[var(--borde)] rounded-[var(--radio)] p-6 hover:border-[var(--primario)] transition-colors"
+      className="block bg-[var(--fondo-panel)] border border-[var(--borde)] rounded-[var(--radio-tarjeta)] p-6 hover:border-[var(--primario)] transition-colors"
     >
-      <div className="text-xl font-semibold mb-1">{titulo}</div>
+      <div className="titulo text-xl mb-1">{titulo}</div>
       <div className="text-[var(--texto-tenue)]">{texto}</div>
     </Link>
   );

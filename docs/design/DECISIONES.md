@@ -138,3 +138,24 @@ Todavía no hay entradas. De acá en adelante, cada ronda de revisión se anota 
 
 ### 29 ago 2026 — línea base
 Se crea este registro. No es una ronda de cambios: es el estado vigente de las tres pantallas (`Inscribir y cobrar`, `Tomar asistencia`, `Caja y resumen`) más el paso compartido `Cobro`, tal como quedaron en el paquete de handoff.
+
+### 30 ago 2026 — tokens centrales + temas conmutables (app real)
+Se versionó este handoff dentro del repo (`docs/design/`) y se aplicó el
+sistema de diseño a las pantallas ya construidas de **Administración**
+(Usuarios, Roles, Parámetros, Catálogos) — cambio de estilo, sin tocar
+estructura ni comportamiento.
+
+- **Tokens centrales** en `src/app/globals.css` con el vocabulario del README
+  (superficies, rampas, acento `#e08b4f`, radios por tipo de elemento,
+  Montserrat 800 / Figtree, sin sombras).
+- **D5 — Temas como catálogo de datos, no dos opciones cableadas.** Los temas
+  viven en la tabla `public.temas` (tokens en JSON) con fallback *built-in* en
+  `src/lib/temas.ts`. Una misma maquetación; entre temas sólo cambian los
+  valores de estilo. Sumar una variante = insertar una fila.
+- **D6 — Preferencia de tema por usuario** (`perfiles.tema`), no global. El
+  layout raíz inyecta los tokens del tema activo (`data-theme` en `<html>`).
+- **Tema `tropicana_alto_contraste`.** Variante para baja visión (más
+  contraste, fuente más grande, foco/bordes marcados). Sus valores NO vienen
+  del handoff (el README define un solo tema): son una propuesta ajustable por
+  datos. Registrar acá si se afinan.
+- Migración `0003_temas.sql` (DDL: tabla `temas` + columna `perfiles.tema`).

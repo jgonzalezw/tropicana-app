@@ -49,7 +49,7 @@ export default function FormularioNuevoUsuario({ roles }: { roles: Rol[] }) {
     return (
       <div className="mb-6">
         {exito && (
-          <div className="mb-4 p-4 rounded-[var(--radio)] border border-[var(--exito)] text-[var(--exito)] bg-[var(--exito)]/10">
+          <div className="mb-4 p-4 rounded-[var(--radio-panel)] border border-[var(--exito)] text-[var(--exito-texto)] bg-[var(--exito-fill)] aparecer">
             {exito}
           </div>
         )}
@@ -58,7 +58,7 @@ export default function FormularioNuevoUsuario({ roles }: { roles: Rol[] }) {
             setAbierto(true);
             setExito(null);
           }}
-          className="px-5 py-2.5 text-base font-semibold rounded-[var(--radio)] bg-[var(--primario)] text-[var(--primario-texto)] hover:bg-[var(--primario-hover)]"
+          className="px-5 py-2.5 text-base font-semibold rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)] hover:bg-[var(--primario-hover)]"
         >
           + Nuevo usuario
         </button>
@@ -69,9 +69,9 @@ export default function FormularioNuevoUsuario({ roles }: { roles: Rol[] }) {
   return (
     <form
       action={enviar}
-      className="mb-6 bg-[var(--fondo-panel)] border border-[var(--borde)] rounded-[var(--radio)] p-6 space-y-4"
+      className="mb-6 bg-[var(--fondo-panel)] border border-[var(--borde)] rounded-[var(--radio-tarjeta)] p-6 space-y-4"
     >
-      <h2 className="text-xl font-semibold">Nuevo usuario</h2>
+      <h2 className="text-xl">Nuevo usuario</h2>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Campo etiqueta="Nombre">
@@ -115,7 +115,7 @@ export default function FormularioNuevoUsuario({ roles }: { roles: Rol[] }) {
             <button
               type="button"
               onClick={() => setVerPassword((v) => !v)}
-              className="shrink-0 px-3 rounded-[var(--radio)] border border-[var(--borde)] text-sm"
+              className="shrink-0 px-4 rounded-[var(--radio-control)] border border-[var(--borde)] text-sm"
               title={verPassword ? "Ocultar" : "Ver"}
             >
               {verPassword ? "Ocultar" : "Ver"}
@@ -126,7 +126,7 @@ export default function FormularioNuevoUsuario({ roles }: { roles: Rol[] }) {
                 setPassword(generarPassword());
                 setVerPassword(true);
               }}
-              className="shrink-0 px-3 rounded-[var(--radio)] border border-[var(--borde)] text-sm"
+              className="shrink-0 px-4 rounded-[var(--radio-control)] border border-[var(--borde)] text-sm"
             >
               Generar
             </button>
@@ -149,7 +149,7 @@ export default function FormularioNuevoUsuario({ roles }: { roles: Rol[] }) {
         <button
           type="submit"
           disabled={pendiente}
-          className="px-5 py-2.5 text-base font-semibold rounded-[var(--radio)] bg-[var(--primario)] text-[var(--primario-texto)] hover:bg-[var(--primario-hover)] disabled:opacity-60"
+          className="px-5 py-2.5 text-base font-semibold rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)] hover:bg-[var(--primario-hover)] disabled:opacity-60"
         >
           {pendiente ? "Creando…" : "Crear usuario"}
         </button>
@@ -159,7 +159,7 @@ export default function FormularioNuevoUsuario({ roles }: { roles: Rol[] }) {
             setAbierto(false);
             setError(null);
           }}
-          className="px-5 py-2.5 text-base rounded-[var(--radio)] border border-[var(--borde)]"
+          className="px-5 py-2.5 text-base rounded-[var(--radio-control)] border border-[var(--borde)]"
         >
           Cancelar
         </button>
