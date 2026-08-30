@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/organic-186d334f-848b-405d-95ba-b805f2b70bf6/styles.css">
+<script src="_ds/organic-186d334f-848b-405d-95ba-b805f2b70bf6/_ds_bundle.js"></script>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&display=swap">
+<style>
+
+/* Fondo oscuro: se reasignan los tokens del sistema y se invierten las rampas,
+   para que los mismos pasos sigan pesando igual sobre un fondo oscuro. */
+:root {
+  --color-bg: #1c1815;
+  --color-surface: #272220;
+  --color-text: #f4ebdd;
+  --color-divider: color-mix(in srgb, #f4ebdd 16%, transparent);
+  --color-accent: #e08b4f;
+  --color-accent-2: #9bad78;
+
+  --color-neutral-100: #302a25;
+  --color-neutral-200: #3a332d;
+  --color-neutral-300: #463e37;
+  --color-neutral-400: #6d6359;
+  --color-neutral-500: #8f8578;
+  --color-neutral-600: #ab9f91;
+  --color-neutral-700: #c8bbaa;
+  --color-neutral-800: #e2d7c6;
+  --color-neutral-900: #f4ebdd;
+
+  --color-accent-100: #37200f;
+  --color-accent-200: #6b3714;
+  --color-accent-300: #8c491a;
+  --color-accent-400: #b2622d;
+  --color-accent-500: #d67f48;
+  --color-accent-600: #f6a06b;
+  --color-accent-700: #ffc0a0;
+  --color-accent-800: #ffd3b5;
+  --color-accent-900: #fff2eb;
+
+  --color-accent-2-100: #232a18;
+  --color-accent-2-200: #3a4726;
+  --color-accent-2-300: #56633f;
+  --color-accent-2-400: #728157;
+  --color-accent-2-500: #8fa073;
+  --color-accent-2-600: #a8bb88;
+  --color-accent-2-700: #ccdbb2;
+  --color-accent-2-800: #dcebc4;
+  --color-accent-2-900: #f0fae1;
+
+  --tropi-chip: #f4ebdd;
+}
+.input option, select.input { color: var(--color-text); background: var(--color-neutral-100); }
+
+
+/* Tipografía: grotesca geométrica en bold para los títulos, en lugar del display. */
+:root {
+  --font-heading: "Montserrat", system-ui, sans-serif;
+  --font-heading-weight: 800;
+}
+h1, h2, h3, h4 { letter-spacing: -0.025em; }
+.btn { font-weight: 700; letter-spacing: 0.01em; }
+.nw { white-space: nowrap; }
+.caja-chip, .asis-tag { white-space: nowrap; flex: none; }
+
+body { margin: 0; background: var(--color-bg); -webkit-text-size-adjust: 100%; }
+a { color: var(--color-accent-700); }
+a:hover { color: var(--color-accent-800); }
+.caja-in { font-size: 18px !important; min-height: 52px !important; background: var(--color-neutral-100) !important; }
+.caja-seg { display: flex; width: 100%; }
+.caja-seg .seg-opt { flex: 1; justify-content: center; font-size: 16px; padding: 13px 6px; white-space: nowrap; }
+.caja-btn { font-size: 18px !important; min-height: 56px !important; }
+.caja-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); align-items: start; }
+@keyframes cajaIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+</style>
+</helmet>
+<div style="min-height:100vh;background:var(--color-bg);font-family:var(--font-body);color:var(--color-text)">
+<div style="max-width:1180px;margin:0 auto;padding:24px 18px 60px">
+
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:22px">
+    <div style="background:var(--tropi-chip);border-radius:999px;padding:5px 13px;display:flex;flex:none"><img src="assets/tropicana-logo.png" alt="Tropicana" style="height:26px;width:auto"></img></div>
+    <div class="nw" style="margin-left:auto;font-size:14px;color:var(--color-neutral-700)">Natalia · admin</div>
+  </div>
+
+  <div style="margin-bottom:18px">
+    <h1 style="font-size:clamp(30px,5vw,42px);margin:0">Caja y resumen del mes</h1>
+    <div style="font-size:16px;color:var(--color-neutral-700);margin-top:4px">Lunes 24 de agosto · todo se calcula desde los cobros y pagos del sistema.</div>
+  </div>
+
+  <sc-if value="{{ aviso }}" hint-placeholder-val="{{ false }}">
+    <div style="display:flex;align-items:center;gap:10px;background:var(--color-accent-2-200);border-radius:22px;padding:14px 18px;margin-bottom:16px;animation:cajaIn .25s ease-out">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-2-800)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M20 6 9 17l-5-5"></path></svg>
+      <div style="font-size:16px;color:var(--color-accent-2-900)">{{ aviso }}</div>
+      <button class="btn btn-ghost" onClick="{{ cerrarAviso }}" style="margin-left:auto;color:var(--color-accent-2-800);font-size:14px">Cerrar</button>
+    </div>
+  </sc-if>
+
+  <div style="background:var(--color-surface);border-radius:32px;padding:clamp(18px,3vw,28px);margin-bottom:14px;display:flex;flex-wrap:wrap;gap:22px;align-items:flex-end">
+    <div style="flex:1;min-width:240px">
+      <div style="font-size:15px;letter-spacing:.08em;text-transform:uppercase;color:var(--color-accent-700)">Saldo en caja</div>
+      <div class="nw" style="font-family:var(--font-heading);font-size:clamp(40px,8vw,68px);line-height:1.02;margin-top:6px">{{ saldoTexto }}</div>
+      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+        <span class="tag tag-neutral caja-chip" style="font-size:15px;padding:7px 14px;gap:6px">{{ efectivoTexto }}</span>
+        <span class="tag tag-neutral caja-chip" style="font-size:15px;padding:7px 14px;gap:6px">{{ bancoTexto }}</span>
+      </div>
+    </div>
+    <div style="flex:none;width:min(100%,320px)">
+      <sc-if value="{{ panelCerrado }}" hint-placeholder-val="{{ true }}">
+        <button class="btn btn-primary btn-block caja-btn" onClick="{{ abrirPanel }}" style="margin-top:0">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+          Registrar movimiento
+        </button>
+      </sc-if>
+    </div>
+  </div>
+
+  <sc-if value="{{ panelAbierto }}" hint-placeholder-val="{{ false }}">
+    <div style="background:var(--color-neutral-100);border-radius:32px;padding:clamp(18px,3vw,26px);margin-bottom:14px;animation:cajaIn .2s ease-out">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+        <div style="font-family:var(--font-heading);font-size:24px">Movimiento de caja</div>
+        <button class="btn btn-ghost" onClick="{{ cerrarPanel }}" style="margin-left:auto;font-size:15px">Cancelar</button>
+      </div>
+
+      <div style="display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));align-items:end">
+        <div>
+          <div style="font-size:15px;color:var(--color-neutral-700);margin-bottom:6px">¿Entra o sale?</div>
+          <div class="seg caja-seg">
+            <label class="seg-opt">
+              <input type="radio" name="tipo" checked="{{ esIngreso }}" onChange="{{ setIngreso }}"></input>
+              <span>Ingreso</span>
+            </label>
+            <label class="seg-opt">
+              <input type="radio" name="tipo" checked="{{ esEgreso }}" onChange="{{ setEgreso }}"></input>
+              <span>Egreso</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="field">
+          <label style="font-size:15px">Motivo</label>
+          <select class="input caja-in" value="{{ motivo }}" onChange="{{ onMotivo }}">
+            <sc-for list="{{ motivos }}" as="m" hint-placeholder-count="5">
+              <option value="{{ m.v }}">{{ m.v }}</option>
+            </sc-for>
+          </select>
+        </div>
+
+        <sc-if value="{{ haySujetos }}" hint-placeholder-val="{{ true }}">
+          <div class="field">
+            <label style="font-size:15px">{{ sujetoLabel }}</label>
+            <select class="input caja-in" value="{{ sujetoId }}" onChange="{{ onSujeto }}">
+              <sc-for list="{{ sujetos }}" as="s" hint-placeholder-count="4">
+                <option value="{{ s.id }}">{{ s.v }}</option>
+              </sc-for>
+            </select>
+          </div>
+        </sc-if>
+
+        <div class="field">
+          <label style="font-size:15px">Glosa (detalle)</label>
+          <input class="input caja-in" value="{{ concepto }}" onChange="{{ onConcepto }}" placeholder="ej. cuota de agosto de Virginia Martínez"></input>
+        </div>
+
+      </div>
+
+      <div style="background:var(--color-neutral-200);border-radius:22px;padding:14px;margin-top:14px">
+        <dc-import name="Cobro" sujeto="{{ cobroSujeto }}" detalle="{{ cobroDetalle }}" referencia="{{ cobroReferencia }}" referencia-label="{{ cobroRefLabel }}" politica="{{ cobroPolitica }}" direccion="{{ cobroDireccion }}" medios="Efectivo,QR / banco" permitir-sin-cobro="{{ false }}" cuenta-id="{{ cobroCuentaId }}" onChange="{{ onCobro }}" hint-size="100%,220px"></dc-import>
+      </div>
+
+      <div style="font-size:15px;color:var(--color-accent-700);margin-top:14px">{{ afectaTexto }}</div>
+
+      <sc-if value="{{ errorMsg }}" hint-placeholder-val="{{ false }}">
+        <div style="font-size:15px;color:var(--color-accent-800);background:var(--color-accent-200);border-radius:18px;padding:12px 16px;margin-top:14px">{{ errorMsg }}</div>
+      </sc-if>
+
+      <button class="btn btn-primary caja-btn" onClick="{{ guardar }}" style="margin-top:16px;width:min(100%,320px)">Guardar movimiento</button>
+    </div>
+  </sc-if>
+
+  <div class="caja-grid">
+    <div style="background:var(--color-surface);border-radius:32px;padding:20px">
+      <div style="font-family:var(--font-heading);font-size:21px;margin-bottom:4px">Por cobrar y por pagar</div>
+      <div style="font-size:14px;color:var(--color-neutral-700);margin-bottom:14px">Cada cobro o pago que registrás descuenta de estas deudas.</div>
+
+      <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px">
+        <div style="flex:1;font-size:15px;color:var(--color-neutral-700)">Por cobrar</div>
+        <div class="nw" style="font-family:var(--font-heading);font-size:26px;color:var(--color-accent-2-800);flex:none">{{ porCobrarTotal }}</div>
+      </div>
+      <sc-for list="{{ cobrarFilas }}" as="f" hint-placeholder-count="5">
+        <div style="display:flex;align-items:baseline;gap:10px;padding:7px 0;border-bottom:1px solid var(--color-divider)">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:15px">{{ f.label }}</div>
+            <div style="font-size:13px;color:var(--color-neutral-700)">{{ f.detalle }}</div>
+          </div>
+          <div class="nw" style="font-size:16px;font-weight:700;flex:none">{{ f.monto }}</div>
+        </div>
+      </sc-for>
+
+      <div style="height:12px;border-radius:999px;background:var(--color-neutral-300);margin:16px 0 6px;overflow:hidden">
+        <div style="{{ barraAvance }}"></div>
+      </div>
+      <div style="font-size:14px;color:var(--color-neutral-700)">{{ avanceTexto }}</div>
+
+      <div style="display:flex;align-items:baseline;gap:10px;margin:18px 0 8px">
+        <div style="flex:1;font-size:15px;color:var(--color-neutral-700)">Por pagar</div>
+        <div class="nw" style="font-family:var(--font-heading);font-size:26px;color:var(--color-accent-800);flex:none">{{ porPagarTotal }}</div>
+      </div>
+      <sc-for list="{{ pagarFilas }}" as="f" hint-placeholder-count="3">
+        <div style="display:flex;align-items:baseline;gap:10px;padding:7px 0;border-bottom:1px solid var(--color-divider)">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:15px">{{ f.label }}</div>
+            <div style="font-size:13px;color:var(--color-neutral-700)">{{ f.detalle }}</div>
+          </div>
+          <div class="nw" style="font-size:16px;font-weight:700;flex:none">{{ f.monto }}</div>
+        </div>
+      </sc-for>
+    </div>
+
+    <sc-if value="{{ verComposicion }}" hint-placeholder-val="{{ true }}">
+    <div style="background:var(--color-surface);border-radius:32px;padding:20px">
+      <div style="font-family:var(--font-heading);font-size:21px;margin-bottom:14px">Cómo se compone la caja</div>
+      <sc-for list="{{ composicion }}" as="c" hint-placeholder-count="5">
+        <div style="display:flex;align-items:baseline;gap:10px;padding:9px 0;border-bottom:1px solid var(--color-divider)">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:16px">{{ c.label }}</div>
+            <div style="font-size:14px;color:var(--color-neutral-700)">{{ c.detalle }}</div>
+          </div>
+          <div class="nw" style="font-size:18px;font-weight:700;flex:none">{{ c.monto }}</div>
+        </div>
+      </sc-for>
+      <div style="display:flex;align-items:baseline;gap:10px;padding-top:14px">
+        <div style="flex:1;font-size:17px;font-weight:700">Saldo</div>
+        <div class="nw" style="font-family:var(--font-heading);font-size:26px;flex:none">{{ saldoTexto }}</div>
+      </div>
+    </div>
+    </sc-if>
+
+    <div style="background:var(--color-surface);border-radius:32px;padding:20px">
+      <div style="font-family:var(--font-heading);font-size:21px;margin-bottom:4px">Agosto</div>
+      <div style="font-size:14px;color:var(--color-neutral-700);margin-bottom:16px">Ingresos y egresos del mes en curso</div>
+
+      <div style="font-size:15px;color:var(--color-neutral-700)">Ingresos</div>
+      <div style="font-family:var(--font-heading);font-size:32px;color:var(--color-accent-2-800);line-height:1.1">{{ ingresosTexto }}</div>
+      <div style="height:14px;border-radius:999px;background:var(--color-neutral-300);margin:8px 0 16px;overflow:hidden">
+        <div style="{{ barraIngresos }}"></div>
+      </div>
+
+      <div style="font-size:15px;color:var(--color-neutral-700)">Egresos</div>
+      <div style="font-family:var(--font-heading);font-size:32px;color:var(--color-accent-800);line-height:1.1">{{ egresosTexto }}</div>
+      <div style="height:14px;border-radius:999px;background:var(--color-neutral-300);margin:8px 0 16px;overflow:hidden">
+        <div style="{{ barraEgresos }}"></div>
+      </div>
+
+      <div style="display:flex;align-items:baseline;gap:10px;padding-top:8px;border-top:1px solid var(--color-divider)">
+        <div style="flex:1;font-size:17px;font-weight:700">Resultado</div>
+        <div class="nw" style="font-family:var(--font-heading);font-size:26px;flex:none">{{ resultadoTexto }}</div>
+      </div>
+      <div style="font-size:14px;color:var(--color-neutral-700);margin-top:8px">{{ notaResultado }}</div>
+    </div>
+
+    <div style="background:var(--color-surface);border-radius:32px;padding:20px">
+      <div style="font-family:var(--font-heading);font-size:21px;margin-bottom:14px">Últimos movimientos</div>
+      <sc-for list="{{ movimientos }}" as="m" hint-placeholder-count="4">
+        <div style="display:flex;align-items:center;gap:12px;background:var(--color-neutral-100);border-radius:20px;padding:12px 14px;margin-bottom:8px">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:16px;font-weight:600">{{ m.concepto }}</div>
+            <div style="font-size:14px;color:var(--color-accent-700)">{{ m.motivo }}</div>
+            <div style="font-size:14px;color:var(--color-neutral-700)">{{ m.meta }}</div>
+          </div>
+          <sc-if value="{{ m.entra }}" hint-placeholder-val="{{ true }}">
+            <div class="nw" style="font-size:18px;font-weight:700;color:var(--color-accent-2-800);flex:none">{{ m.monto }}</div>
+          </sc-if>
+          <sc-if value="{{ m.sale }}" hint-placeholder-val="{{ false }}">
+            <div class="nw" style="font-size:18px;font-weight:700;color:var(--color-accent-800);flex:none">{{ m.monto }}</div>
+          </sc-if>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;mostrarComposicion&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Dashboard&quot;}}">
+const bs = (n) => 'Bs. ' + Number(n || 0).toLocaleString('es-BO');
+const firmado = (n) => (n === 0 ? '' : (n < 0 ? '− ' : '+ ')) + 'Bs. ' + Math.abs(Number(n || 0)).toLocaleString('es-BO');
+
+// Fuentes automáticas del mes — cifras reales de la planilla (agosto 2026).
+const COBROS_ALUMNOS = 1360;      // PAGOS · total cobrado
+const COBROS_PARTICULARES = 500;  // PAGOSPARTICULARES
+const COBROS_PRUEBA = 60;         // CLASES DE PRUEBA · cobrado
+const VENTAS_PRODUCTOS = 4;       // PAGOSVENTAS
+const PAGOS_PROFESORES = 520;     // ESTADO DE CUENTA POR PROFESOR · pagado
+const COSTOS_FIJOS_PAGADOS = 0;   // COSTOS FIJOS · todavía sin pagos registrados
+
+// Saldos abiertos por sujeto, tomados de la planilla: INSCRIPCIONES (saldo por
+// inscripción), CLASES PARTICULARES, ESTADO DE CUENTA POR PROFESOR, COSTOS FIJOS
+// (equivalente mensual) y PROVEEDORES.
+const POR_COBRAR = [
+  { k: 'cuotas', label: 'Cuotas de alumnos', items: [
+    { id: 'INS002', sujeto: 'Salinas Laida · Salsa y Bachata Inicial', base: 250 },
+    { id: 'INS003', sujeto: 'Cutipa Jhonny · Bachata Conexión', base: 250 },
+    { id: 'INS009', sujeto: 'Barrientos Loana · Salsa y Bachata Inicial', base: 250 },
+    { id: 'INS010', sujeto: 'Rayza Gabriela · Salsa y Bachata Inicial', base: 250 },
+    { id: 'INS004', sujeto: 'Aguilar Manuel · Bachata Conexión', base: 200 },
+    { id: 'INS005', sujeto: 'Martinez Virginia · Bachata Conexión', base: 200 },
+    { id: 'INS006', sujeto: 'Salinas Laida · Bachata Conexión', base: 200 },
+    { id: 'INS007', sujeto: 'Jorge · Bachata Conexión', base: 200 },
+    { id: 'INS008', sujeto: 'Fonseca Tania · Bachata Conexión', base: 200 }
+  ] },
+  { k: 'particulares', label: 'Paquetes y clases particulares', items: [
+    { id: 'PTC002', sujeto: 'Yubinca · Bachata Conexión, paq 6', base: 180 }
+  ] },
+  { k: 'alquiler', label: 'Alquiler de sala', items: [] },
+  { k: 'pruebas', label: 'Clases de prueba', items: [] },
+  { k: 'productos', label: 'Ventas de productos', items: [] }
+];
+const POR_PAGAR = [
+  { k: 'profesores', label: 'Comisiones a profesores', items: [
+    { id: 'PR001', sujeto: 'Salek Natalia · Salsa y Bachata Inicial', base: 0 },
+    { id: 'PR002', sujeto: 'Nuñez Oscar · Bachata Conexión', base: 0 },
+    { id: 'PR004', sujeto: 'Caballero Juan Pablo · Zumba', base: 0 },
+    { id: 'PR005', sujeto: 'Caceres Angel · Urbano', base: 0 },
+    { id: 'PR003', sujeto: 'Tini Sebastián · Heels', base: 0 }
+  ] },
+  { k: 'gastos', label: 'Gastos fijos del mes', items: [
+    { id: 'CF004', sujeto: 'Salario ADM', base: 3200 },
+    { id: 'CF001', sujeto: 'Luz', base: 750 },
+    { id: 'CF006', sujeto: 'Celular', base: 200 },
+    { id: 'CF007', sujeto: 'Pauta de RRSS', base: 200 },
+    { id: 'CF005', sujeto: 'Internet', base: 150 },
+    { id: 'CF003', sujeto: 'Limpieza', base: 140 },
+    { id: 'CF002', sujeto: 'Agua', base: 50 },
+    { id: 'CF009', sujeto: 'Otros mantenimientos', base: 42 },
+    { id: 'CF008', sujeto: 'Mantenimiento aires acond.', base: 33 }
+  ] },
+  { k: 'proveedores', label: 'Proveedores', items: [
+    { id: 'PRV001', sujeto: 'Embol', base: 0 }
+  ] }
+];
+// Política de cada tipo de operación, igual que en su hoja de la planilla:
+//   'descuento' → PAGOS / PAGOSPARTICULARES / VENTASPROD: descuento + motivo al cobrar
+//   'ajuste'    → PAGOSPROF / PAGOSPROV: tipo de movimiento + motivo
+//   'simple'    → COSTOS FIJOS: se paga, sin descuento ni ajuste
+const POLITICA = {
+  cuotas: 'descuento', particulares: 'descuento', alquiler: 'descuento',
+  pruebas: 'descuento', productos: 'descuento',
+  profesores: 'ajuste', proveedores: 'ajuste', gastos: 'simple'
+};
+const TIPOS_AJUSTE = ['Pago a cuenta', 'Pago total', 'Ajuste extraordinario'];
+
+const BUCKETS = POR_COBRAR.concat(POR_PAGAR);
+const TODOS_LOS_ITEMS = BUCKETS.reduce((t, b) => t.concat(b.items.map((i) => Object.assign({ bucket: b.k }, i))), []);
+const itemPorId = (id) => TODOS_LOS_ITEMS.filter((i) => i.id === id)[0] || null;
+
+const MOTIVOS_INGRESO = [
+  { v: 'Inscripción de alumno', k: 'cuotas' },
+  { v: 'Cuota mensual', k: 'cuotas' },
+  { v: 'Venta de paquete de clases', k: 'particulares' },
+  { v: 'Clase particular', k: 'particulares' },
+  { v: 'Alquiler de sala', k: 'alquiler' },
+  { v: 'Clase de prueba', k: 'pruebas' },
+  { v: 'Venta de productos', k: 'productos' },
+  { v: 'Otro ingreso (no afecta deudas)', k: null }
+];
+const MOTIVOS_EGRESO = [
+  { v: 'Comisión a profesor', k: 'profesores' },
+  { v: 'Otro pago a profesor', k: 'profesores' },
+  { v: 'Pago de gasto fijo', k: 'gastos' },
+  { v: 'Pago a proveedor', k: 'proveedores' },
+  { v: 'Otro egreso (no afecta deudas)', k: null }
+];
+const motivosDe = (tipo) => (tipo === 'ingreso' ? MOTIVOS_INGRESO : MOTIVOS_EGRESO);
+const buscarMotivo = (tipo, v) => motivosDe(tipo).filter((m) => m.v === v)[0] || null;
+const etiquetaBucket = (k) => {
+  const b = BUCKETS.filter((x) => x.k === k)[0];
+  return b ? b.label : '';
+};
+
+const MOV_INICIALES = [
+  { id: 'MC003', tipo: 'egreso', monto: 60, concepto: 'Cambio para la caja del sábado', motivo: 'Otro egreso (no afecta deudas)', itemId: null, medio: 'Efectivo', fecha: 'sáb 22 ago' },
+  { id: 'MC002', tipo: 'ingreso', monto: 120, concepto: 'Sala alquilada para ensayo', motivo: 'Alquiler de sala', itemId: null, medio: 'QR / banco', fecha: 'vie 21 ago' },
+  { id: 'MC001', tipo: 'egreso', monto: 40, concepto: 'Taxi para traer el equipo de sonido', motivo: 'Otro egreso (no afecta deudas)', itemId: null, medio: 'Efectivo', fecha: 'jue 20 ago' }
+];
+
+class Component extends DCLogic {
+  state = {
+    movimientos: MOV_INICIALES, panel: false, tipo: 'ingreso', concepto: '',
+    motivo: MOTIVOS_INGRESO[1].v, itemId: null, cobro: null, errorMsg: null, aviso: null
+  };
+
+  set = (p) => this.setState(p);
+
+  // Saldo pendiente de cada línea de deuda, descontando los movimientos del más viejo al más nuevo.
+  pendientesPorItem(movs) {
+    const out = {};
+    TODOS_LOS_ITEMS.forEach((i) => { out[i.id] = i.base; });
+    movs.slice().reverse().forEach((m) => {
+      if (m.itemId && out[m.itemId] !== undefined) {
+        out[m.itemId] = Math.max(0, out[m.itemId] - m.monto - (m.descuento || 0));
+      }
+    });
+    return out;
+  }
+
+  // El pendiente de un motivo es la suma de sus líneas.
+  pendientes(movs) {
+    const porItem = this.pendientesPorItem(movs);
+    const out = {};
+    BUCKETS.forEach((b) => { out[b.k] = b.items.reduce((t, i) => t + porItem[i.id], 0); });
+    return out;
+  }
+
+  // Las líneas abiertas del motivo elegido, para el selector de sujeto.
+  itemsDelMotivo(tipo, motivo, movs) {
+    const mt = buscarMotivo(tipo, motivo);
+    if (!mt || !mt.k) return [];
+    const porItem = this.pendientesPorItem(movs);
+    const b = BUCKETS.filter((x) => x.k === mt.k)[0];
+    const todos = POLITICA[mt.k] === 'ajuste';
+    return b.items.filter((i) => todos || porItem[i.id] > 0).map((i) => ({ id: i.id, sujeto: i.sujeto, saldo: porItem[i.id] }));
+  }
+
+  guardar = () => {
+    const s = this.state;
+    const c = s.cobro || {};
+    const n = Number(c.monto) || 0;
+    if (n <= 0) return this.set({ errorMsg: 'Escribí el monto del movimiento.' });
+    if (!c.medio) return this.set({ errorMsg: 'Elegí el medio de pago.' });
+    if ((Number(c.ajuste) || 0) > 0 && !c.ajusteMotivo) {
+      return this.set({ errorMsg: 'El descuento necesita un motivo.' });
+    }
+    if (!s.concepto.trim()) return this.set({ errorMsg: 'Poné una glosa corta, para saber después de qué fue.' });
+    const mt = buscarMotivo(s.tipo, s.motivo);
+    const abiertos = this.itemsDelMotivo(s.tipo, s.motivo, s.movimientos);
+    const elegido = abiertos.filter((i) => i.id === s.itemId)[0] || null;
+    if (mt && mt.k && abiertos.length && !elegido) {
+      return this.set({ errorMsg: s.tipo === 'ingreso' ? 'Elegí a quién se le cobra.' : 'Elegí a quién se le paga.' });
+    }
+    const desc = elegido ? (Number(c.ajuste) || 0) : 0;
+    const mov = {
+      id: 'MC' + (100 + s.movimientos.length), tipo: s.tipo, monto: n,
+      concepto: s.concepto.trim(), motivo: s.motivo, itemId: elegido ? elegido.id : null,
+      sujeto: elegido ? elegido.sujeto : null, medio: c.medio, fecha: 'hoy · lun 24 ago',
+      descuento: desc, descMotivo: desc > 0 ? c.ajusteMotivo : null,
+      ajusteEs: elegido && POLITICA[mt.k] === 'ajuste' ? 'ajuste' : 'descuento'
+    };
+    const movs = [mov].concat(s.movimientos);
+    const porItem = this.pendientesPorItem(movs);
+    this.setState({
+      movimientos: movs,
+      panel: false, concepto: '', errorMsg: null, cobro: null,
+      tipo: 'ingreso', motivo: MOTIVOS_INGRESO[1].v, itemId: null,
+      aviso: (s.tipo === 'ingreso' ? 'Ingreso' : 'Egreso') + ' de ' + bs(n) +
+        (desc > 0 ? ' + ' + bs(desc) + ' de ' + mov.ajusteEs + ' (' + c.ajusteMotivo + ')' : '') +
+        ' · ' + s.motivo + (elegido ? ' · ' + elegido.sujeto : '') + ' · ' + c.medio + '. ' +
+        (elegido
+          ? (porItem[elegido.id] > 0
+            ? elegido.sujeto + ' queda con ' + bs(porItem[elegido.id]) + (s.tipo === 'ingreso' ? ' por cobrar.' : ' por pagar.')
+            : elegido.sujeto + ': saldo cerrado.')
+          : 'No afecta ninguna deuda.')
+    });
+  };
+
+  detalleBucket(b, porItem, voz) {
+    const abiertos = b.items.filter((i) => porItem[i.id] > 0);
+    if (!abiertos.length) return 'sin saldos abiertos';
+    if (abiertos.length === 1) return abiertos[0].sujeto;
+    return abiertos.length + ' ' + voz;
+  }
+
+  renderVals() {
+    const s = this.state;
+    const manualEfectivo = s.movimientos.reduce((t, m) => t + (m.medio === 'Efectivo' ? (m.tipo === 'ingreso' ? m.monto : -m.monto) : 0), 0);
+    const manualBanco = s.movimientos.reduce((t, m) => t + (m.medio !== 'Efectivo' ? (m.tipo === 'ingreso' ? m.monto : -m.monto) : 0), 0);
+    const manual = manualEfectivo + manualBanco;
+
+    const mtSel = buscarMotivo(s.tipo, s.motivo);
+    const abiertos = this.itemsDelMotivo(s.tipo, s.motivo, s.movimientos);
+    const elegido = abiertos.filter((i) => i.id === s.itemId)[0] || null;
+    const polSel = mtSel && mtSel.k ? POLITICA[mtSel.k] : null;
+
+    const cobros = COBROS_ALUMNOS + COBROS_PARTICULARES + COBROS_PRUEBA + VENTAS_PRODUCTOS;
+    const ingresos = cobros + s.movimientos.reduce((t, m) => t + (m.tipo === 'ingreso' ? m.monto : 0), 0);
+    const egresos = PAGOS_PROFESORES + COSTOS_FIJOS_PAGADOS + s.movimientos.reduce((t, m) => t + (m.tipo === 'egreso' ? m.monto : 0), 0);
+    const saldo = ingresos - egresos;
+    const resultado = ingresos - egresos;
+
+    // Reparto por medio: lo cobrado y pagado por el sistema entra a efectivo salvo lo manual por banco.
+    const efectivo = saldo - manualBanco;
+    const banco = manualBanco;
+    const porItem = this.pendientesPorItem(s.movimientos);
+    const pend = this.pendientes(s.movimientos);
+    const totalCobrar = POR_COBRAR.reduce((t, b) => t + pend[b.k], 0);
+    const totalPagar = POR_PAGAR.reduce((t, b) => t + pend[b.k], 0);
+    const baseCobrar = POR_COBRAR.reduce((t, b) => t + b.items.reduce((u, i) => u + i.base, 0), 0);
+    const avancePct = Math.round(((baseCobrar - totalCobrar + cobros) / (baseCobrar + cobros)) * 100);
+    const max = Math.max(ingresos, egresos, 1);
+    const barra = (v, color) => ({ width: Math.round((v / max) * 100) + '%', height: '100%', background: color, borderRadius: '999px' });
+
+    return {
+      saldoTexto: bs(saldo),
+      efectivoTexto: 'Efectivo ' + bs(efectivo),
+      bancoTexto: 'QR / banco ' + bs(banco),
+
+      aviso: s.aviso,
+      cerrarAviso: () => this.set({ aviso: null }),
+      panelAbierto: s.panel,
+      panelCerrado: !s.panel,
+      abrirPanel: () => this.set({ panel: true, aviso: null, errorMsg: null }),
+      cerrarPanel: () => this.set({ panel: false, errorMsg: null, concepto: '', cobro: null }),
+      esIngreso: s.tipo === 'ingreso',
+      esEgreso: s.tipo === 'egreso',
+      setIngreso: () => this.set({ tipo: 'ingreso', motivo: MOTIVOS_INGRESO[1].v, itemId: null, errorMsg: null }),
+      setEgreso: () => this.set({ tipo: 'egreso', motivo: MOTIVOS_EGRESO[0].v, itemId: null, errorMsg: null }),
+      motivo: s.motivo,
+      motivos: motivosDe(s.tipo).map((m) => ({ v: m.v })),
+      onMotivo: (e) => this.set({ motivo: e.target.value, itemId: null, errorMsg: null }),
+
+      haySujetos: abiertos.length > 0,
+      sujetoLabel: s.tipo === 'ingreso' ? '¿A quién se le cobra?' : '¿A quién se le paga?',
+      sujetoId: s.itemId || '',
+      sujetos: [{ id: '', v: s.tipo === 'ingreso' ? 'Elegí el deudor' : 'Elegí el acreedor' }]
+        .concat(abiertos.map((i) => ({
+          id: i.id,
+          v: i.sujeto + (i.saldo > 0 ? ' · debe ' + bs(i.saldo) : ' · sin saldo')
+        }))),
+      onSujeto: (e) => this.set({ itemId: e.target.value || null, errorMsg: null }),
+      sinSujetos: !!mtSel && !!mtSel.k && abiertos.length === 0,
+
+      cobroSujeto: elegido ? elegido.sujeto : '',
+      cobroDetalle: !elegido ? ''
+        : (elegido.saldo > 0
+          ? s.motivo + ' · ' + etiquetaBucket(mtSel.k).toLowerCase()
+          : s.motivo + ' · sin saldo pendiente, queda como anticipo'),
+      cobroReferencia: elegido ? elegido.saldo : 0,
+      cobroRefLabel: s.tipo === 'ingreso' ? 'Saldo pendiente' : 'Saldo a pagar',
+      cobroPolitica: polSel || 'simple',
+      cobroDireccion: s.tipo === 'ingreso' ? 'cobro' : 'pago',
+      cobroCuentaId: elegido ? elegido.id : 'libre',
+      onCobro: (p) => {
+        const prev = this.state.cobro;
+        if (prev && prev.monto === p.monto && prev.medio === p.medio && prev.ajuste === p.ajuste &&
+            prev.ajusteMotivo === p.ajusteMotivo && prev.cuentaId === p.cuentaId) return;
+        this.setState({ cobro: p, errorMsg: null });
+      },
+      afectaTexto: (() => {
+        if (!mtSel || !mtSel.k) return 'Este motivo no descuenta ninguna deuda: solo mueve la caja.';
+        if (!abiertos.length) return 'No hay saldos abiertos en ' + etiquetaBucket(mtSel.k).toLowerCase() + ': el movimiento solo entra a la caja.';
+        if (!elegido) return 'Elegí el sujeto para descontar su saldo de ' + etiquetaBucket(mtSel.k).toLowerCase() + '.';
+        const c = s.cobro || {};
+        if (elegido.saldo <= 0) {
+          return elegido.sujeto + ' no tiene saldo pendiente: el movimiento queda como anticipo a su cuenta.';
+        }
+        const n = (Number(c.monto) || 0) + (Number(c.ajuste) || 0);
+        const queda = Math.max(0, elegido.saldo - n);
+        return elegido.sujeto + ': ' + bs(elegido.saldo) + ' pendiente' +
+          (n > 0
+            ? ' → queda ' + bs(queda) + (queda === 0 ? ' (saldo cerrado)' : '') +
+              (c.ajuste > 0 ? ', con ' + bs(c.ajuste) + ' de ' + (polSel === 'ajuste' ? 'ajuste' : 'descuento') : '')
+            : '') + '.';
+      })(),
+      concepto: s.concepto,
+      onConcepto: (e) => this.set({ concepto: e.target.value, errorMsg: null }),
+      errorMsg: s.errorMsg,
+      guardar: this.guardar,
+
+      cobrarFilas: POR_COBRAR.map((b) => ({
+        label: b.label, monto: bs(pend[b.k]),
+        detalle: this.detalleBucket(b, porItem, 'por cobrar')
+      })),
+      pagarFilas: POR_PAGAR.map((b) => ({
+        label: b.label, monto: bs(pend[b.k]),
+        detalle: this.detalleBucket(b, porItem, 'por pagar')
+      })),
+      porCobrarTotal: bs(totalCobrar),
+      porPagarTotal: bs(totalPagar),
+      avanceTexto: avancePct + '% cobrado de lo facturado del mes',
+      barraAvance: { width: avancePct + '%', height: '100%', background: 'var(--color-accent-2-600)', borderRadius: '999px' },
+
+      verComposicion: this.props.mostrarComposicion ?? true,
+      composicion: [
+        { label: 'Cobros a alumnos', detalle: 'cuotas, particulares, pruebas y productos', monto: firmado(cobros) },
+        { label: 'Pagos a profesores', detalle: 'comisiones liquidadas', monto: firmado(-PAGOS_PROFESORES) },
+        { label: 'Costos fijos pagados', detalle: 'todavía sin pagos del mes', monto: firmado(-COSTOS_FIJOS_PAGADOS) },
+        { label: 'Movimientos manuales', detalle: s.movimientos.length + ' cargados a mano', monto: firmado(manual) }
+      ],
+
+      ingresosTexto: bs(ingresos),
+      egresosTexto: bs(egresos),
+      barraIngresos: barra(ingresos, 'var(--color-accent-2-600)'),
+      barraEgresos: barra(egresos, 'var(--color-accent-600)'),
+      resultadoTexto: firmado(resultado),
+      notaResultado: resultado >= 0 ? 'El mes cierra en positivo hasta hoy.' : 'Los egresos del mes superan lo cobrado hasta hoy.',
+
+      movimientos: s.movimientos.map((m) => ({
+        concepto: m.concepto,
+        motivo: m.motivo + (m.sujeto ? ' · ' + m.sujeto : ''),
+        meta: m.fecha + ' · ' + m.medio +
+          (m.descuento ? ' · desc. ' + bs(m.descuento) + ' (' + m.descMotivo + ')' : '') +
+          (m.ajusteTipo ? ' · ' + m.ajusteTipo + (m.ajusteMotivo ? ' (' + m.ajusteMotivo + ')' : '') : ''),
+        monto: firmado(m.tipo === 'ingreso' ? m.monto : -m.monto),
+        entra: m.tipo === 'ingreso',
+        sale: m.tipo === 'egreso'
+      }))
+    };
+  }
+}
+</script>
+</body>
+</html>

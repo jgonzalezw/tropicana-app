@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/organic-186d334f-848b-405d-95ba-b805f2b70bf6/styles.css">
+<script src="_ds/organic-186d334f-848b-405d-95ba-b805f2b70bf6/_ds_bundle.js"></script>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&display=swap">
+<style>
+.cobro-in { font-size: 17px !important; min-height: 50px !important; background: var(--color-neutral-200) !important; }
+.cobro-seg { display: flex; width: 100%; }
+.cobro-seg .seg-opt { flex: 1; justify-content: center; font-size: 15px; padding: 12px 4px; text-align: center; white-space: nowrap; }
+.cobro-nw { white-space: nowrap; }
+</style>
+</helmet>
+<div style="display:flex;flex-direction:column;gap:12px;font-family:var(--font-body);color:var(--color-text)">
+
+  <sc-if value="{{ verEncabezado }}" hint-placeholder-val="{{ true }}">
+  <div style="display:flex;align-items:flex-start;gap:10px">
+    <div style="flex:1;min-width:0">
+      <div style="font-size:18px;font-weight:700;line-height:1.25">{{ sujetoTexto }}</div>
+      <div style="font-size:14px;color:var(--color-neutral-700);margin-top:2px">{{ detalleTexto }}</div>
+    </div>
+    <div style="text-align:right;flex:none">
+      <div class="cobro-nw" style="font-size:14px;color:var(--color-neutral-700)">{{ referenciaLabelTexto }}</div>
+      <div class="cobro-nw" style="font-family:var(--font-heading);font-size:26px;line-height:1.1">{{ referenciaTexto }}</div>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ verModos }}" hint-placeholder-val="{{ true }}">
+  <div class="seg cobro-seg">
+    <label class="seg-opt">
+      <input type="radio" name="cobro-modo" checked="{{ modoEntero }}" onChange="{{ setEntero }}"></input>
+      <span>{{ labelEntero }}</span>
+    </label>
+    <label class="seg-opt">
+      <input type="radio" name="cobro-modo" checked="{{ modoParcial }}" onChange="{{ setParcial }}"></input>
+      <span>{{ labelParcial }}</span>
+    </label>
+    <sc-if value="{{ permiteSin }}" hint-placeholder-val="{{ true }}">
+      <label class="seg-opt">
+        <input type="radio" name="cobro-modo" checked="{{ modoSin }}" onChange="{{ setSin }}"></input>
+        <span>{{ labelSin }}</span>
+      </label>
+    </sc-if>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ verCampoMonto }}" hint-placeholder-val="{{ false }}">
+    <div class="field">
+      <label style="font-size:14px">{{ labelMonto }}</label>
+      <input class="input cobro-in" value="{{ monto }}" onChange="{{ onMonto }}" inputMode="numeric" placeholder="0" style="font-size:20px !important;font-weight:600"></input>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ mueveDinero }}" hint-placeholder-val="{{ true }}">
+    <div>
+      <div style="font-size:14px;color:var(--color-neutral-700);margin-bottom:6px">{{ labelMedio }}</div>
+      <div class="seg cobro-seg">
+        <sc-for list="{{ medios }}" as="m" hint-placeholder-count="2">
+          <label class="seg-opt">
+            <input type="radio" name="cobro-medio" checked="{{ m.sel }}" onChange="{{ m.elegir }}"></input>
+            <span>{{ m.label }}</span>
+          </label>
+        </sc-for>
+      </div>
+      <sc-if value="{{ medioLibre }}" hint-placeholder-val="{{ false }}">
+        <input class="input cobro-in" value="{{ notaMedio }}" onChange="{{ onNotaMedio }}" placeholder="¿Cómo pagó? (ej. mitad efectivo, mitad QR)" style="margin-top:8px"></input>
+      </sc-if>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ ajusteCerrado }}" hint-placeholder-val="{{ true }}">
+    <button class="btn btn-ghost" onClick="{{ abrirAjuste }}" style="font-size:15px;align-self:flex-start">{{ labelAbrirAjuste }}</button>
+  </sc-if>
+
+  <sc-if value="{{ ajusteAbierto }}" hint-placeholder-val="{{ false }}">
+    <div style="background:var(--color-accent-100);border-radius:20px;padding:12px">
+      <div style="display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(190px,1fr))">
+        <div class="field">
+          <label style="font-size:14px">{{ labelAjusteMonto }}</label>
+          <input class="input cobro-in" value="{{ ajusteMonto }}" onChange="{{ onAjusteMonto }}" inputMode="numeric" placeholder="0" style="background:var(--color-neutral-100) !important"></input>
+        </div>
+        <div class="field">
+          <label style="font-size:14px">Motivo (obligatorio)</label>
+          <input class="input cobro-in" value="{{ ajusteMotivo }}" onChange="{{ onAjusteMotivo }}" placeholder="{{ placeholderMotivo }}" style="background:var(--color-neutral-100) !important"></input>
+        </div>
+      </div>
+      <button class="btn btn-ghost" onClick="{{ quitarAjuste }}" style="font-size:14px;margin-top:6px">{{ labelQuitarAjuste }}</button>
+    </div>
+  </sc-if>
+
+  <div style="display:flex;flex-direction:column;gap:6px;padding-top:10px;border-top:1px solid var(--color-divider)">
+    <sc-if value="{{ hayAjuste }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;font-size:15px;color:var(--color-accent-2-800)">
+        <span>{{ labelAjusteLinea }}</span>
+        <span class="cobro-nw" style="margin-left:auto;font-weight:700">{{ ajusteTexto }}</span>
+      </div>
+    </sc-if>
+    <div style="display:flex;font-size:15px">
+      <span style="color:var(--color-neutral-700)">{{ labelMueve }}</span>
+      <span class="cobro-nw" style="margin-left:auto;font-weight:700">{{ mueveTexto }}</span>
+    </div>
+    <sc-if value="{{ verSaldo }}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex;font-size:15px">
+        <span style="color:var(--color-neutral-700)">{{ labelSaldo }}</span>
+        <span class="cobro-nw" style="margin-left:auto;font-weight:700">{{ saldoTexto }}</span>
+      </div>
+    </sc-if>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:420,&quot;height&quot;:520},&quot;sujeto&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Salinas Laida&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;detalle&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Cuota mensual · Salsa y Bachata Inicial&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;referencia&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:250,&quot;tsType&quot;:&quot;number&quot;},&quot;referenciaLabel&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Saldo pendiente&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;politica&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;descuento&quot;,&quot;ajuste&quot;,&quot;simple&quot;],&quot;default&quot;:&quot;descuento&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;direccion&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;cobro&quot;,&quot;pago&quot;],&quot;default&quot;:&quot;cobro&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;medios&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Efectivo,QR / banco&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;permitirSinCobro&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;},&quot;cuentaId&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;string&quot;},&quot;onChange&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;(payload: any) =&gt; void&quot;}}">
+const bs = (n) => 'Bs. ' + Number(n || 0).toLocaleString('es-BO');
+const soloNum = (s) => String(s || '').replace(/\D/g, '');
+
+// Paso de cobro/pago compartido: la misma decisión (cuánto entra o sale, por qué
+// medio, con qué descuento o ajuste y con qué motivo) para cualquier operación.
+class Component extends DCLogic {
+  state = { modo: 'entero', monto: '', medioIdx: 0, notaMedio: '', ajusteAbierto: false, ajusteMonto: '', ajusteMotivo: '' };
+
+  componentDidMount() { this.emitir(this.state); }
+
+  componentDidUpdate(prev) {
+    if (prev.cuentaId !== this.props.cuentaId || prev.referencia !== this.props.referencia) {
+      const limpio = { modo: 'entero', monto: '', medioIdx: 0, notaMedio: '', ajusteAbierto: false, ajusteMonto: '', ajusteMotivo: '' };
+      this.setState(limpio);
+      this.emitir(limpio);
+    }
+  }
+
+  listaMedios() {
+    return String(this.props.medios || 'Efectivo,QR / banco').split(',').map((m) => m.trim()).filter(Boolean);
+  }
+
+  // Sin deuda de referencia (un movimiento suelto de caja) el paso se reduce a
+  // monto + medio: no hay total que cerrar ni saldo que dejar.
+  cuentas(st) {
+    const politica = this.props.politica || 'descuento';
+    const referencia = Number(this.props.referencia) || 0;
+    const libre = referencia <= 0;
+    const ajuste = !libre && politica !== 'simple' && st.ajusteAbierto ? (Number(soloNum(st.ajusteMonto)) || 0) : 0;
+    const total = Math.max(0, referencia - ajuste);
+    const mueve = libre ? (Number(soloNum(st.monto)) || 0)
+      : (st.modo === 'sin' ? 0 : (st.modo === 'entero' ? total : (Number(soloNum(st.monto)) || 0)));
+    return { politica, libre, referencia, ajuste, total, mueve, saldo: Math.max(0, total - mueve) };
+  }
+
+  emitir(st) {
+    if (typeof this.props.onChange !== 'function') return;
+    const q = this.cuentas(st);
+    const medio = this.listaMedios()[st.medioIdx] || null;
+    this.props.onChange({
+      cuentaId: this.props.cuentaId || null,
+      modo: st.modo,
+      monto: q.mueve,
+      medio: st.modo === 'sin' ? null : medio,
+      notaMedio: /otro/i.test(String(medio)) ? st.notaMedio.trim() : '',
+      ajuste: q.ajuste,
+      ajusteMotivo: q.ajuste > 0 ? st.ajusteMotivo.trim() : '',
+      referencia: q.referencia,
+      total: q.total,
+      saldo: q.saldo,
+      valido: this.motivo(st, q)
+    });
+  }
+
+  // Un movimiento es válido cuando mueve algo (o se decidió no mover nada) y
+  // todo descuento o ajuste tiene su motivo.
+  motivo(st, q) {
+    if (q.ajuste > 0 && !st.ajusteMotivo.trim()) return false;
+    if ((q.libre || st.modo === 'parcial') && q.mueve <= 0) return false;
+    if (!q.libre && st.modo === 'sin') return true;
+    return !!this.listaMedios()[st.medioIdx];
+  }
+
+  set = (p) => {
+    const st = Object.assign({}, this.state, p);
+    this.setState(p);
+    this.emitir(st);
+  };
+
+  renderVals() {
+    const s = this.state;
+    const q = this.cuentas(s);
+    const pago = this.props.direccion === 'pago';
+    const medios = this.listaMedios();
+    const medioActual = medios[s.medioIdx] || '';
+
+    return {
+      verEncabezado: !!this.props.sujeto,
+      verModos: !q.libre,
+      verCampoMonto: q.libre || s.modo === 'parcial',
+      verSaldo: !q.libre,
+      sujetoTexto: this.props.sujeto || '',
+      detalleTexto: this.props.detalle || '',
+      referenciaLabelTexto: this.props.referenciaLabel || (pago ? 'Saldo a pagar' : 'Saldo pendiente'),
+      referenciaTexto: bs(q.referencia),
+
+      modoEntero: s.modo === 'entero',
+      modoParcial: s.modo === 'parcial',
+      modoSin: s.modo === 'sin',
+      setEntero: () => this.set({ modo: 'entero', monto: '' }),
+      setParcial: () => this.set({ modo: 'parcial' }),
+      setSin: () => this.set({ modo: 'sin' }),
+      labelEntero: pago ? 'Pago total' : 'Cuota entera',
+      labelParcial: pago ? 'Pago a cuenta' : 'Otro monto',
+      labelSin: pago ? 'No paga hoy' : 'No cobra hoy',
+      permiteSin: this.props.permitirSinCobro ?? true,
+      labelMonto: q.libre ? 'Monto' : (pago ? 'Monto que entrega la escuela' : 'Monto que entrega'),
+      monto: s.monto,
+      onMonto: (e) => this.set({ monto: e.target.value }),
+
+      mueveDinero: q.libre || s.modo !== 'sin',
+      labelMedio: pago ? 'Medio de pago' : 'Medio de pago',
+      medios: medios.map((m, i) => ({ label: m, sel: s.medioIdx === i, elegir: () => this.set({ medioIdx: i }) })),
+      medioLibre: /otro/i.test(medioActual),
+      notaMedio: s.notaMedio,
+      onNotaMedio: (e) => this.set({ notaMedio: e.target.value }),
+
+      ajusteCerrado: !q.libre && q.politica !== 'simple' && !s.ajusteAbierto,
+      ajusteAbierto: !q.libre && q.politica !== 'simple' && s.ajusteAbierto,
+      abrirAjuste: () => this.set({ ajusteAbierto: true }),
+      quitarAjuste: () => this.set({ ajusteAbierto: false, ajusteMonto: '', ajusteMotivo: '' }),
+      labelAbrirAjuste: q.politica === 'ajuste' ? 'Registrar un ajuste' : 'Aplicar un descuento',
+      labelQuitarAjuste: q.politica === 'ajuste' ? 'Quitar ajuste' : 'Quitar descuento',
+      labelAjusteMonto: q.politica === 'ajuste' ? 'Ajuste' : 'Descuento',
+      placeholderMotivo: q.politica === 'ajuste' ? 'ej. reintegro de julio' : 'ej. promo 2 cursos',
+      ajusteMonto: s.ajusteMonto,
+      ajusteMotivo: s.ajusteMotivo,
+      onAjusteMonto: (e) => this.set({ ajusteMonto: e.target.value }),
+      onAjusteMotivo: (e) => this.set({ ajusteMotivo: e.target.value }),
+
+      hayAjuste: q.ajuste > 0,
+      labelAjusteLinea: (q.politica === 'ajuste' ? 'Ajuste' : 'Descuento') + (s.ajusteMotivo.trim() ? ' · ' + s.ajusteMotivo.trim() : ''),
+      ajusteTexto: '− ' + bs(q.ajuste),
+      labelMueve: pago ? 'Paga hoy' : 'Cobra hoy',
+      mueveTexto: bs(q.mueve),
+      labelSaldo: pago ? 'Queda debiendo la escuela' : 'Queda pendiente',
+      saldoTexto: bs(q.saldo)
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/organic-186d334f-848b-405d-95ba-b805f2b70bf6/styles.css">
+<script src="_ds/organic-186d334f-848b-405d-95ba-b805f2b70bf6/_ds_bundle.js"></script>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&display=swap">
+<style>
+
+/* Fondo oscuro: se reasignan los tokens del sistema y se invierten las rampas,
+   para que los mismos pasos sigan pesando igual sobre un fondo oscuro. */
+:root {
+  --color-bg: #1c1815;
+  --color-surface: #272220;
+  --color-text: #f4ebdd;
+  --color-divider: color-mix(in srgb, #f4ebdd 16%, transparent);
+  --color-accent: #e08b4f;
+  --color-accent-2: #9bad78;
+
+  --color-neutral-100: #302a25;
+  --color-neutral-200: #3a332d;
+  --color-neutral-300: #463e37;
+  --color-neutral-400: #6d6359;
+  --color-neutral-500: #8f8578;
+  --color-neutral-600: #ab9f91;
+  --color-neutral-700: #c8bbaa;
+  --color-neutral-800: #e2d7c6;
+  --color-neutral-900: #f4ebdd;
+
+  --color-accent-100: #37200f;
+  --color-accent-200: #6b3714;
+  --color-accent-300: #8c491a;
+  --color-accent-400: #b2622d;
+  --color-accent-500: #d67f48;
+  --color-accent-600: #f6a06b;
+  --color-accent-700: #ffc0a0;
+  --color-accent-800: #ffd3b5;
+  --color-accent-900: #fff2eb;
+
+  --color-accent-2-100: #232a18;
+  --color-accent-2-200: #3a4726;
+  --color-accent-2-300: #56633f;
+  --color-accent-2-400: #728157;
+  --color-accent-2-500: #8fa073;
+  --color-accent-2-600: #a8bb88;
+  --color-accent-2-700: #ccdbb2;
+  --color-accent-2-800: #dcebc4;
+  --color-accent-2-900: #f0fae1;
+
+  --tropi-chip: #f4ebdd;
+}
+.input option, select.input { color: var(--color-text); background: var(--color-neutral-100); }
+
+
+/* Tipografía: grotesca geométrica en bold para los títulos, en lugar del display. */
+:root {
+  --font-heading: "Montserrat", system-ui, sans-serif;
+  --font-heading-weight: 800;
+}
+h1, h2, h3, h4 { letter-spacing: -0.025em; }
+.btn { font-weight: 700; letter-spacing: 0.01em; }
+.caja-chip, .asis-tag { white-space: nowrap; flex: none; }
+body { margin: 0; }
+.nw { white-space: nowrap; }
+
+.asis-tag { white-space: nowrap; flex: none; }
+body { margin: 0; }
+.nw { white-space: nowrap; }
+body { margin: 0; background: var(--color-neutral-300); }
+a { color: var(--color-accent-700); }
+a:hover { color: var(--color-accent-800); }
+.tropi-in { font-size: 17px !important; min-height: 50px !important; background: var(--color-neutral-100) !important; }
+.tropi-seg { display: flex; width: 100%; }
+.tropi-seg .seg-opt { flex: 1; justify-content: center; font-size: 15px; padding: 12px 4px; text-align: center; white-space: nowrap; }
+.tropi-seg-2 { flex-wrap: wrap; }
+.tropi-seg-2 .seg-opt { flex: 1 1 44%; }
+.tropi-seg-2 .seg-opt:nth-child(n+3) { border-top: 1px solid var(--color-divider); }
+.tropi-seg-2 .seg-opt:nth-child(3) { border-left: none; }
+.tropi-btn-big { font-size: 18px !important; min-height: 56px !important; }
+@keyframes tropiIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+</style>
+</helmet>
+<div style="min-height:100dvh;display:flex;justify-content:center;background:var(--color-neutral-300)">
+<div style="width:100%;max-width:680px;height:100dvh;display:flex;flex-direction:column;background:var(--color-bg);font-family:var(--font-body);color:var(--color-text)">
+
+  <div style="padding:18px 18px 6px;display:flex;align-items:center;gap:10px">
+    <div style="background:var(--tropi-chip);border-radius:999px;padding:5px 13px;display:flex;flex:none"><img src="assets/tropicana-logo.png" alt="Tropicana" style="height:24px;width:auto"></img></div>
+    <div class="nw" style="margin-left:auto;font-size:13px;color:var(--color-neutral-700)">Natalia · admin</div>
+  </div>
+
+  <div style="padding:4px 18px 14px">
+    <h1 style="font-size:clamp(29px,4vw,36px);margin:0">Inscribir y cobrar</h1>
+    <div style="font-size:15px;color:var(--color-neutral-700);margin-top:4px">Alumno, curso y primera cuota en una sola pantalla.</div>
+  </div>
+
+  <div ref="{{ scrollRef }}" style="flex:1;overflow:auto;padding:0 clamp(14px,2vw,18px) 26px">
+
+    <sc-if value="{{ aviso }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;align-items:flex-start;gap:10px;background:var(--color-accent-2-200);border-radius:22px;padding:14px 16px;margin-bottom:14px;animation:tropiIn .25s ease-out">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-2-800)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:1px"><path d="M20 6 9 17l-5-5"></path></svg>
+        <div style="font-size:15px;line-height:1.45;color:var(--color-accent-2-900)">{{ aviso }}</div>
+        <button class="btn btn-ghost" onClick="{{ cerrarAviso }}" style="margin-left:auto;flex:none;color:var(--color-accent-2-800);font-size:13px">Cerrar</button>
+      </div>
+    </sc-if>
+
+    <div style="background:var(--color-surface);border-radius:26px;padding:16px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <div style="width:30px;height:30px;border-radius:999px;background:var(--color-accent);color:var(--color-bg);display:grid;place-items:center;font-family:var(--font-heading);font-size:15px;flex:none">1</div>
+        <div class="nw" style="font-family:var(--font-heading);font-size:18px">Alumno</div>
+      </div>
+
+      <sc-if value="{{ sinAlumno }}" hint-placeholder-val="{{ true }}">
+        <div>
+          <div class="field" style="margin-bottom:10px">
+            <label style="font-size:14px">Buscar por nombre o WhatsApp</label>
+            <input class="input tropi-in" value="{{ q }}" onChange="{{ onQuery }}" placeholder="ej. Virginia · 7105"></input>
+          </div>
+
+          <sc-for list="{{ resultados }}" as="r" hint-placeholder-count="2">
+            <button onClick="{{ r.elegir }}" style="width:100%;display:flex;align-items:center;gap:10px;text-align:left;background:var(--color-neutral-100);border:1px solid var(--color-divider);border-radius:20px;padding:12px 14px;margin-bottom:8px;cursor:pointer;font-family:var(--font-body)">
+              <div style="flex:1;min-width:0">
+                <div style="font-size:17px;font-weight:600">{{ r.nombre }}</div>
+                <div style="font-size:14px;color:var(--color-neutral-700)">{{ r.wa }}</div>
+              </div>
+              <sc-if value="{{ r.conDeuda }}" hint-placeholder-val="{{ false }}">
+                <span class="tag tag-accent asis-tag" style="font-size:13px">{{ r.deudaTexto }}</span>
+              </sc-if>
+              <sc-if value="{{ r.alDia }}" hint-placeholder-val="{{ false }}">
+                <span class="tag tag-accent-2 asis-tag" style="font-size:13px">Al día</span>
+              </sc-if>
+            </button>
+          </sc-for>
+
+          <sc-if value="{{ sinResultados }}" hint-placeholder-val="{{ false }}">
+            <div style="font-size:15px;color:var(--color-neutral-700);padding:2px 2px 10px">Nadie con ese dato. Cargalo como alumno nuevo.</div>
+          </sc-if>
+
+          <sc-if value="{{ formNuevoCerrado }}" hint-placeholder-val="{{ true }}">
+            <button class="btn btn-secondary btn-block tropi-btn-big" onClick="{{ abrirNuevo }}" style="background:var(--color-neutral-100)">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+              Alumno nuevo
+            </button>
+          </sc-if>
+
+          <sc-if value="{{ formNuevo }}" hint-placeholder-val="{{ false }}">
+            <div style="background:var(--color-neutral-100);border-radius:22px;padding:14px;margin-top:4px">
+              <div style="display:flex;gap:10px;margin-bottom:10px">
+                <div class="field" style="flex:1">
+                  <label style="font-size:14px">Nombre</label>
+                  <input class="input tropi-in" value="{{ nom }}" onChange="{{ onNom }}" placeholder="Javier" style="background:var(--color-neutral-100) !important"></input>
+                </div>
+                <div class="field" style="flex:1">
+                  <label style="font-size:14px">Apellido</label>
+                  <input class="input tropi-in" value="{{ ape }}" onChange="{{ onApe }}" placeholder="González" style="background:var(--color-neutral-100) !important"></input>
+                </div>
+              </div>
+              <div class="field">
+                <label style="font-size:14px">WhatsApp <span style="color:var(--color-accent-700)">· identifica al alumno</span></label>
+                <input class="input tropi-in" value="{{ wa }}" onChange="{{ onWa }}" placeholder="78 009 001" inputMode="tel" style="background:var(--color-neutral-100) !important"></input>
+              </div>
+
+              <sc-if value="{{ dupe }}" hint-placeholder-val="{{ false }}">
+                <div style="background:var(--color-accent-100);border-radius:20px;padding:14px;margin-top:12px">
+                  <div style="font-size:14px;color:var(--color-accent-800);font-weight:600;margin-bottom:6px">Ese WhatsApp ya está cargado</div>
+                  <div style="font-size:17px;font-weight:600">{{ dupeNombre }}</div>
+                  <div style="font-size:14px;color:var(--color-neutral-700);margin-top:2px">Deuda actual: {{ dupeDeuda }}</div>
+                  <div style="font-size:14px;color:var(--color-neutral-700)">Cursos: {{ dupeCursos }}</div>
+                  <div style="display:flex;gap:8px;margin-top:12px">
+                    <button class="btn btn-primary" onClick="{{ usarDupe }}" style="flex:1;min-height:48px;font-size:16px">Usar este alumno</button>
+                    <button class="btn btn-secondary" onClick="{{ ignorarDupe }}" style="flex:none;min-height:48px;font-size:15px">Es otra persona</button>
+                  </div>
+                </div>
+              </sc-if>
+
+              <button class="btn btn-ghost" onClick="{{ toggleTutor }}" style="font-size:15px;margin-top:12px">{{ tutorLabel }}</button>
+
+              <sc-if value="{{ tutorAbierto }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;gap:10px;margin-top:6px">
+                  <div class="field" style="flex:1">
+                    <label style="font-size:14px">Tutor</label>
+                    <input class="input tropi-in" value="{{ tutorNom }}" onChange="{{ onTutorNom }}" placeholder="Nombre y apellido" style="background:var(--color-neutral-100) !important"></input>
+                  </div>
+                  <div class="field" style="flex:1">
+                    <label style="font-size:14px">WhatsApp tutor</label>
+                    <input class="input tropi-in" value="{{ tutorWa }}" onChange="{{ onTutorWa }}" inputMode="tel" style="background:var(--color-neutral-100) !important"></input>
+                  </div>
+                </div>
+              </sc-if>
+
+              <button class="btn btn-primary btn-block tropi-btn-big" onClick="{{ guardarNuevo }}" disabled="{{ nuevoIncompleto }}" style="margin-top:14px">Guardar alumno</button>
+            </div>
+          </sc-if>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ hayAlumno }}" hint-placeholder-val="{{ false }}">
+        <div style="background:var(--color-neutral-100);border-radius:22px;padding:14px">
+          <div style="display:flex;align-items:flex-start;gap:10px">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:20px;font-weight:700">{{ alumnoNombre }}</div>
+              <div style="font-size:15px;color:var(--color-neutral-700);margin-top:2px">{{ alumnoWa }}</div>
+            </div>
+            <button class="btn btn-ghost" onClick="{{ cambiarAlumno }}" style="font-size:15px;flex:none">Cambiar</button>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:12px">
+            <div style="flex:1;background:var(--color-neutral-100);border-radius:18px;padding:10px 12px">
+              <div style="font-size:13px;color:var(--color-neutral-700)">Deuda anterior</div>
+              <div style="font-size:18px;font-weight:700;margin-top:2px">{{ alumnoDeuda }}</div>
+            </div>
+            <div style="flex:1;background:var(--color-neutral-100);border-radius:18px;padding:10px 12px">
+              <div style="font-size:13px;color:var(--color-neutral-700)">Ya inscripto en</div>
+              <div style="font-size:15px;font-weight:600;margin-top:2px;line-height:1.3">{{ alumnoCursos }}</div>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+    </div>
+
+    <div style="background:var(--color-surface);border-radius:26px;padding:16px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <div style="width:30px;height:30px;border-radius:999px;background:var(--color-accent);color:var(--color-bg);display:grid;place-items:center;font-family:var(--font-heading);font-size:15px;flex:none">2</div>
+        <div class="nw" style="font-family:var(--font-heading);font-size:18px">Curso e inicio</div>
+      </div>
+
+      <sc-if value="{{ paso2Bloqueado }}" hint-placeholder-val="{{ false }}">
+        <div style="font-size:15px;color:var(--color-neutral-700)">Elegí primero el alumno.</div>
+      </sc-if>
+
+      <sc-if value="{{ eligiendoCurso }}" hint-placeholder-val="{{ true }}">
+        <div>
+          <sc-for list="{{ cursos }}" as="c" hint-placeholder-count="3">
+            <button onClick="{{ c.elegir }}" style="width:100%;display:flex;align-items:center;gap:12px;text-align:left;background:var(--color-neutral-100);border:1px solid var(--color-divider);border-radius:20px;padding:12px 14px;margin-bottom:8px;cursor:pointer;font-family:var(--font-body)">
+              <div style="flex:1;min-width:0">
+                <div style="font-size:17px;font-weight:600">{{ c.nombre }}</div>
+                <div style="font-size:14px;color:var(--color-neutral-700);margin-top:1px">{{ c.meta }}</div>
+              </div>
+              <div style="font-size:16px;font-weight:700;flex:none">{{ c.precio }}</div>
+            </button>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ hayCurso }}" hint-placeholder-val="{{ false }}">
+        <div style="background:var(--color-neutral-100);border-radius:22px;padding:14px">
+          <div style="display:flex;align-items:flex-start;gap:10px">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:19px;font-weight:700">{{ cursoNombre }}</div>
+              <div style="font-size:15px;color:var(--color-neutral-700);margin-top:2px">{{ cursoMeta }}</div>
+            </div>
+            <button class="btn btn-ghost" onClick="{{ cambiarCurso }}" style="font-size:15px;flex:none">Cambiar</button>
+          </div>
+
+          <sc-if value="{{ verModalidad }}" hint-placeholder-val="{{ true }}">
+            <div>
+              <div style="margin-top:14px;font-size:14px;color:var(--color-neutral-700);margin-bottom:6px">Modalidad</div>
+              <div class="seg tropi-seg tropi-seg-2">
+                <label class="seg-opt">
+                  <input type="radio" name="modalidad" checked="{{ modMensual }}" onChange="{{ setModMensual }}"></input>
+                  <span>Mensual completo</span>
+                </label>
+                <label class="seg-opt">
+                  <input type="radio" name="modalidad" checked="{{ modClase }}" onChange="{{ setModClase }}"></input>
+                  <span>Una clase</span>
+                </label>
+                <label class="seg-opt">
+                  <input type="radio" name="modalidad" checked="{{ modSemana }}" onChange="{{ setModSemana }}"></input>
+                  <span>Una semana</span>
+                </label>
+                <label class="seg-opt">
+                  <input type="radio" name="modalidad" checked="{{ modMedio }}" onChange="{{ setModMedio }}"></input>
+                  <span>Medio mes</span>
+                </label>
+              </div>
+              <div style="display:flex;align-items:baseline;gap:8px;margin-top:10px">
+                <div style="font-size:14px;color:var(--color-neutral-700)">{{ modalidadLabel }}</div>
+                <div class="nw" style="margin-left:auto;font-size:18px;font-weight:700">{{ modalidadPrecio }}</div>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ verMedioDias }}" hint-placeholder-val="{{ false }}">
+            <div>
+              <div style="margin-top:14px;font-size:14px;color:var(--color-neutral-700);margin-bottom:6px">Qué clases toma</div>
+              <div class="seg tropi-seg tropi-seg-2">
+                <sc-for list="{{ medioOpts }}" as="o" hint-placeholder-count="3">
+                  <label class="seg-opt">
+                    <input type="radio" name="mediodia" checked="{{ o.sel }}" onChange="{{ o.elegir }}"></input>
+                    <span>{{ o.label }}</span>
+                  </label>
+                </sc-for>
+              </div>
+            </div>
+          </sc-if>
+
+          <div style="margin-top:14px;font-size:14px;color:var(--color-neutral-700);margin-bottom:6px">{{ fechaLabel }}</div>
+          <div class="seg tropi-seg">
+            <sc-for list="{{ fechas }}" as="f" hint-placeholder-count="3">
+              <label class="seg-opt">
+                <input type="radio" name="fecha" checked="{{ f.sel }}" onChange="{{ f.elegir }}"></input>
+                <span>{{ f.label }}</span>
+              </label>
+            </sc-for>
+          </div>
+          <div style="font-size:14px;color:var(--color-neutral-700);margin-top:8px">{{ fechaNota }}</div>
+          <sc-if value="{{ hayPeriodoNota }}" hint-placeholder-val="{{ false }}">
+            <div style="font-size:14px;color:var(--color-neutral-700);margin-top:6px">{{ periodoNota }}</div>
+          </sc-if>
+        </div>
+      </sc-if>
+    </div>
+
+    <div style="background:var(--color-surface);border-radius:26px;padding:16px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <div style="width:30px;height:30px;border-radius:999px;background:var(--color-accent);color:var(--color-bg);display:grid;place-items:center;font-family:var(--font-heading);font-size:15px;flex:none">3</div>
+        <div class="nw" style="font-family:var(--font-heading);font-size:18px">Cobro de la primera cuota</div>
+      </div>
+
+      <sc-if value="{{ paso3Bloqueado }}" hint-placeholder-val="{{ true }}">
+        <div style="font-size:15px;color:var(--color-neutral-700)">Elegí el curso para ver la cuota.</div>
+      </sc-if>
+
+      <sc-if value="{{ cobroAbierto }}" hint-placeholder-val="{{ false }}">
+        <div style="background:var(--color-neutral-100);border-radius:22px;padding:14px">
+          <sc-if value="{{ verMeses }}" hint-placeholder-val="{{ true }}">
+            <div style="margin-bottom:12px">
+              <div style="font-size:14px;color:var(--color-neutral-700);margin-bottom:6px">Meses a pagar</div>
+              <div class="seg tropi-seg">
+                <label class="seg-opt">
+                  <input type="radio" name="meses" checked="{{ meses1 }}" onChange="{{ setMeses1 }}"></input>
+                  <span>1</span>
+                </label>
+                <label class="seg-opt">
+                  <input type="radio" name="meses" checked="{{ meses2 }}" onChange="{{ setMeses2 }}"></input>
+                  <span>2</span>
+                </label>
+                <label class="seg-opt">
+                  <input type="radio" name="meses" checked="{{ meses3 }}" onChange="{{ setMeses3 }}"></input>
+                  <span>3</span>
+                </label>
+                <label class="seg-opt">
+                  <input type="radio" name="meses" checked="{{ mesesLibre }}" onChange="{{ setMesesLibre }}"></input>
+                  <span>Más</span>
+                </label>
+              </div>
+              <sc-if value="{{ mesesLibre }}" hint-placeholder-val="{{ false }}">
+                <div class="field" style="margin-top:10px">
+                  <label style="font-size:14px">¿Cuántos meses?</label>
+                  <input class="input tropi-in" value="{{ mesesTexto }}" onChange="{{ onMeses }}" inputMode="numeric" placeholder="6" style="max-width:130px;background:var(--color-neutral-100) !important;font-size:20px !important;font-weight:600"></input>
+                </div>
+              </sc-if>
+            </div>
+          </sc-if>
+
+          <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:12px">
+            <div style="font-size:15px;color:var(--color-neutral-700)">{{ cobroLabel }}</div>
+            <div class="nw" style="margin-left:auto;font-family:var(--font-heading);font-size:26px">{{ subtotalTexto }}</div>
+          </div>
+
+          <sc-if value="{{ hayDescAdelanto }}" hint-placeholder-val="{{ false }}">
+            <div style="margin-top:-4px;margin-bottom:12px">
+              <div style="display:flex;align-items:baseline;gap:8px;color:var(--color-accent-2-800)">
+                <div style="font-size:15px">{{ descAdelantoLabel }}</div>
+                <div class="nw" style="margin-left:auto;font-size:17px;font-weight:700">{{ descAdelantoTexto }}</div>
+              </div>
+              <div style="display:flex;align-items:baseline;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid var(--color-divider)">
+                <div style="font-size:15px;color:var(--color-neutral-700)">Total a pagar</div>
+                <div class="nw" style="margin-left:auto;font-family:var(--font-heading);font-size:26px">{{ totalTexto }}</div>
+              </div>
+            </div>
+          </sc-if>
+
+          <dc-import name="Cobro" sujeto="" detalle="" referencia="{{ referenciaCobro }}" referencia-label="{{ cobroLabel }}" politica="descuento" direccion="cobro" medios="Efectivo,QR / transf.,Otro" permitir-sin-cobro="{{ permiteSinCobro }}" cuenta-id="{{ cuentaId }}" onChange="{{ onCobro }}" hint-size="100%,230px"></dc-import>
+        </div>
+      </sc-if>
+    </div>
+
+    <sc-if value="{{ errorMsg }}" hint-placeholder-val="{{ false }}">
+      <div style="font-size:15px;color:var(--color-accent-800);background:var(--color-accent-200);border-radius:18px;padding:12px 14px;margin-top:12px">{{ errorMsg }}</div>
+    </sc-if>
+  </div>
+
+  <div style="padding:12px 16px 16px;background:var(--color-surface);border-top:1px solid var(--color-divider)">
+    <div style="display:flex;align-items:baseline;margin-bottom:8px">
+      <div style="font-size:15px;color:var(--color-neutral-700);min-width:0">{{ resumenPie }}</div>
+      <div class="nw" style="margin-left:auto;font-family:var(--font-heading);font-size:22px">{{ cobraTexto }}</div>
+    </div>
+    <button class="btn btn-primary btn-block tropi-btn-big" onClick="{{ confirmar }}" disabled="{{ noPuede }}">Confirmar inscripción</button>
+  </div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:450,&quot;height&quot;:940},&quot;modalidadesParciales&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Curso&quot;},&quot;tablaDescuentoMeses&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;2:5, 3:10, 6:15&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Cobro&quot;},&quot;permitirSinCobro&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Cobro&quot;}}">
+const HOY = new Date(2026, 7, 20);
+const DIAS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+
+const CURSOS = [
+  { id: 'CU001', nombre: 'Salsa y Bachata Inicial', linea: 'Básico 2', horario: 'Lu y Mi · 19:30', prof: 'Natalia Salek', precio: 250, dias: [1, 3], tarifas: { clase: 45, semana: 90, medio: 140 } },
+  { id: 'CU002', nombre: 'Bachata Conexión', linea: 'Básico 3', horario: 'Ma y Ju · 20:30', prof: 'Oscar Nuñez', precio: 250, dias: [2, 4], tarifas: { clase: 45, semana: 90, medio: 140 } },
+  { id: 'CU003', nombre: 'Zumba', linea: 'Cardio', horario: 'Ma y Ju · 19:30', prof: 'Juan Pablo Caballero', precio: 170, dias: [2, 4], tarifas: { clase: 35, semana: 65, medio: 100 } },
+  { id: 'CU004', nombre: 'Urbano', linea: 'Niños', horario: 'Lu y Mi · 18:30', prof: 'Ángel Cáceres', precio: 250, dias: [1, 3], tarifas: { clase: 45, semana: 90, medio: 140 } },
+  { id: 'CU005', nombre: 'Heels', linea: 'Mujeres', horario: 'Sá · 18:30', prof: 'Sebastián Tini', precio: 170, dias: [6], tarifas: { clase: 50, semana: 50, medio: 95 } },
+  { id: 'CU006', nombre: 'Dom Salsa y Bachata', linea: 'Básico 2', horario: 'Do · 18:30', prof: 'Natalia Salek', precio: 170, dias: [7], tarifas: { clase: 50, semana: 50, medio: 95 } }
+];
+
+const ALUMNOS = [
+  { id: 'AL004', nom: 'Virginia', ape: 'Martínez', wa: '71 054 962', deuda: 200, cursos: ['Bachata Conexión', 'Salsa y Bachata Inicial'] },
+  { id: 'AL003', nom: 'Laida', ape: 'Salinas', wa: '67 359 811', deuda: 450, cursos: ['Bachata Conexión', 'Salsa y Bachata Inicial'] },
+  { id: 'AL002', nom: 'Manuel', ape: 'Aguilar', wa: '62 584 486', deuda: 200, cursos: ['Bachata Conexión'] },
+  { id: 'AL015', nom: 'Tania', ape: 'Fonseca', wa: '72 608 414', deuda: 200, cursos: ['Bachata Conexión'] },
+  { id: 'AL006', nom: 'Gabriela', ape: 'Rayza', wa: '71 624 252', deuda: 250, cursos: ['Salsa y Bachata Inicial'] },
+  { id: 'AL001', nom: 'Jhonny', ape: 'Cutipa', wa: '63 800 865', deuda: 250, cursos: [] },
+  { id: 'AL005', nom: 'Loana', ape: 'Barrientos', wa: '63 443 145', deuda: 250, cursos: [], tutor: 'Tutora · 70 878 081' },
+  { id: 'AL017', nom: 'Rolando', ape: 'Salvatierra', wa: '62 203 938', deuda: 0, cursos: [] },
+  { id: 'AL016', nom: 'Alejandro', ape: 'Camacho', wa: '69 852 572', deuda: 0, cursos: ['Zumba'] },
+  { id: 'AL019', nom: 'Javier', ape: 'González', wa: '78 009 001', deuda: 0, cursos: [] }
+];
+
+const gs = (n) => 'Bs. ' + Number(n || 0).toLocaleString('es-BO');
+const soloNum = (s) => String(s || '').replace(/\D/g, '');
+const fechaLarga = (d) => DIAS[d.getDay()] + ' ' + d.getDate() + ' ' + MESES[d.getMonth()];
+
+const MODALIDADES = [
+  { k: 'mensual', label: 'Mensual completo', dias: 0 },
+  { k: 'clase', label: 'Una clase', dias: 1 },
+  { k: 'semana', label: 'Una semana', dias: 7 },
+  { k: 'medio', label: 'Medio mes', dias: 15 }
+];
+const modalidad = (k) => MODALIDADES.filter((m) => m.k === k)[0];
+const DIAS_LARGOS = { 1: 'lunes', 2: 'martes', 3: 'miércoles', 4: 'jueves', 5: 'viernes', 6: 'sábados', 7: 'domingos' };
+
+// Tarifa propia de la modalidad — no es un descuento sobre el mensual.
+function precioModalidad(curso, k, meses) {
+  if (!curso) return 0;
+  if (k === 'mensual') return curso.precio * Math.max(1, meses || 1);
+  return (curso.tarifas || {})[k] || curso.precio;
+}
+
+// "2:5, 3:10, 6:15" → { 2: 5, 3: 10, 6: 15 }
+function parseTablaDescuento(txt) {
+  const out = {};
+  String(txt || '').split(',').forEach((par) => {
+    const p = par.split(':');
+    const m = parseInt(String(p[0]).replace(/\D/g, ''), 10);
+    const pct = parseFloat(String(p[1]).replace(/[^\d.]/g, ''));
+    if (m > 1 && pct > 0) out[m] = pct;
+  });
+  return out;
+}
+
+// Clases del curso que caen dentro del período elegido.
+function clasesEnPeriodo(curso, inicio, dias) {
+  const out = [];
+  const d = new Date(inicio);
+  const fin = new Date(inicio);
+  fin.setDate(fin.getDate() + dias - 1);
+  while (d <= fin) {
+    const wd = d.getDay() === 0 ? 7 : d.getDay();
+    if (curso.dias.indexOf(wd) >= 0) out.push(new Date(d));
+    d.setDate(d.getDate() + 1);
+  }
+  return out;
+}
+
+// Medio mes: o quince días seguidos, o un solo día de la semana a lo largo del mes.
+function clasesModalidad(curso, inicio, k, medioDia) {
+  if (k === 'medio' && medioDia) return clasesEnPeriodo({ dias: [medioDia] }, inicio, 30);
+  return clasesEnPeriodo(curso, inicio, modalidad(k).dias);
+}
+
+// El mes se nombra una sola vez por tramo: "lun 24, lun 31 ago y lun 7 sep".
+function listaFechas(ds) {
+  if (!ds.length) return '';
+  const partes = ds.map((d, i) => {
+    const base = DIAS[d.getDay()] + ' ' + d.getDate();
+    const cierraMes = i === ds.length - 1 || ds[i + 1].getMonth() !== d.getMonth();
+    return cierraMes ? base + ' ' + MESES[d.getMonth()] : base;
+  });
+  if (partes.length === 1) return partes[0];
+  return partes.slice(0, -1).join(', ') + ' y ' + partes[partes.length - 1];
+}
+
+function proximasClases(curso, n) {
+  const out = [];
+  const d = new Date(HOY);
+  for (let i = 0; i < 60 && out.length < n; i++) {
+    const wd = d.getDay() === 0 ? 7 : d.getDay();
+    if (curso.dias.indexOf(wd) >= 0) out.push(new Date(d));
+    d.setDate(d.getDate() + 1);
+  }
+  return out;
+}
+
+class Component extends DCLogic {
+  state = {
+    q: '', alumno: null, formNuevo: false, nom: '', ape: '', wa: '',
+    dupeIgnorado: false, tutorAbierto: false, tutorNom: '', tutorWa: '',
+    curso: null, fechaIdx: 0, modalidad: 'mensual', medioDia: null, mesesOpt: 1, mesesTexto: '',
+    cobro: null, aviso: null, errorMsg: null
+  };
+
+  set = (p) => this.setState(p);
+
+  dupe() {
+    const n = soloNum(this.state.wa);
+    if (n.length < 6) return null;
+    return ALUMNOS.filter((a) => soloNum(a.wa) === n)[0] || null;
+  }
+
+  elegirAlumno(a) {
+    this.set({ alumno: a, formNuevo: false, q: '', errorMsg: null, dupeIgnorado: false });
+  }
+
+  mesesNum() {
+    const s = this.state;
+    if (s.modalidad !== 'mensual') return 1;
+    if (s.mesesOpt !== 'libre') return s.mesesOpt;
+    return Math.max(1, Number(soloNum(s.mesesTexto)) || 1);
+  }
+
+  // Subtotal (tarifa propia o mensual × meses), descuento automático por adelanto,
+  // descuento manual, y el total que queda a pagar.
+  cuentas() {
+    const s = this.state;
+    const meses = this.mesesNum();
+    const subtotal = precioModalidad(s.curso, s.modalidad, meses);
+    const tabla = parseTablaDescuento(this.props.tablaDescuentoMeses ?? '2:5, 3:10, 6:15');
+    const pct = s.modalidad === 'mensual' && meses > 1 ? (tabla[meses] || 0) : 0;
+    const descAdelanto = Math.round(subtotal * pct / 100);
+    const total = Math.max(0, subtotal - descAdelanto);
+    return { meses, subtotal, pct, descAdelanto, total };
+  }
+
+  cobraNum() {
+    return this.state.curso ? (Number((this.state.cobro || {}).monto) || 0) : 0;
+  }
+
+  confirmar = () => {
+    const s = this.state;
+    if (!s.alumno) return this.set({ errorMsg: 'Falta elegir o cargar el alumno.' });
+    if (!s.curso) return this.set({ errorMsg: 'Falta elegir el curso.' });
+    const c = s.cobro || {};
+    if (c.modo !== 'sin' && !c.medio) return this.set({ errorMsg: 'Elegí el medio de pago.' });
+    if (c.modo === 'parcial' && this.cobraNum() <= 0) return this.set({ errorMsg: 'Escribí el monto que entrega.' });
+    if (s.modalidad === 'mensual' && s.mesesOpt === 'libre' && (Number(soloNum(s.mesesTexto)) || 0) < 2) {
+      return this.set({ errorMsg: 'Escribí cuántos meses paga (2 o más).' });
+    }
+    if ((Number(c.ajuste) || 0) > 0 && !c.ajusteMotivo) {
+      return this.set({ errorMsg: 'El descuento necesita un motivo.' });
+    }
+    const fecha = proximasClases(s.curso, 3)[s.fechaIdx];
+    const cobrado = this.cobraNum();
+    const q = this.cuentas();
+    const mod = modalidad(s.modalidad);
+    const detalle = s.modalidad !== 'mensual'
+      ? ' (' + mod.label.toLowerCase() + ')'
+      : (q.meses > 1 ? ' (' + q.meses + ' meses adelantados' + (q.pct ? ', ' + q.pct + '% de descuento' : '') + ')' : '');
+    const aviso = 'Inscripción de ' + s.alumno.nom + ' ' + s.alumno.ape + ' en ' + s.curso.nombre + detalle +
+      ', empieza el ' + fechaLarga(fecha) + '. ' +
+      (cobrado > 0 ? 'Cobrado ' + gs(cobrado) + ' (' + c.medio + ').' : 'Sin cobro por ahora.');
+    this.setState({
+      q: '', alumno: null, formNuevo: false, nom: '', ape: '', wa: '',
+      dupeIgnorado: false, tutorAbierto: false, tutorNom: '', tutorWa: '',
+      curso: null, fechaIdx: 0, modalidad: 'mensual', medioDia: null, mesesOpt: 1, mesesTexto: '',
+      cobro: null, errorMsg: null, aviso: aviso
+    });
+    if (this.scrollRef && this.scrollRef.current) this.scrollRef.current.scrollTop = 0;
+  };
+
+  scrollRef = React.createRef();
+
+  renderVals() {
+    const s = this.state;
+    const permiteSinCobro = this.props.permitirSinCobro ?? true;
+    const verModalidad = this.props.modalidadesParciales ?? true;
+    const q = soloNum(s.q).length >= 3 ? soloNum(s.q) : s.q.trim().toLowerCase();
+    const buscando = s.q.trim().length >= 2;
+    const resultados = !buscando ? [] : ALUMNOS.filter((a) => {
+      const full = (a.nom + ' ' + a.ape).toLowerCase();
+      return full.indexOf(s.q.trim().toLowerCase()) >= 0 || soloNum(a.wa).indexOf(soloNum(s.q)) === 0 && soloNum(s.q).length >= 3;
+    }).slice(0, 4).map((a) => ({
+      nombre: a.nom + ' ' + a.ape, wa: 'WhatsApp ' + a.wa,
+      conDeuda: a.deuda > 0, alDia: a.deuda === 0, deudaTexto: 'Debe ' + gs(a.deuda),
+      elegir: () => this.elegirAlumno(a)
+    }));
+
+    const dupe = s.dupeIgnorado ? null : this.dupe();
+    const curso = s.curso;
+    const fechasRaw = curso ? proximasClases(curso, 3) : [];
+    const fechas = fechasRaw.map((d, i) => ({
+      label: (i === 0 && d.getDate() === HOY.getDate() ? 'hoy ' : '') + fechaLarga(d),
+      sel: s.fechaIdx === i,
+      elegir: () => this.set({ fechaIdx: i })
+    }));
+    const cta = this.cuentas();
+    const cob = s.cobro || {};
+    const cobrado = curso ? (Number(cob.monto) || 0) : 0;
+    const saldo = curso ? (Number(cob.saldo) || 0) : 0;
+    const mod = modalidad(s.modalidad);
+    const clasesPeriodo = curso && s.modalidad !== 'mensual' && fechasRaw.length
+      ? clasesModalidad(curso, fechasRaw[s.fechaIdx], s.modalidad, s.medioDia) : [];
+
+    return {
+      scrollRef: this.scrollRef,
+      aviso: s.aviso,
+      cerrarAviso: () => this.set({ aviso: null }),
+      errorMsg: s.errorMsg,
+
+      q: s.q,
+      onQuery: (e) => this.set({ q: e.target.value, errorMsg: null }),
+      resultados,
+      sinResultados: buscando && resultados.length === 0,
+      sinAlumno: !s.alumno,
+      hayAlumno: !!s.alumno,
+      formNuevo: !s.alumno && s.formNuevo,
+      formNuevoCerrado: !s.alumno && !s.formNuevo,
+      abrirNuevo: () => this.set({ formNuevo: true, nom: '', ape: '', wa: soloNum(s.q).length >= 3 ? s.q.trim() : '' }),
+      nom: s.nom, ape: s.ape, wa: s.wa,
+      onNom: (e) => this.set({ nom: e.target.value }),
+      onApe: (e) => this.set({ ape: e.target.value }),
+      onWa: (e) => this.set({ wa: e.target.value, dupeIgnorado: false }),
+      dupe: !!dupe,
+      dupeNombre: dupe ? dupe.nom + ' ' + dupe.ape : '',
+      dupeDeuda: dupe ? gs(dupe.deuda) : '',
+      dupeCursos: dupe ? (dupe.cursos.length ? dupe.cursos.join(' · ') : 'ninguno activo') : '',
+      usarDupe: () => dupe && this.elegirAlumno(dupe),
+      ignorarDupe: () => this.set({ dupeIgnorado: true }),
+      tutorAbierto: s.tutorAbierto,
+      tutorLabel: s.tutorAbierto ? 'Quitar tutor' : 'Es menor: agregar tutor',
+      toggleTutor: () => this.set({ tutorAbierto: !s.tutorAbierto, tutorNom: '', tutorWa: '' }),
+      tutorNom: s.tutorNom, tutorWa: s.tutorWa,
+      onTutorNom: (e) => this.set({ tutorNom: e.target.value }),
+      onTutorWa: (e) => this.set({ tutorWa: e.target.value }),
+      nuevoIncompleto: !(s.nom.trim() && s.ape.trim() && soloNum(s.wa).length >= 6) || !!dupe,
+      guardarNuevo: () => {
+        if (!(s.nom.trim() && s.ape.trim() && soloNum(s.wa).length >= 6)) return;
+        this.elegirAlumno({ id: 'nuevo', nom: s.nom.trim(), ape: s.ape.trim(), wa: s.wa.trim(), deuda: 0, cursos: [] });
+      },
+      alumnoNombre: s.alumno ? s.alumno.nom + ' ' + s.alumno.ape : '',
+      alumnoWa: s.alumno ? 'WhatsApp ' + s.alumno.wa : '',
+      alumnoDeuda: s.alumno ? gs(s.alumno.deuda) : '',
+      alumnoCursos: s.alumno ? (s.alumno.cursos.length ? s.alumno.cursos.join(' · ') : 'Ningún curso todavía') : '',
+      cambiarAlumno: () => this.set({ alumno: null, curso: null, formNuevo: false, errorMsg: null }),
+
+      paso2Bloqueado: !s.alumno,
+      eligiendoCurso: !!s.alumno && !curso,
+      hayCurso: !!curso,
+      cursos: CURSOS.map((c) => ({
+        nombre: c.nombre,
+        meta: c.linea + ' · ' + c.horario + ' · ' + c.prof,
+        precio: gs(c.precio),
+        elegir: () => this.set({ curso: c, fechaIdx: 0, medioDia: null, modo: 'completa', monto: '', errorMsg: null })
+      })),
+      cursoNombre: curso ? curso.nombre : '',
+      cursoMeta: curso ? curso.horario + ' · ' + curso.prof : '',
+      cambiarCurso: () => this.set({ curso: null }),
+      fechas,
+      fechaLabel: s.modalidad === 'mensual' ? 'Empieza a tomar clases' : 'Desde qué clase arranca',
+      fechaNota: !curso ? ''
+        : (s.modalidad === 'mensual'
+          ? 'La primera cuota se devenga desde esta fecha. Próximo vencimiento: un mes después.'
+          : 'Se cobra una sola vez, por el período elegido. No genera cuota mensual.'),
+      hayPeriodoNota: clasesPeriodo.length > 0,
+      periodoNota: clasesPeriodo.length === 1
+        ? 'Incluye solo la clase de ' + listaFechas(clasesPeriodo) + '.'
+        : 'Incluye las clases de ' + listaFechas(clasesPeriodo) + '.',
+
+      verModalidad: verModalidad && !!curso,
+      modMensual: s.modalidad === 'mensual',
+      modClase: s.modalidad === 'clase',
+      modSemana: s.modalidad === 'semana',
+      modMedio: s.modalidad === 'medio',
+      setModMensual: () => this.set({ modalidad: 'mensual', medioDia: null, modo: 'completa', monto: '', errorMsg: null }),
+      setModClase: () => this.set({ modalidad: 'clase', medioDia: null, mesesOpt: 1, mesesTexto: '', modo: 'completa', monto: '', errorMsg: null }),
+      setModSemana: () => this.set({ modalidad: 'semana', medioDia: null, mesesOpt: 1, mesesTexto: '', modo: 'completa', monto: '', errorMsg: null }),
+      setModMedio: () => this.set({ modalidad: 'medio', medioDia: null, mesesOpt: 1, mesesTexto: '', modo: 'completa', monto: '', errorMsg: null }),
+      verMedioDias: !!curso && s.modalidad === 'medio' && curso.dias.length > 1,
+      medioOpts: !curso ? [] : [{ dia: null, label: '15 días seguidos' }]
+        .concat(curso.dias.map((d) => ({ dia: d, label: 'Solo ' + DIAS_LARGOS[d] })))
+        .map((o) => ({
+          label: o.label,
+          sel: s.medioDia === o.dia,
+          elegir: () => this.set({ medioDia: o.dia, errorMsg: null })
+        })),
+      modalidadLabel: mod.label,
+      modalidadPrecio: gs(precioModalidad(curso, s.modalidad, 1)),
+
+      paso3Bloqueado: !curso,
+      cobroAbierto: !!curso,
+      verMeses: verModalidad ? s.modalidad === 'mensual' : true,
+      meses1: s.mesesOpt === 1,
+      meses2: s.mesesOpt === 2,
+      meses3: s.mesesOpt === 3,
+      mesesLibre: s.mesesOpt === 'libre',
+      setMeses1: () => this.set({ mesesOpt: 1, mesesTexto: '', errorMsg: null }),
+      setMeses2: () => this.set({ mesesOpt: 2, mesesTexto: '', errorMsg: null }),
+      setMeses3: () => this.set({ mesesOpt: 3, mesesTexto: '', errorMsg: null }),
+      setMesesLibre: () => this.set({ mesesOpt: 'libre', errorMsg: null }),
+      mesesTexto: s.mesesTexto,
+      onMeses: (e) => this.set({ mesesTexto: e.target.value, errorMsg: null }),
+
+      cobroLabel: !curso ? ''
+        : (s.modalidad !== 'mensual'
+          ? 'A cobrar · ' + mod.label.toLowerCase()
+          : (cta.meses > 1 ? cta.meses + ' meses × ' + gs(curso.precio) : 'Cuota del mes')),
+      subtotalTexto: gs(cta.subtotal),
+      hayDescAdelanto: cta.descAdelanto > 0,
+      descAdelantoLabel: 'Descuento por pago adelantado (' + cta.pct + '%)',
+      descAdelantoTexto: '− ' + gs(cta.descAdelanto),
+      totalTexto: gs(cta.total),
+      permiteSinCobro,
+      referenciaCobro: cta.total,
+      cuentaId: curso ? curso.id + '·' + s.modalidad + '·' + cta.meses : '',
+      onCobro: (p) => {
+        const prev = this.state.cobro;
+        if (prev && prev.monto === p.monto && prev.medio === p.medio && prev.modo === p.modo &&
+            prev.ajuste === p.ajuste && prev.ajusteMotivo === p.ajusteMotivo) return;
+        this.setState({ cobro: p, errorMsg: null });
+      },
+
+      cobraTexto: gs(cobrado),
+      saldoTexto: gs(saldo),
+      resumenPie: !s.alumno ? 'Sin alumno todavía' : (!curso ? 'Falta el curso' : (cob.modo === 'sin' ? 'Queda debiendo ' + gs(saldo) : 'Cobra hoy')),
+      noPuede: !s.alumno || !curso,
+      confirmar: this.confirmar
+    };
+  }
+}
+</script>
+</body>
+</html>

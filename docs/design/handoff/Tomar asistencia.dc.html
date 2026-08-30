@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/organic-186d334f-848b-405d-95ba-b805f2b70bf6/styles.css">
+<script src="_ds/organic-186d334f-848b-405d-95ba-b805f2b70bf6/_ds_bundle.js"></script>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&display=swap">
+<style>
+
+/* Fondo oscuro: se reasignan los tokens del sistema y se invierten las rampas,
+   para que los mismos pasos sigan pesando igual sobre un fondo oscuro. */
+:root {
+  --color-bg: #1c1815;
+  --color-surface: #272220;
+  --color-text: #f4ebdd;
+  --color-divider: color-mix(in srgb, #f4ebdd 16%, transparent);
+  --color-accent: #e08b4f;
+  --color-accent-2: #9bad78;
+
+  --color-neutral-100: #302a25;
+  --color-neutral-200: #3a332d;
+  --color-neutral-300: #463e37;
+  --color-neutral-400: #6d6359;
+  --color-neutral-500: #8f8578;
+  --color-neutral-600: #ab9f91;
+  --color-neutral-700: #c8bbaa;
+  --color-neutral-800: #e2d7c6;
+  --color-neutral-900: #f4ebdd;
+
+  --color-accent-100: #37200f;
+  --color-accent-200: #6b3714;
+  --color-accent-300: #8c491a;
+  --color-accent-400: #b2622d;
+  --color-accent-500: #d67f48;
+  --color-accent-600: #f6a06b;
+  --color-accent-700: #ffc0a0;
+  --color-accent-800: #ffd3b5;
+  --color-accent-900: #fff2eb;
+
+  --color-accent-2-100: #232a18;
+  --color-accent-2-200: #3a4726;
+  --color-accent-2-300: #56633f;
+  --color-accent-2-400: #728157;
+  --color-accent-2-500: #8fa073;
+  --color-accent-2-600: #a8bb88;
+  --color-accent-2-700: #ccdbb2;
+  --color-accent-2-800: #dcebc4;
+  --color-accent-2-900: #f0fae1;
+
+  --tropi-chip: #f4ebdd;
+}
+.input option, select.input { color: var(--color-text); background: var(--color-neutral-100); }
+
+
+/* Tipografía: grotesca geométrica en bold para los títulos, en lugar del display. */
+:root {
+  --font-heading: "Montserrat", system-ui, sans-serif;
+  --font-heading-weight: 800;
+}
+h1, h2, h3, h4 { letter-spacing: -0.025em; }
+.btn { font-weight: 700; letter-spacing: 0.01em; }
+.nw { white-space: nowrap; }
+body { margin: 0; }
+@media (min-width: 700px) {
+  .asis-lista { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; align-items: start; }
+  .asis-fila { min-height: 68px; }
+}
+.caja-chip, .asis-tag { white-space: nowrap; flex: none; }
+
+body { margin: 0; background: var(--color-neutral-300); }
+a { color: var(--color-accent-700); }
+a:hover { color: var(--color-accent-800); }
+.asis-btn-big { font-size: 18px !important; min-height: 58px !important; }
+.asis-fila { width: 100%; display: flex; align-items: center; gap: 12px; text-align: left; cursor: pointer; font-family: var(--font-body); color: var(--color-text); padding: 12px 14px; margin-bottom: 8px; border-radius: 22px; min-height: 74px; }
+@keyframes asisIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+</style>
+</helmet>
+<div style="min-height:100dvh;display:flex;justify-content:center;background:var(--color-neutral-300)">
+<div style="width:100%;max-width:900px;height:100dvh;display:flex;flex-direction:column;background:var(--color-bg);font-family:var(--font-body);color:var(--color-text)">
+
+  <div style="padding:18px 18px 4px;display:flex;align-items:center;gap:10px">
+    <div style="background:var(--tropi-chip);border-radius:999px;padding:5px 13px;display:flex;flex:none"><img src="assets/tropicana-logo.png" alt="Tropicana" style="height:22px;width:auto"></img></div><div class="nw" style="margin-left:auto;font-size:13px;color:var(--color-neutral-700)">Natalia · profesora</div>
+    
+  </div>
+
+  <div style="padding:8px 16px 12px">
+    <button onClick="{{ toggleSelector }}" style="width:100%;display:flex;align-items:center;gap:12px;text-align:left;background:var(--color-surface);border:none;border-radius:26px;padding:14px 16px;cursor:pointer;font-family:var(--font-body);color:var(--color-text)">
+      <div style="flex:1;min-width:0">
+        <div style="font-family:var(--font-heading);font-size:clamp(24px,3vw,30px);line-height:1.15">{{ claseNombre }}</div>
+        <div style="font-size:17px;margin-top:4px;color:var(--color-neutral-700)">{{ claseFecha }}</div>
+      </div>
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="m6 9 6 6 6-6"></path></svg>
+    </button>
+
+    <sc-if value="{{ selectorAbierto }}" hint-placeholder-val="{{ false }}">
+      <div style="background:var(--color-neutral-100);border-radius:22px;padding:8px;margin-top:8px;animation:asisIn .2s ease-out">
+        <sc-for list="{{ clases }}" as="c" hint-placeholder-count="2">
+          <button onClick="{{ c.elegir }}" style="width:100%;display:flex;align-items:center;gap:10px;text-align:left;background:transparent;border:none;border-radius:18px;padding:12px 12px;cursor:pointer;font-family:var(--font-body);color:var(--color-text)">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:17px;font-weight:600">{{ c.nombre }}</div>
+              <div style="font-size:15px;color:var(--color-neutral-700)">{{ c.fecha }}</div>
+            </div>
+            <sc-if value="{{ c.sel }}" hint-placeholder-val="{{ false }}">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M20 6 9 17l-5-5"></path></svg>
+            </sc-if>
+          </button>
+        </sc-for>
+      </div>
+    </sc-if>
+  </div>
+
+  <div style="padding:0 16px 10px;display:flex;align-items:center;gap:10px">
+    <div style="display:flex;align-items:baseline;gap:6px">
+      <span style="font-family:var(--font-heading);font-size:22px">{{ marcados }}</span>
+      <span class="nw" style="font-size:16px;color:var(--color-neutral-700)">de {{ total }} marcados</span>
+    </div>
+    <button class="btn btn-secondary" onClick="{{ todosPresentes }}" style="margin-left:auto;flex:none;min-height:44px;font-size:15px;background:var(--color-neutral-100)">Todos presentes</button>
+  </div>
+
+  <div style="flex:1;overflow:auto;padding:0 clamp(16px,2vw,20px) 20px">
+
+    <sc-if value="{{ aviso }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;align-items:flex-start;gap:10px;background:var(--color-accent-2-200);border-radius:22px;padding:14px 16px;margin-bottom:12px;animation:asisIn .25s ease-out">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-2-800)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:2px"><path d="M20 6 9 17l-5-5"></path></svg>
+        <div style="font-size:16px;line-height:1.4;color:var(--color-accent-2-900)">{{ aviso }}</div>
+      </div>
+    </sc-if>
+
+    <div class="asis-lista">
+    <sc-for list="{{ filas }}" as="a" hint-placeholder-count="8">
+      <div>
+        <sc-if value="{{ a.sinMarcar }}" hint-placeholder-val="{{ true }}">
+          <button class="asis-fila" onClick="{{ a.tocar }}" style="background:var(--color-neutral-100);border:1px solid var(--color-divider)">
+            <div style="width:34px;height:34px;border-radius:999px;border:2px solid var(--color-neutral-400);flex:none"></div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:19px;font-weight:600;line-height:1.2">{{ a.nombre }}</div>
+              <div style="font-size:15px;color:var(--color-neutral-700);margin-top:3px">{{ a.faltasTexto }}</div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex:none">
+              <sc-if value="{{ a.alerta }}" hint-placeholder-val="{{ false }}">
+                <span class="tag tag-accent asis-tag" style="font-size:13px">{{ a.alertaTexto }}</span>
+              </sc-if>
+              <sc-if value="{{ a.debe }}" hint-placeholder-val="{{ false }}">
+                <span class="asis-tag" style="font-size:14px;color:var(--color-accent-700)">{{ a.deudaTexto }}</span>
+              </sc-if>
+            </div>
+          </button>
+        </sc-if>
+
+        <sc-if value="{{ a.presente }}" hint-placeholder-val="{{ false }}">
+          <button class="asis-fila" onClick="{{ a.tocar }}" style="background:var(--color-accent-2-200);border:1px solid var(--color-accent-2-300)">
+            <div style="width:34px;height:34px;border-radius:999px;background:var(--color-accent-2-600);display:grid;place-items:center;flex:none">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--color-bg)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>
+            </div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:19px;font-weight:600;line-height:1.2">{{ a.nombre }}</div>
+              <div style="font-size:15px;color:var(--color-accent-2-800);margin-top:3px">Presente</div>
+            </div>
+            <sc-if value="{{ a.debe }}" hint-placeholder-val="{{ false }}">
+              <span class="asis-tag" style="font-size:14px;color:var(--color-accent-700)">{{ a.deudaTexto }}</span>
+            </sc-if>
+          </button>
+        </sc-if>
+
+        <sc-if value="{{ a.ausente }}" hint-placeholder-val="{{ false }}">
+          <button class="asis-fila" onClick="{{ a.tocar }}" style="background:var(--color-accent-200);border:1px solid var(--color-accent-300)">
+            <div style="width:34px;height:34px;border-radius:999px;background:var(--color-accent-700);display:grid;place-items:center;flex:none">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-bg)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+            </div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:19px;font-weight:600;line-height:1.2">{{ a.nombre }}</div>
+              <div style="font-size:15px;color:var(--color-accent-800);margin-top:3px">{{ a.textoAusente }}</div>
+            </div>
+          </button>
+        </sc-if>
+      </div>
+    </sc-for>
+    </div>
+
+    <div style="font-size:15px;color:var(--color-neutral-700);padding:6px 4px 0;line-height:1.5">Un toque marca presente. Otro toque lo pasa a ausente.</div>
+  </div>
+
+  <div style="padding:12px 16px 16px;background:var(--color-surface);border-top:1px solid var(--color-divider)">
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:7px">
+        <div style="width:14px;height:14px;border-radius:999px;background:var(--color-accent-2-600)"></div>
+        <span style="font-size:17px;font-weight:700">{{ presentes }}</span>
+        <span style="font-size:15px;color:var(--color-neutral-700)">presentes</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:7px">
+        <div style="width:14px;height:14px;border-radius:999px;background:var(--color-accent-700)"></div>
+        <span style="font-size:17px;font-weight:700">{{ ausentes }}</span>
+        <span style="font-size:15px;color:var(--color-neutral-700)">ausentes</span>
+      </div>
+      <div class="nw" style="margin-left:auto;font-size:15px;color:var(--color-neutral-700)">{{ pendientesTexto }}</div>
+    </div>
+    <button class="btn btn-primary btn-block asis-btn-big" onClick="{{ guardar }}" disabled="{{ noPuede }}">Guardar asistencia</button>
+  </div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:450,&quot;height&quot;:940},&quot;faltasToleradas&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:2,&quot;min&quot;:1,&quot;max&quot;:4,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Política&quot;},&quot;mostrarDeuda&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Política&quot;}}">
+const PROFESOR = 'PR001';
+
+const TODAS_LAS_CLASES = [
+  {
+    id: 'CL088', profesor: 'PR001', nombre: 'Salsa y Bachata Inicial', fecha: 'Hoy · lun 24 ago · 19:30',
+    alumnos: [
+      { id: 'AL004', nombre: 'Virginia Martínez', faltas: 2, deuda: 200 },
+      { id: 'AL003', nombre: 'Laida Salinas', faltas: 1, deuda: 450 },
+      { id: 'AL006', nombre: 'Gabriela Rayza', faltas: 0, deuda: 250 },
+      { id: 'AL013', nombre: 'Yubinca Flores', faltas: 3, deuda: 0 },
+      { id: 'AL014', nombre: 'Carolina Ortiz', faltas: 0, deuda: 0 },
+      { id: 'AL016', nombre: 'Alejandro Camacho', faltas: 1, deuda: 0 },
+      { id: 'AL017', nombre: 'Rolando Salvatierra', faltas: 0, deuda: 0 },
+      { id: 'AL011', nombre: 'Sarai Cutipa', faltas: 2, deuda: 0 },
+      { id: 'AL007', nombre: 'Elizabeth Vargas', faltas: 0, deuda: 0 },
+      { id: 'AL008', nombre: 'Fabián Rojas', faltas: 1, deuda: 0 },
+      { id: 'AL009', nombre: 'Sebastián Rojas', faltas: 0, deuda: 0 },
+      { id: 'AL010', nombre: 'Ezequiel Rojas', faltas: 0, deuda: 0 },
+      { id: 'AL005', nombre: 'Loana Barrientos', faltas: 2, deuda: 250 },
+      { id: 'AL019', nombre: 'Javier González', faltas: 0, deuda: 0 }
+    ]
+  },
+  {
+    id: 'CL087', profesor: 'PR001', nombre: 'Dom Salsa y Bachata', fecha: 'Ayer · dom 23 ago · 18:30',
+    alumnos: [
+      { id: 'AL015', nombre: 'Tania Fonseca', faltas: 1, deuda: 200 },
+      { id: 'AL002', nombre: 'Manuel Aguilar', faltas: 0, deuda: 200 },
+      { id: 'AL012', nombre: 'Jorge Medina', faltas: 2, deuda: 200 },
+      { id: 'AL017', nombre: 'Rolando Salvatierra', faltas: 0, deuda: 0 },
+      { id: 'AL014', nombre: 'Carolina Ortiz', faltas: 1, deuda: 0 },
+      { id: 'AL001', nombre: 'Jhonny Cutipa', faltas: 0, deuda: 250 }
+    ]
+  },
+  {
+    id: 'CL086', profesor: 'PR002', nombre: 'Bachata Conexión', fecha: 'Hoy · lun 24 ago · 20:30',
+    alumnos: [{ id: 'AL002', nombre: 'Manuel Aguilar', faltas: 0, deuda: 200 }]
+  }
+];
+
+// Solo las clases asignadas a la profesora que está usando la app.
+const CLASES = TODAS_LAS_CLASES.filter((c) => c.profesor === PROFESOR);
+
+const bs = (n) => 'Bs. ' + Number(n || 0).toLocaleString('es-BO');
+const plural = (n, s, p) => n + ' ' + (n === 1 ? s : p);
+const apellido = (nombre) => String(nombre).trim().split(' ').slice(1).join(' ') || nombre;
+const porApellido = (a, b) => apellido(a.nombre).localeCompare(apellido(b.nombre), 'es');
+
+class Component extends DCLogic {
+  state = { claseIdx: 0, selectorAbierto: false, marcas: {}, aviso: null };
+
+  set = (p) => this.setState(p);
+
+  tocar(id) {
+    const m = Object.assign({}, this.state.marcas);
+    m[id] = m[id] === 'p' ? 'a' : 'p';
+    this.setState({ marcas: m, aviso: null });
+  }
+
+  guardar = () => {
+    const clase = CLASES[this.state.claseIdx];
+    const tol = Number(this.props.faltasToleradas ?? 2);
+    const marcas = this.state.marcas;
+    const pres = clase.alumnos.filter((a) => marcas[a.id] === 'p').length;
+    const aus = clase.alumnos.filter((a) => marcas[a.id] === 'a');
+    const repo = aus.filter((a) => a.faltas < tol).length;
+    this.setState({
+      marcas: {},
+      aviso: 'Asistencia guardada · ' + plural(pres, 'presente', 'presentes') + ' y ' +
+        plural(aus.length, 'ausente', 'ausentes') + '. ' +
+        (repo > 0 ? 'Se generó ' + plural(repo, 'reposición', 'reposiciones') + ' por falta con tolerancia.' : 'Sin reposiciones nuevas.')
+    });
+  };
+
+  renderVals() {
+    const s = this.state;
+    const tol = Number(this.props.faltasToleradas ?? 2);
+    const verDeuda = this.props.mostrarDeuda ?? true;
+    const clase = CLASES[s.claseIdx];
+    const marcas = s.marcas;
+
+    const filas = clase.alumnos.slice().sort(porApellido).map((a) => {
+      const m = marcas[a.id];
+      const restantes = tol - a.faltas;
+      const sinTolerancia = restantes <= 0;
+      const ultima = restantes === 1;
+      return {
+        nombre: a.nombre,
+        faltasTexto: a.faltas === 0 ? 'Sin faltas este mes' : plural(a.faltas, 'falta este mes', 'faltas este mes'),
+        alerta: sinTolerancia || ultima,
+        alertaTexto: sinTolerancia ? 'Sin tolerancia' : 'Última tolerada',
+        debe: verDeuda && a.deuda > 0,
+        deudaTexto: 'Debe ' + bs(a.deuda),
+        textoAusente: sinTolerancia ? 'Ausente · sin reposición' : 'Ausente · corre el vencimiento',
+        sinMarcar: !m,
+        presente: m === 'p',
+        ausente: m === 'a',
+        tocar: () => this.tocar(a.id)
+      };
+    });
+
+    const presentes = filas.filter((f) => f.presente).length;
+    const ausentes = filas.filter((f) => f.ausente).length;
+    const marcados = presentes + ausentes;
+    const pendientes = filas.length - marcados;
+
+    return {
+      claseNombre: clase.nombre,
+      claseFecha: clase.fecha,
+      selectorAbierto: s.selectorAbierto,
+      toggleSelector: () => this.set({ selectorAbierto: !s.selectorAbierto }),
+      clases: CLASES.map((c, i) => ({
+        nombre: c.nombre, fecha: c.fecha + ' · ' + plural(c.alumnos.length, 'alumno', 'alumnos'),
+        sel: i === s.claseIdx,
+        elegir: () => this.setState({ claseIdx: i, selectorAbierto: false, marcas: {}, aviso: null })
+      })),
+
+      filas,
+      total: filas.length,
+      marcados, presentes, ausentes,
+      pendientesTexto: pendientes === 0 ? 'Lista completa' : plural(pendientes, 'sin marcar', 'sin marcar'),
+      todosPresentes: () => {
+        const m = {};
+        clase.alumnos.forEach((a) => { m[a.id] = 'p'; });
+        this.setState({ marcas: m, aviso: null });
+      },
+      aviso: s.aviso,
+      noPuede: marcados === 0,
+      guardar: this.guardar
+    };
+  }
+}
+</script>
+</body>
+</html>
