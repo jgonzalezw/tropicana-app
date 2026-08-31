@@ -13,6 +13,7 @@ export default function BarraLateral({
   puedeUsuarios,
   puedeConfig,
   puedeProfesores,
+  puedeCursos,
   temas,
   temaActual,
 }: {
@@ -20,6 +21,7 @@ export default function BarraLateral({
   puedeUsuarios: boolean;
   puedeConfig: boolean;
   puedeProfesores: boolean;
+  puedeCursos: boolean;
   temas: OpcionTema[];
   temaActual: string;
 }) {
@@ -37,8 +39,13 @@ export default function BarraLateral({
       grupo: "Gestión",
       items: [
         {
+          href: "/cursos",
+          etiqueta: "Cursos",
+          mostrar: puedeCursos,
+        },
+        {
           href: "/profesores",
-          etiqueta: "Profesores y cursos",
+          etiqueta: "Profesores",
           mostrar: puedeProfesores,
         },
       ],

@@ -56,7 +56,7 @@ Pantallas/componentes: **Login, App Shell, Inscribir y cobrar, Tomar asistencia,
 
 ## 5. Pendientes y decisiones abiertas
 
-**Progreso Etapa 1:** `0005` ✅ aplicada · **Profesores** ✅ construido (código: componente compartido `EntidadProfesor` + pantalla con Listado y Asignación a curso, CRUD con borrado guardado, congelado de comisiones; build+lint OK; **pendiente prueba local** contra Supabase). **Siguiente: Cursos** (+ tarifas A + asignación). Después: Alumnos → Inscribir y cobrar → Asistencia → Costos/Liquidación básica.
+**Progreso Etapa 1:** `0005` ✅ aplicada · **Profesores** ✅ construido y **probado local** · **Cursos** ✅ construido (componente compartido `EntidadCurso` + pantalla con listado y alta/edición/baja, días como casillas, precio mensual y **tarifas parciales tabla A**; borrado guardado; al existir cursos se activa la pestaña Asignación de Profesores y el filtro de titular por especialidad/estilo; build+lint OK; **pendiente prueba local**). **Siguiente: Alumnos** (componente compartido con dup por WhatsApp, tutor/menor). Después: Inscribir y cobrar → Asistencia → Costos/Liquidación básica.
 
 **Pendientes de Design (no me bloquean; registro):** #8 correcciones de Login (accent-100 solo informativo + estado "cuenta bloqueada"; el backend ya expone el contrato); #11 correcciones de Vender/Confirmar sesión incluido el selector de grupo.
 

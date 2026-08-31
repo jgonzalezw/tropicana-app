@@ -112,6 +112,24 @@ export type DatosProfesor = {
   usuario_id: string | null;
 };
 
+/** Tarifas parciales por curso (tabla A). null = no cargada → cae al mensual. */
+export type TarifasCurso = {
+  clase: number | null;
+  semana: number | null;
+  medio_mes: number | null;
+};
+
+/** Datos que el componente de Curso envía al host para crear/editar. */
+export type DatosCurso = {
+  nombre: string;
+  linea: string;
+  nivel: string;
+  dias_semana: number[];
+  hora: string | null;
+  precio_mensual: number;
+  tarifas: TarifasCurso;
+};
+
 export type Asignacion = {
   id: number;
   curso_id: number;

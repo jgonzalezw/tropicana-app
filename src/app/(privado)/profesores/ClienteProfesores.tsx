@@ -256,8 +256,16 @@ function TabAsignacion({
   const nombreCurso = (id: number) => cursos.find((c) => c.id === id)?.nombre ?? "—";
   const vigenteDe = (cId: number) => asignaciones.find((a) => a.curso_id === cId && a.hasta === null);
 
+  const estiloCurso = cursoId ? cursos.find((c) => c.id === cursoId)?.linea ?? null : null;
   const elegibles = padron
-    .filter((p) => p.activo && p.tipo === "activo")
+    .filter(
+      (p) =>
+        p.activo &&
+        p.tipo === "activo" &&
+        (!estiloCurso ||
+          p.especialidades.length === 0 ||
+          p.especialidades.includes(estiloCurso))
+    )
     .sort(compararPorApellido);
 
   const num = (s: string) => Number(s.replace(/\D/g, "").slice(0, 3));
