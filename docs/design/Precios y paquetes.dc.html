@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/organic-186d334f-848b-405d-95ba-b805f2b70bf6/styles.css">
+<script src="_ds/organic-186d334f-848b-405d-95ba-b805f2b70bf6/_ds_bundle.js"></script>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&amp;display=swap">
+<style>
+:root {
+  --color-bg: #1c1815;
+  --color-surface: #272220;
+  --color-text: #f4ebdd;
+  --color-divider: color-mix(in srgb, #f4ebdd 16%, transparent);
+  --color-accent: #e08b4f;
+  --color-accent-2: #9bad78;
+  --color-neutral-100: #302a25;
+  --color-neutral-200: #3a332d;
+  --color-neutral-300: #463e37;
+  --color-neutral-400: #6d6359;
+  --color-neutral-500: #8f8578;
+  --color-neutral-600: #ab9f91;
+  --color-neutral-700: #c8bbaa;
+  --color-neutral-800: #e2d7c6;
+  --color-neutral-900: #f4ebdd;
+  --color-accent-100: #37200f;
+  --color-accent-200: #6b3714;
+  --color-accent-300: #8c491a;
+  --color-accent-400: #b2622d;
+  --color-accent-500: #d67f48;
+  --color-accent-600: #f6a06b;
+  --color-accent-700: #ffc0a0;
+  --color-accent-800: #ffd3b5;
+  --color-accent-900: #fff2eb;
+  --color-accent-2-100: #232a18;
+  --color-accent-2-200: #3a4726;
+  --color-accent-2-300: #56633f;
+  --color-accent-2-400: #728157;
+  --color-accent-2-500: #8fa073;
+  --color-accent-2-600: #a8bb88;
+  --color-accent-2-700: #ccdbb2;
+  --color-accent-2-800: #dcebc4;
+  --color-accent-2-900: #f0fae1;
+  --font-heading: "Montserrat", system-ui, sans-serif;
+  --font-heading-weight: 800;
+}
+body { margin: 0; background: var(--color-neutral-300); color: var(--color-text); }
+h1, h2, h3, h4 { letter-spacing: -0.025em; }
+.btn { font-weight: 700; letter-spacing: 0.01em; }
+a { color: var(--color-accent-700); }
+a:hover { color: var(--color-accent-800); }
+.nw { white-space: nowrap; }
+.input option, select.input { color: var(--color-text); background: var(--color-neutral-100); }
+
+/* Tabla de precios: la .table del sistema pero con celdas de edición y filas desactivables. */
+.pp-tbl { width: 100%; border-collapse: separate; border-spacing: 0; }
+.pp-tbl th {
+  text-align: left; font-size: 13px; font-weight: 600; color: var(--color-neutral-600);
+  padding: 0 10px 8px; letter-spacing: .02em; text-transform: uppercase; white-space: nowrap;
+}
+.pp-tbl th.num, .pp-tbl td.num { text-align: right; }
+.pp-tbl td {
+  padding: 9px 10px; border-top: 1px solid var(--color-divider); font-size: 15px;
+  vertical-align: middle;
+}
+.pp-tbl tr.off td { opacity: .5; }
+.pp-tbl th:first-child, .pp-tbl td:first-child { min-width: 210px; }
+.pp-tbl th:last-child, .pp-tbl td:last-child { min-width: 156px; }
+.pp-num {
+  width: 104px; min-height: 42px !important; font-size: 16px !important; text-align: right;
+  background: var(--color-neutral-100) !important; padding: 8px 12px !important;
+}
+.pp-txt {
+  min-height: 42px !important; font-size: 16px !important;
+  background: var(--color-neutral-100) !important; padding: 8px 12px !important;
+}
+.pp-num.falta { border-color: var(--color-accent-400) !important; background: var(--color-accent-100) !important; }
+.pp-seg { display: flex; flex-wrap: wrap; width: 100%; }
+.pp-seg .seg-opt { flex: 1 1 auto; justify-content: center; font-size: 15px; padding: 12px 14px; text-align: center; }
+.pp-card { background: var(--color-surface); border-radius: 26px; padding: 20px 22px; }
+.pp-hint { font-size: 14px; color: var(--color-neutral-700); line-height: 1.5; }
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:var(--color-bg);font-family:var(--font-body)">
+  <div style="max-width:1180px;margin:0 auto;padding:26px 22px 90px">
+
+    <div style="font-size:14px;color:var(--color-neutral-600);margin-bottom:6px">Administración</div>
+    <h1 style="font-family:var(--font-heading);font-weight:800;font-size:38px;margin:0 0 6px">Precios y paquetes</h1>
+    <div class="pp-hint" style="max-width:70ch;margin-bottom:20px">Todo precio que cobra la escuela se carga acá. Si un valor no está en estas cinco tablas, el sistema no lo puede cobrar.</div>
+
+    <div class="seg pp-seg" style="margin-bottom:18px">
+      <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="5">
+        <label class="seg-opt">
+          <input type="radio" name="pptab" checked="{{ t.sel }}" onChange="{{ t.elegir }}">
+          <span>{{ t.label }}</span>
+        </label>
+      </sc-for>
+    </div>
+
+    <sc-if value="{{ esA }}" hint-placeholder-val="{{ true }}">
+      <div class="pp-card">
+        <h2 style="font-family:var(--font-heading);font-weight:800;font-size:24px;margin:0 0 4px">Inscripción parcial por curso</h2>
+        <div class="pp-hint" style="max-width:72ch;margin-bottom:16px">Una tarifa propia por curso y por modalidad. No es un porcentaje del mensual: es un precio cargado. El curso que deja una modalidad vacía cobra el mensual completo cuando alguien la elige.</div>
+        <div style="overflow-x:auto">
+          <table class="pp-tbl">
+            <thead>
+              <tr>
+                <th>Curso</th>
+                <th class="num">Mensual</th>
+                <th class="num">Una clase</th>
+                <th class="num">Una semana</th>
+                <th class="num">Medio mes</th>
+                <th>Estado</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <sc-for list="{{ filasA }}" as="f" hint-placeholder-count="7">
+                <tr class="{{ f.cls }}">
+                  <td>
+                    <div style="font-weight:600">{{ f.nombre }}</div>
+                    <div style="font-size:13px;color:var(--color-neutral-600);margin-top:1px">{{ f.meta }}</div>
+                  </td>
+                  <td class="num nw" style="color:var(--color-neutral-700)">{{ f.mensual }}</td>
+                  <td class="num"><input class="input pp-num {{ f.claseFalta }}" value="{{ f.clase }}" onChange="{{ f.onClase }}" placeholder="—"></td>
+                  <td class="num"><input class="input pp-num {{ f.semanaFalta }}" value="{{ f.semana }}" onChange="{{ f.onSemana }}" placeholder="—"></td>
+                  <td class="num"><input class="input pp-num {{ f.medioFalta }}" value="{{ f.medio }}" onChange="{{ f.onMedio }}" placeholder="—"></td>
+                  <td>
+                    <sc-if value="{{ f.incompleta }}" hint-placeholder-val="{{ false }}">
+                      <span class="tag tag-accent nw">Cae al mensual</span>
+                    </sc-if>
+                    <sc-if value="{{ f.completa }}" hint-placeholder-val="{{ false }}">
+                      <span style="font-size:14px;color:var(--color-neutral-600)">Completa</span>
+                    </sc-if>
+                  </td>
+                  <td>
+                    <button class="btn btn-ghost nw" onClick="{{ f.accion }}" style="font-size:14px">{{ f.accionLabel }}</button>
+                    <div class="pp-hint" style="font-size:12px;max-width:22ch">{{ f.motivo }}</div>
+                  </td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ esB }}" hint-placeholder-val="{{ false }}">
+      <div class="pp-card" style="max-width:560px">
+        <h2 style="font-family:var(--font-heading);font-weight:800;font-size:24px;margin:0 0 4px">Descuento por meses adelantados</h2>
+        <div class="pp-hint" style="margin-bottom:16px">Una sola tabla para toda la escuela. El sistema busca el tramo mayor que no supere los meses pagados.</div>
+        <table class="pp-tbl">
+          <thead>
+            <tr>
+              <th class="num">Meses</th>
+              <th class="num">%Descuento</th>
+              <th>Uso</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <sc-for list="{{ filasB }}" as="f" hint-placeholder-count="4">
+              <tr class="{{ f.cls }}">
+                <td class="num"><input class="input pp-num" style="width:80px" value="{{ f.meses }}" onChange="{{ f.onMeses }}"></td>
+                <td class="num"><input class="input pp-num" style="width:80px" value="{{ f.pct }}" onChange="{{ f.onPct }}"></td>
+                <td class="pp-hint" style="font-size:13px">{{ f.uso }}</td>
+                <td>
+                  <button class="btn btn-ghost nw" onClick="{{ f.accion }}" style="font-size:14px">{{ f.accionLabel }}</button>
+                  <div class="pp-hint" style="font-size:12px;max-width:22ch">{{ f.motivo }}</div>
+                </td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+        <button class="btn btn-secondary" onClick="{{ agregarB }}" style="margin-top:14px">Agregar tramo</button>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ esC }}" hint-placeholder-val="{{ false }}">
+      <div class="pp-card" style="max-width:700px">
+        <h2 style="font-family:var(--font-heading);font-weight:800;font-size:24px;margin:0 0 4px">Clase de prueba por curso</h2>
+        <div class="pp-hint" style="margin-bottom:16px">Precio por alumno, cargado curso por curso. No hay un valor único de escuela: una prueba de Heels no vale lo que una de Zumba.</div>
+        <table class="pp-tbl">
+          <thead>
+            <tr>
+              <th>Curso</th>
+              <th class="num">Precio por alumno</th>
+              <th>Uso</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <sc-for list="{{ filasC }}" as="f" hint-placeholder-count="7">
+              <tr class="{{ f.cls }}">
+                <td>
+                  <div style="font-weight:600">{{ f.nombre }}</div>
+                  <div style="font-size:13px;color:var(--color-neutral-600);margin-top:1px">{{ f.meta }}</div>
+                </td>
+                <td class="num"><input class="input pp-num {{ f.falta }}" value="{{ f.precio }}" onChange="{{ f.onPrecio }}" placeholder="—"></td>
+                <td class="pp-hint" style="font-size:13px">{{ f.uso }}</td>
+                <td>
+                  <button class="btn btn-ghost nw" onClick="{{ f.accion }}" style="font-size:14px">{{ f.accionLabel }}</button>
+                  <div class="pp-hint" style="font-size:12px;max-width:22ch">{{ f.motivo }}</div>
+                </td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ esD }}" hint-placeholder-val="{{ false }}">
+      <div class="pp-card">
+        <h2 style="font-family:var(--font-heading);font-weight:800;font-size:24px;margin:0 0 4px">Paquetes de clases particulares</h2>
+        <div class="pp-hint" style="max-width:74ch;margin-bottom:16px">Catálogo por estilo. <strong style="color:var(--color-accent-800)">El precio es del paquete, no por persona:</strong> las mismas horas cuestan lo mismo si las toma un alumno o una pareja. El costo de sala que se descuenta al profesor no se carga acá — sale de la tabla de <a href="#" onClick="{{ irE }}">Alquiler de sala</a>.</div>
+        <div style="overflow-x:auto">
+          <table class="pp-tbl">
+            <thead>
+              <tr>
+                <th>Paquete</th>
+                <th>Estilo</th>
+                <th class="num">Horas</th>
+                <th class="num">Precio al alumno</th>
+                <th>Uso</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <sc-for list="{{ filasD }}" as="f" hint-placeholder-count="5">
+                <tr class="{{ f.cls }}">
+                  <td><input class="input pp-txt" style="width:180px" value="{{ f.nombre }}" onChange="{{ f.onNombre }}"></td>
+                  <td>
+                    <select class="input pp-txt" style="width:150px" value="{{ f.estilo }}" onChange="{{ f.onEstilo }}">
+                      <sc-for list="{{ estilos }}" as="e" hint-placeholder-count="4">
+                        <option value="{{ e }}">{{ e }}</option>
+                      </sc-for>
+                    </select>
+                  </td>
+                  <td class="num"><input class="input pp-num" style="width:80px" value="{{ f.horas }}" onChange="{{ f.onHoras }}"></td>
+                  <td class="num"><input class="input pp-num" value="{{ f.precio }}" onChange="{{ f.onPrecio }}"></td>
+                  <td class="pp-hint" style="font-size:13px">{{ f.uso }}</td>
+                  <td>
+                    <button class="btn btn-ghost nw" onClick="{{ f.accion }}" style="font-size:14px">{{ f.accionLabel }}</button>
+                    <div class="pp-hint" style="font-size:12px;max-width:22ch">{{ f.motivo }}</div>
+                  </td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+        <button class="btn btn-secondary" onClick="{{ agregarD }}" style="margin-top:14px">Agregar paquete</button>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ esE }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;flex-direction:column;gap:14px">
+
+        <div style="display:flex;align-items:flex-start;gap:12px;background:var(--color-accent-2-200);border-radius:22px;padding:16px 18px">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-2-800)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:2px"><path d="M12 2 2 7l10 5 10-5z"></path><path d="M2 17l10 5 10-5M2 12l10 5 10-5"></path></svg>
+          <div style="font-size:15px;line-height:1.55;color:var(--color-accent-2-900);max-width:82ch">
+            <strong>Fuente única del costo de sala.</strong> Esta tabla se consulta desde los dos lados: cuando un tercero alquila directo, y cuando se vende un paquete de clase particular. En ese segundo caso el sistema no pregunta el costo de sala — lo busca acá por <em>categoría del profesor × tamaño del grupo × horas del paquete</em> y lo descuenta en su liquidación del mes. Cambiar un precio de esta tabla cambia las dos cosas.
+          </div>
+        </div>
+
+        <div class="pp-card">
+          <h2 style="font-family:var(--font-heading);font-weight:800;font-size:24px;margin:0 0 4px">Tamaños de grupo</h2>
+          <div class="pp-hint" style="margin-bottom:14px">El máximo de personas de cada tamaño también es un parámetro, no un número fijo.</div>
+          <div style="display:flex;flex-wrap:wrap;gap:12px">
+            <sc-for list="{{ tamanos }}" as="t" hint-placeholder-count="3">
+              <div style="background:var(--color-neutral-100);border:1px solid var(--color-divider);border-radius:18px;padding:12px 14px;min-width:180px">
+                <div style="font-size:15px;font-weight:600;margin-bottom:8px">{{ t.label }}</div>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <span class="pp-hint nw" style="font-size:13px">Hasta</span>
+                  <input class="input pp-num" style="width:74px" value="{{ t.max }}" onChange="{{ t.onMax }}">
+                  <span class="pp-hint nw" style="font-size:13px">personas</span>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div class="pp-card">
+          <h2 style="font-family:var(--font-heading);font-weight:800;font-size:24px;margin:0 0 12px">Tarifas de alquiler de sala</h2>
+          <div class="pp-hint" style="margin-bottom:8px">Categoría del comprador</div>
+          <div class="seg pp-seg" style="margin-bottom:16px">
+            <sc-for list="{{ categorias }}" as="c" hint-placeholder-count="4">
+              <label class="seg-opt">
+                <input type="radio" name="ppcat" checked="{{ c.sel }}" onChange="{{ c.elegir }}">
+                <span>{{ c.label }}</span>
+              </label>
+            </sc-for>
+          </div>
+          <div class="pp-hint" style="margin-bottom:14px">{{ catNota }}</div>
+          <div style="overflow-x:auto">
+            <table class="pp-tbl">
+              <thead>
+                <tr>
+                  <th>Paquete de horas</th>
+                  <sc-for list="{{ colsE }}" as="c" hint-placeholder-count="3">
+                    <th class="num">{{ c.label }}</th>
+                  </sc-for>
+                  <th>Uso</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <sc-for list="{{ filasE }}" as="f" hint-placeholder-count="4">
+                  <tr class="{{ f.cls }}">
+                    <td style="white-space:nowrap">
+                      <input class="input pp-num" style="width:74px;text-align:right" value="{{ f.horas }}" onChange="{{ f.onHoras }}">
+                      <span class="pp-hint" style="margin-left:8px;font-size:14px">{{ f.horasLabel }}</span>
+                    </td>
+                    <sc-for list="{{ f.celdas }}" as="c" hint-placeholder-count="3">
+                      <td class="num"><input class="input pp-num" value="{{ c.val }}" onChange="{{ c.onIn }}" placeholder="—"></td>
+                    </sc-for>
+                    <td class="pp-hint" style="font-size:13px">{{ f.uso }}</td>
+                    <td>
+                      <button class="btn btn-ghost nw" onClick="{{ f.accion }}" style="font-size:14px">{{ f.accionLabel }}</button>
+                      <div class="pp-hint" style="font-size:12px;max-width:22ch">{{ f.motivo }}</div>
+                    </td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+          <button class="btn btn-secondary" onClick="{{ agregarE }}" style="margin-top:14px">Agregar paquete de horas</button>
+        </div>
+
+        <sc-if value="{{ verSimulador }}" hint-placeholder-val="{{ true }}">
+          <div class="pp-card">
+            <h2 style="font-family:var(--font-heading);font-weight:800;font-size:20px;margin:0 0 4px">Cómo lo resuelve una particular</h2>
+            <div class="pp-hint" style="margin-bottom:16px">Elegí un paquete vendido y el sistema muestra qué celda de la tabla usa para el descuento de sala.</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;align-items:end">
+              <div class="field">
+                <label style="font-size:14px">Paquete vendido</label>
+                <select class="input pp-txt" value="{{ simPaquete }}" onChange="{{ onSimPaquete }}">
+                  <sc-for list="{{ simPaquetes }}" as="p" hint-placeholder-count="4">
+                    <option value="{{ p.id }}">{{ p.label }}</option>
+                  </sc-for>
+                </select>
+              </div>
+              <div class="field">
+                <label style="font-size:14px">Profesor asignado</label>
+                <select class="input pp-txt" value="{{ simCat }}" onChange="{{ onSimCat }}">
+                  <sc-for list="{{ simCats }}" as="c" hint-placeholder-count="2">
+                    <option value="{{ c.id }}">{{ c.label }}</option>
+                  </sc-for>
+                </select>
+              </div>
+              <div class="field">
+                <label style="font-size:14px">Alumnos que lo toman</label>
+                <input class="input pp-num" style="width:100%" value="{{ simAlumnos }}" onChange="{{ onSimAlumnos }}">
+              </div>
+            </div>
+            <div style="margin-top:16px;background:var(--color-neutral-100);border:1px solid var(--color-divider);border-radius:20px;padding:16px 18px">
+              <div class="pp-hint" style="font-size:13px;margin-bottom:6px">{{ simRuta }}</div>
+              <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
+                <div style="font-size:16px">{{ simEtiqueta }}</div>
+                <div class="nw" style="margin-left:auto;font-family:var(--font-heading);font-weight:800;font-size:28px;color:{{ simColor }}">{{ simMonto }}</div>
+              </div>
+              <div class="pp-hint" style="margin-top:8px">{{ simNota }}</div>
+            </div>
+          </div>
+        </sc-if>
+
+      </div>
+    </sc-if>
+
+    <div style="position:fixed;left:0;right:0;bottom:0;background:var(--color-surface);border-top:1px solid var(--color-divider);padding:12px 22px">
+      <div style="max-width:1180px;margin:0 auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+        <div class="pp-hint" style="font-size:15px">{{ estadoTexto }}</div>
+        <button class="btn btn-ghost nw" onClick="{{ descartar }}" style="margin-left:auto">Descartar</button>
+        <button class="btn btn-primary nw" onClick="{{ guardar }}">Guardar cambios</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;moneda&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Bs.&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Formato&quot;},&quot;mostrarSimulador&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Alquiler de sala&quot;}}">
+const CURSOS = [
+  { id: 'CU001', nombre: 'Salsa y Bachata Inicial', meta: 'Básico 2 · Lu y Mi · 19:30', mensual: 250, clase: 45, semana: 90, medio: 140, prueba: 30, usos: 26, usosPrueba: 9 },
+  { id: 'CU002', nombre: 'Bachata Conexión', meta: 'Básico 3 · Ma y Ju · 20:30', mensual: 250, clase: 45, semana: 90, medio: 140, prueba: 30, usos: 18, usosPrueba: 4 },
+  { id: 'CU003', nombre: 'Zumba', meta: 'Cardio · Ma y Ju · 19:30', mensual: 170, clase: 35, semana: 65, medio: 100, prueba: 20, usos: 31, usosPrueba: 12 },
+  { id: 'CU004', nombre: 'Urbano', meta: 'Niños · Lu y Mi · 18:30', mensual: 250, clase: 45, semana: 90, medio: 140, prueba: 25, usos: 12, usosPrueba: 3 },
+  { id: 'CU005', nombre: 'Heels', meta: 'Mujeres · Sá · 18:30', mensual: 170, clase: null, semana: null, medio: null, prueba: null, usos: 0, usosPrueba: 0 },
+  { id: 'CU006', nombre: 'Dom Salsa y Bachata', meta: 'Básico 2 · Do · 18:30', mensual: 170, clase: 50, semana: 50, medio: 95, prueba: 25, usos: 7, usosPrueba: 2 },
+  { id: 'CU007', nombre: 'Salsa Intensivo', meta: 'Intermedio · Lu, Mi y Vi · 20:30', mensual: 330, clase: 45, semana: 120, medio: 190, prueba: null, usos: 0, usosPrueba: 0 }
+];
+
+const DESC = [
+  { id: 'd2', meses: 2, pct: 5, usos: 11 },
+  { id: 'd3', meses: 3, pct: 8, usos: 4 },
+  { id: 'd6', meses: 6, pct: 12, usos: 0 },
+  { id: 'd12', meses: 12, pct: 18, usos: 0 }
+];
+
+const ESTILOS = ['Salsa', 'Bachata', 'Zumba', 'Urbano', 'Heels'];
+
+const PAQUETES = [
+  { id: 'p1', nombre: '1 hora', estilo: 'Salsa', horas: 1, precio: 120, usos: 8 },
+  { id: 'p2', nombre: 'Paquete 4 horas', estilo: 'Salsa', horas: 4, precio: 440, usos: 3 },
+  { id: 'p3', nombre: '1 hora', estilo: 'Bachata', horas: 1, precio: 120, usos: 5 },
+  { id: 'p4', nombre: 'Paquete 8 horas', estilo: 'Bachata', horas: 8, precio: 840, usos: 0 },
+  { id: 'p5', nombre: '1 hora', estilo: 'Heels', horas: 1, precio: 130, usos: 0 }
+];
+
+const CATS = [
+  { id: 'alu', label: 'Alumno', nota: 'Alumno inscripto que alquila la sala para practicar por su cuenta.' },
+  { id: 'pact', label: 'Profesor Activo', nota: 'Profesor de Tropicana con cursos asignados. Es la categoría que usa la liquidación cuando la particular la da un profesor de la casa — paga menos que un externo por el mismo tamaño y paquete.' },
+  { id: 'pext', label: 'Profesor Externo', nota: 'Profesor que no dicta cursos en Tropicana y usa la sala para sus propios alumnos.' },
+  { id: 'ter', label: 'Tercero', nota: 'Cualquier otro comprador: eventos, ensayos, filmaciones.' }
+];
+
+const TAMANOS = [
+  { id: 'ind', label: 'Individual', max: 1 },
+  { id: 'par', label: 'Pareja', max: 2 },
+  { id: 'gru', label: 'Grupo', max: 16 }
+];
+
+const HORAS = [
+  { id: 'h1', horas: 1, usos: 14 },
+  { id: 'h2', horas: 2, usos: 6 },
+  { id: 'h4', horas: 4, usos: 2 },
+  { id: 'h8', horas: 8, usos: 0 }
+];
+
+const PRECIOS = {
+  alu: { ind: { h1: 40, h2: 75, h4: 140, h8: 260 }, par: { h1: 55, h2: 105, h4: 195, h8: 360 }, gru: { h1: 90, h2: 170, h4: 320, h8: 600 } },
+  pact: { ind: { h1: 30, h2: 55, h4: 100, h8: 190 }, par: { h1: 40, h2: 75, h4: 140, h8: 260 }, gru: { h1: 70, h2: 130, h4: 240, h8: 450 } },
+  pext: { ind: { h1: 50, h2: 95, h4: 180, h8: 340 }, par: { h1: 65, h2: 125, h4: 235, h8: 440 }, gru: { h1: 110, h2: 210, h4: 400, h8: 750 } },
+  ter: { ind: { h1: 60, h2: 115, h4: 215, h8: 400 }, par: { h1: 80, h2: 150, h4: 285, h8: 530 }, gru: { h1: 130, h2: 250, h4: 475, h8: 890 } }
+};
+
+const TABS = [
+  { id: 'a', label: 'Inscripción parcial' },
+  { id: 'b', label: 'Meses adelantados' },
+  { id: 'c', label: 'Clase de prueba' },
+  { id: 'd', label: 'Clases particulares' },
+  { id: 'e', label: 'Alquiler de sala' }
+];
+
+const soloNum = (v) => String(v == null ? '' : v).replace(/[^0-9]/g, '');
+const clon = (o) => JSON.parse(JSON.stringify(o));
+
+class Component extends DCLogic {
+  state = {
+    tab: 'a', cat: 'pact',
+    cursos: clon(CURSOS), desc: clon(DESC), paquetes: clon(PAQUETES),
+    tamanos: clon(TAMANOS), horas: clon(HORAS), precios: clon(PRECIOS),
+    off: {}, cambios: 0, guardado: null,
+    simPaquete: 'p1', simCat: 'pact', simAlumnos: '2'
+  };
+
+  toca(patch) { this.setState(Object.assign({ cambios: this.state.cambios + 1, guardado: null }, patch)); }
+
+  // Baja real solo si la fila nunca se usó; si ya se vendió a ese precio, se desactiva y el
+  // histórico queda intacto. El motivo se muestra al lado, no escondido en un tooltip.
+  acciones(scope, id, usos, quitar) {
+    const key = scope + ':' + id;
+    const apagada = !!this.state.off[key];
+    if (usos > 0) {
+      return {
+        cls: apagada ? 'off' : '',
+        uso: usos + (usos === 1 ? ' operación' : ' operaciones'),
+        accionLabel: apagada ? 'Activar' : 'Desactivar',
+        motivo: apagada ? 'Inactiva: no se ofrece en ventas nuevas.' : 'No se puede eliminar: ya se vendió a este precio.',
+        accion: () => {
+          const off = Object.assign({}, this.state.off);
+          if (apagada) delete off[key]; else off[key] = true;
+          this.toca({ off: off });
+        }
+      };
+    }
+    return { cls: '', uso: 'Sin uso', accionLabel: 'Eliminar', motivo: '', accion: quitar };
+  }
+
+  campoNum(get, set) {
+    return { val: get() == null ? '' : String(get()), onIn: (e) => set(soloNum(e.target.value)) };
+  }
+
+  renderVals() {
+    const s = this.state;
+    const moneda = this.props.moneda ?? 'Bs.';
+    const gs = (n) => moneda + ' ' + Number(n || 0).toLocaleString('es-BO');
+    const setLista = (nombre, id, campo, valor) => {
+      const lista = s[nombre].map((r) => r.id === id ? Object.assign({}, r, { [campo]: valor === '' ? null : Number(valor) }) : r);
+      this.toca({ [nombre]: lista });
+    };
+    const setTexto = (nombre, id, campo, valor) => {
+      const lista = s[nombre].map((r) => r.id === id ? Object.assign({}, r, { [campo]: valor }) : r);
+      this.toca({ [nombre]: lista });
+    };
+    const quitar = (nombre, id) => () => this.toca({ [nombre]: s[nombre].filter((r) => r.id !== id) });
+
+    const filasA = s.cursos.map((c) => {
+      const falta = (v) => v == null ? 'falta' : '';
+      const incompleta = c.clase == null || c.semana == null || c.medio == null;
+      return Object.assign({
+        nombre: c.nombre, meta: c.meta, mensual: gs(c.mensual),
+        clase: c.clase == null ? '' : String(c.clase),
+        semana: c.semana == null ? '' : String(c.semana),
+        medio: c.medio == null ? '' : String(c.medio),
+        claseFalta: falta(c.clase), semanaFalta: falta(c.semana), medioFalta: falta(c.medio),
+        onClase: (e) => setLista('cursos', c.id, 'clase', soloNum(e.target.value)),
+        onSemana: (e) => setLista('cursos', c.id, 'semana', soloNum(e.target.value)),
+        onMedio: (e) => setLista('cursos', c.id, 'medio', soloNum(e.target.value)),
+        incompleta: incompleta, completa: !incompleta
+      }, this.acciones('a', c.id, c.usos, () => this.toca({
+        cursos: s.cursos.map((x) => x.id === c.id ? Object.assign({}, x, { clase: null, semana: null, medio: null }) : x)
+      })));
+    });
+
+    const filasB = s.desc.map((d) => Object.assign({
+      meses: String(d.meses), pct: String(d.pct),
+      onMeses: (e) => setLista('desc', d.id, 'meses', soloNum(e.target.value)),
+      onPct: (e) => setLista('desc', d.id, 'pct', soloNum(e.target.value))
+    }, this.acciones('b', d.id, d.usos, quitar('desc', d.id))));
+
+    const filasC = s.cursos.map((c) => Object.assign({
+      nombre: c.nombre, meta: c.meta,
+      precio: c.prueba == null ? '' : String(c.prueba),
+      falta: c.prueba == null ? 'falta' : '',
+      onPrecio: (e) => setLista('cursos', c.id, 'prueba', soloNum(e.target.value))
+    }, this.acciones('c', c.id, c.usosPrueba, () => setLista('cursos', c.id, 'prueba', ''))));
+
+    const filasD = s.paquetes.map((p) => Object.assign({
+      nombre: p.nombre, estilo: p.estilo, horas: String(p.horas), precio: String(p.precio),
+      onNombre: (e) => setTexto('paquetes', p.id, 'nombre', e.target.value),
+      onEstilo: (e) => setTexto('paquetes', p.id, 'estilo', e.target.value),
+      onHoras: (e) => setLista('paquetes', p.id, 'horas', soloNum(e.target.value)),
+      onPrecio: (e) => setLista('paquetes', p.id, 'precio', soloNum(e.target.value))
+    }, this.acciones('d', p.id, p.usos, quitar('paquetes', p.id))));
+
+    const cat = s.cat;
+    const filasE = s.horas.map((h) => Object.assign({
+      horas: String(h.horas), horasLabel: h.horas === 1 ? 'hora' : 'horas',
+      onHoras: (e) => setLista('horas', h.id, 'horas', soloNum(e.target.value)),
+      celdas: s.tamanos.map((t) => {
+        const v = (s.precios[cat] && s.precios[cat][t.id] && s.precios[cat][t.id][h.id]);
+        return {
+          val: v == null ? '' : String(v),
+          onIn: (e) => {
+            const n = soloNum(e.target.value);
+            const p = clon(s.precios);
+            if (!p[cat]) p[cat] = {};
+            if (!p[cat][t.id]) p[cat][t.id] = {};
+            p[cat][t.id][h.id] = n === '' ? null : Number(n);
+            this.toca({ precios: p });
+          }
+        };
+      })
+    }, this.acciones('e', h.id, h.usos, quitar('horas', h.id))));
+
+    // Simulación de la búsqueda que hace una particular contra esta misma tabla.
+    const pkg = s.paquetes.filter((p) => p.id === s.simPaquete)[0] || s.paquetes[0];
+    const nAlu = Math.max(1, Number(soloNum(s.simAlumnos)) || 1);
+    const tam = s.tamanos.filter((t) => nAlu <= t.max)[0] || s.tamanos[s.tamanos.length - 1];
+    const filaH = pkg ? s.horas.filter((h) => h.horas === pkg.horas)[0] : null;
+    const costo = filaH && s.precios[s.simCat] && s.precios[s.simCat][tam.id]
+      ? s.precios[s.simCat][tam.id][filaH.id] : null;
+    const catLabel = (CATS.filter((c) => c.id === s.simCat)[0] || CATS[0]).label;
+
+    return {
+      tabs: TABS.map((t) => ({ label: t.label, sel: s.tab === t.id, elegir: () => this.setState({ tab: t.id }) })),
+      esA: s.tab === 'a', esB: s.tab === 'b', esC: s.tab === 'c', esD: s.tab === 'd', esE: s.tab === 'e',
+      irE: (e) => { e.preventDefault(); this.setState({ tab: 'e' }); },
+
+      filasA: filasA,
+      filasB: filasB,
+      agregarB: () => this.toca({ desc: s.desc.concat([{ id: 'd' + Date.now(), meses: null, pct: null, usos: 0 }]) }),
+      filasC: filasC,
+      estilos: ESTILOS,
+      filasD: filasD,
+      agregarD: () => this.toca({ paquetes: s.paquetes.concat([{ id: 'p' + Date.now(), nombre: '', estilo: ESTILOS[0], horas: null, precio: null, usos: 0 }]) }),
+
+      tamanos: s.tamanos.map((t) => ({
+        label: t.label, max: String(t.max),
+        onMax: (e) => setLista('tamanos', t.id, 'max', soloNum(e.target.value))
+      })),
+      categorias: CATS.map((c) => ({ label: c.label, sel: s.cat === c.id, elegir: () => this.setState({ cat: c.id }) })),
+      catNota: (CATS.filter((c) => c.id === s.cat)[0] || CATS[0]).nota,
+      colsE: s.tamanos.map((t) => ({ label: t.label + ' · hasta ' + t.max })),
+      filasE: filasE,
+      agregarE: () => this.toca({ horas: s.horas.concat([{ id: 'h' + Date.now(), horas: null, usos: 0 }]) }),
+
+      verSimulador: this.props.mostrarSimulador ?? true,
+      simPaquetes: s.paquetes.map((p) => ({ id: p.id, label: (p.nombre || 'Sin nombre') + ' · ' + p.estilo + ' · ' + (p.horas || 0) + ' h' })),
+      simPaquete: s.simPaquete,
+      onSimPaquete: (e) => this.setState({ simPaquete: e.target.value }),
+      simCats: [{ id: 'pact', label: 'Profesor Activo' }, { id: 'pext', label: 'Profesor Externo' }],
+      simCat: s.simCat,
+      onSimCat: (e) => this.setState({ simCat: e.target.value }),
+      simAlumnos: s.simAlumnos,
+      onSimAlumnos: (e) => this.setState({ simAlumnos: soloNum(e.target.value) }),
+      simRuta: 'Alquiler de sala → ' + catLabel + ' × ' + tam.label + ' (hasta ' + tam.max + ') × ' + (pkg ? pkg.horas : 0) + ' h',
+      simEtiqueta: costo == null
+        ? 'No hay tarifa cargada para esa combinación'
+        : 'Costo de sala descontado en la liquidación del profesor',
+      simMonto: costo == null ? '—' : gs(costo),
+      simColor: costo == null ? 'var(--color-accent-700)' : 'var(--color-accent-2-800)',
+      simNota: costo == null
+        ? 'Falta el paquete de ' + (pkg ? pkg.horas : 0) + ' horas en esta tabla, o el precio de esa celda está vacío. Sin tarifa, la particular no se puede liquidar.'
+        : 'El alumno paga ' + gs(pkg ? pkg.precio : 0) + ' por el paquete (' + (nAlu === 1 ? 'un alumno' : nAlu + ' alumnos') + ', mismo precio). Al profesor se le descuenta ' + gs(costo) + ' de sala.',
+
+      estadoTexto: s.guardado
+        ? s.guardado
+        : (s.cambios === 0 ? 'Sin cambios pendientes.' : s.cambios + (s.cambios === 1 ? ' cambio sin guardar.' : ' cambios sin guardar.')),
+      guardar: () => this.setState({ cambios: 0, guardado: 'Guardado. Los precios nuevos rigen desde ahora; lo ya vendido conserva el precio de su venta.' }),
+      descartar: () => this.setState({
+        cursos: clon(CURSOS), desc: clon(DESC), paquetes: clon(PAQUETES),
+        tamanos: clon(TAMANOS), horas: clon(HORAS), precios: clon(PRECIOS),
+        off: {}, cambios: 0, guardado: null
+      })
+    };
+  }
+}
+
+</script>
+</body>
+</html>

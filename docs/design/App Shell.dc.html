@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/organic-186d334f-848b-405d-95ba-b805f2b70bf6/styles.css">
+<script src="_ds/organic-186d334f-848b-405d-95ba-b805f2b70bf6/_ds_bundle.js"></script>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&display=swap">
+<style>
+
+/* Fondo oscuro: se reasignan los tokens del sistema y se invierten las rampas,
+   para que los mismos pasos sigan pesando igual sobre un fondo oscuro. */
+:root {
+  --color-bg: #1c1815;
+  --color-surface: #272220;
+  --color-text: #f4ebdd;
+  --color-divider: color-mix(in srgb, #f4ebdd 16%, transparent);
+  --color-accent: #e08b4f;
+  --color-accent-2: #9bad78;
+
+  --color-neutral-100: #302a25;
+  --color-neutral-200: #3a332d;
+  --color-neutral-300: #463e37;
+  --color-neutral-400: #6d6359;
+  --color-neutral-500: #8f8578;
+  --color-neutral-600: #ab9f91;
+  --color-neutral-700: #c8bbaa;
+  --color-neutral-800: #e2d7c6;
+  --color-neutral-900: #f4ebdd;
+
+  --color-accent-100: #37200f;
+  --color-accent-200: #6b3714;
+  --color-accent-300: #8c491a;
+  --color-accent-400: #b2622d;
+  --color-accent-500: #d67f48;
+  --color-accent-600: #f6a06b;
+  --color-accent-700: #ffc0a0;
+  --color-accent-800: #ffd3b5;
+  --color-accent-900: #fff2eb;
+
+  --color-accent-2-100: #232a18;
+  --color-accent-2-200: #3a4726;
+  --color-accent-2-300: #56633f;
+  --color-accent-2-400: #728157;
+  --color-accent-2-500: #8fa073;
+  --color-accent-2-600: #a8bb88;
+  --color-accent-2-700: #ccdbb2;
+  --color-accent-2-800: #dcebc4;
+  --color-accent-2-900: #f0fae1;
+
+  --tropi-chip: #f4ebdd;
+}
+
+/* Tipografía: grotesca geométrica en bold para los títulos, en lugar del display. */
+:root {
+  --font-heading: "Montserrat", system-ui, sans-serif;
+  --font-heading-weight: 800;
+}
+h1, h2, h3, h4 { letter-spacing: -0.025em; }
+.btn { font-weight: 700; letter-spacing: 0.01em; }
+.nw { white-space: nowrap; }
+body { margin: 0; background: var(--color-bg); }
+a { color: var(--color-accent-700); }
+a:hover { color: var(--color-accent-800); }
+
+/* El mismo <aside> sirve de barra lateral fija en escritorio y de drawer en celular:
+   una sola lista de navegación, dos posiciones. */
+.shell-aside { background: var(--color-surface); display: flex; flex-direction: column; }
+.aside-fija { width: 264px; flex: none; height: 100dvh; position: sticky; top: 0; border-right: 1px solid var(--color-divider); }
+.aside-drawer { position: fixed; top: 0; bottom: 0; left: 0; width: min(300px, 86vw); z-index: 20; border-radius: 0 28px 28px 0; animation: shellIn .2s ease-out; }
+.shell-back { position: fixed; inset: 0; background: rgba(12, 10, 9, .62); z-index: 10; animation: shellFade .2s ease-out; }
+@keyframes shellIn { from { transform: translateX(-14px); opacity: .5; } to { transform: none; opacity: 1; } }
+@keyframes shellFade { from { opacity: 0; } to { opacity: 1; } }
+.shell-row { width: 100%; display: flex; align-items: center; gap: 10px; text-align: left; border: none; cursor: pointer; font-family: var(--font-body); background: transparent; }
+.shell-row:hover { background: var(--color-neutral-100); }
+.shell-tap { border: none; background: transparent; cursor: pointer; display: grid; place-items: center; border-radius: 999px; }
+.shell-tap:hover { background: var(--color-neutral-100); }
+</style>
+</helmet>
+
+<sc-if value="{{ esAdmin }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;min-height:100dvh;font-family:var(--font-body);color:var(--color-text);background:var(--color-bg)">
+
+  <sc-if value="{{ verBackdrop }}" hint-placeholder-val="{{ false }}">
+    <div class="shell-back" onClick="{{ cerrarDrawer }}"></div>
+  </sc-if>
+
+  <sc-if value="{{ verAside }}" hint-placeholder-val="{{ true }}">
+    <aside class="shell-aside {{ asideClase }}">
+
+      <div style="display:flex;align-items:center;gap:10px;padding:16px 14px 10px">
+        <div style="background:var(--tropi-chip);border-radius:999px;padding:5px 13px;display:flex;flex:none"><img src="assets/tropicana-logo.png" alt="Tropicana" style="height:24px;width:auto"></img></div>
+        <sc-if value="{{ esMovil }}" hint-placeholder-val="{{ false }}">
+          <button class="shell-tap" onClick="{{ cerrarDrawer }}" aria-label="Cerrar el menú" style="margin-left:auto;width:44px;height:44px;flex:none">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+          </button>
+        </sc-if>
+      </div>
+
+      <nav style="flex:1;overflow:auto;padding:4px 10px 10px;display:flex;flex-direction:column;gap:3px">
+        <sc-for list="{{ grupos }}" as="g" hint-placeholder-count="7">
+          <div style="display:flex;flex-direction:column;gap:3px">
+
+            <sc-if value="{{ g.enRuta }}" hint-placeholder-val="{{ false }}">
+              <button class="shell-row" onClick="{{ g.toggle }}" style="min-height:48px;border-radius:18px;padding:9px 12px;color:var(--color-accent-800)">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="{{ g.p1 }}"></path><path d="{{ g.p2 }}"></path><path d="{{ g.p3 }}"></path></svg>
+                <span style="flex:1;min-width:0;font-size:16px;font-weight:700">{{ g.label }}</span>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="{{ g.chevron }}"></path></svg>
+              </button>
+            </sc-if>
+
+            <sc-if value="{{ g.fueraDeRuta }}" hint-placeholder-val="{{ true }}">
+              <button class="shell-row" onClick="{{ g.toggle }}" style="min-height:48px;border-radius:18px;padding:9px 12px;color:var(--color-neutral-800)">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--color-neutral-600)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="{{ g.p1 }}"></path><path d="{{ g.p2 }}"></path><path d="{{ g.p3 }}"></path></svg>
+                <span style="flex:1;min-width:0;font-size:16px;font-weight:600">{{ g.label }}</span>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-neutral-600)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="{{ g.chevron }}"></path></svg>
+              </button>
+            </sc-if>
+
+            <sc-if value="{{ g.abierto }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;flex-direction:column;gap:2px;padding-bottom:4px">
+                <sc-for list="{{ g.items }}" as="it" hint-placeholder-count="3">
+                  <div>
+                    <sc-if value="{{ it.activo }}" hint-placeholder-val="{{ false }}">
+                      <button class="shell-row" onClick="{{ it.ir }}" style="min-height:44px;border-radius:16px;padding:8px 12px 8px 42px;background:var(--color-accent-200);color:var(--color-accent-900)">
+                        <span style="flex:1;min-width:0;font-size:15px;font-weight:700">{{ it.label }}</span>
+                        <sc-if value="{{ it.listo }}" hint-placeholder-val="{{ false }}">
+                          <span style="width:8px;height:8px;border-radius:999px;background:var(--color-accent-2-600);flex:none"></span>
+                        </sc-if>
+                      </button>
+                    </sc-if>
+                    <sc-if value="{{ it.inactivo }}" hint-placeholder-val="{{ true }}">
+                      <button class="shell-row" onClick="{{ it.ir }}" style="min-height:44px;border-radius:16px;padding:8px 12px 8px 42px;color:var(--color-neutral-700)">
+                        <span style="flex:1;min-width:0;font-size:15px">{{ it.label }}</span>
+                        <sc-if value="{{ it.listo }}" hint-placeholder-val="{{ false }}">
+                          <span style="width:8px;height:8px;border-radius:999px;background:var(--color-accent-2-600);flex:none"></span>
+                        </sc-if>
+                      </button>
+                    </sc-if>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
+
+          </div>
+        </sc-for>
+      </nav>
+
+      <div style="padding:10px 12px 14px;border-top:1px solid var(--color-divider)">
+        <div style="display:flex;align-items:center;gap:10px;background:var(--color-neutral-100);border-radius:20px;padding:10px 12px">
+          <div style="width:36px;height:36px;border-radius:999px;background:var(--color-accent-200);color:var(--color-accent-900);display:grid;place-items:center;font-family:var(--font-heading);font-size:15px;flex:none">{{ inicial }}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:15px;font-weight:600;line-height:1.2">{{ usuarioNombre }}</div>
+            <div style="font-size:13px;color:var(--color-neutral-700);margin-top:1px">{{ usuarioRol }}</div>
+          </div>
+        </div>
+        <a href="Login.dc.html" style="display:block;text-align:center;font-size:14px;padding:10px 8px 2px;text-decoration:none">Cerrar sesión</a>
+      </div>
+
+    </aside>
+  </sc-if>
+
+  <div style="flex:1;min-width:0;display:flex;flex-direction:column;height:100dvh">
+
+    <sc-if value="{{ esMovil }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--color-surface);border-bottom:1px solid var(--color-divider);flex:none">
+        <button class="shell-tap" onClick="{{ abrirDrawer }}" aria-label="Abrir el menú" style="width:44px;height:44px;flex:none">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h16"></path></svg>
+        </button>
+        <div style="background:var(--tropi-chip);border-radius:999px;padding:4px 12px;display:flex;flex:none"><img src="assets/tropicana-logo.png" alt="Tropicana" style="height:22px;width:auto"></img></div>
+        <div style="width:36px;height:36px;border-radius:999px;background:var(--color-accent-200);color:var(--color-accent-900);display:grid;place-items:center;font-family:var(--font-heading);font-size:14px;flex:none;margin-left:auto">{{ inicial }}</div>
+      </div>
+    </sc-if>
+
+    <div style="flex:1;overflow:auto;padding:clamp(16px,3vw,32px)">
+      <div style="max-width:1180px;margin:0 auto">
+        <div style="font-size:14px;color:var(--color-neutral-700)">{{ ruta }}</div>
+        <h1 style="font-family:var(--font-heading);font-size:clamp(28px,4vw,38px);margin:4px 0 0">{{ destino }}</h1>
+        <div style="background:var(--color-surface);border-radius:26px;padding:clamp(18px,3vw,26px);margin-top:18px">
+          <div style="font-size:16px;line-height:1.5;color:var(--color-neutral-700)">{{ montaje }}</div>
+          <sc-if value="{{ archivo }}" hint-placeholder-val="{{ false }}">
+            <div style="display:inline-flex;align-items:center;gap:8px;background:var(--color-accent-2-200);border-radius:999px;padding:8px 14px;margin-top:14px">
+              <span style="width:8px;height:8px;border-radius:999px;background:var(--color-accent-2-600);flex:none"></span>
+              <a href="{{ archivo }}" class="nw" style="font-size:15px;font-weight:600;color:var(--color-accent-2-900);text-decoration:none">{{ archivo }}</a>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</sc-if>
+
+<sc-if value="{{ esProfesora }}" hint-placeholder-val="{{ false }}">
+<div style="min-height:100dvh;display:flex;justify-content:center;background:var(--color-neutral-300)">
+<div style="width:100%;max-width:900px;height:100dvh;display:flex;flex-direction:column;background:var(--color-bg);font-family:var(--font-body);color:var(--color-text)">
+
+  <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;flex:none">
+    <div style="background:var(--tropi-chip);border-radius:999px;padding:5px 13px;display:flex;flex:none"><img src="assets/tropicana-logo.png" alt="Tropicana" style="height:22px;width:auto"></img></div>
+    <div class="nw" style="margin-left:auto;font-size:13px;color:var(--color-neutral-700)">{{ usuarioNombre }} · {{ usuarioRol }}</div>
+    <a href="Login.dc.html" class="nw" style="font-size:13px;text-decoration:none;flex:none">Salir</a>
+  </div>
+
+  <sc-if value="{{ profeEscritorio }}" hint-placeholder-val="{{ false }}">
+    <div style="display:flex;gap:8px;padding:0 16px 8px;flex:none">
+      <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="2">
+        <div style="flex:none">
+          <sc-if value="{{ t.activo }}" hint-placeholder-val="{{ true }}">
+            <button class="shell-row nw" onClick="{{ t.ir }}" style="width:auto;flex:none;white-space:nowrap;min-height:46px;border-radius:999px;padding:8px 18px;background:var(--color-accent-200);color:var(--color-accent-900);font-size:16px;font-weight:700">{{ t.label }}</button>
+          </sc-if>
+          <sc-if value="{{ t.inactivo }}" hint-placeholder-val="{{ false }}">
+            <button class="shell-row nw" onClick="{{ t.ir }}" style="width:auto;flex:none;white-space:nowrap;min-height:46px;border-radius:999px;padding:8px 18px;color:var(--color-neutral-700);font-size:16px">{{ t.label }}</button>
+          </sc-if>
+        </div>
+      </sc-for>
+    </div>
+  </sc-if>
+
+  <div style="flex:1;overflow:auto;padding:12px clamp(16px,2vw,20px) 20px">
+    <h1 style="font-family:var(--font-heading);font-size:clamp(26px,5vw,32px);margin:0">{{ destino }}</h1>
+    <div style="background:var(--color-surface);border-radius:26px;padding:18px;margin-top:14px">
+      <div style="font-size:16px;line-height:1.5;color:var(--color-neutral-700)">{{ montaje }}</div>
+      <sc-if value="{{ archivo }}" hint-placeholder-val="{{ false }}">
+        <div style="display:inline-flex;align-items:center;gap:8px;background:var(--color-accent-2-200);border-radius:999px;padding:8px 14px;margin-top:14px">
+          <span style="width:8px;height:8px;border-radius:999px;background:var(--color-accent-2-600);flex:none"></span>
+          <a href="{{ archivo }}" class="nw" style="font-size:15px;font-weight:600;color:var(--color-accent-2-900);text-decoration:none">{{ archivo }}</a>
+        </div>
+      </sc-if>
+    </div>
+  </div>
+
+  <sc-if value="{{ profeMovil }}" hint-placeholder-val="{{ true }}">
+    <div style="display:flex;gap:8px;padding:8px 12px 14px;background:var(--color-surface);border-top:1px solid var(--color-divider);flex:none">
+
+      <sc-if value="{{ tabClasesActivo }}" hint-placeholder-val="{{ true }}">
+        <button class="shell-row" onClick="{{ irClases }}" style="flex:1;flex-direction:column;justify-content:center;gap:3px;min-height:62px;border-radius:999px;padding:8px 6px;background:var(--color-accent-200);color:var(--color-accent-900)">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-800)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><path d="M3 10h18M8 2v4M16 2v4"></path></svg>
+          <span style="font-size:13px;font-weight:700">Mis clases</span>
+        </button>
+      </sc-if>
+      <sc-if value="{{ tabClasesInactivo }}" hint-placeholder-val="{{ false }}">
+        <button class="shell-row" onClick="{{ irClases }}" style="flex:1;flex-direction:column;justify-content:center;gap:3px;min-height:62px;border-radius:999px;padding:8px 6px;color:var(--color-neutral-700)">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-neutral-600)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><path d="M3 10h18M8 2v4M16 2v4"></path></svg>
+          <span style="font-size:13px">Mis clases</span>
+        </button>
+      </sc-if>
+
+      <sc-if value="{{ tabLiqActivo }}" hint-placeholder-val="{{ false }}">
+        <button class="shell-row" onClick="{{ irLiquidacion }}" style="flex:1;flex-direction:column;justify-content:center;gap:3px;min-height:62px;border-radius:999px;padding:8px 6px;background:var(--color-accent-200);color:var(--color-accent-900)">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-800)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 8a6 6 0 1 0-12 0 6 6 0 0 0 12 0"></path><path d="M18.09 10.37A6 6 0 1 1 10.34 18"></path><path d="M7 6h1v4M9.32 16.72a6 6 0 0 0 3.36-3.36"></path></svg>
+          <span style="font-size:13px;font-weight:700">Mi liquidación</span>
+        </button>
+      </sc-if>
+      <sc-if value="{{ tabLiqInactivo }}" hint-placeholder-val="{{ true }}">
+        <button class="shell-row" onClick="{{ irLiquidacion }}" style="flex:1;flex-direction:column;justify-content:center;gap:3px;min-height:62px;border-radius:999px;padding:8px 6px;color:var(--color-neutral-700)">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-neutral-600)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 8a6 6 0 1 0-12 0 6 6 0 0 0 12 0"></path><path d="M18.09 10.37A6 6 0 1 1 10.34 18"></path><path d="M7 6h1v4M9.32 16.72a6 6 0 0 0 3.36-3.36"></path></svg>
+          <span style="font-size:13px">Mi liquidación</span>
+        </button>
+      </sc-if>
+
+    </div>
+  </sc-if>
+
+</div>
+</div>
+</sc-if>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1280,&quot;height&quot;:820},&quot;rol&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;admin&quot;,&quot;gerente&quot;,&quot;asistente&quot;,&quot;profesora&quot;],&quot;default&quot;:&quot;admin&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Rol&quot;},&quot;forzarMovil&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Vista&quot;},&quot;marcarListas&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Vista&quot;}}">
+const CORTE_MOVIL = 900;
+
+const NAV = [
+  { id: 'alumnos', label: 'Alumnos',
+    p1: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2', p2: 'M9 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8', p3: 'M22 21v-2a4 4 0 0 0-3-3.87',
+    items: [
+      { id: 'al-buscar', label: 'Buscar alumno' },
+      { id: 'al-alta', label: 'Alta de alumno' },
+      { id: 'al-perfil', label: 'Perfil del alumno' }
+    ] },
+  { id: 'cobros', label: 'Inscripciones y Cobros',
+    p1: 'M2 7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z', p2: 'M2 10h20', p3: '',
+    items: [
+      { id: 'co-inscribir', label: 'Inscribir y cobrar', archivo: 'Inscribir y cobrar.dc.html' },
+      { id: 'co-servicio', label: 'Vender servicio', archivo: 'Vender servicio.dc.html' },
+      { id: 'co-dia', label: 'Cobros del día' },
+      { id: 'co-deudas', label: 'Deudas por alumno' }
+    ] },
+  { id: 'profes', label: 'Profesores',
+    p1: 'M21.42 10.92a1 1 0 0 0-.02-1.84L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.84l8.57 3.9a2 2 0 0 0 1.66 0z', p2: 'M22 10v6', p3: 'M6 12.5V16a6 3 0 0 0 12 0v-3.5',
+    items: [
+      { id: 'pr-lista', label: 'Profesores y cursos', archivo: 'Profesores.dc.html' },
+      { id: 'pr-asistencia', label: 'Tomar asistencia', archivo: 'Tomar asistencia.dc.html' },
+      { id: 'pr-sesion', label: 'Confirmar sesión', archivo: 'Confirmar sesión.dc.html' },
+      { id: 'pr-liquidacion', label: 'Liquidaciones' }
+    ] },
+  // Monedas, no billetera: una billetera a 20px se lee igual que la tarjeta del grupo de cobros.
+  { id: 'caja', label: 'Caja y Finanzas',
+    p1: 'M14 8a6 6 0 1 0-12 0 6 6 0 0 0 12 0', p2: 'M18.09 10.37A6 6 0 1 1 10.34 18', p3: 'M7 6h1v4M9.32 16.72a6 6 0 0 0 3.36-3.36',
+    items: [
+      { id: 'ca-resumen', label: 'Caja y resumen', archivo: 'Caja y resumen.dc.html' },
+      { id: 'ca-movimientos', label: 'Movimientos' },
+      { id: 'ca-deudas', label: 'Por cobrar y por pagar' }
+    ] },
+  { id: 'inventario', label: 'Inventario',
+    p1: 'M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z', p2: 'm3.3 7 8.7 5 8.7-5', p3: 'M12 22V12',
+    items: [
+      { id: 'in-productos', label: 'Productos' },
+      { id: 'in-stock', label: 'Stock y ventas' }
+    ] },
+  { id: 'admin', label: 'Administración',
+    p1: 'M4 21v-7M4 10V3', p2: 'M12 21v-9M12 8V3', p3: 'M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6',
+    items: [
+      { id: 'ad-cursos', label: 'Cursos y tarifas' },
+      { id: 'ad-precios', label: 'Precios y paquetes' },
+      { id: 'ad-parametros', label: 'Parámetros de la escuela' },
+      { id: 'ad-usuarios', label: 'Usuarios y roles' }
+    ] },
+  { id: 'reportes', label: 'Reportes',
+    p1: 'M3 3v18h18', p2: 'M7 16v-6M12 16v-10M17 16v-3', p3: '',
+    items: [
+      { id: 're-mes', label: 'Resumen mensual' },
+      { id: 're-cursos', label: 'Ingresos por curso' }
+    ] }
+];
+
+const TABS_PROFE = [
+  { id: 'clases', label: 'Mis clases de hoy', archivo: 'Tomar asistencia.dc.html' },
+  { id: 'liquidacion', label: 'Mi liquidación del mes' }
+];
+
+const USUARIOS = {
+  admin: { nombre: 'Natalia Salek', rol: 'admin' },
+  gerente: { nombre: 'Natalia Salek', rol: 'gerente' },
+  asistente: { nombre: 'Carolina Ortiz', rol: 'asistente' },
+  profesora: { nombre: 'Carla Méndez', rol: 'profesora' }
+};
+
+const iniciales = (n) => String(n).trim().split(' ').slice(0, 2).map((p) => p[0]).join('').toUpperCase();
+
+class Component extends DCLogic {
+  state = { activo: 'co-inscribir', abierto: 'cobros', drawer: false, tab: 'clases', ancho: 1280 };
+
+  medir = () => this.setState({ ancho: window.innerWidth });
+
+  componentDidMount() {
+    this.medir();
+    window.addEventListener('resize', this.medir);
+  }
+
+  componentWillUnmount() { window.removeEventListener('resize', this.medir); }
+
+  renderVals() {
+    const s = this.state;
+    const rol = this.props.rol ?? 'admin';
+    const esProfesora = rol === 'profesora';
+    const esMovil = (this.props.forzarMovil ?? false) || s.ancho < CORTE_MOVIL;
+    const marcar = this.props.marcarListas ?? true;
+    const u = USUARIOS[rol] || USUARIOS.admin;
+
+    // Destino activo: un ítem del árbol del administrador o una de las dos pestañas de la profesora.
+    let grupoActivo = null;
+    let itemActivo = null;
+    NAV.forEach((g) => g.items.forEach((it) => {
+      if (it.id === s.activo) { grupoActivo = g; itemActivo = it; }
+    }));
+    const tabActiva = TABS_PROFE.filter((t) => t.id === s.tab)[0] || TABS_PROFE[0];
+    const destinoActual = esProfesora ? tabActiva : (itemActivo || NAV[1].items[0]);
+
+    const grupos = NAV.map((g) => {
+      const abierto = s.abierto === g.id;
+      const enRuta = grupoActivo && grupoActivo.id === g.id;
+      return {
+        label: g.label, p1: g.p1, p2: g.p2 || '', p3: g.p3 || '',
+        abierto,
+        chevron: abierto ? 'm18 15-6-6-6 6' : 'm6 9 6 6 6-6',
+        enRuta: !!enRuta,
+        fueraDeRuta: !enRuta,
+        // Acordeón: un solo grupo abierto por vez, para que los siete se sigan leyendo de un vistazo.
+        toggle: () => this.setState({ abierto: abierto ? null : g.id }),
+        items: g.items.map((it) => ({
+          label: it.label,
+          listo: marcar && !!it.archivo,
+          activo: it.id === s.activo,
+          inactivo: it.id !== s.activo,
+          ir: () => this.setState({ activo: it.id, drawer: false })
+        }))
+      };
+    });
+
+    return {
+      esAdmin: !esProfesora,
+      esProfesora,
+      esMovil,
+      verAside: !esMovil || s.drawer,
+      verBackdrop: esMovil && s.drawer,
+      asideClase: esMovil ? 'aside-drawer' : 'aside-fija',
+      abrirDrawer: () => this.setState({ drawer: true }),
+      cerrarDrawer: () => this.setState({ drawer: false }),
+
+      grupos,
+      ruta: grupoActivo ? grupoActivo.label : '',
+      destino: destinoActual.label,
+      archivo: destinoActual.archivo || null,
+      montaje: destinoActual.archivo
+        ? 'Esta pantalla ya está diseñada. El shell le da el marco: la navegación, el usuario y la sesión salen de acá, así que la pantalla ya no lleva su propio encabezado.'
+        : 'Acá se monta la pantalla. El shell aporta navegación, usuario y sesión; la pantalla aporta su título y su contenido.',
+
+      usuarioNombre: u.nombre,
+      usuarioRol: u.rol,
+      inicial: iniciales(u.nombre),
+
+      profeMovil: esMovil,
+      profeEscritorio: !esMovil,
+      tabs: TABS_PROFE.map((t) => ({
+        label: t.label,
+        activo: t.id === s.tab,
+        inactivo: t.id !== s.tab,
+        ir: () => this.setState({ tab: t.id })
+      })),
+      tabClasesActivo: s.tab === 'clases',
+      tabClasesInactivo: s.tab !== 'clases',
+      tabLiqActivo: s.tab === 'liquidacion',
+      tabLiqInactivo: s.tab !== 'liquidacion',
+      irClases: () => this.setState({ tab: 'clases' }),
+      irLiquidacion: () => this.setState({ tab: 'liquidacion' })
+    };
+  }
+}
+
+</script>
+</body>
+</html>

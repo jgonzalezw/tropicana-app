@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/organic-186d334f-848b-405d-95ba-b805f2b70bf6/styles.css">
+<script src="_ds/organic-186d334f-848b-405d-95ba-b805f2b70bf6/_ds_bundle.js"></script>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&display=swap">
+<style>
+:root {
+  --color-bg: #1c1815;
+  --color-surface: #272220;
+  --color-text: #f4ebdd;
+  --color-divider: color-mix(in srgb, #f4ebdd 16%, transparent);
+  --color-accent: #e08b4f;
+  --color-accent-2: #9bad78;
+  --color-neutral-100: #302a25;
+  --color-neutral-200: #3a332d;
+  --color-neutral-300: #463e37;
+  --color-neutral-400: #6d6359;
+  --color-neutral-500: #8f8578;
+  --color-neutral-600: #ab9f91;
+  --color-neutral-700: #c8bbaa;
+  --color-neutral-800: #e2d7c6;
+  --color-neutral-900: #f4ebdd;
+  --color-accent-100: #37200f;
+  --color-accent-200: #6b3714;
+  --color-accent-300: #8c491a;
+  --color-accent-400: #b2622d;
+  --color-accent-500: #d67f48;
+  --color-accent-600: #f6a06b;
+  --color-accent-700: #ffc0a0;
+  --color-accent-800: #ffd3b5;
+  --color-accent-900: #fff2eb;
+  --color-accent-2-100: #232a18;
+  --color-accent-2-200: #3a4726;
+  --color-accent-2-300: #56633f;
+  --color-accent-2-400: #728157;
+  --color-accent-2-500: #8fa073;
+  --color-accent-2-600: #a8bb88;
+  --color-accent-2-700: #ccdbb2;
+  --color-accent-2-800: #dcebc4;
+  --color-accent-2-900: #f0fae1;
+  --tropi-chip: #f4ebdd;
+  --font-heading: "Montserrat", system-ui, sans-serif;
+  --font-heading-weight: 800;
+}
+h1, h2, h3, h4 { letter-spacing: -0.025em; }
+.btn { font-weight: 700; letter-spacing: 0.01em; }
+body { margin: 0; background: var(--color-neutral-300); }
+a { color: var(--color-accent-700); }
+a:hover { color: var(--color-accent-800); }
+.nw { white-space: nowrap; flex: none; }
+.input option, select.input { color: var(--color-text); background: var(--color-neutral-100); }
+/* Grid item con min-width: auto se ensancha con el mínimo intrínseco de la tabla y
+   revienta el track; con 0 el track manda y el wrapper interno sí puede scrollear. */
+.pr-card { background: var(--color-surface); border-radius: 26px; padding: 20px 22px; min-width: 0; }
+.pr-hint { font-size: 14px; color: var(--color-neutral-700); line-height: 1.5; }
+.pr-seg { display: flex; width: 100%; }
+.pr-seg .seg-opt { flex: 1 1 auto; justify-content: center; font-size: 15px; padding: 12px 16px; text-align: center; }
+.pr-in { font-size: 17px !important; min-height: 52px !important; background: var(--color-neutral-100) !important; }
+.pr-big { font-size: 18px !important; min-height: 56px !important; }
+/* Una sola columna. El padrón declara ~895px de mínimos de columna; al lado de un panel
+   de 420px nunca entra dentro de los 1180px de la página, y lo primero que se cortaba
+   eran las acciones y el motivo. Padrón a todo el ancho, panel arriba y angosto
+   (izquierda, con aire a la derecha, como pide la dirección del sistema). */
+.pr-grid { display: flex; flex-direction: column; gap: 16px; }
+.pr-panel { max-width: 560px; }
+.table-edit th:first-child, .table-edit td:first-child { min-width: 190px; }
+.table-edit td { font-size: 15px; }
+.pr-tbl th:nth-child(2), .pr-tbl td:nth-child(2) { min-width: 130px; }
+.pr-tbl th:nth-child(4), .pr-tbl td:nth-child(4) { min-width: 150px; }
+.pr-tbl th:nth-child(5), .pr-tbl td:nth-child(5) { min-width: 160px; }
+.pr-tbl th:last-child, .pr-tbl td:last-child { min-width: 175px; }
+.pct-in { width: 110px !important; text-align: right; font-size: 22px !important; min-height: 56px !important; font-weight: 700; background: var(--color-neutral-100) !important; }
+@keyframes prIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+</style>
+</helmet>
+<div style="min-height:100vh;background:var(--color-bg);font-family:var(--font-body);color:var(--color-text)">
+  <div style="max-width:1180px;margin:0 auto;padding:22px 22px 90px">
+
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+      <div style="background:var(--tropi-chip);border-radius:999px;padding:5px 13px;display:flex;flex:none"><img src="assets/tropicana-logo.png" alt="Tropicana" style="height:24px;width:auto"></img></div>
+      <div class="nw" style="margin-left:auto;font-size:13px;color:var(--color-neutral-700)">Natalia · admin</div>
+    </div>
+
+    <div style="font-size:14px;color:var(--color-neutral-600);margin-bottom:6px">Profesores</div>
+    <h1 style="font-family:var(--font-heading);font-weight:800;font-size:38px;margin:0 0 6px">Profesores y asignaciones</h1>
+    <div class="pr-hint" style="max-width:70ch;margin-bottom:18px">El padrón de profesores y los porcentajes con los que cada uno cobra por curso. El tipo — Activo o Externo — decide la tarifa de sala que paga; los porcentajes de una asignación quedan fijos desde que se confirma.</div>
+
+    <div class="seg pr-seg" style="margin-bottom:18px">
+      <label class="seg-opt">
+        <input type="radio" name="prtab" checked="{{ esListado }}" onChange="{{ verListado }}"></input>
+        <span>Listado</span>
+      </label>
+      <label class="seg-opt">
+        <input type="radio" name="prtab" checked="{{ esAsignar }}" onChange="{{ verAsignar }}"></input>
+        <span>Asignación a curso</span>
+      </label>
+    </div>
+
+    <sc-if value="{{ aviso }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;align-items:flex-start;gap:10px;background:var(--color-accent-2-200);border-radius:22px;padding:14px 16px;margin-bottom:16px;animation:prIn .25s ease-out">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-2-800)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:1px"><path d="M20 6 9 17l-5-5"></path></svg>
+        <div style="font-size:15px;line-height:1.45;color:var(--color-accent-2-900);min-width:0">{{ aviso }}</div>
+        <button class="btn btn-ghost nw" onClick="{{ cerrarAviso }}" style="margin-left:auto;color:var(--color-accent-2-800);font-size:13px">Cerrar</button>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ esListado }}" hint-placeholder-val="{{ true }}">
+      <div class="pr-grid">
+        <div class="pr-card pr-panel">
+          <h2 style="font-family:var(--font-heading);font-weight:800;font-size:22px;margin:0 0 4px">{{ panelTitulo }}</h2>
+          <div class="pr-hint" style="margin-bottom:14px">{{ panelNota }}</div>
+          <dc-import name="Profesor" padron="{{ padron }}" usuarios="{{ usuarios }}" valor="{{ seleccion }}" especialidades="{{ especialidades }}" onGuardar="{{ onGuardar }}" onBaja="{{ onBaja }}" onCancelar="{{ onCancelar }}" hint-size="100%,520px"></dc-import>
+        </div>
+
+        <div class="pr-card">
+          <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:4px">
+            <h2 style="font-family:var(--font-heading);font-weight:800;font-size:22px;margin:0">Padrón</h2>
+            <div class="pr-hint nw" style="margin-left:auto">{{ conteoTexto }}</div>
+          </div>
+          <div class="pr-hint" style="margin-bottom:14px">Un profesor sin historial dependiente se elimina; con historial se desactiva y conserva todo lo registrado.</div>
+          <div style="overflow-x:auto">
+            <table class="table table-edit pr-tbl">
+              <thead>
+                <tr>
+                  <th>Profesor</th>
+                  <th>Especialidades</th>
+                  <th>Tipo</th>
+                  <th>Cuenta</th>
+                  <th>Historial</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <sc-for list="{{ filas }}" as="f" hint-placeholder-count="5">
+                  <tr class="{{ f.cls }}">
+                    <td>
+                      <div style="font-weight:600">{{ f.nombre }}</div>
+                      <div style="font-size:13px;color:var(--color-neutral-600);margin-top:1px">{{ f.wa }}</div>
+                    </td>
+                    <td>{{ f.estilos }}</td>
+                    <td><span class="tag nw {{ f.tipoCls }}" style="font-size:13px">{{ f.tipoLabel }}</span></td>
+                    <td class="pr-hint" style="font-size:13px">{{ f.cuenta }}</td>
+                    <td class="pr-hint" style="font-size:13px">{{ f.historial }}</td>
+                    <td>
+                      <div style="display:flex;gap:4px">
+                        <button class="btn btn-ghost nw" onClick="{{ f.editar }}" style="font-size:14px">Editar</button>
+                        <button class="btn btn-ghost nw" onClick="{{ f.baja }}" style="font-size:14px">{{ f.bajaLabel }}</button>
+                      </div>
+                      <div class="cell-reason">{{ f.motivo }}</div>
+                    </td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ esAsignar }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;flex-direction:column;gap:16px">
+
+        <div class="pr-card">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+            <div style="width:30px;height:30px;border-radius:999px;background:var(--color-accent);color:var(--color-bg);display:grid;place-items:center;font-family:var(--font-heading);font-size:15px;flex:none">1</div>
+            <div class="nw" style="font-family:var(--font-heading);font-size:18px">Curso</div>
+          </div>
+          <sc-if value="{{ eligiendoCurso }}" hint-placeholder-val="{{ true }}">
+            <div>
+              <sc-for list="{{ cursos }}" as="c" hint-placeholder-count="4">
+                <button onClick="{{ c.elegir }}" style="width:100%;display:flex;align-items:center;gap:12px;text-align:left;background:var(--color-neutral-100);border:1px solid var(--color-divider);border-radius:20px;padding:12px 14px;margin-bottom:8px;cursor:pointer;font-family:var(--font-body);color:var(--color-text)">
+                  <div style="flex:1;min-width:0">
+                    <div style="font-size:17px;font-weight:600">{{ c.nombre }}</div>
+                    <div style="font-size:14px;color:var(--color-neutral-700);margin-top:1px">{{ c.meta }}</div>
+                  </div>
+                  <span class="tag nw {{ c.tagCls }}" style="font-size:13px">{{ c.tagTexto }}</span>
+                </button>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ hayCurso }}" hint-placeholder-val="{{ false }}">
+            <div style="background:var(--color-neutral-100);border-radius:22px;padding:14px;display:flex;align-items:flex-start;gap:10px">
+              <div style="flex:1;min-width:0">
+                <div style="font-size:19px;font-weight:700">{{ cursoNombre }}</div>
+                <div class="pr-hint" style="margin-top:2px">{{ cursoMeta }}</div>
+              </div>
+              <button class="btn btn-ghost nw" onClick="{{ cambiarCurso }}" style="font-size:15px">Cambiar</button>
+            </div>
+          </sc-if>
+        </div>
+
+        <div class="pr-card">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+            <div style="width:30px;height:30px;border-radius:999px;background:var(--color-accent);color:var(--color-bg);display:grid;place-items:center;font-family:var(--font-heading);font-size:15px;flex:none">2</div>
+            <div class="nw" style="font-family:var(--font-heading);font-size:18px">Profesor titular</div>
+          </div>
+          <sc-if value="{{ paso2Bloqueado }}" hint-placeholder-val="{{ true }}">
+            <div class="pr-hint">Elegí primero el curso.</div>
+          </sc-if>
+          <sc-if value="{{ eligiendoProf }}" hint-placeholder-val="{{ false }}">
+            <div>
+              <sc-for list="{{ titulares }}" as="p" hint-placeholder-count="4">
+                <button onClick="{{ p.elegir }}" style="width:100%;display:flex;align-items:center;gap:12px;text-align:left;background:{{ p.bg }};border:1px solid {{ p.borde }};border-radius:20px;padding:12px 14px;margin-bottom:8px;cursor:pointer;font-family:var(--font-body);color:var(--color-text)">
+                  <div style="flex:1;min-width:0">
+                    <div style="font-size:17px;font-weight:600">{{ p.nombre }}</div>
+                    <div style="font-size:14px;color:var(--color-neutral-700);margin-top:1px">{{ p.meta }}</div>
+                  </div>
+                  <span class="tag nw {{ p.tipoCls }}" style="font-size:13px">{{ p.tipoLabel }}</span>
+                </button>
+              </sc-for>
+              <div class="pr-hint">{{ titularesNota }}</div>
+            </div>
+          </sc-if>
+        </div>
+
+        <div class="pr-card">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+            <div style="width:30px;height:30px;border-radius:999px;background:var(--color-accent);color:var(--color-bg);display:grid;place-items:center;font-family:var(--font-heading);font-size:15px;flex:none">3</div>
+            <div class="nw" style="font-family:var(--font-heading);font-size:18px">Comisiones de esta asignación</div>
+          </div>
+
+          <sc-if value="{{ paso3Bloqueado }}" hint-placeholder-val="{{ true }}">
+            <div class="pr-hint">Elegí el profesor titular.</div>
+          </sc-if>
+
+          <sc-if value="{{ pctAbierto }}" hint-placeholder-val="{{ false }}">
+            <div>
+              <div style="display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))">
+                <div>
+                  <div class="field">
+                    <label style="font-size:14px">% sobre los ingresos del curso</label>
+                    <div style="display:flex;align-items:center;gap:8px">
+                      <input class="input pct-in" value="{{ pctCurso }}" onChange="{{ onPctCurso }}" inputMode="numeric" placeholder="0"></input>
+                      <span style="font-family:var(--font-heading);font-size:24px">%</span>
+                    </div>
+                  </div>
+                  <div class="pr-hint" style="margin-top:6px">De todo lo que el curso cobre: cuotas, modalidades parciales y clases de prueba.</div>
+                </div>
+                <div>
+                  <div class="field">
+                    <label style="font-size:14px">% por alumno referido</label>
+                    <div style="display:flex;align-items:center;gap:8px">
+                      <input class="input pct-in" value="{{ pctReferido }}" onChange="{{ onPctReferido }}" inputMode="numeric" placeholder="0"></input>
+                      <span style="font-family:var(--font-heading);font-size:24px">%</span>
+                    </div>
+                  </div>
+                  <div class="pr-hint" style="margin-top:6px">Adicional, sobre lo que pague cada alumno que este profesor trajo.</div>
+                </div>
+              </div>
+
+              <div style="display:flex;align-items:flex-start;gap:10px;background:var(--color-accent-100);border-radius:22px;padding:16px 18px;margin-top:16px">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-700)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:2px"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                <div style="min-width:0">
+                  <div style="font-size:16px;font-weight:700;color:var(--color-accent-900);line-height:1.4">Al confirmar, estos dos porcentajes quedan fijos para esta asignación.</div>
+                  <div style="font-size:15px;color:var(--color-accent-800);margin-top:6px;line-height:1.5">Toda liquidación futura de este curso usa el valor congelado hoy, no el que esté vigente ese mes. Para cobrar otro porcentaje hay que cerrar esta asignación y crear una nueva — el histórico de lo ya devengado no cambia.</div>
+                </div>
+              </div>
+
+              <sc-if value="{{ hayReemplazo }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;align-items:flex-start;gap:10px;background:var(--color-accent-200);border-radius:22px;padding:14px 16px;margin-top:12px">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-800)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:1px"><path d="M12 9v4M12 17h.01"></path><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path></svg>
+                  <div style="font-size:15px;line-height:1.45;color:var(--color-accent-900);min-width:0">{{ reemplazoTexto }}</div>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ errorMsg }}" hint-placeholder-val="{{ false }}">
+                <div style="font-size:15px;color:var(--color-accent-800);background:var(--color-accent-200);border-radius:18px;padding:12px 14px;margin-top:12px">{{ errorMsg }}</div>
+              </sc-if>
+
+              <div style="display:flex;align-items:baseline;gap:12px;margin-top:16px;padding-top:14px;border-top:1px solid var(--color-divider);flex-wrap:wrap">
+                <div class="pr-hint" style="min-width:0">{{ resumenAsignacion }}</div>
+                <button class="btn btn-primary pr-big nw" onClick="{{ confirmarAsignacion }}" disabled="{{ noPuedeAsignar }}" style="margin-left:auto">Confirmar asignación</button>
+              </div>
+            </div>
+          </sc-if>
+        </div>
+
+        <div class="pr-card">
+          <h2 style="font-family:var(--font-heading);font-weight:800;font-size:22px;margin:0 0 4px">Asignaciones vigentes</h2>
+          <div class="pr-hint" style="margin-bottom:14px">Los porcentajes de cada fila son los que se congelaron al confirmarla. No se editan: se cierra la asignación y se crea otra.</div>
+          <div style="overflow-x:auto">
+            <table class="table table-edit">
+              <thead>
+                <tr>
+                  <th>Curso</th>
+                  <th>Titular</th>
+                  <th class="num">% ingresos</th>
+                  <th class="num">% referido</th>
+                  <th>Fijado</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <sc-for list="{{ asignaciones }}" as="a" hint-placeholder-count="4">
+                  <tr class="{{ a.cls }}">
+                    <td><div style="font-weight:600">{{ a.curso }}</div></td>
+                    <td>{{ a.profesor }}</td>
+                    <td class="num" style="font-weight:700">{{ a.pctCurso }}</td>
+                    <td class="num" style="font-weight:700">{{ a.pctReferido }}</td>
+                    <td class="pr-hint" style="font-size:13px">{{ a.desde }}</td>
+                    <td>
+                      <button class="btn btn-ghost nw" onClick="{{ a.cerrar }}" style="font-size:14px">{{ a.accion }}</button>
+                      <div class="cell-reason">{{ a.motivo }}</div>
+                    </td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </sc-if>
+
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;especialidades&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Salsa,Bachata,Zumba,Urbano,Heels&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Datos&quot;}}">
+const HOY = '30 ago 2026';
+
+const PROFESORES = [
+  { id: 'PR001', nom: 'Natalia', ape: 'Salek', wa: '70 000 001', tipo: 'activo', estilos: ['Salsa', 'Bachata'], usuarioId: 'US001', deps: ['cursos', 'comisiones', 'liquidaciones'] },
+  { id: 'PR002', nom: 'Oscar', ape: 'Nuñez', wa: '70 122 458', tipo: 'activo', estilos: ['Bachata', 'Salsa'], usuarioId: 'US004', deps: ['cursos', 'comisiones', 'liquidaciones', 'sala'] },
+  { id: 'PR003', nom: 'Juan Pablo', ape: 'Caballero', wa: '71 887 300', tipo: 'activo', estilos: ['Zumba'], usuarioId: null, deps: ['cursos', 'comisiones'] },
+  { id: 'PR004', nom: 'Sebastián', ape: 'Tini', wa: '68 445 120', tipo: 'activo', estilos: ['Heels'], usuarioId: 'US007', deps: ['cursos'] },
+  { id: 'PR005', nom: 'Ángel', ape: 'Cáceres', wa: '72 019 654', tipo: 'activo', estilos: ['Urbano'], usuarioId: null, deps: ['cursos', 'comisiones'] },
+  { id: 'PR009', nom: 'Mariela', ape: 'Ávila', wa: '69 401 772', tipo: 'externo', estilos: ['Bachata'], usuarioId: null, deps: ['sala'] },
+  { id: 'PR011', nom: 'Ignacio', ape: 'Peredo', wa: '77 310 904', tipo: 'externo', estilos: ['Salsa'], usuarioId: null, deps: [] }
+];
+
+const USUARIOS = [
+  { id: 'US001', nombre: 'Natalia Salek', correo: 'natalia@tropicana.bo', profesorId: 'PR001' },
+  { id: 'US004', nombre: 'Oscar Nuñez', correo: 'oscar@tropicana.bo', profesorId: 'PR002' },
+  { id: 'US007', nombre: 'Sebastián Tini', correo: 'sebastian@tropicana.bo', profesorId: 'PR004' },
+  { id: 'US012', nombre: 'Ángel Cáceres', correo: 'angel@tropicana.bo', profesorId: null }
+];
+
+const CURSOS = [
+  { id: 'CU001', nombre: 'Salsa y Bachata Inicial', meta: 'Básico 2 · Lu y Mi · 19:30', estilo: 'Salsa' },
+  { id: 'CU002', nombre: 'Bachata Conexión', meta: 'Básico 3 · Ma y Ju · 20:30', estilo: 'Bachata' },
+  { id: 'CU003', nombre: 'Zumba', meta: 'Cardio · Ma y Ju · 19:30', estilo: 'Zumba' },
+  { id: 'CU005', nombre: 'Heels', meta: 'Mujeres · Sá · 18:30', estilo: 'Heels' },
+  { id: 'CU007', nombre: 'Salsa Intensivo', meta: 'Intermedio · Lu, Mi y Vi · 20:30', estilo: 'Salsa' }
+];
+
+// Los porcentajes son los del momento en que se confirmó la asignación, no los actuales.
+const ASIGNACIONES = [
+  { id: 'AS021', cursoId: 'CU001', profId: 'PR001', pctCurso: 45, pctReferido: 10, desde: '3 feb 2026', devengado: true },
+  { id: 'AS022', cursoId: 'CU002', profId: 'PR002', pctCurso: 40, pctReferido: 8, desde: '3 feb 2026', devengado: true },
+  { id: 'AS023', cursoId: 'CU003', profId: 'PR003', pctCurso: 50, pctReferido: 10, desde: '1 mar 2026', devengado: true },
+  { id: 'AS027', cursoId: 'CU007', profId: 'PR001', pctCurso: 42, pctReferido: 10, desde: '18 ago 2026', devengado: false }
+];
+
+const soloNum = (s) => String(s || '').replace(/\D/g, '');
+const nombreCompleto = (p) => p.nom + ' ' + p.ape;
+// Etiqueta larga para la ficha, corta para la celda de la tabla: en una columna angosta
+// "asignado a curso · comisiones devengadas" se parte en una palabra por línea.
+const DEPS = { cursos: 'asignado a curso', comisiones: 'comisiones devengadas', liquidaciones: 'liquidaciones emitidas', sala: 'paquetes de sala' };
+const DEPS_CORTO = { cursos: 'cursos', comisiones: 'comisiones', liquidaciones: 'liquidaciones', sala: 'sala' };
+
+class Component extends DCLogic {
+  state = {
+    tab: 'listado',
+    padron: PROFESORES.map((p) => Object.assign({}, p)),
+    off: {},
+    seleccion: null,
+    asignaciones: ASIGNACIONES.slice(),
+    cursoId: null, profId: null, pctCurso: '', pctReferido: '',
+    aviso: null, errorMsg: null
+  };
+
+  set = (p) => this.setState(Object.assign({ errorMsg: null }, p));
+
+  onGuardar = (prof) => {
+    const s = this.state;
+    if (prof.id) {
+      this.setState({
+        padron: s.padron.map((p) => p.id === prof.id ? Object.assign({}, p, prof) : p),
+        seleccion: null, aviso: 'Cambios guardados en ' + nombreCompleto(prof) + '.'
+      });
+    } else {
+      const nuevo = Object.assign({}, prof, { id: 'PR' + Date.now(), deps: [] });
+      this.setState({
+        padron: s.padron.concat([nuevo]), seleccion: null,
+        aviso: nombreCompleto(nuevo) + ' cargado como profesor ' + (nuevo.tipo === 'activo' ? 'Activo' : 'Externo') + '.'
+      });
+    }
+  };
+
+  onBaja = (e) => {
+    const s = this.state;
+    const prof = s.padron.filter((p) => p.id === e.id)[0];
+    const nombre = prof ? nombreCompleto(prof) : 'El profesor';
+    if (e.accion === 'eliminar') {
+      this.setState({ padron: s.padron.filter((p) => p.id !== e.id), seleccion: null, aviso: nombre + ' eliminado. No tenía historial dependiente.' });
+    } else {
+      const off = Object.assign({}, s.off);
+      off[e.id] = true;
+      this.setState({ off: off, seleccion: null, aviso: nombre + ' desactivado. No aparece para asignaciones nuevas; su historial queda intacto.' });
+    }
+  };
+
+  confirmarAsignacion = () => {
+    const s = this.state;
+    const curso = CURSOS.filter((c) => c.id === s.cursoId)[0];
+    const prof = s.padron.filter((p) => p.id === s.profId)[0];
+    const a = Number(soloNum(s.pctCurso));
+    const b = Number(soloNum(s.pctReferido));
+    if (!curso || !prof) return;
+    if (prof.tipo !== 'activo') { this.setState({ errorMsg: 'El titular de un curso tiene que ser un profesor Activo. Un externo solo alquila la sala.' }); return; }
+    if (!(a > 0 && a <= 100)) { this.setState({ errorMsg: 'El % sobre los ingresos del curso tiene que estar entre 1 y 100.' }); return; }
+    if (!(b >= 0 && b <= 100)) { this.setState({ errorMsg: 'El % por alumno referido tiene que estar entre 0 y 100.' }); return; }
+
+    const previas = s.asignaciones.filter((x) => x.cursoId !== s.cursoId);
+    const nueva = { id: 'AS' + Date.now(), cursoId: s.cursoId, profId: s.profId, pctCurso: a, pctReferido: b, desde: HOY, devengado: false };
+    this.setState({
+      asignaciones: previas.concat([nueva]),
+      cursoId: null, profId: null, pctCurso: '', pctReferido: '',
+      aviso: nombreCompleto(prof) + ' queda titular de ' + curso.nombre + ' con ' + a + '% sobre ingresos y ' + b + '% por referido. Esos dos números quedaron fijos para esta asignación.'
+    });
+  };
+
+  renderVals() {
+    const s = this.state;
+    const activos = s.padron.filter((p) => !s.off[p.id]);
+    const curso = CURSOS.filter((c) => c.id === s.cursoId)[0] || null;
+    const prof = s.padron.filter((p) => p.id === s.profId)[0] || null;
+    const vigente = curso ? s.asignaciones.filter((a) => a.cursoId === curso.id)[0] : null;
+    const a = Number(soloNum(s.pctCurso));
+    const b = Number(soloNum(s.pctReferido));
+
+    const filas = s.padron.map((p) => {
+      const apagado = !!s.off[p.id];
+      const deps = p.deps || [];
+      const cuenta = p.usuarioId ? (USUARIOS.filter((u) => u.id === p.usuarioId)[0] || null) : null;
+      return {
+        cls: apagado ? 'is-off' : '',
+        nombre: nombreCompleto(p), wa: p.wa,
+        estilos: (p.estilos || []).length ? p.estilos.join(', ') : '—',
+        tipoLabel: p.tipo === 'activo' ? 'Activo' : 'Externo',
+        tipoCls: p.tipo === 'activo' ? 'tag-accent-2' : 'tag-neutral',
+        cuenta: cuenta ? cuenta.correo : 'Sin cuenta',
+        historial: deps.length ? deps.map((k) => DEPS_CORTO[k] || k).join(' · ') : 'Sin historial',
+        bajaLabel: apagado ? 'Activar' : (deps.length ? 'Desactivar' : 'Eliminar'),
+        motivo: apagado
+          ? 'Inactivo: no aparece para asignaciones nuevas.'
+          : (deps.length ? 'No se puede eliminar: tiene historial dependiente.' : ''),
+        editar: () => this.set({ seleccion: p, tab: 'listado' }),
+        baja: () => {
+          if (apagado) {
+            const off = Object.assign({}, s.off);
+            delete off[p.id];
+            this.setState({ off: off, aviso: nombreCompleto(p) + ' vuelve a estar disponible para asignaciones.' });
+          } else {
+            this.onBaja({ id: p.id, accion: deps.length ? 'desactivar' : 'eliminar', dependencias: deps });
+          }
+        }
+      };
+    });
+
+    // Un titular de curso tiene que ser Activo: un externo solo alquila la sala. Se filtra
+    // de la lista en vez de ofrecerlo y rechazarlo al confirmar.
+    const titulares = activos
+      .filter((p) => p.tipo === 'activo')
+      .filter((p) => !curso || !(p.estilos || []).length || (p.estilos || []).indexOf(curso.estilo) >= 0);
+
+    return {
+      esListado: s.tab === 'listado',
+      esAsignar: s.tab === 'asignar',
+      verListado: () => this.set({ tab: 'listado' }),
+      verAsignar: () => this.set({ tab: 'asignar', seleccion: null }),
+
+      conteoTexto: activos.length + ' activos · ' + s.padron.filter((p) => p.tipo === 'externo').length + ' externos',
+      filas: filas,
+
+      panelTitulo: s.seleccion ? 'Editar profesor' : 'Buscar o cargar',
+      panelNota: s.seleccion
+        ? 'El mismo componente que usan Vender servicio y la asignación a curso: se mejora una vez y cambia en todas.'
+        : 'Buscá por nombre o WhatsApp para editar, o cargá un profesor nuevo.',
+      padron: s.padron,
+      usuarios: USUARIOS,
+      seleccion: s.seleccion,
+      especialidades: this.props.especialidades ?? 'Salsa,Bachata,Zumba,Urbano,Heels',
+      onGuardar: this.onGuardar,
+      onBaja: this.onBaja,
+      onCancelar: () => this.set({ seleccion: null }),
+
+      eligiendoCurso: !curso,
+      cursos: CURSOS.map((c) => {
+        const asig = s.asignaciones.filter((x) => x.cursoId === c.id)[0];
+        const p = asig ? s.padron.filter((x) => x.id === asig.profId)[0] : null;
+        return {
+          nombre: c.nombre, meta: c.meta,
+          tagTexto: p ? nombreCompleto(p) : 'Sin titular',
+          tagCls: p ? 'tag-neutral' : 'tag-accent',
+          elegir: () => this.set({ cursoId: c.id, profId: null, pctCurso: '', pctReferido: '' })
+        };
+      }),
+      hayCurso: !!curso,
+      cursoNombre: curso ? curso.nombre : '',
+      cursoMeta: curso ? (curso.meta + ' · estilo ' + curso.estilo) : '',
+      cambiarCurso: () => this.set({ cursoId: null, profId: null, pctCurso: '', pctReferido: '' }),
+
+      paso2Bloqueado: !curso,
+      eligiendoProf: !!curso,
+      titulares: titulares.map((p) => ({
+        nombre: nombreCompleto(p),
+        meta: p.wa + ' · ' + ((p.estilos || []).length ? p.estilos.join(', ') : 'sin especialidad'),
+        tipoLabel: p.tipo === 'activo' ? 'Activo' : 'Externo',
+        tipoCls: p.tipo === 'activo' ? 'tag-accent-2' : 'tag-neutral',
+        bg: s.profId === p.id ? 'var(--color-accent-2-200)' : 'var(--color-neutral-100)',
+        borde: s.profId === p.id ? 'var(--color-accent-2-400)' : 'var(--color-divider)',
+        elegir: () => this.set({ profId: p.id })
+      })),
+      titularesNota: curso
+        ? 'Solo profesores Activos con especialidad en ' + curso.estilo + '. Un externo no puede ser titular — solo alquila la sala — y un profesor desactivado no aparece acá.'
+        : '',
+
+      paso3Bloqueado: !prof,
+      pctAbierto: !!prof,
+      pctCurso: s.pctCurso,
+      pctReferido: s.pctReferido,
+      onPctCurso: (e) => this.set({ pctCurso: soloNum(e.target.value).slice(0, 3) }),
+      onPctReferido: (e) => this.set({ pctReferido: soloNum(e.target.value).slice(0, 3) }),
+
+      hayReemplazo: !!(vigente && prof && vigente.profId !== prof.id),
+      reemplazoTexto: vigente && prof
+        ? 'Este curso ya tiene titular: ' + (s.padron.filter((x) => x.id === vigente.profId)[0] ? nombreCompleto(s.padron.filter((x) => x.id === vigente.profId)[0]) : '—') +
+          ', con ' + vigente.pctCurso + '% y ' + vigente.pctReferido + '% desde ' + vigente.desde + '. Confirmar cierra esa asignación; lo ya devengado con esos porcentajes no se recalcula.'
+        : '',
+
+      resumenAsignacion: prof && curso
+        ? (a > 0 ? nombreCompleto(prof) + ' · ' + curso.nombre + ' · ' + a + '% + ' + (b || 0) + '% referido' : 'Cargá el % sobre los ingresos del curso.')
+        : '',
+      noPuedeAsignar: !(curso && prof && a > 0 && a <= 100 && b >= 0 && b <= 100 && prof.tipo === 'activo'),
+      confirmarAsignacion: this.confirmarAsignacion,
+      errorMsg: s.errorMsg,
+
+      asignaciones: s.asignaciones.map((x) => {
+        const c = CURSOS.filter((y) => y.id === x.cursoId)[0];
+        const p = s.padron.filter((y) => y.id === x.profId)[0];
+        return {
+          cls: '',
+          curso: c ? c.nombre : x.cursoId,
+          profesor: p ? nombreCompleto(p) : '—',
+          pctCurso: x.pctCurso + '%',
+          pctReferido: x.pctReferido + '%',
+          desde: x.desde,
+          accion: x.devengado ? 'Cerrar' : 'Eliminar',
+          motivo: x.devengado
+            ? 'Ya devengó comisiones: se cierra, no se elimina.'
+            : 'Sin comisiones devengadas todavía.',
+          cerrar: () => this.setState({
+            asignaciones: x.devengado ? s.asignaciones : s.asignaciones.filter((y) => y.id !== x.id),
+            aviso: x.devengado
+              ? 'Asignación de ' + (c ? c.nombre : '') + ' cerrada. Los porcentajes ya devengados quedan en el histórico.'
+              : 'Asignación de ' + (c ? c.nombre : '') + ' eliminada. No había comisiones devengadas.'
+          })
+        };
+      }),
+
+      aviso: s.aviso,
+      cerrarAviso: () => this.setState({ aviso: null })
+    };
+  }
+}
+
+</script>
+</body>
+</html>

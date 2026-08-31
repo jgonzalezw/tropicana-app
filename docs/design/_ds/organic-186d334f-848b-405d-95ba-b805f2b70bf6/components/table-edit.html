@@ -1,0 +1,92 @@
+<!-- @dsCard group="Components" name="Editable table" subtitle="A .table whose cells are live inputs, for settings surfaces where a whole column is edited in one pass" viewport="720x520" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Organic — Editable table</title>
+<link rel="stylesheet" href="../styles.css" />
+<style>
+/* Demo scaffolding only — everything visual comes from ../styles.css. */
+.demo { max-width: 700px; margin: 0 auto; padding: var(--space-6) var(--space-4) var(--space-8); }
+.demo-head {
+  font-family: var(--font-body); font-size: 11px; font-weight: inherit;
+  letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.55;
+  margin: var(--space-6) 0 var(--space-3);
+}
+.demo-head:first-child { margin-top: 0; }
+.note { font-size: 12px; opacity: 0.6; max-width: 60ch; margin-top: var(--space-3); }
+code { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 0.92em; }
+.wrap { overflow-x: auto; }
+</style>
+</head>
+<body>
+<main class="demo">
+  <div class="demo-head">Editable table</div>
+  <div class="wrap">
+    <table class="table table-edit">
+      <thead>
+        <tr>
+          <th>Course</th>
+          <th class="num">One class</th>
+          <th class="num">One week</th>
+          <th>Status</th>
+          <th>Uses</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Salsa · Beginners</td>
+          <td class="num"><input class="input cell-input is-num" value="45" /></td>
+          <td class="num"><input class="input cell-input is-num" value="90" /></td>
+          <td></td>
+          <td>26 operations</td>
+          <td>
+            <button class="btn btn-ghost">Deactivate</button>
+            <div class="cell-reason">Cannot be deleted: already sold at this price.</div>
+          </td>
+        </tr>
+        <tr>
+          <td>Heels</td>
+          <td class="num"><input class="input cell-input is-num is-empty" placeholder="—" /></td>
+          <td class="num"><input class="input cell-input is-num is-empty" placeholder="—" /></td>
+          <td><span class="tag tag-accent">Falls back</span></td>
+          <td>No uses</td>
+          <td><button class="btn btn-ghost">Delete</button></td>
+        </tr>
+        <tr class="is-off">
+          <td>Urban · Kids</td>
+          <td class="num"><input class="input cell-input is-num" value="45" /></td>
+          <td class="num"><input class="input cell-input is-num" value="90" /></td>
+          <td></td>
+          <td>12 operations</td>
+          <td>
+            <button class="btn btn-ghost">Activate</button>
+            <div class="cell-reason">Inactive: not offered in new sales.</div>
+          </td>
+        </tr>
+        <tr>
+          <td><input class="input cell-input" value="Bachata · Connection" /></td>
+          <td class="num"><input class="input cell-input is-num" value="45" /></td>
+          <td class="num"><input class="input cell-input is-num" value="90" /></td>
+          <td></td>
+          <td>No uses</td>
+          <td><button class="btn btn-ghost">Delete</button></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="note">
+    <code>.table-edit</code> keeps <code>.table</code>'s type and adds a top rule per row, no row hover
+    (the cell is the target, not the row) and right alignment via <code>.num</code>.
+    Cells are <code>.input.cell-input</code> — always live, never behind a click-to-edit:
+    a settings table is edited a column at a time. <code>.is-num</code> fixes the width and
+    right-aligns; <code>.is-empty</code> marks a value that is <em>not loaded</em> rather than zero.
+    <code>tr.is-off</code> is a row kept for its history but withdrawn from new use, and
+    <code>.cell-reason</code> puts the reason an action is unavailable beside the action itself,
+    never in a tooltip.
+  </p>
+</main>
+</body>
+</html>

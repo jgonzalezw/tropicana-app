@@ -32,7 +32,7 @@ const INBOX =
   process.env.DESIGN_INBOX ||
   "C:\\Users\\Javier\\OneDrive\\Natalia\\tropicana-Claude.Design-Handoff";
 const HANDOFF_DIR =
-  process.env.DESIGN_HANDOFF_DIR || path.join(REPO, "docs", "design", "handoff");
+  process.env.DESIGN_HANDOFF_DIR || path.join(REPO, "docs", "design");
 const ARGS = new Set(process.argv.slice(2));
 
 function log(...a) {
@@ -117,10 +117,11 @@ if (!fs.existsSync(INBOX)) {
       `Creá la carpeta o definí DESIGN_INBOX con su ruta.`
   );
 }
-// Guardarraíl: nunca borrar algo fuera de docs/design/.
+// Guardarraíl: el mirror es exactamente docs/design (o algo dentro de él).
 const handoffAbs = path.resolve(HANDOFF_DIR);
-if (!handoffAbs.replace(/\\/g, "/").includes("/docs/design/")) {
-  fail(`DESIGN_HANDOFF_DIR sospechoso (debe estar bajo docs/design/): ${handoffAbs}`);
+const normAbs = handoffAbs.replace(/\\/g, "/");
+if (!(normAbs.endsWith("/docs/design") || normAbs.includes("/docs/design/"))) {
+  fail(`DESIGN_HANDOFF_DIR sospechoso (debe ser docs/design): ${handoffAbs}`);
 }
 
 // ── 2. Elegir la fuente (zip más nuevo, o carpeta, o archivos sueltos) ───────
@@ -214,11 +215,11 @@ if (ARGS.has("--commit")) {
   if (sinCambios) {
     log("\n• Sin cambios: no hay nada que commitear.");
   } else {
-    execFileSync("git", ["add", "docs/design/handoff"], { cwd: REPO, stdio: "inherit" });
+    execFileSync("git", ["add", "docs/design"], { cwd: REPO, stdio: "inherit" });
     const msg = `chore(design): sync handoff desde buzon (${origenDesc})\n\n+${d.agregados.length} nuevos, ~${d.cambiados.length} cambiados, -${d.borrados.length} borrados.`;
     execFileSync("git", ["commit", "-m", msg], { cwd: REPO, stdio: "inherit" });
     log("\n✓ Commit hecho. Revisá y push cuando quieras (o corré con tu flujo habitual).");
   }
 } else if (!sinCambios) {
-  log("\n→ Revisá el diff y commiteá:  git add docs/design/handoff && git commit");
+  log("\n→ Revisá el diff y commiteá:  git add docs/design && git commit");
 }

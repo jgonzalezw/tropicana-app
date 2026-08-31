@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/organic-186d334f-848b-405d-95ba-b805f2b70bf6/styles.css">
+<script src="_ds/organic-186d334f-848b-405d-95ba-b805f2b70bf6/_ds_bundle.js"></script>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&display=swap">
+<style>
+:root {
+  --color-bg: #1c1815;
+  --color-surface: #272220;
+  --color-text: #f4ebdd;
+  --color-divider: color-mix(in srgb, #f4ebdd 16%, transparent);
+  --color-accent: #e08b4f;
+  --color-accent-2: #9bad78;
+  --color-neutral-100: #302a25;
+  --color-neutral-200: #3a332d;
+  --color-neutral-300: #463e37;
+  --color-neutral-400: #6d6359;
+  --color-neutral-500: #8f8578;
+  --color-neutral-600: #ab9f91;
+  --color-neutral-700: #c8bbaa;
+  --color-neutral-800: #e2d7c6;
+  --color-neutral-900: #f4ebdd;
+  --color-accent-100: #37200f;
+  --color-accent-200: #6b3714;
+  --color-accent-300: #8c491a;
+  --color-accent-400: #b2622d;
+  --color-accent-500: #d67f48;
+  --color-accent-600: #f6a06b;
+  --color-accent-700: #ffc0a0;
+  --color-accent-800: #ffd3b5;
+  --color-accent-900: #fff2eb;
+  --color-accent-2-100: #232a18;
+  --color-accent-2-200: #3a4726;
+  --color-accent-2-300: #56633f;
+  --color-accent-2-400: #728157;
+  --color-accent-2-500: #8fa073;
+  --color-accent-2-600: #a8bb88;
+  --color-accent-2-700: #ccdbb2;
+  --color-accent-2-800: #dcebc4;
+  --color-accent-2-900: #f0fae1;
+  --tropi-chip: #f4ebdd;
+  --font-heading: "Montserrat", system-ui, sans-serif;
+  --font-heading-weight: 800;
+}
+h1, h2, h3, h4 { letter-spacing: -0.025em; }
+.btn { font-weight: 700; letter-spacing: 0.01em; }
+.nw { white-space: nowrap; }
+body { margin: 0; background: var(--color-neutral-300); }
+a { color: var(--color-accent-700); }
+a:hover { color: var(--color-accent-800); }
+.input option, select.input { color: var(--color-text); background: var(--color-neutral-100); }
+.tropi-in { font-size: 17px !important; min-height: 52px !important; background: var(--color-neutral-200) !important; }
+.tropi-btn-big { font-size: 18px !important; min-height: 56px !important; }
+.tropi-seg { display: flex; width: 100%; }
+.tropi-seg .seg-opt { flex: 1; justify-content: center; font-size: 15px; padding: 12px 4px; text-align: center; }
+.tropi-seg-2 { flex-wrap: wrap; }
+.tropi-seg-2 .seg-opt { flex: 1 1 45%; }
+.vs-tag { white-space: nowrap; flex: none; }
+@keyframes tropiIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+</style>
+</helmet>
+<div style="min-height:100dvh;display:flex;justify-content:center;background:var(--color-neutral-300)">
+<div style="width:100%;max-width:680px;height:100dvh;display:flex;flex-direction:column;background:var(--color-bg);font-family:var(--font-body);color:var(--color-text)">
+
+  <div style="padding:18px 18px 6px;display:flex;align-items:center;gap:10px">
+    <div style="background:var(--tropi-chip);border-radius:999px;padding:5px 13px;display:flex;flex:none"><img src="assets/tropicana-logo.png" alt="Tropicana" style="height:24px;width:auto"></img></div>
+    <div class="nw" style="margin-left:auto;font-size:13px;color:var(--color-neutral-700)">Natalia · admin</div>
+  </div>
+
+  <div style="padding:4px 18px 14px">
+    <h1 style="font-size:clamp(29px,4vw,36px);margin:0">Vender servicio</h1>
+    <div style="font-size:15px;color:var(--color-neutral-700);margin-top:4px">Clase particular o alquiler de sala, con su cobro.</div>
+  </div>
+
+  <div style="flex:1;overflow:auto;padding:0 clamp(14px,2vw,18px) 26px">
+
+    <sc-if value="{{ aviso }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;align-items:flex-start;gap:10px;background:var(--color-accent-2-200);border-radius:22px;padding:14px 16px;margin-bottom:14px;animation:tropiIn .25s ease-out">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-2-800)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:1px"><path d="M20 6 9 17l-5-5"></path></svg>
+        <div style="font-size:15px;line-height:1.45;color:var(--color-accent-2-900)">{{ aviso }}</div>
+        <button class="btn btn-ghost" onClick="{{ cerrarAviso }}" style="margin-left:auto;flex:none;color:var(--color-accent-2-800);font-size:13px">Cerrar</button>
+      </div>
+    </sc-if>
+
+    <div style="background:var(--color-surface);border-radius:26px;padding:16px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <div style="width:30px;height:30px;border-radius:999px;background:var(--color-accent);color:var(--color-bg);display:grid;place-items:center;font-family:var(--font-heading);font-size:15px;flex:none">1</div>
+        <div class="nw" style="font-family:var(--font-heading);font-size:18px">Tipo y comprador</div>
+      </div>
+
+      <div class="seg tropi-seg" style="margin-bottom:14px">
+        <label class="seg-opt">
+          <input type="radio" name="vstipo" checked="{{ esParticular }}" onChange="{{ setParticular }}"></input>
+          <span>Clase particular</span>
+        </label>
+        <label class="seg-opt">
+          <input type="radio" name="vstipo" checked="{{ esSala }}" onChange="{{ setSala }}"></input>
+          <span>Alquiler de sala</span>
+        </label>
+      </div>
+
+      <sc-if value="{{ esSala }}" hint-placeholder-val="{{ false }}">
+        <div style="margin-bottom:14px">
+          <div style="font-size:14px;color:var(--color-neutral-700);margin-bottom:6px">Categoría del comprador</div>
+          <div class="seg tropi-seg tropi-seg-2">
+            <sc-for list="{{ categorias }}" as="c" hint-placeholder-count="4">
+              <label class="seg-opt">
+                <input type="radio" name="vscat" checked="{{ c.sel }}" onChange="{{ c.elegir }}"></input>
+                <span>{{ c.label }}</span>
+              </label>
+            </sc-for>
+          </div>
+          <div style="font-size:14px;color:var(--color-neutral-700);margin-top:8px;line-height:1.45">{{ catNota }}</div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ verTercero }}" hint-placeholder-val="{{ false }}">
+        <div class="field">
+          <label style="font-size:14px">Nombre del comprador</label>
+          <input class="input tropi-in" value="{{ terceroNombre }}" onChange="{{ onTerceroNombre }}" placeholder="ej. Colegio San Andrés · ensayo"></input>
+          <div style="font-size:14px;color:var(--color-neutral-700);margin-top:6px;line-height:1.45">Un tercero no entra al padrón: queda como nombre en el movimiento de caja.</div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ verBuscador }}" hint-placeholder-val="{{ true }}">
+        <div>
+          <div class="field" style="margin-bottom:10px">
+            <label style="font-size:14px">{{ buscadorLabel }}</label>
+            <input class="input tropi-in" value="{{ q }}" onChange="{{ onQuery }}" placeholder="ej. Virginia · 7105"></input>
+          </div>
+
+          <sc-for list="{{ resultados }}" as="r" hint-placeholder-count="2">
+            <button onClick="{{ r.elegir }}" style="width:100%;display:flex;align-items:center;gap:10px;text-align:left;background:var(--color-neutral-100);border:1px solid var(--color-divider);border-radius:20px;padding:12px 14px;margin-bottom:8px;cursor:pointer;font-family:var(--font-body);color:var(--color-text)">
+              <div style="flex:1;min-width:0">
+                <div style="font-size:17px;font-weight:600">{{ r.nombre }}</div>
+                <div style="font-size:14px;color:var(--color-neutral-700)">{{ r.meta }}</div>
+              </div>
+              <sc-if value="{{ r.conTag }}" hint-placeholder-val="{{ false }}">
+                <span class="tag tag-accent vs-tag" style="font-size:13px">{{ r.tagTexto }}</span>
+              </sc-if>
+            </button>
+          </sc-for>
+
+          <sc-if value="{{ sinResultados }}" hint-placeholder-val="{{ false }}">
+            <div style="font-size:15px;color:var(--color-neutral-700);padding:2px 2px 10px">{{ sinResultadosTexto }}</div>
+          </sc-if>
+
+          <sc-if value="{{ verAltaBoton }}" hint-placeholder-val="{{ false }}">
+            <button class="btn btn-secondary btn-block tropi-btn-big" onClick="{{ abrirAlta }}" style="background:var(--color-neutral-100)">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+              Alumno nuevo
+            </button>
+          </sc-if>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ verTitular }}" hint-placeholder-val="{{ false }}">
+        <div style="background:var(--color-neutral-100);border-radius:22px;padding:14px">
+          <div style="display:flex;align-items:flex-start;gap:10px">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:13px;color:var(--color-neutral-700)">{{ titularRol }}</div>
+              <div style="font-size:20px;font-weight:700;margin-top:1px">{{ titularNombre }}</div>
+              <div style="font-size:15px;color:var(--color-neutral-700);margin-top:2px">{{ titularMeta }}</div>
+            </div>
+            <button class="btn btn-ghost" onClick="{{ cambiarTitular }}" style="font-size:15px;flex:none">Cambiar</button>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ verAcompBoton }}" hint-placeholder-val="{{ false }}">
+        <button class="btn btn-ghost" onClick="{{ abrirAcomp }}" style="font-size:15px;margin-top:12px">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+          Agregar acompañante
+        </button>
+        <div style="font-size:14px;color:var(--color-neutral-700);margin-top:4px;line-height:1.45">Opcional. Con acompañante el paquete pasa a tamaño Pareja; el precio del paquete no cambia por persona.</div>
+      </sc-if>
+
+      <sc-if value="{{ verAcompBuscador }}" hint-placeholder-val="{{ false }}">
+        <div style="background:var(--color-neutral-100);border-radius:22px;padding:14px;margin-top:12px;animation:tropiIn .2s ease-out">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+            <div style="font-size:15px;font-weight:600">Acompañante</div>
+            <button class="btn btn-ghost" onClick="{{ quitarAcomp }}" style="margin-left:auto;flex:none;font-size:14px">Quitar</button>
+          </div>
+          <div class="field" style="margin-bottom:10px">
+            <label style="font-size:14px">Buscar por nombre o WhatsApp</label>
+            <input class="input tropi-in" value="{{ qAcomp }}" onChange="{{ onQueryAcomp }}" placeholder="ej. Rolando · 6220" style="background:var(--color-neutral-100) !important"></input>
+          </div>
+          <sc-for list="{{ resultadosAcomp }}" as="r" hint-placeholder-count="2">
+            <button onClick="{{ r.elegir }}" style="width:100%;display:flex;align-items:center;gap:10px;text-align:left;background:var(--color-neutral-200);border:1px solid var(--color-divider);border-radius:20px;padding:12px 14px;margin-bottom:8px;cursor:pointer;font-family:var(--font-body);color:var(--color-text)">
+              <div style="flex:1;min-width:0">
+                <div style="font-size:17px;font-weight:600">{{ r.nombre }}</div>
+                <div style="font-size:14px;color:var(--color-neutral-700)">{{ r.meta }}</div>
+              </div>
+            </button>
+          </sc-for>
+          <sc-if value="{{ sinResultadosAcomp }}" hint-placeholder-val="{{ false }}">
+            <div style="font-size:15px;color:var(--color-neutral-700);padding:2px 2px 8px">Nadie con ese dato. Cargalo como alumno nuevo.</div>
+          </sc-if>
+          <button class="btn btn-secondary btn-block" onClick="{{ abrirAltaAcomp }}" style="background:var(--color-neutral-200);min-height:48px">Alumno nuevo</button>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ verAcomp }}" hint-placeholder-val="{{ false }}">
+        <div style="background:var(--color-neutral-100);border-radius:22px;padding:14px;margin-top:12px">
+          <div style="display:flex;align-items:flex-start;gap:10px">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:13px;color:var(--color-neutral-700)">Acompañante</div>
+              <div style="font-size:19px;font-weight:700;margin-top:1px">{{ acompNombre }}</div>
+              <div style="font-size:15px;color:var(--color-neutral-700);margin-top:2px">{{ acompMeta }}</div>
+            </div>
+            <button class="btn btn-ghost" onClick="{{ quitarAcomp }}" style="font-size:15px;flex:none">Quitar</button>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ verAlta }}" hint-placeholder-val="{{ false }}">
+        <div style="background:var(--color-neutral-100);border-radius:22px;padding:14px;margin-top:12px;animation:tropiIn .2s ease-out">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+            <div style="font-size:15px;font-weight:600">{{ altaTitulo }}</div>
+            <button class="btn btn-ghost" onClick="{{ cerrarAlta }}" style="margin-left:auto;flex:none;font-size:14px">Cancelar</button>
+          </div>
+          <div style="display:flex;gap:10px;margin-bottom:10px">
+            <div class="field" style="flex:1">
+              <label style="font-size:14px">Nombre</label>
+              <input class="input tropi-in" value="{{ altaNom }}" onChange="{{ onAltaNom }}" placeholder="Javier" style="background:var(--color-neutral-100) !important"></input>
+            </div>
+            <div class="field" style="flex:1">
+              <label style="font-size:14px">Apellido</label>
+              <input class="input tropi-in" value="{{ altaApe }}" onChange="{{ onAltaApe }}" placeholder="González" style="background:var(--color-neutral-100) !important"></input>
+            </div>
+          </div>
+          <div class="field">
+            <label style="font-size:14px">WhatsApp <span style="color:var(--color-accent-700)">· identifica al alumno</span></label>
+            <input class="input tropi-in" value="{{ altaWa }}" onChange="{{ onAltaWa }}" placeholder="78 009 001" inputMode="tel" style="background:var(--color-neutral-100) !important"></input>
+          </div>
+
+          <sc-if value="{{ altaDupe }}" hint-placeholder-val="{{ false }}">
+            <div style="background:var(--color-accent-100);border-radius:20px;padding:14px;margin-top:12px;animation:tropiIn .25s ease-out">
+              <div style="font-size:14px;color:var(--color-accent-800);font-weight:600;margin-bottom:6px">Ese WhatsApp ya está cargado</div>
+              <div style="font-size:17px;font-weight:600">{{ altaDupeNombre }}</div>
+              <div style="font-size:14px;color:var(--color-neutral-700);margin-top:2px">{{ altaDupeMeta }}</div>
+              <div style="display:flex;gap:8px;margin-top:12px">
+                <button class="btn btn-primary" onClick="{{ usarAltaDupe }}" style="flex:1;min-height:48px;font-size:16px">Usar este alumno</button>
+                <button class="btn btn-secondary" onClick="{{ ignorarAltaDupe }}" style="flex:none;min-height:48px;font-size:15px">Es otra persona</button>
+              </div>
+            </div>
+          </sc-if>
+
+          <button class="btn btn-primary btn-block tropi-btn-big" onClick="{{ guardarAlta }}" disabled="{{ altaIncompleta }}" style="margin-top:14px">Guardar alumno</button>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ verProfesor }}" hint-placeholder-val="{{ false }}">
+        <div style="margin-top:14px">
+          <div style="font-size:14px;color:var(--color-neutral-700);margin-bottom:6px">Profesor que dicta</div>
+          <sc-for list="{{ profesores }}" as="p" hint-placeholder-count="4">
+            <button onClick="{{ p.elegir }}" style="width:100%;display:flex;align-items:center;gap:10px;text-align:left;background:{{ p.bg }};border:1px solid {{ p.borde }};border-radius:20px;padding:12px 14px;margin-bottom:8px;cursor:pointer;font-family:var(--font-body);color:var(--color-text)">
+              <div style="flex:1;min-width:0">
+                <div style="font-size:17px;font-weight:600">{{ p.nombre }}</div>
+                <div style="font-size:14px;color:var(--color-neutral-700);margin-top:1px">{{ p.meta }}</div>
+              </div>
+              <span class="tag vs-tag {{ p.tagCls }}" style="font-size:13px">{{ p.catLabel }}</span>
+            </button>
+          </sc-for>
+        </div>
+      </sc-if>
+    </div>
+
+    <div style="background:var(--color-surface);border-radius:26px;padding:16px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <div style="width:30px;height:30px;border-radius:999px;background:var(--color-accent);color:var(--color-bg);display:grid;place-items:center;font-family:var(--font-heading);font-size:15px;flex:none">2</div>
+        <div class="nw" style="font-family:var(--font-heading);font-size:18px">Paquete</div>
+      </div>
+
+      <sc-if value="{{ paso2Bloqueado }}" hint-placeholder-val="{{ true }}">
+        <div style="font-size:15px;color:var(--color-neutral-700)">{{ paso2BloqueadoTexto }}</div>
+      </sc-if>
+
+      <sc-if value="{{ verTamano }}" hint-placeholder-val="{{ false }}">
+        <div style="margin-bottom:14px">
+          <div style="font-size:14px;color:var(--color-neutral-700);margin-bottom:6px">Tamaño del grupo</div>
+          <div class="seg tropi-seg">
+            <sc-for list="{{ tamanos }}" as="t" hint-placeholder-count="3">
+              <label class="seg-opt">
+                <input type="radio" name="vstam" checked="{{ t.sel }}" onChange="{{ t.elegir }}"></input>
+                <span>{{ t.label }}</span>
+              </label>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ verTamanoFijo }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;align-items:center;gap:8px;background:var(--color-neutral-100);border-radius:18px;padding:11px 14px;margin-bottom:14px">
+          <div style="font-size:14px;color:var(--color-neutral-700)">Tamaño</div>
+          <div class="nw" style="margin-left:auto;font-size:16px;font-weight:700">{{ tamanoFijoTexto }}</div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ eligiendoPaquete }}" hint-placeholder-val="{{ false }}">
+        <div>
+          <sc-for list="{{ paquetes }}" as="p" hint-placeholder-count="4">
+            <button onClick="{{ p.elegir }}" style="width:100%;display:flex;align-items:center;gap:12px;text-align:left;background:var(--color-neutral-100);border:1px solid var(--color-divider);border-radius:20px;padding:12px 14px;margin-bottom:8px;cursor:pointer;font-family:var(--font-body);color:var(--color-text)">
+              <div style="flex:1;min-width:0">
+                <div style="font-size:17px;font-weight:600">{{ p.nombre }}</div>
+                <div style="font-size:14px;color:var(--color-neutral-700);margin-top:1px">{{ p.meta }}</div>
+              </div>
+              <div class="nw" style="font-size:16px;font-weight:700;flex:none">{{ p.precio }}</div>
+            </button>
+          </sc-for>
+          <sc-if value="{{ sinPaquetes }}" hint-placeholder-val="{{ false }}">
+            <div style="background:var(--color-accent-100);border-radius:20px;padding:14px">
+              <div style="font-size:15px;color:var(--color-accent-800);line-height:1.45">{{ sinPaquetesTexto }}</div>
+            </div>
+          </sc-if>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ hayPaquete }}" hint-placeholder-val="{{ false }}">
+        <div style="background:var(--color-neutral-100);border-radius:22px;padding:14px">
+          <div style="display:flex;align-items:flex-start;gap:10px">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:19px;font-weight:700">{{ paqueteNombre }}</div>
+              <div style="font-size:15px;color:var(--color-neutral-700);margin-top:2px">{{ paqueteMeta }}</div>
+            </div>
+            <button class="btn btn-ghost" onClick="{{ cambiarPaquete }}" style="font-size:15px;flex:none">Cambiar</button>
+          </div>
+          <div style="display:flex;align-items:baseline;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--color-divider)">
+            <div style="font-size:15px;color:var(--color-neutral-700)">{{ paquetePrecioLabel }}</div>
+            <div class="nw" style="margin-left:auto;font-family:var(--font-heading);font-size:26px">{{ paquetePrecio }}</div>
+          </div>
+        </div>
+      </sc-if>
+    </div>
+
+    <div style="background:var(--color-surface);border-radius:26px;padding:16px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <div style="width:30px;height:30px;border-radius:999px;background:var(--color-accent);color:var(--color-bg);display:grid;place-items:center;font-family:var(--font-heading);font-size:15px;flex:none">3</div>
+        <div class="nw" style="font-family:var(--font-heading);font-size:18px">Cobro</div>
+      </div>
+
+      <sc-if value="{{ paso3Bloqueado }}" hint-placeholder-val="{{ true }}">
+        <div style="font-size:15px;color:var(--color-neutral-700)">Elegí el paquete para ver el precio.</div>
+      </sc-if>
+
+      <sc-if value="{{ cobroAbierto }}" hint-placeholder-val="{{ false }}">
+        <div style="background:var(--color-neutral-100);border-radius:22px;padding:14px">
+          <dc-import name="Cobro" sujeto="" detalle="" referencia="{{ referenciaCobro }}" referencia-label="Precio del paquete" politica="descuento" direccion="cobro" medios="Efectivo,QR / transf.,Otro" permitir-sin-cobro="{{ permitirSinCobro }}" cuenta-id="{{ cuentaId }}" onChange="{{ onCobro }}" hint-size="100%,230px"></dc-import>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ verSala }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;align-items:flex-start;gap:10px;background:var(--color-accent-2-200);border-radius:22px;padding:14px 16px;margin-top:12px;animation:tropiIn .2s ease-out">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-2-800)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:1px"><path d="M12 2 2 7l10 5 10-5z"></path><path d="M2 17l10 5 10-5M2 12l10 5 10-5"></path></svg>
+          <div style="min-width:0">
+            <div style="font-size:16px;line-height:1.45;color:var(--color-accent-2-900)">{{ salaLinea }}</div>
+            <div style="font-size:14px;color:var(--color-accent-2-800);margin-top:4px">{{ salaRuta }}</div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ verSalaFalta }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;align-items:flex-start;gap:10px;background:var(--color-accent-100);border-radius:22px;padding:14px 16px;margin-top:12px">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-700)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:1px"><path d="M12 9v4M12 17h.01"></path><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path></svg>
+          <div style="min-width:0">
+            <div style="font-size:16px;line-height:1.45;color:var(--color-accent-900)">{{ salaFaltaLinea }}</div>
+            <div style="font-size:14px;color:var(--color-accent-800);margin-top:4px">{{ salaRuta }}</div>
+          </div>
+        </div>
+      </sc-if>
+    </div>
+
+    <sc-if value="{{ errorMsg }}" hint-placeholder-val="{{ false }}">
+      <div style="font-size:15px;color:var(--color-accent-800);background:var(--color-accent-200);border-radius:18px;padding:12px 14px;margin-top:12px">{{ errorMsg }}</div>
+    </sc-if>
+  </div>
+
+  <div style="padding:12px 16px 16px;background:var(--color-surface);border-top:1px solid var(--color-divider)">
+    <div style="display:flex;align-items:baseline;margin-bottom:8px">
+      <div style="font-size:15px;color:var(--color-neutral-700);min-width:0">{{ resumenPie }}</div>
+      <div class="nw" style="margin-left:auto;font-family:var(--font-heading);font-size:22px">{{ cobraTexto }}</div>
+    </div>
+    <button class="btn btn-primary btn-block tropi-btn-big" onClick="{{ confirmar }}" disabled="{{ noPuede }}">Confirmar venta</button>
+  </div>
+</div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:450,&quot;height&quot;:940},&quot;permitirSinCobro&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Cobro&quot;}}">
+const ALUMNOS = [
+  { id: 'AL004', nom: 'Virginia', ape: 'Martínez', wa: '71 054 962', deuda: 200 },
+  { id: 'AL003', nom: 'Laida', ape: 'Salinas', wa: '67 359 811', deuda: 450 },
+  { id: 'AL002', nom: 'Manuel', ape: 'Aguilar', wa: '62 584 486', deuda: 200 },
+  { id: 'AL006', nom: 'Gabriela', ape: 'Rayza', wa: '71 624 252', deuda: 250 },
+  { id: 'AL001', nom: 'Jhonny', ape: 'Cutipa', wa: '63 800 865', deuda: 250 },
+  { id: 'AL017', nom: 'Rolando', ape: 'Salvatierra', wa: '62 203 938', deuda: 0 },
+  { id: 'AL016', nom: 'Alejandro', ape: 'Camacho', wa: '69 852 572', deuda: 0 },
+  { id: 'AL019', nom: 'Javier', ape: 'González', wa: '78 009 001', deuda: 0 }
+];
+
+// cat: la categoría con la que este profesor entra a la tabla E de Precios y paquetes.
+const PROFESORES = [
+  { id: 'PR002', nombre: 'Oscar Nuñez', cat: 'pact', meta: 'Bachata Conexión · Salsa' },
+  { id: 'PR001', nombre: 'Natalia Salek', cat: 'pact', meta: 'Salsa y Bachata · Dom Salsa' },
+  { id: 'PR004', nombre: 'Sebastián Tini', cat: 'pact', meta: 'Heels' },
+  { id: 'PR009', nombre: 'Mariela Ávila', cat: 'pext', meta: 'No dicta cursos en Tropicana' }
+];
+
+// Bloque D de Precios y paquetes.
+const PAQUETES = [
+  { id: 'p1', nombre: '1 hora', estilo: 'Salsa', horas: 1, precio: 120 },
+  { id: 'p2', nombre: 'Paquete 4 horas', estilo: 'Salsa', horas: 4, precio: 440 },
+  { id: 'p3', nombre: '1 hora', estilo: 'Bachata', horas: 1, precio: 120 },
+  { id: 'p4', nombre: 'Paquete 8 horas', estilo: 'Bachata', horas: 8, precio: 840 },
+  { id: 'p5', nombre: '1 hora', estilo: 'Heels', horas: 1, precio: 130 }
+];
+
+// Bloque E de Precios y paquetes: fuente única del costo de sala.
+const CATS = [
+  { id: 'alu', label: 'Alumno', nota: 'Alumno inscripto que alquila la sala para practicar por su cuenta.', padron: 'alumnos' },
+  { id: 'pact', label: 'Profesor Activo', nota: 'Profesor de Tropicana con cursos asignados. Paga menos que un externo por el mismo tamaño y paquete.', padron: 'profesores' },
+  { id: 'pext', label: 'Profesor Externo', nota: 'Profesor que no dicta cursos en Tropicana y usa la sala para sus propios alumnos.', padron: 'profesores' },
+  { id: 'ter', label: 'Tercero', nota: 'Cualquier otro comprador: eventos, ensayos, filmaciones. No entra al padrón.', padron: 'libre' }
+];
+
+const TAMANOS = [
+  { id: 'ind', label: 'Individual', max: 1 },
+  { id: 'par', label: 'Pareja', max: 2 },
+  { id: 'gru', label: 'Grupo', max: 16 }
+];
+
+const HORAS = [{ id: 'h1', horas: 1 }, { id: 'h2', horas: 2 }, { id: 'h4', horas: 4 }, { id: 'h8', horas: 8 }];
+
+const PRECIOS_SALA = {
+  alu: { ind: { h1: 40, h2: 75, h4: 140, h8: 260 }, par: { h1: 55, h2: 105, h4: 195, h8: 360 }, gru: { h1: 90, h2: 170, h4: 320, h8: 600 } },
+  pact: { ind: { h1: 30, h2: 55, h4: 100, h8: 190 }, par: { h1: 40, h2: 75, h4: 140, h8: 260 }, gru: { h1: 70, h2: 130, h4: 240, h8: 450 } },
+  pext: { ind: { h1: 50, h2: 95, h4: 180, h8: 340 }, par: { h1: 65, h2: 125, h4: 235, h8: 440 }, gru: { h1: 110, h2: 210, h4: 400, h8: 750 } },
+  ter: { ind: { h1: 60, h2: 115, h4: 215, h8: 400 }, par: { h1: 80, h2: 150, h4: 285, h8: 530 }, gru: { h1: 130, h2: 250, h4: 475, h8: 890 } }
+};
+
+const gs = (n) => 'Bs. ' + Number(n || 0).toLocaleString('es-BO');
+const soloNum = (s) => String(s || '').replace(/\D/g, '');
+const nombreCompleto = (a) => a.nom + ' ' + a.ape;
+const cat = (id) => CATS.filter((c) => c.id === id)[0] || CATS[0];
+const tam = (id) => TAMANOS.filter((t) => t.id === id)[0] || TAMANOS[0];
+
+// La misma búsqueda que Inscribir y cobrar: nombre, apellido o WhatsApp, desde 2 caracteres.
+function buscar(lista, q, campoNombre) {
+  const t = String(q || '').trim().toLowerCase();
+  if (t.length < 2) return [];
+  const d = soloNum(t);
+  return lista.filter((p) => {
+    const n = (campoNombre ? p[campoNombre] : nombreCompleto(p)).toLowerCase();
+    const wa = soloNum(p.wa);
+    return n.indexOf(t) >= 0 || (d.length >= 2 && wa.indexOf(d) >= 0);
+  }).slice(0, 4);
+}
+
+class Component extends DCLogic {
+  state = {
+    tipo: 'particular', catId: 'pact',
+    q: '', persona: null, terceroNombre: '',
+    acompAbierto: false, qAcomp: '', acomp: null,
+    profId: null,
+    alta: null, altaNom: '', altaApe: '', altaWa: '', altaIgnorar: false,
+    tamId: 'ind', paqueteId: null, horaId: null,
+    cobro: null, aviso: null, errorMsg: null,
+    padron: ALUMNOS.slice()
+  };
+
+  set = (p) => this.setState(Object.assign({ errorMsg: null }, p));
+
+  reset(patch) {
+    this.setState(Object.assign({
+      q: '', persona: null, terceroNombre: '', acompAbierto: false, qAcomp: '', acomp: null,
+      profId: null, alta: null, altaNom: '', altaApe: '', altaWa: '', altaIgnorar: false,
+      paqueteId: null, horaId: null, cobro: null, errorMsg: null
+    }, patch));
+  }
+
+  // Tamaño de la particular: sale del acompañante, no se vuelve a preguntar.
+  tamParticular() { return this.state.acomp ? 'par' : 'ind'; }
+
+  // La búsqueda del costo de sala contra la tabla E. Misma función para la venta directa
+  // y para el descuento en la liquidación del profesor: una sola fuente.
+  costoSala(catId, tamId, horas) {
+    const fila = HORAS.filter((h) => h.horas === horas)[0];
+    if (!fila) return null;
+    const porCat = PRECIOS_SALA[catId];
+    if (!porCat || !porCat[tamId]) return null;
+    const v = porCat[tamId][fila.id];
+    return v == null ? null : v;
+  }
+
+  guardarAlta = () => {
+    const s = this.state;
+    const nuevo = {
+      id: 'AL' + Date.now(), nom: s.altaNom.trim(), ape: s.altaApe.trim(),
+      wa: s.altaWa.trim(), deuda: 0
+    };
+    const padron = this.state.padron.concat([nuevo]);
+    if (s.alta === 'acomp') this.setState({ padron: padron, acomp: nuevo, alta: null, altaNom: '', altaApe: '', altaWa: '', altaIgnorar: false, qAcomp: '' });
+    else this.setState({ padron: padron, persona: nuevo, alta: null, altaNom: '', altaApe: '', altaWa: '', altaIgnorar: false, q: '' });
+  };
+
+  confirmar = () => {
+    const v = this.vista();
+    if (!v.puede) { this.setState({ errorMsg: v.faltaTexto }); return; }
+    const s = this.state;
+    let aviso;
+    if (s.tipo === 'particular') {
+      const partes = ['Venta registrada · ' + v.paqueteNombre + ' para ' + v.sujetoTexto + '.'];
+      partes.push('Se creó el paquete de ' + v.horasTexto + ' del alumno.');
+      if (v.costo == null) partes.push('Falta la tarifa de sala: el paquete del profesor quedó pendiente de tarifa y no se puede liquidar hasta cargarla.');
+      else partes.push('Se creó el paquete de sala de ' + v.profNombre + ' por las mismas ' + v.horasTexto + ' a ' + gs(v.costo) + ', que se descuenta de su liquidación del mes.');
+      aviso = partes.join(' ');
+    } else {
+      aviso = 'Alquiler registrado · ' + v.paqueteNombre + ' para ' + v.sujetoTexto + ' (' + v.tamLabel + '). Se cobró ' + gs(v.cobra) + '.';
+    }
+    this.reset({ aviso: aviso, tamId: 'ind' });
+  };
+
+  // Un solo lugar donde se calcula todo lo que la pantalla muestra y valida.
+  vista() {
+    const s = this.state;
+    const esP = s.tipo === 'particular';
+    const c = cat(s.catId);
+    const padronLibre = !esP && c.padron === 'libre';
+    const prof = PROFESORES.filter((p) => p.id === s.profId)[0] || null;
+
+    const persona = s.persona;
+    const sujetoTexto = padronLibre ? s.terceroNombre.trim()
+      : (persona ? nombreCompleto(persona) : '');
+    const haySujeto = !!sujetoTexto;
+
+    const tamId = esP ? this.tamParticular() : s.tamId;
+
+    const paquete = esP
+      ? (PAQUETES.filter((p) => p.id === s.paqueteId)[0] || null)
+      : (HORAS.filter((h) => h.id === s.horaId)[0] || null);
+    const horas = paquete ? paquete.horas : 0;
+
+    const precio = esP
+      ? (paquete ? paquete.precio : 0)
+      : (paquete ? (this.costoSala(s.catId, tamId, horas) || 0) : 0);
+
+    const costo = esP && prof && paquete ? this.costoSala(prof.cat, tamId, horas) : null;
+
+    const cobro = s.cobro || {};
+    const listo1 = esP ? (haySujeto && !!prof) : haySujeto;
+    const listo2 = listo1 && !!paquete && precio > 0;
+    const puede = listo2 && cobro.valido === true;
+
+    let faltaTexto = null;
+    if (!haySujeto) faltaTexto = esP ? 'Elegí el alumno titular.' : 'Identificá al comprador.';
+    else if (esP && !prof) faltaTexto = 'Elegí el profesor que dicta.';
+    else if (!paquete) faltaTexto = 'Elegí el paquete.';
+    else if (precio <= 0) faltaTexto = 'Ese paquete no tiene precio cargado en Precios y paquetes.';
+    else if (!puede) faltaTexto = 'Completá el cobro: monto, medio y motivo del descuento si hay.';
+
+    return {
+      esP: esP, c: c, padronLibre: padronLibre, prof: prof, persona: persona,
+      sujetoTexto: sujetoTexto, haySujeto: haySujeto,
+      tamId: tamId, tamLabel: tam(tamId).label,
+      paquete: paquete, horas: horas,
+      horasTexto: horas + (horas === 1 ? ' hora' : ' horas'),
+      paqueteNombre: paquete ? (esP ? paquete.nombre + ' · ' + paquete.estilo : horas + (horas === 1 ? ' hora de sala' : ' horas de sala')) : '',
+      precio: precio, costo: costo,
+      profNombre: prof ? prof.nombre : '',
+      cobra: cobro.monto || 0,
+      listo1: listo1, listo2: listo2, puede: puede, faltaTexto: faltaTexto
+    };
+  }
+
+  renderVals() {
+    const s = this.state;
+    const v = this.vista();
+    const esP = v.esP;
+
+    const listaBusqueda = v.c.padron === 'profesores' && !esP
+      ? PROFESORES.filter((p) => p.cat === s.catId)
+      : s.padron;
+
+    const resultados = (v.c.padron === 'profesores' && !esP
+      ? buscar(listaBusqueda, s.q, 'nombre')
+      : buscar(listaBusqueda, s.q)
+    ).map((p) => ({
+      nombre: p.nombre || nombreCompleto(p),
+      meta: p.wa ? p.wa : (p.meta || ''),
+      conTag: !!p.deuda && p.deuda > 0,
+      tagTexto: 'Debe ' + gs(p.deuda || 0),
+      elegir: () => this.set({ persona: p, q: '' })
+    }));
+
+    const resultadosAcomp = buscar(s.padron.filter((a) => !s.persona || a.id !== s.persona.id), s.qAcomp).map((p) => ({
+      nombre: nombreCompleto(p), meta: p.wa,
+      elegir: () => this.set({ acomp: p, qAcomp: '' })
+    }));
+
+    const dupe = s.altaWa.trim() && !s.altaIgnorar
+      ? s.padron.filter((a) => soloNum(a.wa) && soloNum(a.wa) === soloNum(s.altaWa))[0]
+      : null;
+
+    const paquetesCP = PAQUETES.map((p) => ({
+      nombre: p.nombre,
+      meta: p.estilo + ' · ' + p.horas + (p.horas === 1 ? ' hora' : ' horas'),
+      precio: gs(p.precio),
+      elegir: () => this.set({ paqueteId: p.id })
+    }));
+
+    const paquetesSala = HORAS.map((h) => {
+      const val = this.costoSala(s.catId, s.tamId, h.horas);
+      return {
+        nombre: h.horas + (h.horas === 1 ? ' hora' : ' horas'),
+        meta: v.c.label + ' · ' + tam(s.tamId).label,
+        precio: val == null ? 'Sin tarifa' : gs(val),
+        elegir: () => this.set({ horaId: h.id })
+      };
+    });
+
+    const salaRuta = 'Alquiler de sala → ' + (v.prof ? cat(v.prof.cat).label : '—') + ' × ' + v.tamLabel + ' × ' + v.horas + ' h';
+
+    return {
+      esParticular: esP, esSala: !esP,
+      setParticular: () => this.reset({ tipo: 'particular', tamId: 'ind' }),
+      setSala: () => this.reset({ tipo: 'sala', catId: 'pact', tamId: 'ind' }),
+
+      categorias: CATS.map((c) => ({
+        label: c.label, sel: s.catId === c.id,
+        elegir: () => this.reset({ catId: c.id })
+      })),
+      catNota: v.c.nota,
+
+      verTercero: !esP && v.padronLibre,
+      terceroNombre: s.terceroNombre,
+      onTerceroNombre: (e) => this.set({ terceroNombre: e.target.value }),
+
+      verBuscador: !v.padronLibre && !s.persona,
+      buscadorLabel: esP ? 'Alumno titular · nombre o WhatsApp'
+        : (v.c.padron === 'profesores' ? 'Profesor · nombre' : 'Alumno · nombre o WhatsApp'),
+      q: s.q,
+      onQuery: (e) => this.set({ q: e.target.value }),
+      resultados: resultados,
+      sinResultados: s.q.trim().length >= 2 && resultados.length === 0,
+      sinResultadosTexto: v.c.padron === 'profesores' && !esP
+        ? 'Ningún profesor de esa categoría con ese nombre.'
+        : 'Nadie con ese dato. Cargalo como alumno nuevo.',
+      verAltaBoton: !s.persona && !s.alta && (esP || v.c.padron === 'alumnos'),
+      abrirAlta: () => this.set({ alta: 'titular', altaNom: '', altaApe: '', altaWa: '', altaIgnorar: false }),
+
+      verTitular: !v.padronLibre && !!s.persona,
+      titularRol: esP ? 'Alumno titular' : v.c.label,
+      titularNombre: s.persona ? (s.persona.nombre || nombreCompleto(s.persona)) : '',
+      titularMeta: s.persona ? (s.persona.wa || s.persona.meta || '') : '',
+      cambiarTitular: () => this.set({ persona: null, q: '', acomp: null, acompAbierto: false }),
+
+      verAcompBoton: esP && !!s.persona && !s.acomp && !s.acompAbierto,
+      abrirAcomp: () => this.set({ acompAbierto: true }),
+      verAcompBuscador: esP && s.acompAbierto && !s.acomp,
+      qAcomp: s.qAcomp,
+      onQueryAcomp: (e) => this.set({ qAcomp: e.target.value }),
+      resultadosAcomp: resultadosAcomp,
+      sinResultadosAcomp: s.qAcomp.trim().length >= 2 && resultadosAcomp.length === 0,
+      abrirAltaAcomp: () => this.set({ alta: 'acomp', altaNom: '', altaApe: '', altaWa: '', altaIgnorar: false }),
+      verAcomp: esP && !!s.acomp,
+      acompNombre: s.acomp ? nombreCompleto(s.acomp) : '',
+      acompMeta: s.acomp ? s.acomp.wa : '',
+      quitarAcomp: () => this.set({ acomp: null, acompAbierto: false, qAcomp: '' }),
+
+      verAlta: !!s.alta,
+      altaTitulo: s.alta === 'acomp' ? 'Alumno nuevo · acompañante' : 'Alumno nuevo',
+      altaNom: s.altaNom, altaApe: s.altaApe, altaWa: s.altaWa,
+      onAltaNom: (e) => this.set({ altaNom: e.target.value }),
+      onAltaApe: (e) => this.set({ altaApe: e.target.value }),
+      onAltaWa: (e) => this.set({ altaWa: e.target.value, altaIgnorar: false }),
+      cerrarAlta: () => this.set({ alta: null, altaNom: '', altaApe: '', altaWa: '', altaIgnorar: false }),
+      altaDupe: !!dupe,
+      altaDupeNombre: dupe ? nombreCompleto(dupe) : '',
+      altaDupeMeta: dupe ? (dupe.wa + ' · deuda actual ' + gs(dupe.deuda)) : '',
+      usarAltaDupe: () => {
+        if (s.alta === 'acomp') this.set({ acomp: dupe, alta: null, altaNom: '', altaApe: '', altaWa: '' });
+        else this.set({ persona: dupe, alta: null, altaNom: '', altaApe: '', altaWa: '' });
+      },
+      ignorarAltaDupe: () => this.set({ altaIgnorar: true }),
+      altaIncompleta: !(s.altaNom.trim() && s.altaApe.trim() && s.altaWa.trim() && !dupe),
+      guardarAlta: this.guardarAlta,
+
+      verProfesor: esP && !!s.persona,
+      profesores: PROFESORES.map((p) => ({
+        nombre: p.nombre, meta: p.meta,
+        catLabel: cat(p.cat).label,
+        tagCls: p.cat === 'pact' ? 'tag-accent-2' : 'tag-neutral',
+        bg: s.profId === p.id ? 'var(--color-accent-2-200)' : 'var(--color-neutral-100)',
+        borde: s.profId === p.id ? 'var(--color-accent-2-400)' : 'var(--color-divider)',
+        elegir: () => this.set({ profId: p.id, paqueteId: null, cobro: null })
+      })),
+
+      paso2Bloqueado: !v.listo1,
+      paso2BloqueadoTexto: esP ? 'Elegí primero el alumno y el profesor.' : 'Identificá primero al comprador.',
+
+      verTamano: !esP && v.listo1 && !v.paquete,
+      tamanos: TAMANOS.map((t) => ({
+        label: t.label + ' · ' + t.max,
+        sel: s.tamId === t.id,
+        elegir: () => this.set({ tamId: t.id, horaId: null, cobro: null })
+      })),
+      verTamanoFijo: esP && v.listo1,
+      tamanoFijoTexto: v.tamLabel + (s.acomp ? ' · titular y acompañante' : ' · un alumno'),
+
+      eligiendoPaquete: v.listo1 && !v.paquete,
+      paquetes: esP ? paquetesCP : paquetesSala,
+      sinPaquetes: false,
+      sinPaquetesTexto: '',
+
+      hayPaquete: !!v.paquete,
+      paqueteNombre: v.paqueteNombre,
+      paqueteMeta: esP
+        ? (v.horasTexto + ' · ' + v.tamLabel + (s.acomp ? ' (con acompañante)' : ''))
+        : (v.c.label + ' · ' + v.tamLabel + ' · ' + v.horasTexto),
+      paquetePrecioLabel: esP ? 'Precio del paquete' : 'Precio del alquiler',
+      paquetePrecio: v.precio > 0 ? gs(v.precio) : 'Sin tarifa cargada',
+      cambiarPaquete: () => this.set({ paqueteId: null, horaId: null, cobro: null }),
+
+      paso3Bloqueado: !v.listo2,
+      cobroAbierto: v.listo2,
+      referenciaCobro: v.precio,
+      permitirSinCobro: this.props.permitirSinCobro ?? false,
+      cuentaId: (esP ? 'p:' : 's:') + (s.paqueteId || s.horaId || '') + ':' + v.tamId + ':' + (s.profId || ''),
+      onCobro: (payload) => this.setState({ cobro: payload }),
+
+      verSala: esP && v.listo2 && v.costo != null,
+      salaLinea: 'Costo de sala para ' + v.profNombre + ': ' + gs(v.costo || 0) + ', se descuenta de su liquidación mensual.',
+      salaRuta: salaRuta,
+      verSalaFalta: esP && v.listo2 && v.costo == null && !!v.prof,
+      salaFaltaLinea: 'No hay tarifa de sala para esta combinación. La venta se puede cobrar, pero el paquete de sala de ' + v.profNombre + ' queda sin precio y no se podrá liquidar hasta cargarla en Precios y paquetes.',
+
+      resumenPie: v.paquete
+        ? (v.paqueteNombre + (v.sujetoTexto ? ' · ' + v.sujetoTexto : ''))
+        : (v.faltaTexto || 'Elegí tipo y comprador.'),
+      cobraTexto: gs(v.cobra),
+      noPuede: !v.puede,
+      confirmar: this.confirmar,
+
+      aviso: s.aviso,
+      cerrarAviso: () => this.setState({ aviso: null }),
+      errorMsg: s.errorMsg
+    };
+  }
+}
+
+</script>
+</body>
+</html>

@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/organic-186d334f-848b-405d-95ba-b805f2b70bf6/styles.css">
+<script src="_ds/organic-186d334f-848b-405d-95ba-b805f2b70bf6/_ds_bundle.js"></script>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&amp;display=swap">
+<style>
+
+/* Fondo oscuro: se reasignan los tokens del sistema y se invierten las rampas,
+   para que los mismos pasos sigan pesando igual sobre un fondo oscuro. */
+:root {
+  --color-bg: #1c1815;
+  --color-surface: #272220;
+  --color-text: #f4ebdd;
+  --color-divider: color-mix(in srgb, #f4ebdd 16%, transparent);
+  --color-accent: #e08b4f;
+  --color-accent-2: #9bad78;
+
+  --color-neutral-100: #302a25;
+  --color-neutral-200: #3a332d;
+  --color-neutral-300: #463e37;
+  --color-neutral-400: #6d6359;
+  --color-neutral-500: #8f8578;
+  --color-neutral-600: #ab9f91;
+  --color-neutral-700: #c8bbaa;
+  --color-neutral-800: #e2d7c6;
+  --color-neutral-900: #f4ebdd;
+
+  --color-accent-100: #37200f;
+  --color-accent-200: #6b3714;
+  --color-accent-300: #8c491a;
+  --color-accent-400: #b2622d;
+  --color-accent-500: #d67f48;
+  --color-accent-600: #f6a06b;
+  --color-accent-700: #ffc0a0;
+  --color-accent-800: #ffd3b5;
+  --color-accent-900: #fff2eb;
+
+  --color-accent-2-100: #232a18;
+  --color-accent-2-200: #3a4726;
+  --color-accent-2-300: #56633f;
+  --color-accent-2-400: #728157;
+  --color-accent-2-500: #8fa073;
+  --color-accent-2-600: #a8bb88;
+  --color-accent-2-700: #ccdbb2;
+  --color-accent-2-800: #dcebc4;
+  --color-accent-2-900: #f0fae1;
+
+  --tropi-chip: #f4ebdd;
+}
+
+/* Tipografía: grotesca geométrica en bold para los títulos, en lugar del display. */
+:root {
+  --font-heading: "Montserrat", system-ui, sans-serif;
+  --font-heading-weight: 800;
+}
+h1, h2, h3, h4 { letter-spacing: -0.025em; }
+.btn { font-weight: 700; letter-spacing: 0.01em; }
+.nw { white-space: nowrap; }
+body { margin: 0; background: var(--color-bg); }
+a { color: var(--color-accent-700); }
+a:hover { color: var(--color-accent-800); }
+.log-btn-big { font-size: 18px !important; min-height: 58px !important; }
+.log-input { min-height: 52px !important; font-size: 17px !important; }
+@keyframes logIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+</style>
+</helmet>
+<div style="min-height:100dvh;display:grid;place-items:center;padding:clamp(24px,7vw,56px) 18px;background:var(--color-bg);font-family:var(--font-body);color:var(--color-text);box-sizing:border-box">
+<div style="width:100%;max-width:420px;display:flex;flex-direction:column;gap:18px">
+
+  <div style="display:flex;justify-content:center">
+    <div style="background:var(--tropi-chip);border-radius:999px;padding:9px 20px;display:flex"><img src="assets/tropicana-logo.png" alt="Tropicana" style="height:34px;width:auto"></div>
+  </div>
+
+  <div style="background:var(--color-surface);border-radius:32px;padding:clamp(20px,5vw,28px);display:flex;flex-direction:column;gap:16px">
+
+    <sc-if value="{{ sinSesion }}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex;flex-direction:column;gap:16px">
+
+        <div>
+          <h1 style="font-family:var(--font-heading);font-size:clamp(26px,6vw,30px);line-height:1.15;margin:0">Iniciar sesión</h1>
+          <div style="font-size:15px;color:var(--color-neutral-700);margin-top:6px;line-height:1.45">Entrá con el correo de la escuela.</div>
+        </div>
+
+        <sc-if value="{{ errorCred }}" hint-placeholder-val="{{ false }}">
+          <div style="background:var(--color-accent-100);border-radius:20px;padding:14px;display:flex;align-items:flex-start;gap:10px;animation:logIn .25s ease-out">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-800)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:1px"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v4M12 16h.01"></path></svg>
+            <div style="min-width:0">
+              <div style="font-size:14px;font-weight:600;color:var(--color-accent-800)">Correo o contraseña incorrectos</div>
+              <div style="font-size:15px;color:var(--color-accent-900);margin-top:3px;line-height:1.45">Volvé a escribir la contraseña.</div>
+              <sc-if value="{{ avisoIntentos }}" hint-placeholder-val="{{ false }}">
+                <div style="font-size:14px;color:var(--color-neutral-700);margin-top:6px;line-height:1.45">{{ avisoIntentos }}</div>
+              </sc-if>
+            </div>
+          </div>
+        </sc-if>
+
+        <div>
+          <label for="log-email" style="display:block;font-size:14px;margin-bottom:6px">Correo</label>
+          <input class="input log-input" id="log-email" type="email" inputMode="email" autoComplete="username" spellCheck="false" placeholder="ej. natalia@tropicana.bo" style="width:100%;box-sizing:border-box;background:var(--color-neutral-100)" value="{{ email }}" onInput="{{ setEmail }}" onKeyDown="{{ alEnter }}">
+        </div>
+
+        <div>
+          <label for="log-clave" style="display:block;font-size:14px;margin-bottom:6px">Contraseña</label>
+          <div style="position:relative;display:flex">
+            <input class="input log-input" id="log-clave" type="{{ tipoClave }}" autoComplete="current-password" placeholder="Tu contraseña" style="width:100%;box-sizing:border-box;background:var(--color-neutral-100);padding-right:54px" value="{{ clave }}" onInput="{{ setClave }}" onKeyDown="{{ alEnter }}">
+            <button type="button" onClick="{{ toggleVer }}" aria-label="{{ verLabel }}" style="position:absolute;right:5px;top:50%;transform:translateY(-50%);width:44px;height:44px;display:grid;place-items:center;background:transparent;border:none;border-radius:999px;cursor:pointer;padding:0">
+              <sc-if value="{{ verClave }}" hint-placeholder-val="{{ false }}">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10.7 5.1a10.7 10.7 0 0 1 11.2 6.6 1 1 0 0 1 0 .7 10.7 10.7 0 0 1-1.4 2.5"></path><path d="M14.1 14.2a3 3 0 0 1-4.3-4.3"></path><path d="M17.5 17.5a10.8 10.8 0 0 1-15.4-5.2 1 1 0 0 1 0-.7 10.8 10.8 0 0 1 4.4-5.1"></path><path d="m2 2 20 20"></path></svg>
+              </sc-if>
+              <sc-if value="{{ ocultaClave }}" hint-placeholder-val="{{ true }}">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M2.1 12.3a1 1 0 0 1 0-.7 10.8 10.8 0 0 1 19.8 0 1 1 0 0 1 0 .7 10.8 10.8 0 0 1-19.8 0"></path><circle cx="12" cy="12" r="3"></circle></svg>
+              </sc-if>
+            </button>
+          </div>
+        </div>
+
+        <sc-if value="{{ errorMsg }}" hint-placeholder-val="{{ false }}">
+          <div style="background:var(--color-accent-200);border-radius:18px;padding:12px 14px;font-size:15px;color:var(--color-accent-800);line-height:1.45;animation:logIn .2s ease-out">{{ errorMsg }}</div>
+        </sc-if>
+
+        <button class="btn btn-primary btn-block log-btn-big" onClick="{{ entrar }}" disabled="{{ cargando }}">{{ textoBoton }}</button>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ sesion }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;flex-direction:column;gap:16px;animation:logIn .25s ease-out">
+        <div style="display:flex;align-items:flex-start;gap:10px;background:var(--color-accent-2-200);border-radius:22px;padding:14px 16px">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-2-800)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:2px"><path d="M20 6 9 17l-5-5"></path></svg>
+          <div style="font-size:16px;line-height:1.4;color:var(--color-accent-2-900)">{{ textoSesion }}</div>
+        </div>
+        <button class="btn btn-secondary btn-block" onClick="{{ salir }}" style="background:var(--color-neutral-100);min-height:50px;font-size:16px">Salir</button>
+      </div>
+    </sc-if>
+
+  </div>
+
+  <sc-if value="{{ claveDemo }}" hint-placeholder-val="{{ false }}">
+    <div style="font-size:14px;color:var(--color-neutral-700);text-align:center;line-height:1.5">{{ claveDemo }}</div>
+  </sc-if>
+
+</div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:450,&quot;height&quot;:800},&quot;mostrarClaveDemo&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Prototipo&quot;},&quot;intentosParaAviso&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:3,&quot;min&quot;:0,&quot;max&quot;:5,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Política&quot;}}">
+const USUARIOS = [
+  { email: 'natalia@tropicana.bo', clave: 'tropicana', nombre: 'Natalia Salek', rol: 'admin' },
+  { email: 'carla@tropicana.bo', clave: 'tropicana', nombre: 'Carla Méndez', rol: 'profesora' }
+];
+
+const FORMATO_CORREO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+class Component extends DCLogic {
+  state = { email: '', clave: '', verClave: false, cargando: false, errorCred: false, errorMsg: null, intentos: 0, sesion: null };
+
+  componentWillUnmount() { clearTimeout(this.t); }
+
+  entrar = () => {
+    if (this.state.cargando) return;
+    const email = this.state.email.trim().toLowerCase();
+    const clave = this.state.clave;
+
+    if (!email) return this.setState({ errorMsg: 'Escribí tu correo.', errorCred: false });
+    if (!FORMATO_CORREO.test(email)) return this.setState({ errorMsg: 'Ese correo está incompleto. Revisalo.', errorCred: false });
+    if (!clave) return this.setState({ errorMsg: 'Escribí tu contraseña.', errorCred: false });
+
+    this.setState({ cargando: true, errorMsg: null, errorCred: false });
+    clearTimeout(this.t);
+    this.t = setTimeout(() => {
+      const u = USUARIOS.find((x) => x.email === email && x.clave === clave);
+      if (u) this.setState({ cargando: false, sesion: u, clave: '', intentos: 0 });
+      // El correo se conserva y la contraseña se limpia: casi siempre el error está en la clave.
+      else this.setState({ cargando: false, errorCred: true, clave: '', intentos: this.state.intentos + 1 });
+    }, 700);
+  };
+
+  renderVals() {
+    const s = this.state;
+    const verDemo = this.props.mostrarClaveDemo ?? true;
+    const umbral = Number(this.props.intentosParaAviso ?? 3);
+
+    return {
+      email: s.email,
+      clave: s.clave,
+      setEmail: (e) => this.setState({ email: e.target.value, errorMsg: null }),
+      setClave: (e) => this.setState({ clave: e.target.value, errorMsg: null }),
+      alEnter: (e) => { if (e.key === 'Enter') this.entrar(); },
+
+      verClave: s.verClave,
+      ocultaClave: !s.verClave,
+      tipoClave: s.verClave ? 'text' : 'password',
+      verLabel: s.verClave ? 'Ocultar la contraseña' : 'Mostrar la contraseña',
+      toggleVer: () => this.setState({ verClave: !s.verClave }),
+
+      errorCred: s.errorCred,
+      errorMsg: s.errorMsg,
+      avisoIntentos: umbral > 0 && s.intentos >= umbral
+        ? 'Van ' + s.intentos + ' intentos. Pedile a la administración que te reinicie la contraseña.'
+        : null,
+
+      cargando: s.cargando,
+      textoBoton: s.cargando ? 'Entrando…' : 'Iniciar sesión',
+      entrar: this.entrar,
+
+      sinSesion: !s.sesion,
+      sesion: !!s.sesion,
+      textoSesion: s.sesion ? 'Sesión iniciada · ' + s.sesion.nombre + ' · ' + s.sesion.rol + '.' : '',
+      salir: () => this.setState({ sesion: null, email: '', clave: '', verClave: false, intentos: 0 }),
+
+      claveDemo: verDemo ? 'Prototipo · natalia@tropicana.bo o carla@tropicana.bo · clave tropicana' : null
+    };
+  }
+}
+
+</script>
+</body>
+</html>

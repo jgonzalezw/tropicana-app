@@ -255,3 +255,71 @@ textarea.input { min-height: 90px; resize: vertical; }
 .btn, .tag, .seg, .input { border-radius: 999px; }
 .input { padding-inline: 14px; }
 
+/* — editable table: .table with cells the user types into —
+   For settings surfaces (price lists, parameter tables) where a whole column is
+   edited in one pass. Inputs are always live: no click-to-edit, no pencil.
+   Compose: <table class="table table-edit"> … <input class="input cell-input is-num">
+*/
+.table-edit { border-collapse: separate; border-spacing: 0; }
+.table-edit th {
+  border-bottom: none; padding-bottom: var(--space-2); white-space: nowrap;
+}
+.table-edit td {
+  border-bottom: none; border-top: 1px solid var(--color-divider);
+  vertical-align: middle;
+}
+.table-edit tbody tr:hover { background: none; }
+.table-edit th.num, .table-edit td.num { text-align: right; }
+
+.cell-input {
+  min-height: 42px; font-size: 16px;
+  padding-block: var(--space-2);
+  background: var(--color-neutral-100);
+}
+.cell-input.is-num { width: 104px; text-align: right; }
+/* Empty means "not loaded", never zero — so it is marked, not left blank. */
+.cell-input.is-empty {
+  background: var(--color-accent-100);
+  border-color: var(--color-accent-400);
+}
+
+/* A row kept for its history but withdrawn from new use. */
+.table-edit tr.is-off > td { opacity: 0.5; }
+/* Why an action is unavailable, beside the action — not in a tooltip. */
+.cell-reason {
+  font-size: 12px; line-height: 1.35; max-width: 22ch;
+  color: color-mix(in srgb, var(--color-text) 70%, transparent);
+}
+
+/* — chips: a multi-select of pills on native checkboxes —
+   .seg is one-of-N and fills the active option with solid accent; a multi-select
+   of several ticked options rendered that way reads as one mass. So chips are
+   separate pills with a tinted fill, and solid accent stays with .seg.
+   Compose: <div class="chips"><label class="chip"><input type="checkbox"> … </label></div>
+*/
+.chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.chip {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  cursor: pointer; font-size: 15px; padding: 10px 14px; border-radius: 999px;
+  background: var(--color-neutral-100);
+  border: 1px solid var(--color-divider);
+  color: color-mix(in srgb, var(--color-text) 78%, transparent);
+}
+.chip > input {
+  position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none;
+}
+.chip:not(:has(input:checked)):hover { background: var(--color-neutral-200); }
+.chip:has(input:checked) {
+  background: var(--color-accent-200);
+  border-color: var(--color-accent-400);
+  color: var(--color-accent-900);
+  font-weight: 600;
+}
+.chip:has(input:focus-visible) {
+  outline: 2px solid var(--color-accent); outline-offset: 2px;
+}
+/* Optional 15px check glyph inside the chip: hidden until ticked. */
+.chip > .chip-tick { flex: none; opacity: 0; }
+.chip:has(input:checked) > .chip-tick { opacity: 1; }
+.chip:has(input:disabled) { cursor: default; }
+

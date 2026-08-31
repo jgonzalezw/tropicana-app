@@ -2,9 +2,10 @@
 
 > Documento de planificación versionado. Fuentes: `Vision_Alcance_Requerimientos_v5.3`
 > (RF-01–07), handoff de diseño en `docs/design/`, y las decisiones acordadas.
-> Creado 2026-08-30 · **Actualizado 2026-08-30 (v2: decisiones D1–D12 resueltas +
-> liquidación básica incorporada).** Estado: **aprobado en dirección; construcción
-> de pantallas bloqueada por handoffs faltantes (ver §11).**
+> Creado 2026-08-30 · v2 (D1–D12 + liquidación básica) · **v3 2026-08-31: handoff
+> v4 incorporado (ya no hay bloqueante); se suma el workstream App Shell + catálogo
+> de permisos y los ganchos de particulares/alquiler/pruebas.** Estado: **aprobado
+> en dirección; próximo paso migración 0005.**
 
 ---
 
@@ -297,20 +298,24 @@ Gateo por permisos existentes (`alumnos`, `profesores`, `cursos`,
 
 ---
 
-## 11. BLOQUEANTE — handoffs de Design no están en el repo
+## 11. Handoff incorporado (v3) + ajustes al plan
 
-Se hizo `git fetch` y se buscó en **todas** las refs remotas (solo existen
-`origin/main` y `origin/claude/tropicana-app-context-d5zjt8`). `main` **no tiene
-`docs/design/`**; en la rama de trabajo, `docs/design/` contiene únicamente el
-bundle original de 5 archivos (Caja, Cobro, Inscribir, Tomar asistencia +
-README/DECISIONES). **No existen** `Profesores.dc.html`, `Profesor.dc.html` ni el
-handoff de Precios/Paquetes en ninguna rama, ni la versión del design system con
-`.table-edit`/`.chips`.
+El handoff v4 ya está en `docs/design/` (11 pantallas/componentes + design system
+con `.table-edit`/`.chips`). Se levantó el bloqueante anterior. Ajustes que trae:
 
-Conclusión: el handoff nuevo de Design **no llegó a este repositorio de GitHub**
-(el primero entró porque se subió un zip manualmente). Para construir
-**Profesores** y **Cursos desde los handoffs** hace falta que ese bundle esté en
-`docs/design/`. **Acción requerida:** subir el zip del handoff actualizado (o
-pushearlo al repo), igual que la primera vez. Mientras tanto, la construcción de
-pantallas queda en pausa; el esquema (migración 0005) sí puede avanzar sin el
-handoff visual.
+- **App Shell + catálogo de permisos (workstream nuevo).** La nav se arma por
+  permisos discretos (grupo/pantalla), registrados en un catálogo asignable a
+  roles — no por rol cableado. Hoy Etapa 0 tiene la matriz `rol_permisos`
+  (módulo×acción) configurable, pero los módulos están hardcodeados en
+  `src/lib/tipos.ts` y la barra lateral usa flags fijos. Propuesta: hito propio
+  **App Shell + catálogo de permisos** justo después de `0005` (toda pantalla
+  nueva se monta en el shell). Es una **decisión de negocio abierta** (alcance) —
+  ver `docs/ESTADO.md` §5.A.
+- **Ganchos de fase 2 en el esquema** (no se construyen pantallas ahora):
+  Tarifas de Sala (Categoría × Tamaño × Horas) como fuente única del costo de
+  sala; paquetes de clases particulares (individual/pareja/grupo ≤16) que al
+  venderse crean el paquete de uso de sala del profesor; clases de prueba
+  (precio por alumno por curso) que entran a asistencia y suman comisión. El
+  modelo de **sala** nace para varias (reserva fecha+hora+duración).
+- **Liquidación:** los ítems leen el % de la **asignación que cubrió el período**
+  (filas inmutables `desde/hasta`), nunca la asignación actual.

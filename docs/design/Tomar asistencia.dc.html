@@ -144,6 +144,9 @@ a:hover { color: var(--color-accent-800); }
               <div style="font-size:15px;color:var(--color-neutral-700);margin-top:3px">{{ a.faltasTexto }}</div>
             </div>
             <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex:none">
+              <sc-if value="{{ a.esPrueba }}" hint-placeholder-val="{{ false }}">
+                <span class="tag tag-outline asis-tag" style="font-size:13px">Prueba</span>
+              </sc-if>
               <sc-if value="{{ a.alerta }}" hint-placeholder-val="{{ false }}">
                 <span class="tag tag-accent asis-tag" style="font-size:13px">{{ a.alertaTexto }}</span>
               </sc-if>
@@ -161,8 +164,11 @@ a:hover { color: var(--color-accent-800); }
             </div>
             <div style="flex:1;min-width:0">
               <div style="font-size:19px;font-weight:600;line-height:1.2">{{ a.nombre }}</div>
-              <div style="font-size:15px;color:var(--color-accent-2-800);margin-top:3px">Presente</div>
+              <div style="font-size:15px;color:var(--color-accent-2-800);margin-top:3px">{{ a.textoPresente }}</div>
             </div>
+            <sc-if value="{{ a.esPrueba }}" hint-placeholder-val="{{ false }}">
+              <span class="tag tag-outline asis-tag" style="font-size:13px">Prueba</span>
+            </sc-if>
             <sc-if value="{{ a.debe }}" hint-placeholder-val="{{ false }}">
               <span class="asis-tag" style="font-size:14px;color:var(--color-accent-700)">{{ a.deudaTexto }}</span>
             </sc-if>
@@ -178,6 +184,9 @@ a:hover { color: var(--color-accent-800); }
               <div style="font-size:19px;font-weight:600;line-height:1.2">{{ a.nombre }}</div>
               <div style="font-size:15px;color:var(--color-accent-800);margin-top:3px">{{ a.textoAusente }}</div>
             </div>
+            <sc-if value="{{ a.esPrueba }}" hint-placeholder-val="{{ false }}">
+              <span class="tag tag-outline asis-tag" style="font-size:13px">Prueba</span>
+            </sc-if>
           </button>
         </sc-if>
       </div>
@@ -227,7 +236,9 @@ const TODAS_LAS_CLASES = [
       { id: 'AL010', nombre: 'Ezequiel Rojas', faltas: 0, deuda: 0 },
       { id: 'AL005', nombre: 'Loana Barrientos', faltas: 2, deuda: 250 },
       { id: 'AL019', nombre: 'Javier González', faltas: 0, deuda: 0 }
-    ]
+    ],
+    // Prueba vendida como alumno genérico con cantidad: una sola fila, se marca como unidad.
+    pruebas: [{ id: 'PB031', tipo: 'generico', cantidad: 3, precio: 30 }]
   },
   {
     id: 'CL087', profesor: 'PR001', nombre: 'Dom Salsa y Bachata', fecha: 'Ayer · dom 23 ago · 18:30',
@@ -238,6 +249,11 @@ const TODAS_LAS_CLASES = [
       { id: 'AL017', nombre: 'Rolando Salvatierra', faltas: 0, deuda: 0 },
       { id: 'AL014', nombre: 'Carolina Ortiz', faltas: 1, deuda: 0 },
       { id: 'AL001', nombre: 'Jhonny Cutipa', faltas: 0, deuda: 250 }
+    ],
+    // Prueba vendida con alumnos identificados: una fila por persona, como un alumno regular.
+    pruebas: [
+      { id: 'PB030a', tipo: 'alumno', nombre: 'Camila Ferreira', precio: 25 },
+      { id: 'PB030b', tipo: 'alumno', nombre: 'Luis Ortega', precio: 25 }
     ]
   },
   {
@@ -272,11 +288,21 @@ class Component extends DCLogic {
     const pres = clase.alumnos.filter((a) => marcas[a.id] === 'p').length;
     const aus = clase.alumnos.filter((a) => marcas[a.id] === 'a');
     const repo = aus.filter((a) => a.faltas < tol).length;
+
+    // Las pruebas presentes suman a la comisión del profesor con el mismo criterio que
+    // una clase regular: se cobraron a la tabla C, y el cobro entra a la liquidación.
+    const pruebas = (clase.pruebas || []).filter((p) => marcas[p.id] === 'p');
+    const cabezas = pruebas.reduce((n, p) => n + (p.tipo === 'generico' ? p.cantidad : 1), 0);
+    const montoPruebas = pruebas.reduce((n, p) => n + p.precio * (p.tipo === 'generico' ? p.cantidad : 1), 0);
+
     this.setState({
       marcas: {},
-      aviso: 'Asistencia guardada · ' + plural(pres, 'presente', 'presentes') + ' y ' +
+      aviso: 'Asistencia guardada · ' + plural(pres + cabezas, 'presente', 'presentes') + ' y ' +
         plural(aus.length, 'ausente', 'ausentes') + '. ' +
-        (repo > 0 ? 'Se generó ' + plural(repo, 'reposición', 'reposiciones') + ' por falta con tolerancia.' : 'Sin reposiciones nuevas.')
+        (repo > 0 ? 'Se generó ' + plural(repo, 'reposición', 'reposiciones') + ' por falta con tolerancia. ' : 'Sin reposiciones nuevas. ') +
+        (cabezas > 0
+          ? plural(cabezas, 'clase de prueba', 'clases de prueba') + ' por ' + bs(montoPruebas) + ' suman a la comisión de esta clase.'
+          : '')
     });
   };
 
@@ -297,8 +323,11 @@ class Component extends DCLogic {
         faltasTexto: a.faltas === 0 ? 'Sin faltas este mes' : plural(a.faltas, 'falta este mes', 'faltas este mes'),
         alerta: sinTolerancia || ultima,
         alertaTexto: sinTolerancia ? 'Sin tolerancia' : 'Última tolerada',
+        esPrueba: false,
+        personas: 1,
         debe: verDeuda && a.deuda > 0,
         deudaTexto: 'Debe ' + bs(a.deuda),
+        textoPresente: 'Presente',
         textoAusente: sinTolerancia ? 'Ausente · sin reposición' : 'Ausente · corre el vencimiento',
         sinMarcar: !m,
         presente: m === 'p',
@@ -307,10 +336,36 @@ class Component extends DCLogic {
       };
     });
 
-    const presentes = filas.filter((f) => f.presente).length;
-    const ausentes = filas.filter((f) => f.ausente).length;
+    // Los de prueba van al final de la misma lista, no en otra pantalla: son asistentes de
+    // esta sesión. El genérico con cantidad es una sola fila que vale por su cantidad.
+    const filasPrueba = (clase.pruebas || []).map((p) => {
+      const m = marcas[p.id];
+      const n = p.tipo === 'generico' ? p.cantidad : 1;
+      return {
+        nombre: p.tipo === 'generico' ? 'Alumno de Prueba (' + p.cantidad + ')' : p.nombre,
+        faltasTexto: 'Clase de prueba · ' + bs(p.precio) + ' por alumno',
+        alerta: false,
+        alertaTexto: '',
+        esPrueba: true,
+        personas: n,
+        debe: false,
+        deudaTexto: '',
+        textoPresente: n === 1 ? 'Presente' : 'Presentes · ' + n + ' alumnos',
+        textoAusente: n === 1 ? 'Ausente · no vino a la prueba' : 'Ausentes · no vinieron a la prueba',
+        sinMarcar: !m,
+        presente: m === 'p',
+        ausente: m === 'a',
+        tocar: () => this.tocar(p.id)
+      };
+    });
+
+    const todas = filas.concat(filasPrueba);
+    const cabezas = (f) => f.personas;
+    const suma = (arr) => arr.reduce((n, f) => n + cabezas(f), 0);
+    const presentes = suma(todas.filter((f) => f.presente));
+    const ausentes = suma(todas.filter((f) => f.ausente));
     const marcados = presentes + ausentes;
-    const pendientes = filas.length - marcados;
+    const pendientes = suma(todas) - marcados;
 
     return {
       claseNombre: clase.nombre,
@@ -318,18 +373,23 @@ class Component extends DCLogic {
       selectorAbierto: s.selectorAbierto,
       toggleSelector: () => this.set({ selectorAbierto: !s.selectorAbierto }),
       clases: CLASES.map((c, i) => ({
-        nombre: c.nombre, fecha: c.fecha + ' · ' + plural(c.alumnos.length, 'alumno', 'alumnos'),
+        nombre: c.nombre,
+        fecha: c.fecha + ' · ' + plural(c.alumnos.length, 'alumno', 'alumnos') +
+          ((c.pruebas || []).length
+            ? ' + ' + plural((c.pruebas || []).reduce((n, p) => n + (p.tipo === 'generico' ? p.cantidad : 1), 0), 'prueba', 'pruebas')
+            : ''),
         sel: i === s.claseIdx,
         elegir: () => this.setState({ claseIdx: i, selectorAbierto: false, marcas: {}, aviso: null })
       })),
 
-      filas,
-      total: filas.length,
+      filas: todas,
+      total: suma(todas),
       marcados, presentes, ausentes,
       pendientesTexto: pendientes === 0 ? 'Lista completa' : plural(pendientes, 'sin marcar', 'sin marcar'),
       todosPresentes: () => {
         const m = {};
         clase.alumnos.forEach((a) => { m[a.id] = 'p'; });
+        (clase.pruebas || []).forEach((p) => { m[p.id] = 'p'; });
         this.setState({ marcas: m, aviso: null });
       },
       aviso: s.aviso,

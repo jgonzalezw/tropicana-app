@@ -84,6 +84,24 @@ a:hover { color: var(--color-accent-800); }
 .tropi-seg-2 .seg-opt:nth-child(n+3) { border-top: 1px solid var(--color-divider); }
 .tropi-seg-2 .seg-opt:nth-child(3) { border-left: none; }
 .tropi-btn-big { font-size: 18px !important; min-height: 56px !important; }
+/* Los días son casillas, no una opción única: pills separadas y relleno tenue, para que el
+   accent sólido siga siendo del control de Modalidad y tres días tildados no sean una mancha. */
+.tropi-days { display: grid; grid-template-columns: repeat(auto-fit, minmax(94px, 1fr)); gap: 8px; }
+.tropi-day {
+  display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer;
+  border-radius: 999px; padding: 11px 10px; font-size: 15px; text-align: center;
+  background: var(--color-neutral-100); border: 1px solid var(--color-divider);
+  color: var(--color-neutral-700);
+}
+.tropi-day input { position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none; }
+.tropi-day:has(input:checked) {
+  background: var(--color-accent-200); border-color: var(--color-accent-400);
+  color: var(--color-accent-900); font-weight: 600;
+}
+.tropi-day:not(:has(input:checked)):hover { background: var(--color-neutral-200); }
+.tropi-day:has(input:focus-visible) { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.tropi-day .tick { opacity: 0; flex: none; }
+.tropi-day:has(input:checked) .tick { opacity: 1; }
 @keyframes tropiIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 </style>
 </helmet>
@@ -162,7 +180,7 @@ a:hover { color: var(--color-accent-800); }
                 </div>
               </div>
               <div class="field">
-                <label style="font-size:14px">WhatsApp <span style="color:var(--color-accent-700)">· identifica al alumno</span></label>
+                <label style="font-size:14px">WhatsApp <span style="color:var(--color-accent-700)">{{ waNota }}</span></label>
                 <input class="input tropi-in" value="{{ wa }}" onChange="{{ onWa }}" placeholder="78 009 001" inputMode="tel" style="background:var(--color-neutral-100) !important"></input>
               </div>
 
@@ -182,15 +200,52 @@ a:hover { color: var(--color-accent-800); }
               <button class="btn btn-ghost" onClick="{{ toggleTutor }}" style="font-size:15px;margin-top:12px">{{ tutorLabel }}</button>
 
               <sc-if value="{{ tutorAbierto }}" hint-placeholder-val="{{ false }}">
-                <div style="display:flex;gap:10px;margin-top:6px">
-                  <div class="field" style="flex:1">
-                    <label style="font-size:14px">Tutor</label>
-                    <input class="input tropi-in" value="{{ tutorNom }}" onChange="{{ onTutorNom }}" placeholder="Nombre y apellido" style="background:var(--color-neutral-100) !important"></input>
+                <div>
+                  <div style="display:flex;gap:10px;margin-top:6px">
+                    <div class="field" style="flex:1">
+                      <label style="font-size:14px">Tutor</label>
+                      <input class="input tropi-in" value="{{ tutorNom }}" onChange="{{ onTutorNom }}" placeholder="Nombre y apellido" style="background:var(--color-neutral-100) !important"></input>
+                    </div>
+                    <div class="field" style="flex:1">
+                      <label style="font-size:14px">WhatsApp tutor <span style="color:var(--color-accent-700)">· identifica al menor</span></label>
+                      <input class="input tropi-in" value="{{ tutorWa }}" onChange="{{ onTutorWa }}" inputMode="tel" placeholder="70 878 081" style="background:var(--color-neutral-100) !important"></input>
+                    </div>
                   </div>
-                  <div class="field" style="flex:1">
-                    <label style="font-size:14px">WhatsApp tutor</label>
-                    <input class="input tropi-in" value="{{ tutorWa }}" onChange="{{ onTutorWa }}" inputMode="tel" style="background:var(--color-neutral-100) !important"></input>
-                  </div>
+                  <div style="font-size:14px;color:var(--color-neutral-700);margin-top:2px;line-height:1.45">Al menor lo identificamos por el WhatsApp del tutor y su nombre, así dos hermanos con el mismo tutor no se pisan.</div>
+
+                  <sc-if value="{{ tutorVinculado }}" hint-placeholder-val="{{ false }}">
+                    <div style="display:flex;align-items:flex-start;gap:10px;background:var(--color-accent-2-200);border-radius:20px;padding:12px 14px;margin-top:12px;animation:tropiIn .2s ease-out">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-2-800)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:2px"><path d="M20 6 9 17l-5-5"></path></svg>
+                      <div style="font-size:15px;line-height:1.45;color:var(--color-accent-2-900);min-width:0">{{ tutorVinculadoTexto }}</div>
+                      <button class="btn btn-ghost" onClick="{{ desvincularTutor }}" style="margin-left:auto;flex:none;color:var(--color-accent-2-800);font-size:13px">Desvincular</button>
+                    </div>
+                  </sc-if>
+
+                  <sc-if value="{{ tutorDupe }}" hint-placeholder-val="{{ false }}">
+                    <div style="background:var(--color-accent-100);border-radius:20px;padding:14px;margin-top:12px;animation:tropiIn .25s ease-out">
+                      <div style="font-size:14px;color:var(--color-accent-800);font-weight:600;margin-bottom:6px">Ese WhatsApp ya es de un alumno</div>
+                      <div style="font-size:17px;font-weight:600">{{ tutorDupeNombre }}</div>
+                      <div style="font-size:14px;color:var(--color-neutral-700);margin-top:2px">{{ tutorDupeDeuda }}</div>
+                      <div style="display:flex;gap:8px;margin-top:12px">
+                        <button class="btn btn-primary" onClick="{{ vincularTutor }}" style="flex:1;min-height:48px;font-size:16px">Vincular a esta persona</button>
+                        <button class="btn btn-secondary" onClick="{{ ignorarTutorDupe }}" style="flex:none;min-height:48px;font-size:15px">Es otra persona</button>
+                      </div>
+                    </div>
+                  </sc-if>
+
+                  <sc-if value="{{ dupeMenor }}" hint-placeholder-val="{{ false }}">
+                    <div style="background:var(--color-accent-100);border-radius:20px;padding:14px;margin-top:12px;animation:tropiIn .25s ease-out">
+                      <div style="font-size:14px;color:var(--color-accent-800);font-weight:600;margin-bottom:6px">Ese menor ya está cargado</div>
+                      <div style="font-size:17px;font-weight:600">{{ dupeMenorNombre }}</div>
+                      <div style="font-size:14px;color:var(--color-neutral-700);margin-top:2px">{{ dupeMenorClave }}</div>
+                      <div style="font-size:14px;color:var(--color-neutral-700)">Deuda actual: {{ dupeMenorDeuda }}</div>
+                      <div style="font-size:14px;color:var(--color-neutral-700)">Cursos: {{ dupeMenorCursos }}</div>
+                      <div style="display:flex;gap:8px;margin-top:12px">
+                        <button class="btn btn-primary" onClick="{{ usarDupeMenor }}" style="flex:1;min-height:48px;font-size:16px">Usar este alumno</button>
+                        <button class="btn btn-secondary" onClick="{{ ignorarDupeMenor }}" style="flex:none;min-height:48px;font-size:15px">Es otra persona</button>
+                      </div>
+                    </div>
+                  </sc-if>
                 </div>
               </sc-if>
 
@@ -287,15 +342,17 @@ a:hover { color: var(--color-accent-800); }
 
           <sc-if value="{{ verMedioDias }}" hint-placeholder-val="{{ false }}">
             <div>
-              <div style="margin-top:14px;font-size:14px;color:var(--color-neutral-700);margin-bottom:6px">Qué clases toma</div>
-              <div class="seg tropi-seg tropi-seg-2">
+              <div style="margin-top:14px;font-size:14px;color:var(--color-neutral-700);margin-bottom:6px">En qué días las toma</div>
+              <div class="tropi-days">
                 <sc-for list="{{ medioOpts }}" as="o" hint-placeholder-count="3">
-                  <label class="seg-opt">
-                    <input type="radio" name="mediodia" checked="{{ o.sel }}" onChange="{{ o.elegir }}"></input>
+                  <label class="tropi-day">
+                    <input type="checkbox" checked="{{ o.sel }}" onChange="{{ o.elegir }}"></input>
+                    <svg class="tick" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>
                     <span>{{ o.label }}</span>
                   </label>
                 </sc-for>
               </div>
+              <div style="font-size:14px;color:var(--color-neutral-700);margin-top:6px">{{ medioResumen }}</div>
             </div>
           </sc-if>
 
@@ -407,7 +464,9 @@ const CURSOS = [
   { id: 'CU003', nombre: 'Zumba', linea: 'Cardio', horario: 'Ma y Ju · 19:30', prof: 'Juan Pablo Caballero', precio: 170, dias: [2, 4], tarifas: { clase: 35, semana: 65, medio: 100 } },
   { id: 'CU004', nombre: 'Urbano', linea: 'Niños', horario: 'Lu y Mi · 18:30', prof: 'Ángel Cáceres', precio: 250, dias: [1, 3], tarifas: { clase: 45, semana: 90, medio: 140 } },
   { id: 'CU005', nombre: 'Heels', linea: 'Mujeres', horario: 'Sá · 18:30', prof: 'Sebastián Tini', precio: 170, dias: [6], tarifas: { clase: 50, semana: 50, medio: 95 } },
-  { id: 'CU006', nombre: 'Dom Salsa y Bachata', linea: 'Básico 2', horario: 'Do · 18:30', prof: 'Natalia Salek', precio: 170, dias: [7], tarifas: { clase: 50, semana: 50, medio: 95 } }
+  { id: 'CU006', nombre: 'Dom Salsa y Bachata', linea: 'Básico 2', horario: 'Do · 18:30', prof: 'Natalia Salek', precio: 170, dias: [7], tarifas: { clase: 50, semana: 50, medio: 95 } },
+  // Curso de 3 días semanales: deja probar el reparto de medio mes en 2, 3 o 6 semanas.
+  { id: 'CU007', nombre: 'Salsa Intensivo', linea: 'Intermedio', horario: 'Lu, Mi y Vi · 20:30', prof: 'Natalia Salek', precio: 330, dias: [1, 3, 5], tarifas: { clase: 45, semana: 120, medio: 190 } }
 ];
 
 const ALUMNOS = [
@@ -417,7 +476,10 @@ const ALUMNOS = [
   { id: 'AL015', nom: 'Tania', ape: 'Fonseca', wa: '72 608 414', deuda: 200, cursos: ['Bachata Conexión'] },
   { id: 'AL006', nom: 'Gabriela', ape: 'Rayza', wa: '71 624 252', deuda: 250, cursos: ['Salsa y Bachata Inicial'] },
   { id: 'AL001', nom: 'Jhonny', ape: 'Cutipa', wa: '63 800 865', deuda: 250, cursos: [] },
-  { id: 'AL005', nom: 'Loana', ape: 'Barrientos', wa: '63 443 145', deuda: 250, cursos: [], tutor: 'Tutora · 70 878 081' },
+  { id: 'AL005', nom: 'Loana', ape: 'Barrientos', wa: '63 443 145', deuda: 250, cursos: [], tutorNom: 'Rosa Barrientos', tutorWa: '70 878 081' },
+  // Hermano de Loana: mismo WhatsApp de tutora, sin celular propio. La clave compuesta
+  // (WhatsApp del tutor + nombre del menor) los distingue entre sí.
+  { id: 'AL020', nom: 'Bruno', ape: 'Barrientos', wa: '', deuda: 0, cursos: ['Urbano'], tutorNom: 'Rosa Barrientos', tutorWa: '70 878 081' },
   { id: 'AL017', nom: 'Rolando', ape: 'Salvatierra', wa: '62 203 938', deuda: 0, cursos: [] },
   { id: 'AL016', nom: 'Alejandro', ape: 'Camacho', wa: '69 852 572', deuda: 0, cursos: ['Zumba'] },
   { id: 'AL019', nom: 'Javier', ape: 'González', wa: '78 009 001', deuda: 0, cursos: [] }
@@ -435,6 +497,7 @@ const MODALIDADES = [
 ];
 const modalidad = (k) => MODALIDADES.filter((m) => m.k === k)[0];
 const DIAS_LARGOS = { 1: 'lunes', 2: 'martes', 3: 'miércoles', 4: 'jueves', 5: 'viernes', 6: 'sábados', 7: 'domingos' };
+const DIAS_CORTOS_LARGOS = { 1: 'Lunes', 2: 'Martes', 3: 'Miércoles', 4: 'Jueves', 5: 'Viernes', 6: 'Sábados', 7: 'Domingos' };
 
 // Tarifa propia de la modalidad — no es un descuento sobre el mensual.
 function precioModalidad(curso, k, meses) {
@@ -469,9 +532,33 @@ function clasesEnPeriodo(curso, inicio, dias) {
   return out;
 }
 
-// Medio mes: o quince días seguidos, o un solo día de la semana a lo largo del mes.
+// Cuenta clases por repeticiones del patrón semanal, no por ventana de calendario:
+// avanza desde la fecha de inicio hasta juntar n clases de los días indicados.
+function clasesPorConteo(dias, inicio, n) {
+  const out = [];
+  const d = new Date(inicio);
+  for (let i = 0; i < 400 && out.length < n; i++) {
+    const wd = d.getDay() === 0 ? 7 : d.getDay();
+    if (dias.indexOf(wd) >= 0) out.push(new Date(d));
+    d.setDate(d.getDate() + 1);
+  }
+  return out;
+}
+
+// Medio mes = SIEMPRE 2 × (días de clase semanales DEL CURSO), nunca una ventana de días de
+// calendario. El total no cambia con la selección de días: lo que cambia es en cuántas semanas
+// se consume. Curso Lu-Mi (2/sem) → 4 clases: con ambos días, 2 semanas; solo lunes, 4 lunes.
+// Con 3 días semanales la fórmula es la misma: Lu-Mi-Vi → 6 clases, en 2, 3 o 6 semanas según
+// se tomen los tres días, dos o uno.
+const SEMANAS_MEDIO_MES = 2;
+const totalMedioMes = (curso) => SEMANAS_MEDIO_MES * curso.dias.length;
+// medioDia es un subconjunto de los días del curso; null o vacío = todos.
+const diasMedioMes = (curso, medioDia) =>
+  (medioDia && medioDia.length) ? curso.dias.filter((d) => medioDia.indexOf(d) >= 0) : curso.dias;
 function clasesModalidad(curso, inicio, k, medioDia) {
-  if (k === 'medio' && medioDia) return clasesEnPeriodo({ dias: [medioDia] }, inicio, 30);
+  if (k === 'medio') {
+    return clasesPorConteo(diasMedioMes(curso, medioDia), inicio, totalMedioMes(curso));
+  }
   return clasesEnPeriodo(curso, inicio, modalidad(k).dias);
 }
 
@@ -487,12 +574,15 @@ function listaFechas(ds) {
   return partes.slice(0, -1).join(', ') + ' y ' + partes[partes.length - 1];
 }
 
-function proximasClases(curso, n) {
+// En Medio mes con días destildados, arrancar en un día que el alumno no toma sería
+// contradictorio: las fechas de inicio se limitan a los días efectivamente elegidos.
+function proximasClases(curso, n, dias) {
+  const validos = dias && dias.length ? dias : curso.dias;
   const out = [];
   const d = new Date(HOY);
   for (let i = 0; i < 60 && out.length < n; i++) {
     const wd = d.getDay() === 0 ? 7 : d.getDay();
-    if (curso.dias.indexOf(wd) >= 0) out.push(new Date(d));
+    if (validos.indexOf(wd) >= 0) out.push(new Date(d));
     d.setDate(d.getDate() + 1);
   }
   return out;
@@ -501,7 +591,8 @@ function proximasClases(curso, n) {
 class Component extends DCLogic {
   state = {
     q: '', alumno: null, formNuevo: false, nom: '', ape: '', wa: '',
-    dupeIgnorado: false, tutorAbierto: false, tutorNom: '', tutorWa: '',
+    dupeIgnorado: false, dupeMenorIgnorado: false, tutorDupeIgnorado: false, tutorAlumnoId: null,
+    tutorAbierto: false, tutorNom: '', tutorWa: '',
     curso: null, fechaIdx: 0, modalidad: 'mensual', medioDia: null, mesesOpt: 1, mesesTexto: '',
     cobro: null, aviso: null, errorMsg: null
   };
@@ -512,6 +603,26 @@ class Component extends DCLogic {
     const n = soloNum(this.state.wa);
     if (n.length < 6) return null;
     return ALUMNOS.filter((a) => soloNum(a.wa) === n)[0] || null;
+  }
+
+  // Menor de edad: la identidad es WhatsApp del tutor + nombre (sin apellido).
+  // Dos hermanos con la misma tutora no chocan; el mismo menor cargado dos veces, sí.
+  dupeMenor() {
+    const s = this.state;
+    if (!s.tutorAbierto || s.dupeMenorIgnorado) return null;
+    const t = soloNum(s.tutorWa);
+    const n = s.nom.trim().toLowerCase();
+    if (t.length < 6 || !n) return null;
+    return ALUMNOS.filter((a) => a.tutorWa && soloNum(a.tutorWa) === t && a.nom.trim().toLowerCase() === n)[0] || null;
+  }
+
+  // El tutor puede ser alguien ya registrado como alumno: se vincula, no se duplica.
+  tutorDupe() {
+    const s = this.state;
+    if (!s.tutorAbierto || s.tutorDupeIgnorado || s.tutorAlumnoId) return null;
+    const t = soloNum(s.tutorWa);
+    if (t.length < 6) return null;
+    return ALUMNOS.filter((a) => a.wa && soloNum(a.wa) === t)[0] || null;
   }
 
   elegirAlumno(a) {
@@ -555,7 +666,8 @@ class Component extends DCLogic {
     if ((Number(c.ajuste) || 0) > 0 && !c.ajusteMotivo) {
       return this.set({ errorMsg: 'El descuento necesita un motivo.' });
     }
-    const fecha = proximasClases(s.curso, 3)[s.fechaIdx];
+    const fecha = proximasClases(s.curso, 3,
+      s.modalidad === 'medio' ? diasMedioMes(s.curso, s.medioDia) : null)[s.fechaIdx];
     const cobrado = this.cobraNum();
     const q = this.cuentas();
     const mod = modalidad(s.modalidad);
@@ -567,7 +679,8 @@ class Component extends DCLogic {
       (cobrado > 0 ? 'Cobrado ' + gs(cobrado) + ' (' + c.medio + ').' : 'Sin cobro por ahora.');
     this.setState({
       q: '', alumno: null, formNuevo: false, nom: '', ape: '', wa: '',
-      dupeIgnorado: false, tutorAbierto: false, tutorNom: '', tutorWa: '',
+      dupeIgnorado: false, dupeMenorIgnorado: false, tutorDupeIgnorado: false, tutorAlumnoId: null,
+      tutorAbierto: false, tutorNom: '', tutorWa: '',
       curso: null, fechaIdx: 0, modalidad: 'mensual', medioDia: null, mesesOpt: 1, mesesTexto: '',
       cobro: null, errorMsg: null, aviso: aviso
     });
@@ -592,8 +705,15 @@ class Component extends DCLogic {
     }));
 
     const dupe = s.dupeIgnorado ? null : this.dupe();
+    const dMenor = this.dupeMenor();
+    const dTutor = this.tutorDupe();
+    // Con tutor cargado, el celular propio del menor deja de ser obligatorio.
+    const identOk = soloNum(s.wa).length >= 6 ||
+      (s.tutorAbierto && soloNum(s.tutorWa).length >= 6 && !!s.nom.trim());
     const curso = s.curso;
-    const fechasRaw = curso ? proximasClases(curso, 3) : [];
+    const fechasRaw = curso
+      ? proximasClases(curso, 3, s.modalidad === 'medio' ? diasMedioMes(curso, s.medioDia) : null)
+      : [];
     const fechas = fechasRaw.map((d, i) => ({
       label: (i === 0 && d.getDate() === HOY.getDate() ? 'hoy ' : '') + fechaLarga(d),
       sel: s.fechaIdx === i,
@@ -623,7 +743,8 @@ class Component extends DCLogic {
       formNuevoCerrado: !s.alumno && !s.formNuevo,
       abrirNuevo: () => this.set({ formNuevo: true, nom: '', ape: '', wa: soloNum(s.q).length >= 3 ? s.q.trim() : '' }),
       nom: s.nom, ape: s.ape, wa: s.wa,
-      onNom: (e) => this.set({ nom: e.target.value }),
+      onNom: (e) => this.set({ nom: e.target.value, dupeMenorIgnorado: false }),
+      waNota: s.tutorAbierto ? '· opcional si hay tutor' : '· identifica al alumno',
       onApe: (e) => this.set({ ape: e.target.value }),
       onWa: (e) => this.set({ wa: e.target.value, dupeIgnorado: false }),
       dupe: !!dupe,
@@ -634,14 +755,44 @@ class Component extends DCLogic {
       ignorarDupe: () => this.set({ dupeIgnorado: true }),
       tutorAbierto: s.tutorAbierto,
       tutorLabel: s.tutorAbierto ? 'Quitar tutor' : 'Es menor: agregar tutor',
-      toggleTutor: () => this.set({ tutorAbierto: !s.tutorAbierto, tutorNom: '', tutorWa: '' }),
+      toggleTutor: () => this.set({
+        tutorAbierto: !s.tutorAbierto, tutorNom: '', tutorWa: '',
+        tutorAlumnoId: null, tutorDupeIgnorado: false, dupeMenorIgnorado: false
+      }),
       tutorNom: s.tutorNom, tutorWa: s.tutorWa,
-      onTutorNom: (e) => this.set({ tutorNom: e.target.value }),
-      onTutorWa: (e) => this.set({ tutorWa: e.target.value }),
-      nuevoIncompleto: !(s.nom.trim() && s.ape.trim() && soloNum(s.wa).length >= 6) || !!dupe,
+      onTutorNom: (e) => this.set({ tutorNom: e.target.value, tutorAlumnoId: null }),
+      onTutorWa: (e) => this.set({
+        tutorWa: e.target.value, tutorAlumnoId: null,
+        tutorDupeIgnorado: false, dupeMenorIgnorado: false
+      }),
+
+      dupeMenor: !!dMenor,
+      dupeMenorNombre: dMenor ? dMenor.nom + ' ' + dMenor.ape : '',
+      dupeMenorClave: dMenor ? 'Tutor ' + dMenor.tutorWa + ' · nombre ' + dMenor.nom : '',
+      dupeMenorDeuda: dMenor ? gs(dMenor.deuda) : '',
+      dupeMenorCursos: dMenor ? (dMenor.cursos.length ? dMenor.cursos.join(' · ') : 'ninguno activo') : '',
+      usarDupeMenor: () => dMenor && this.elegirAlumno(dMenor),
+      ignorarDupeMenor: () => this.set({ dupeMenorIgnorado: true }),
+
+      tutorDupe: !!dTutor,
+      tutorDupeNombre: dTutor ? dTutor.nom + ' ' + dTutor.ape : '',
+      tutorDupeDeuda: dTutor ? 'Deuda actual: ' + gs(dTutor.deuda) : '',
+      vincularTutor: () => dTutor && this.set({
+        tutorAlumnoId: dTutor.id, tutorNom: dTutor.nom + ' ' + dTutor.ape,
+        tutorWa: dTutor.wa, tutorDupeIgnorado: false
+      }),
+      ignorarTutorDupe: () => this.set({ tutorDupeIgnorado: true }),
+      tutorVinculado: !!s.tutorAlumnoId,
+      tutorVinculadoTexto: s.tutorAlumnoId ? 'Vinculado a ' + s.tutorNom + ', que ya está cargado como alumno.' : '',
+      desvincularTutor: () => this.set({ tutorAlumnoId: null, tutorNom: '', tutorWa: '' }),
+
+      nuevoIncompleto: !(s.nom.trim() && s.ape.trim() && identOk) || !!dupe || !!dMenor || !!dTutor,
       guardarNuevo: () => {
-        if (!(s.nom.trim() && s.ape.trim() && soloNum(s.wa).length >= 6)) return;
-        this.elegirAlumno({ id: 'nuevo', nom: s.nom.trim(), ape: s.ape.trim(), wa: s.wa.trim(), deuda: 0, cursos: [] });
+        if (!(s.nom.trim() && s.ape.trim() && identOk)) return;
+        this.elegirAlumno({
+          id: 'nuevo', nom: s.nom.trim(), ape: s.ape.trim(),
+          wa: s.wa.trim() || s.tutorWa.trim(), deuda: 0, cursos: []
+        });
       },
       alumnoNombre: s.alumno ? s.alumno.nom + ' ' + s.alumno.ape : '',
       alumnoWa: s.alumno ? 'WhatsApp ' + s.alumno.wa : '',
@@ -682,13 +833,30 @@ class Component extends DCLogic {
       setModSemana: () => this.set({ modalidad: 'semana', medioDia: null, mesesOpt: 1, mesesTexto: '', modo: 'completa', monto: '', errorMsg: null }),
       setModMedio: () => this.set({ modalidad: 'medio', medioDia: null, mesesOpt: 1, mesesTexto: '', modo: 'completa', monto: '', errorMsg: null }),
       verMedioDias: !!curso && s.modalidad === 'medio' && curso.dias.length > 1,
-      medioOpts: !curso ? [] : [{ dia: null, label: '15 días seguidos' }]
-        .concat(curso.dias.map((d) => ({ dia: d, label: 'Solo ' + DIAS_LARGOS[d] })))
-        .map((o) => ({
-          label: o.label,
-          sel: s.medioDia === o.dia,
-          elegir: () => this.set({ medioDia: o.dia, errorMsg: null })
-        })),
+      // Un toggle por día de clase del curso, todos activos por defecto. El total de clases no
+      // depende de la selección; se puede destildar cualquier día menos el último que quede.
+      medioOpts: !curso ? [] : curso.dias.map((d) => {
+        const sel = diasMedioMes(curso, s.medioDia);
+        const activo = sel.indexOf(d) >= 0;
+        const ultimo = activo && sel.length === 1;
+        return {
+          label: DIAS_CORTOS_LARGOS[d],
+          sel: activo,
+          elegir: () => {
+            if (ultimo) return;
+            const next = activo ? sel.filter((x) => x !== d) : sel.concat([d]);
+            this.set({ medioDia: next.length === curso.dias.length ? null : next,
+              fechaIdx: 0, errorMsg: null });
+          }
+        };
+      }),
+      medioResumen: !curso || s.modalidad !== 'medio' ? '' : (() => {
+        const total = totalMedioMes(curso);
+        const k = diasMedioMes(curso, s.medioDia).length;
+        const sem = Math.ceil(total / k);
+        return total + ' clases · ' + (k === 1 ? 'un día por semana' : k + ' días por semana') +
+          ' · se completan en ' + sem + (sem === 1 ? ' semana' : ' semanas');
+      })(),
       modalidadLabel: mod.label,
       modalidadPrecio: gs(precioModalidad(curso, s.modalidad, 1)),
 

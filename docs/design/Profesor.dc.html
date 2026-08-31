@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/organic-186d334f-848b-405d-95ba-b805f2b70bf6/styles.css">
+<script src="_ds/organic-186d334f-848b-405d-95ba-b805f2b70bf6/_ds_bundle.js"></script>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&display=swap">
+<style>
+:root {
+  --color-bg: #1c1815;
+  --color-surface: #272220;
+  --color-text: #f4ebdd;
+  --color-divider: color-mix(in srgb, #f4ebdd 16%, transparent);
+  --color-accent: #e08b4f;
+  --color-accent-2: #9bad78;
+  --color-neutral-100: #302a25;
+  --color-neutral-200: #3a332d;
+  --color-neutral-300: #463e37;
+  --color-neutral-400: #6d6359;
+  --color-neutral-500: #8f8578;
+  --color-neutral-600: #ab9f91;
+  --color-neutral-700: #c8bbaa;
+  --color-neutral-800: #e2d7c6;
+  --color-neutral-900: #f4ebdd;
+  --color-accent-100: #37200f;
+  --color-accent-200: #6b3714;
+  --color-accent-300: #8c491a;
+  --color-accent-400: #b2622d;
+  --color-accent-500: #d67f48;
+  --color-accent-600: #f6a06b;
+  --color-accent-700: #ffc0a0;
+  --color-accent-800: #ffd3b5;
+  --color-accent-900: #fff2eb;
+  --color-accent-2-100: #232a18;
+  --color-accent-2-200: #3a4726;
+  --color-accent-2-300: #56633f;
+  --color-accent-2-400: #728157;
+  --color-accent-2-500: #8fa073;
+  --color-accent-2-600: #a8bb88;
+  --color-accent-2-700: #ccdbb2;
+  --color-accent-2-800: #dcebc4;
+  --color-accent-2-900: #f0fae1;
+  --font-heading: "Montserrat", system-ui, sans-serif;
+  --font-heading-weight: 800;
+}
+h1, h2, h3, h4 { letter-spacing: -0.025em; }
+.btn { font-weight: 700; letter-spacing: 0.01em; }
+body { margin: 0; background: var(--color-neutral-300); }
+a { color: var(--color-accent-700); }
+a:hover { color: var(--color-accent-800); }
+.input option, select.input { color: var(--color-text); background: var(--color-neutral-100); }
+.pf-in { font-size: 17px !important; min-height: 52px !important; background: var(--color-neutral-200) !important; }
+.pf-in-2 { background: var(--color-neutral-100) !important; }
+.pf-big { font-size: 18px !important; min-height: 56px !important; }
+.pf-seg { display: flex; width: 100%; }
+.pf-seg .seg-opt { flex: 1; justify-content: center; font-size: 15px; padding: 12px 6px; text-align: center; }
+.pf-nw { white-space: nowrap; flex: none; }
+@keyframes pfIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+</style>
+</helmet>
+<div style="display:flex;flex-direction:column;gap:12px;font-family:var(--font-body);color:var(--color-text)">
+
+  <sc-if value="{{ buscando }}" hint-placeholder-val="{{ true }}">
+    <div>
+      <div class="field" style="margin-bottom:10px">
+        <label style="font-size:14px">Buscar por nombre o WhatsApp</label>
+        <input class="input pf-in" value="{{ q }}" onChange="{{ onQuery }}" placeholder="ej. Oscar · 7012"></input>
+      </div>
+
+      <sc-for list="{{ resultados }}" as="r" hint-placeholder-count="3">
+        <button onClick="{{ r.elegir }}" style="width:100%;display:flex;align-items:center;gap:10px;text-align:left;background:var(--color-neutral-100);border:1px solid var(--color-divider);border-radius:20px;padding:12px 14px;margin-bottom:8px;cursor:pointer;font-family:var(--font-body);color:var(--color-text)">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:17px;font-weight:600">{{ r.nombre }}</div>
+            <div style="font-size:14px;color:var(--color-neutral-700);margin-top:1px">{{ r.meta }}</div>
+          </div>
+          <span class="tag pf-nw {{ r.tipoCls }}" style="font-size:13px">{{ r.tipoLabel }}</span>
+        </button>
+      </sc-for>
+
+      <sc-if value="{{ sinResultados }}" hint-placeholder-val="{{ false }}">
+        <div style="font-size:15px;color:var(--color-neutral-700);padding:2px 2px 10px">Ningún profesor con ese dato. Cargalo como nuevo.</div>
+      </sc-if>
+
+      <button class="btn btn-secondary btn-block pf-big" onClick="{{ abrirAlta }}" style="background:var(--color-neutral-100)">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+        Profesor nuevo
+      </button>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ enFicha }}" hint-placeholder-val="{{ false }}">
+    <div style="animation:pfIn .2s ease-out">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <div style="font-family:var(--font-heading);font-size:18px;min-width:0">{{ fichaTitulo }}</div>
+        <button class="btn btn-ghost pf-nw" onClick="{{ cancelar }}" style="margin-left:auto;font-size:14px">Cancelar</button>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-bottom:10px">
+        <div class="field" style="flex:1">
+          <label style="font-size:14px">Nombre</label>
+          <input class="input pf-in" value="{{ nom }}" onChange="{{ onNom }}" placeholder="Oscar"></input>
+        </div>
+        <div class="field" style="flex:1">
+          <label style="font-size:14px">Apellido</label>
+          <input class="input pf-in" value="{{ ape }}" onChange="{{ onApe }}" placeholder="Nuñez"></input>
+        </div>
+      </div>
+
+      <div class="field" style="margin-bottom:14px">
+        <label style="font-size:14px">WhatsApp</label>
+        <input class="input pf-in" value="{{ wa }}" onChange="{{ onWa }}" inputMode="tel" placeholder="70 123 456"></input>
+      </div>
+
+      <sc-if value="{{ dupe }}" hint-placeholder-val="{{ false }}">
+        <div style="background:var(--color-accent-100);border-radius:20px;padding:14px;margin-bottom:14px;animation:pfIn .25s ease-out">
+          <div style="font-size:14px;color:var(--color-accent-800);font-weight:600;margin-bottom:6px">Ese WhatsApp ya es de un profesor</div>
+          <div style="font-size:17px;font-weight:600">{{ dupeNombre }}</div>
+          <div style="font-size:14px;color:var(--color-neutral-700);margin-top:2px">{{ dupeMeta }}</div>
+          <div style="display:flex;gap:8px;margin-top:12px">
+            <button class="btn btn-primary" onClick="{{ usarDupe }}" style="flex:1;min-height:48px;font-size:16px">Editar ese profesor</button>
+            <button class="btn btn-secondary pf-nw" onClick="{{ ignorarDupe }}" style="min-height:48px;font-size:15px">Es otra persona</button>
+          </div>
+        </div>
+      </sc-if>
+
+      <div style="margin-bottom:14px">
+        <div style="font-size:14px;color:var(--color-neutral-700);margin-bottom:6px">Especialidades</div>
+        <div class="chips">
+          <sc-for list="{{ estilos }}" as="e" hint-placeholder-count="5">
+            <label class="chip">
+              <input type="checkbox" checked="{{ e.sel }}" onChange="{{ e.alternar }}"></input>
+              <svg class="chip-tick" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>
+              <span>{{ e.label }}</span>
+            </label>
+          </sc-for>
+        </div>
+        <div style="font-size:14px;color:var(--color-neutral-700);margin-top:6px">{{ estilosNota }}</div>
+      </div>
+
+      <div style="margin-bottom:14px">
+        <div style="font-size:14px;color:var(--color-neutral-700);margin-bottom:6px">Tipo</div>
+        <div class="seg pf-seg">
+          <label class="seg-opt">
+            <input type="radio" name="pftipo" checked="{{ esActivo }}" onChange="{{ setActivo }}"></input>
+            <span>Activo</span>
+          </label>
+          <label class="seg-opt">
+            <input type="radio" name="pftipo" checked="{{ esExterno }}" onChange="{{ setExterno }}"></input>
+            <span>Externo</span>
+          </label>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:10px;background:var(--color-accent-2-200);border-radius:20px;padding:12px 14px;margin-top:8px">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-2-800)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:2px"><path d="M12 2 2 7l10 5 10-5z"></path><path d="M2 17l10 5 10-5M2 12l10 5 10-5"></path></svg>
+          <div style="font-size:15px;line-height:1.45;color:var(--color-accent-2-900);min-width:0">{{ tipoNota }}</div>
+        </div>
+      </div>
+
+      <div style="background:var(--color-neutral-100);border-radius:22px;padding:14px;margin-bottom:14px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="min-width:0">
+            <div style="font-size:15px;font-weight:600">Cuenta de acceso</div>
+            <div style="font-size:14px;color:var(--color-neutral-700);margin-top:2px">Opcional</div>
+          </div>
+          <sc-if value="{{ cuentaVinculada }}" hint-placeholder-val="{{ false }}">
+            <button class="btn btn-ghost pf-nw" onClick="{{ desvincular }}" style="margin-left:auto;font-size:14px">Desvincular</button>
+          </sc-if>
+        </div>
+
+        <sc-if value="{{ cuentaVinculada }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;align-items:center;gap:10px;margin-top:12px">
+            <div style="width:34px;height:34px;border-radius:999px;background:var(--color-accent-2-600);display:grid;place-items:center;flex:none">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--color-bg)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21a8 8 0 1 0-16 0"></path><circle cx="12" cy="8" r="4"></circle></svg>
+            </div>
+            <div style="min-width:0">
+              <div style="font-size:16px;font-weight:600">{{ cuentaNombre }}</div>
+              <div style="font-size:14px;color:var(--color-neutral-700)">{{ cuentaCorreo }}</div>
+            </div>
+          </div>
+          <div style="font-size:14px;color:var(--color-neutral-700);margin-top:10px;line-height:1.45">Con cuenta, el profesor toma su propia asistencia y ve su liquidación.</div>
+        </sc-if>
+
+        <sc-if value="{{ cuentaCerrada }}" hint-placeholder-val="{{ true }}">
+          <div>
+            <div style="font-size:14px;color:var(--color-neutral-700);margin-top:8px;line-height:1.45">{{ sinCuentaNota }}</div>
+            <button class="btn btn-secondary" onClick="{{ abrirCuentas }}" style="background:var(--color-neutral-200);min-height:46px;font-size:15px;margin-top:10px">Vincular una cuenta</button>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ cuentaEligiendo }}" hint-placeholder-val="{{ false }}">
+          <div style="margin-top:12px;animation:pfIn .2s ease-out">
+            <sc-for list="{{ cuentas }}" as="c" hint-placeholder-count="2">
+              <button onClick="{{ c.elegir }}" style="width:100%;display:flex;align-items:center;gap:10px;text-align:left;background:var(--color-neutral-200);border:1px solid var(--color-divider);border-radius:18px;padding:11px 13px;margin-bottom:8px;cursor:pointer;font-family:var(--font-body);color:var(--color-text)">
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:16px;font-weight:600">{{ c.nombre }}</div>
+                  <div style="font-size:14px;color:var(--color-neutral-700)">{{ c.correo }}</div>
+                </div>
+              </button>
+            </sc-for>
+            <sc-if value="{{ sinCuentasLibres }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:14px;color:var(--color-neutral-700);line-height:1.45">No hay cuentas sin vincular. El vínculo es uno a uno: creá la cuenta en Administración → Usuarios y roles.</div>
+            </sc-if>
+            <button class="btn btn-ghost" onClick="{{ cerrarCuentas }}" style="font-size:14px">Dejar sin cuenta</button>
+          </div>
+        </sc-if>
+      </div>
+
+      <sc-if value="{{ verBaja }}" hint-placeholder-val="{{ false }}">
+        <div style="background:{{ bajaBg }};border-radius:22px;padding:14px;margin-bottom:14px">
+          <div style="display:flex;align-items:flex-start;gap:10px">
+            <div style="min-width:0">
+              <div style="font-size:15px;font-weight:600;color:{{ bajaColor }}">{{ bajaTitulo }}</div>
+              <div style="font-size:14px;color:var(--color-neutral-700);margin-top:4px;line-height:1.45">{{ bajaMotivo }}</div>
+            </div>
+            <button class="btn btn-secondary pf-nw" onClick="{{ ejecutarBaja }}" style="margin-left:auto;min-height:46px;font-size:15px;background:var(--color-neutral-100)">{{ bajaAccion }}</button>
+          </div>
+          <sc-if value="{{ hayDependencias }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:12px">
+              <sc-for list="{{ dependencias }}" as="d" hint-placeholder-count="3">
+                <span class="tag tag-neutral pf-nw" style="font-size:13px">{{ d.label }}</span>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ errorMsg }}" hint-placeholder-val="{{ false }}">
+        <div style="font-size:15px;color:var(--color-accent-800);background:var(--color-accent-200);border-radius:18px;padding:12px 14px;margin-bottom:12px">{{ errorMsg }}</div>
+      </sc-if>
+
+      <button class="btn btn-primary btn-block pf-big" onClick="{{ guardar }}" disabled="{{ noPuede }}">{{ guardarLabel }}</button>
+    </div>
+  </sc-if>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:460,&quot;height&quot;:760},&quot;padron&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;Profesor[]&quot;},&quot;usuarios&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;Cuenta[]&quot;},&quot;valor&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;Profesor | null&quot;},&quot;especialidades&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Salsa,Bachata,Zumba,Urbano,Heels&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Datos&quot;},&quot;permitirBaja&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Permisos&quot;},&quot;abrirAlElegir&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Comportamiento&quot;},&quot;onSelect&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;(p: Profesor) =&gt; void&quot;},&quot;onGuardar&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;(p: Profesor) =&gt; void&quot;},&quot;onBaja&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;(e: {id: string, accion: 'eliminar' | 'desactivar'}) =&gt; void&quot;},&quot;onCancelar&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;() =&gt; void&quot;}}">
+const soloNum = (s) => String(s || '').replace(/\D/g, '');
+const nombreCompleto = (p) => (p.nom || '') + ' ' + (p.ape || '');
+
+const DEPS = {
+  cursos: 'asignado a curso',
+  comisiones: 'comisiones devengadas',
+  liquidaciones: 'liquidaciones emitidas',
+  sala: 'paquetes de sala'
+};
+
+// Padrón de muestra: solo para ver el componente aislado. En uso real el padrón
+// entra por prop desde la pantalla que lo monta.
+const PADRON_DEMO = [
+  { id: 'PR002', nom: 'Oscar', ape: 'Nuñez', wa: '70 122 458', tipo: 'activo', estilos: ['Bachata', 'Salsa'], usuarioId: 'US004', deps: ['cursos', 'comisiones', 'liquidaciones'] },
+  { id: 'PR009', nom: 'Mariela', ape: 'Ávila', wa: '69 401 772', tipo: 'externo', estilos: ['Bachata'], usuarioId: null, deps: ['sala'] },
+  { id: 'PR011', nom: 'Ignacio', ape: 'Peredo', wa: '77 310 904', tipo: 'externo', estilos: [], usuarioId: null, deps: [] }
+];
+
+const CUENTAS_DEMO = [
+  { id: 'US004', nombre: 'Oscar Nuñez', correo: 'oscar@tropicana.bo', profesorId: 'PR002' },
+  { id: 'US007', nombre: 'Sebastián Tini', correo: 'sebastian@tropicana.bo', profesorId: null }
+];
+
+// Componente de entidad compartido: buscar, dar de alta, editar y dar de baja un
+// profesor. Se monta idéntico en cada pantalla donde el profesor participa, igual
+// que el paso Cobro. Cualquier mejora al flujo se hace acá, una vez.
+class Component extends DCLogic {
+  state = { q: '', ficha: null, nom: '', ape: '', wa: '', estilos: [], tipo: 'activo', usuarioId: null, ignorarDupe: false, eligiendoCuenta: false, errorMsg: null };
+
+  padron() { return this.props.padron || PADRON_DEMO; }
+  cuentasTodas() { return this.props.usuarios || CUENTAS_DEMO; }
+  listaEstilos() {
+    return String(this.props.especialidades || 'Salsa,Bachata,Zumba,Urbano,Heels')
+      .split(',').map((s) => s.trim()).filter(Boolean);
+  }
+
+  componentDidMount() { if (this.props.valor) this.cargar(this.props.valor); }
+
+  componentDidUpdate(prev) {
+    const v = this.props.valor;
+    const antes = prev.valor;
+    if (v !== antes) {
+      if (v) this.cargar(v); else this.setState({ ficha: null });
+    }
+  }
+
+  cargar(p) {
+    this.setState({
+      ficha: p.id ? p : 'nuevo',
+      nom: p.nom || '', ape: p.ape || '', wa: p.wa || '',
+      estilos: (p.estilos || []).slice(), tipo: p.tipo || 'activo',
+      usuarioId: p.usuarioId || null, ignorarDupe: false, eligiendoCuenta: false, errorMsg: null
+    });
+  }
+
+  set = (p) => this.setState(Object.assign({ errorMsg: null }, p));
+
+  cerrar = () => {
+    this.setState({ ficha: null, q: '', errorMsg: null });
+    if (typeof this.props.onCancelar === 'function') this.props.onCancelar();
+  };
+
+  duplicado() {
+    const s = this.state;
+    if (!s.wa.trim() || s.ignorarDupe) return null;
+    const propio = s.ficha && s.ficha !== 'nuevo' ? s.ficha.id : null;
+    return this.padron().filter((p) => p.id !== propio && soloNum(p.wa) && soloNum(p.wa) === soloNum(s.wa))[0] || null;
+  }
+
+  guardar = () => {
+    const s = this.state;
+    if (!s.nom.trim() || !s.ape.trim()) { this.setState({ errorMsg: 'Nombre y apellido son obligatorios.' }); return; }
+    if (!s.wa.trim()) { this.setState({ errorMsg: 'El WhatsApp identifica al profesor: cargalo.' }); return; }
+    if (this.duplicado()) { this.setState({ errorMsg: 'Resolvé el WhatsApp repetido antes de guardar.' }); return; }
+    if (!s.estilos.length) { this.setState({ errorMsg: 'Elegí al menos una especialidad.' }); return; }
+    const prof = {
+      id: s.ficha && s.ficha !== 'nuevo' ? s.ficha.id : null,
+      nom: s.nom.trim(), ape: s.ape.trim(), wa: s.wa.trim(),
+      estilos: s.estilos.slice(), tipo: s.tipo, usuarioId: s.usuarioId,
+      deps: s.ficha && s.ficha !== 'nuevo' ? (s.ficha.deps || []) : []
+    };
+    if (typeof this.props.onGuardar === 'function') this.props.onGuardar(prof);
+    this.setState({ ficha: null, q: '' });
+  };
+
+  renderVals() {
+    const s = this.state;
+    const estilos = this.listaEstilos();
+    const editando = s.ficha && s.ficha !== 'nuevo';
+    const deps = editando ? (s.ficha.deps || []) : [];
+    const dupe = this.duplicado();
+
+    const t = s.q.trim().toLowerCase();
+    const d = soloNum(t);
+    const resultados = t.length < 2 ? [] : this.padron().filter((p) => {
+      const n = nombreCompleto(p).toLowerCase();
+      return n.indexOf(t) >= 0 || (d.length >= 2 && soloNum(p.wa).indexOf(d) >= 0);
+    }).slice(0, 5).map((p) => ({
+      nombre: nombreCompleto(p),
+      meta: p.wa + (p.estilos && p.estilos.length ? ' · ' + p.estilos.join(', ') : ' · sin especialidad'),
+      tipoLabel: p.tipo === 'activo' ? 'Activo' : 'Externo',
+      tipoCls: p.tipo === 'activo' ? 'tag-accent-2' : 'tag-neutral',
+      elegir: () => {
+        if (typeof this.props.onSelect === 'function') this.props.onSelect(p);
+        if (this.props.abrirAlElegir ?? true) this.cargar(p);
+      }
+    }));
+
+    const cuenta = s.usuarioId ? this.cuentasTodas().filter((c) => c.id === s.usuarioId)[0] : null;
+    const libres = this.cuentasTodas().filter((c) => !c.profesorId || (editando && c.profesorId === s.ficha.id));
+
+    return {
+      buscando: !s.ficha,
+      enFicha: !!s.ficha,
+      q: s.q,
+      onQuery: (e) => this.set({ q: e.target.value }),
+      resultados: resultados,
+      sinResultados: s.q.trim().length >= 2 && resultados.length === 0,
+      abrirAlta: () => this.cargar({}),
+
+      fichaTitulo: editando ? nombreCompleto(s.ficha) : 'Profesor nuevo',
+      cancelar: this.cerrar,
+
+      nom: s.nom, ape: s.ape, wa: s.wa,
+      onNom: (e) => this.set({ nom: e.target.value }),
+      onApe: (e) => this.set({ ape: e.target.value }),
+      onWa: (e) => this.set({ wa: e.target.value, ignorarDupe: false }),
+
+      dupe: !!dupe,
+      dupeNombre: dupe ? nombreCompleto(dupe) : '',
+      dupeMeta: dupe ? (dupe.wa + ' · ' + (dupe.tipo === 'activo' ? 'Activo' : 'Externo')) : '',
+      usarDupe: () => { if (dupe) this.cargar(dupe); },
+      ignorarDupe: () => this.set({ ignorarDupe: true }),
+
+      estilos: estilos.map((e) => ({
+        label: e,
+        sel: s.estilos.indexOf(e) >= 0,
+        alternar: () => this.set({
+          estilos: s.estilos.indexOf(e) >= 0 ? s.estilos.filter((x) => x !== e) : s.estilos.concat([e])
+        })
+      })),
+      estilosNota: s.estilos.length
+        ? 'Dicta ' + s.estilos.join(', ') + '.'
+        : 'Al menos una: es lo que filtra los cursos y paquetes que se le pueden asignar.',
+
+      esActivo: s.tipo === 'activo',
+      esExterno: s.tipo === 'externo',
+      setActivo: () => this.set({ tipo: 'activo' }),
+      setExterno: () => this.set({ tipo: 'externo' }),
+      tipoNota: s.tipo === 'activo'
+        ? 'Activo: dicta cursos de Tropicana. Paga la tarifa de sala de Profesor Activo — la más baja de la tabla, en Precios y paquetes → Alquiler de sala.'
+        : 'Externo: no dicta cursos de Tropicana. Paga la tarifa de sala de Profesor Externo, más alta que la de un activo por el mismo tamaño y paquete.',
+
+      cuentaVinculada: !!cuenta,
+      cuentaNombre: cuenta ? cuenta.nombre : '',
+      cuentaCorreo: cuenta ? cuenta.correo : '',
+      desvincular: () => this.set({ usuarioId: null, eligiendoCuenta: false }),
+      cuentaCerrada: !cuenta && !s.eligiendoCuenta,
+      cuentaEligiendo: !cuenta && s.eligiendoCuenta,
+      sinCuentaNota: s.tipo === 'externo'
+        ? 'Sin cuenta el asistente o el gerente operan por él. Un externo que solo alquila la sala normalmente no necesita una.'
+        : 'Sin cuenta el asistente o el gerente operan por él: toman su asistencia y consultan su liquidación.',
+      abrirCuentas: () => this.set({ eligiendoCuenta: true }),
+      cerrarCuentas: () => this.set({ eligiendoCuenta: false }),
+      cuentas: libres.map((c) => ({
+        nombre: c.nombre, correo: c.correo,
+        elegir: () => this.set({ usuarioId: c.id, eligiendoCuenta: false })
+      })),
+      sinCuentasLibres: libres.length === 0,
+
+      verBaja: editando && (this.props.permitirBaja ?? true),
+      hayDependencias: deps.length > 0,
+      dependencias: deps.map((k) => ({ label: DEPS[k] || k })),
+      bajaBg: deps.length ? 'var(--color-accent-100)' : 'var(--color-neutral-100)',
+      bajaColor: deps.length ? 'var(--color-accent-900)' : 'var(--color-text)',
+      bajaTitulo: deps.length ? 'No se puede eliminar' : 'Eliminar profesor',
+      bajaMotivo: deps.length
+        ? 'Tiene historial dependiente. Desactivarlo lo saca de las asignaciones nuevas y conserva todo lo ya registrado.'
+        : 'Sin historial dependiente: se elimina de verdad, no queda registro.',
+      bajaAccion: deps.length ? 'Desactivar' : 'Eliminar',
+      ejecutarBaja: () => {
+        if (typeof this.props.onBaja === 'function') {
+          this.props.onBaja({ id: s.ficha.id, accion: deps.length ? 'desactivar' : 'eliminar', dependencias: deps });
+        }
+        this.setState({ ficha: null, q: '' });
+      },
+
+      errorMsg: s.errorMsg,
+      noPuede: !!dupe,
+      guardarLabel: editando ? 'Guardar cambios' : 'Guardar profesor',
+      guardar: this.guardar
+    };
+  }
+}
+
+</script>
+</body>
+</html>
