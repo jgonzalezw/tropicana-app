@@ -43,10 +43,11 @@ export default async function LayoutPrivado({
     );
   }
 
-  const [puedeUsuarios, puedeConfig, puedeProfesores, puedeCursos, temas] =
+  const [puedeUsuarios, puedeConfig, puedeAlumnos, puedeProfesores, puedeCursos, temas] =
     await Promise.all([
       tienePermiso("usuarios", "ver"),
       tienePermiso("administracion", "ver"),
+      tienePermiso("alumnos", "ver"),
       tienePermiso("profesores", "ver"),
       tienePermiso("cursos", "ver"),
       obtenerTemas(),
@@ -58,6 +59,7 @@ export default async function LayoutPrivado({
         perfil={perfil}
         puedeUsuarios={puedeUsuarios}
         puedeConfig={puedeConfig}
+        puedeAlumnos={puedeAlumnos}
         puedeProfesores={puedeProfesores}
         puedeCursos={puedeCursos}
         temas={temas.map((t) => ({ clave: t.clave, nombre: t.nombre }))}

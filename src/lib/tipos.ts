@@ -112,6 +112,34 @@ export type DatosProfesor = {
   usuario_id: string | null;
 };
 
+export type Alumno = {
+  id: number;
+  nombre: string;
+  apellido: string;
+  whatsapp: string | null;
+  es_menor: boolean;
+  tutor_alumno_id: number | null;
+  tutor_nombre: string | null;
+  tutor_whatsapp: string | null;
+  referido_por_alumno_id: number | null;
+  canal_captacion: string | null;
+  activo: boolean;
+  creado_en: string;
+  actualizado_en: string;
+};
+
+/** Datos que el componente de Alumno envía al host para crear/editar. */
+export type DatosAlumno = {
+  nombre: string;
+  apellido: string;
+  whatsapp: string;
+  es_menor: boolean;
+  tutor_alumno_id: number | null;
+  tutor_nombre: string;
+  tutor_whatsapp: string;
+  canal_captacion: string | null;
+};
+
 /** Tarifas parciales por curso (tabla A). null = no cargada → cae al mensual. */
 export type TarifasCurso = {
   clase: number | null;
