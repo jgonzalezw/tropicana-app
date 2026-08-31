@@ -25,6 +25,17 @@ export async function esAdministrador(): Promise<boolean> {
   return perfil?.rol?.clave === "administrador" && perfil.activo;
 }
 
+/** Lee el valor (texto) de un parámetro configurable, o null si no existe. */
+export async function obtenerParametro(clave: string): Promise<string | null> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("parametros")
+    .select("valor")
+    .eq("clave", clave)
+    .maybeSingle();
+  return (data?.valor as string) ?? null;
+}
+
 /** ¿El usuario actual puede ejecutar `accion` sobre `modulo`? El
  *  Administrador siempre puede; el resto, según su matriz de permisos. */
 export async function tienePermiso(

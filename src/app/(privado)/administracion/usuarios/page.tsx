@@ -17,7 +17,8 @@ export default async function PaginaUsuarios() {
     supabase
       .from("perfiles")
       .select("*, rol:roles(*)")
-      .order("creado_en", { ascending: true }),
+      .order("apellido", { ascending: true })
+      .order("nombre", { ascending: true }),
     supabase.from("roles").select("*").order("id"),
   ]);
 

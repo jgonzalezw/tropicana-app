@@ -47,6 +47,7 @@ Pantallas/componentes: **Login, App Shell, Inscribir y cobrar, Tomar asistencia,
 - **Clase de prueba:** precio por alumno por curso (tabla C); los asistentes entran a la lista de asistencia de la sesión; el cobro suma a la comisión del profesor.
 - **Sala:** una sola por ahora, pero el modelo nace para varias (reserva fecha+hora+duración).
 - **Profesor y Usuario:** entidades separadas, vinculables **uno a uno** (un externo normalmente sin cuenta).
+- **Orden de listas de personas:** toda lista de personas usada para **localizar** a alguien (búsquedas, padrones, selects) se ordena **alfabéticamente por apellido** (luego nombre), en **cualquier** entidad. Helper: `compararPorApellido` en `src/lib/texto.ts`.
 - **Sin hardcode:** tarifas, tolerancias, umbrales, motivos, categorías, temas, roles y permisos → catálogo o parámetro.
 
 ## 4. Migraciones
@@ -55,7 +56,7 @@ Pantallas/componentes: **Login, App Shell, Inscribir y cobrar, Tomar asistencia,
 
 ## 5. Pendientes y decisiones abiertas
 
-**Pendientes míos (Code), en orden propuesto:** migración `0005` (esquema Etapa 1) → **Profesores** (desde handoff) → **Cursos** → Alumnos → Inscribir y cobrar → Asistencia → Costos/Liquidación básica.
+**Progreso Etapa 1:** `0005` ✅ aplicada · **Profesores** ✅ construido (código: componente compartido `EntidadProfesor` + pantalla con Listado y Asignación a curso, CRUD con borrado guardado, congelado de comisiones; build+lint OK; **pendiente prueba local** contra Supabase). **Siguiente: Cursos** (+ tarifas A + asignación). Después: Alumnos → Inscribir y cobrar → Asistencia → Costos/Liquidación básica.
 
 **Pendientes de Design (no me bloquean; registro):** #8 correcciones de Login (accent-100 solo informativo + estado "cuenta bloqueada"; el backend ya expone el contrato); #11 correcciones de Vender/Confirmar sesión incluido el selector de grupo.
 

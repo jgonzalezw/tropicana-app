@@ -63,6 +63,66 @@ export type CatalogoValor = {
   activo: boolean;
 };
 
+// ── Etapa 1 — entidades base ──────────────────────────────────────────
+
+export type TipoProfesor = "activo" | "externo";
+
+export type Profesor = {
+  id: number;
+  nombre: string;
+  apellido: string;
+  whatsapp: string | null;
+  tipo: TipoProfesor;
+  especialidades: string[];
+  /** Cuenta de login vinculada (perfiles.id), uno a uno. */
+  usuario_id: string | null;
+  activo: boolean;
+  creado_en: string;
+  actualizado_en: string;
+};
+
+/** Resumen de dependencias de un profesor: decide eliminar vs. desactivar. */
+export type DepsProfesor = {
+  asignaciones: number;
+  comisiones: number;
+  liquidaciones: number;
+  sala: number;
+};
+
+export type Curso = {
+  id: number;
+  nombre: string;
+  linea: string | null;
+  nivel: string | null;
+  dias_semana: number[];
+  hora: string | null;
+  precio_mensual: number;
+  activo: boolean;
+  creado_en: string;
+  actualizado_en: string;
+};
+
+/** Datos que el componente de Profesor envía al host para crear/editar. */
+export type DatosProfesor = {
+  nombre: string;
+  apellido: string;
+  whatsapp: string;
+  tipo: TipoProfesor;
+  especialidades: string[];
+  usuario_id: string | null;
+};
+
+export type Asignacion = {
+  id: number;
+  curso_id: number;
+  profesor_id: number;
+  pct_ingresos: number;
+  pct_referido: number;
+  desde: string;
+  hasta: string | null;
+  creado_en: string;
+};
+
 export const MODULOS = [
   "alumnos",
   "profesores",
