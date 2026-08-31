@@ -21,7 +21,7 @@
 | **PLAN_ETAPA1 v2** (commit `9293e5c`) | ✅ **OK** | Refleja las 12 decisiones + liquidación básica; esquema de comisiones/asignaciones congeladas alineado con el handoff de Profesores. |
 | **Handoff de diseño v4** | ✅ **Incorporado** | `docs/design/` — 11 pantallas/componentes + README (fuente de verdad) + DECISIONES + design system con `.table-edit` y `.chips` + screenshots. |
 
-**⚠️ Nota — Migración 0004:** el **archivo** está en el repo y es correcto, pero **no tengo evidencia de que esté aplicada en Supabase** (en esta sesión sólo se confirmó la 0003). *Acción tuya:* confirmame si ya corriste `0004_usuarios_seguridad.sql` en el SQL Editor; si no, es un paso pendiente.
+**Migración 0004:** ✅ **aplicada en Supabase** (confirmado por Javier, 2026-08-31).
 
 **Observación — permisos como catálogo (parcial):** hoy los permisos son la matriz `rol_permisos` (módulo × acción) **configurable por rol** ✅, pero el conjunto de módulos está **cableado en código** (`src/lib/tipos.ts` → `MODULOS`) y la navegación de la barra lateral se decide con flags hardcodeados (`puedeUsuarios`/`puedeConfig`), no puramente por permiso. El requisito nuevo (App Shell) pide: **cada pantalla/función/grupo de navegación gobernada por un permiso discreto, registrado en un catálogo que el admin asigna a los roles**. Eso implica migrar los módulos a un **catálogo de permisos en base** y derivar la nav de los permisos del usuario. Es un **workstream a planificar** (ver §5, decisión abierta A).
 
@@ -51,7 +51,7 @@ Pantallas/componentes: **Login, App Shell, Inscribir y cobrar, Tomar asistencia,
 
 ## 4. Migraciones
 
-`0001` Etapa 0 · `0002` módulo usuarios · `0003` temas · `0004` seguridad de usuarios. **Etapa 1 arranca en `0005`, aditiva.** (Plan de tablas en `docs/PLAN_ETAPA1.md` §9.)
+`0001` Etapa 0 · `0002` módulo usuarios · `0003` temas · `0004` seguridad de usuarios (todas **aplicadas**). `0005_etapa1_entidades` — **escrita y validada localmente** (Postgres 16: cadena 0001→0005 corre limpia, idempotente, y las unique/constraints de identidad adulto/menor y de titular-vigente se probaron); **pendiente de aplicar en Supabase**. Etapa 1 sigue en `0006`/`0007` (plan en `docs/PLAN_ETAPA1.md` §9).
 
 ## 5. Pendientes y decisiones abiertas
 
@@ -60,11 +60,16 @@ Pantallas/componentes: **Login, App Shell, Inscribir y cobrar, Tomar asistencia,
 **Pendientes de Design (no me bloquean; registro):** #8 correcciones de Login (accent-100 solo informativo + estado "cuenta bloqueada"; el backend ya expone el contrato); #11 correcciones de Vender/Confirmar sesión incluido el selector de grupo.
 
 **Pendientes tuyos (Javier):**
-1. Confirmar/aplicar migración `0004` en Supabase (ver §1).
+1. **Aplicar migración `0005`** en Supabase (SQL Editor → pegar `supabase/migrations/0005_etapa1_entidades.sql` → Run).
 2. Al desplegar en Vercel: cargar `SUPABASE_SERVICE_ROLE_KEY`.
 
-**Decisiones de negocio abiertas (no las resuelvo solo):**
-- **A — Catálogo de permisos + App Shell.** Para cumplir "cada pantalla/grupo por permiso discreto registrado en catálogo", hay que decidir el alcance: ¿migramos ahora los módulos hardcodeados a un **catálogo de permisos en base** (con permisos de pantalla/grupo además de módulo×acción) y rehacemos la nav por permisos, como parte del arranque de Etapa 1? ¿O se construye Etapa 1 con el gateo actual y el App Shell + catálogo se hace como hito propio antes de las pantallas nuevas? (Recomiendo: hito propio **App Shell + catálogo de permisos** justo después de `0005`, porque toda pantalla nueva se cuelga del shell.)
+**Decisión tomada (2026-08-31) — App Shell + catálogo de permisos: DIFERIDO.**
+Driver actual = rapidez / mínimo costo para una primera versión operativa con
+usuarios de **confianza total** (gerente, etc.). Se construye Etapa 1 con el
+gateo actual (matriz `rol_permisos` por rol, ya configurable) y una navegación
+simple; el catálogo de permisos granular por pantalla/grupo y el App Shell
+completo se afinan **después**, cuando dejen de ser usuarios de confianza total.
+No es indispensable para empezar a registrar y operar.
 
 ## 6. Cómo trabajamos (protocolo acordado)
 
