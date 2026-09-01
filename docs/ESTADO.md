@@ -6,7 +6,7 @@
 > `docs/design/README.md` (fuente de verdad del **diseño**), `docs/CONTEXTO_AVANCE.md`
 > (bitácora larga de Etapa 0), `docs/DESIGN_SYNC.md` (cómo entran los handoffs).
 >
-> **Última actualización:** 2026-08-31 — handoff v4 incorporado + validación integral.
+> **Última actualización:** 2026-09-01 — Inscribir y cobrar (1/2): migración `0006` + paso `Cobro`.
 > **Rama de trabajo:** `claude/tropicana-app-context-d5zjt8` (lista para PR/merge a `main`).
 
 ---
@@ -52,16 +52,16 @@ Pantallas/componentes: **Login, App Shell, Inscribir y cobrar, Tomar asistencia,
 
 ## 4. Migraciones
 
-`0001` Etapa 0 · `0002` módulo usuarios · `0003` temas · `0004` seguridad de usuarios (todas **aplicadas**). `0005_etapa1_entidades` — **escrita y validada localmente** (Postgres 16: cadena 0001→0005 corre limpia, idempotente, y las unique/constraints de identidad adulto/menor y de titular-vigente se probaron); **pendiente de aplicar en Supabase**. Etapa 1 sigue en `0006`/`0007` (plan en `docs/PLAN_ETAPA1.md` §9).
+`0001` Etapa 0 · `0002` módulo usuarios · `0003` temas · `0004` seguridad de usuarios (todas **aplicadas**). `0005_etapa1_entidades` — **aplicada en Supabase** (confirmado por Javier). `0006_etapa1_inscripcion` — **escrita y validada localmente** (Postgres 16: cadena 0001→0006 corre limpia e idempotente; smoke test insertando inscripción + cuota + pago pasó): tablas `inscripciones` (modalidad mensual/clase/semana/medio_mes, snapshot `precio_aplicado`, `dias_elegidos`), `cuotas` (devengado mensual, `descuento_adelanto`, estado pendiente/parcial/pagada) y `pagos` (libro de cobros/pagos que persiste el paso Cobro; sujeto alumno/profesor/costo_fijo, referencia inscripción/cuota, medio, descuento+motivo, ajuste+motivo, glosa, registrado_por); parámetro `medios_pago`. **Pendiente de aplicar en Supabase.** Etapa 1 sigue en `0007` (asistencia/clases) y `0008` (comisiones/costos/liquidación) — plan en `docs/PLAN_ETAPA1.md` §9.
 
 ## 5. Pendientes y decisiones abiertas
 
-**Progreso Etapa 1:** `0005` ✅ aplicada · **Profesores** ✅ construido y **probado local** · **Cursos** ✅ construido (componente compartido `EntidadCurso` + pantalla con listado y alta/edición/baja, días como casillas, precio mensual y **tarifas parciales tabla A**; borrado guardado; al existir cursos se activa la pestaña Asignación de Profesores y el filtro de titular por especialidad/estilo; build+lint OK; **pendiente prueba local**). **Alumnos** ✅ construido (componente compartido `EntidadAlumno`: dup por WhatsApp, bloque de tutor si es menor, clave compuesta de menor = WhatsApp tutor + nombre, y tutor que puede ser alumno existente → vincular; canal de captación del catálogo; borrado guardado; build+lint OK; **pendiente prueba local**). **Siguiente: Inscribir y cobrar** (monta EntidadAlumno + EntidadCurso + paso Cobro). Después: Asistencia → Costos/Liquidación básica.
+**Progreso Etapa 1:** `0005` ✅ aplicada · `0006` ✅ escrita/validada (pendiente aplicar) · **Profesores** ✅ construido y **probado local** · **Cursos** ✅ construido (componente compartido `EntidadCurso` + pantalla con listado y alta/edición/baja, días como casillas, precio mensual y **tarifas parciales tabla A**; borrado guardado; al existir cursos se activa la pestaña Asignación de Profesores y el filtro de titular por especialidad/estilo; build+lint OK; **pendiente prueba local**). **Alumnos** ✅ construido (componente compartido `EntidadAlumno`: dup por WhatsApp, bloque de tutor si es menor, clave compuesta de menor = WhatsApp tutor + nombre, y tutor que puede ser alumno existente → vincular; canal de captación del catálogo; borrado guardado; build+lint OK; **pendiente prueba local**). **Inscribir y cobrar** — en curso, partido en dos: (1) ✅ **migración `0006` + paso `Cobro`** (componente compartido `src/components/Cobro.tsx`: toma la referencia, decide cuánto se mueve / por qué medio / con qué descuento-ajuste / qué queda pendiente; emite `PayloadCobro` por `onChange`, no persiste; build+lint+tsc OK); (2) ⏳ **la pantalla** (monta EntidadAlumno + EntidadCurso + paso Cobro y guarda inscripción+cuota+pago vía server action). Después: Asistencia → Costos/Liquidación básica.
 
 **Pendientes de Design (no me bloquean; registro):** #8 correcciones de Login (accent-100 solo informativo + estado "cuenta bloqueada"; el backend ya expone el contrato); #11 correcciones de Vender/Confirmar sesión incluido el selector de grupo.
 
 **Pendientes tuyos (Javier):**
-1. **Aplicar migración `0005`** en Supabase (SQL Editor → pegar `supabase/migrations/0005_etapa1_entidades.sql` → Run).
+1. **Aplicar migración `0006`** en Supabase (SQL Editor → New query → pegar `supabase/migrations/0006_etapa1_inscripcion.sql` → Run). *(La `0005` ya está aplicada.)*
 2. Al desplegar en Vercel: cargar `SUPABASE_SERVICE_ROLE_KEY`.
 
 **Decisión tomada (2026-08-31) — App Shell + catálogo de permisos: DIFERIDO.**
