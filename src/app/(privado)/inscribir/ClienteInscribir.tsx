@@ -37,6 +37,7 @@ export default function ClienteInscribir({
   canales,
   cursosPorAlumno,
   deudaPorAlumno,
+  mensualPorAlumno,
 }: {
   alumnos: Alumno[];
   cursos: Curso[];
@@ -47,6 +48,7 @@ export default function ClienteInscribir({
   canales: Canal[];
   cursosPorAlumno: Record<number, string[]>;
   deudaPorAlumno: Record<number, number>;
+  mensualPorAlumno: Record<number, number[]>;
 }) {
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
@@ -101,6 +103,13 @@ export default function ClienteInscribir({
     : "";
   const mueve = cobro ? Math.max(0, cobro.total - cobro.saldo) : 0;
 
+  // Ya tiene una inscripción mensual activa en este curso (no se puede repetir).
+  const yaMensual =
+    !!alumno &&
+    !!curso &&
+    modalidad === "mensual" &&
+    (mensualPorAlumno[alumno.id] ?? []).includes(curso.id);
+
   function resetTodo() {
     setAlumno(null);
     setRemountAlumno((n) => n + 1);
@@ -147,6 +156,8 @@ export default function ClienteInscribir({
     setError(null);
     if (!alumno) return setError("Falta elegir o cargar el alumno.");
     if (!curso) return setError("Falta elegir el curso.");
+    if (yaMensual)
+      return setError("Este alumno ya tiene una inscripción mensual activa en este curso.");
     if (!fechaSel) return setError("No hay una fecha de inicio válida para este curso.");
     if (modalidad === "mensual" && mesesOpt === "libre" && meses < 2)
       return setError("Escribí cuántos meses paga (2 o más).");
@@ -185,7 +196,7 @@ export default function ClienteInscribir({
     });
   }
 
-  const puedeConfirmar = !!alumno && !!curso && !!fechaSel && !pendiente;
+  const puedeConfirmar = !!alumno && !!curso && !!fechaSel && !pendiente && !yaMensual;
 
   return (
     <div className="p-6 sm:p-8 max-w-3xl mx-auto pb-28">
@@ -327,6 +338,13 @@ export default function ClienteInscribir({
                 <span className="text-sm text-[var(--texto-tenue)]">{ETIQUETA_MODALIDAD[modalidad]}</span>
                 <span className="ml-auto text-lg font-bold">{gs(precioUnit)}</span>
               </div>
+              {yaMensual && (
+                <div className="mt-2.5 rounded-[var(--radio-panel)] border border-[var(--primario)] bg-[var(--accent-100)] px-4 py-3 text-sm text-[var(--peligro-texto)]">
+                  Este alumno ya tiene una inscripción mensual activa en{" "}
+                  <span className="font-semibold">{curso.nombre}</span>. Para cobrarle otra cuota usá
+                  el módulo de cobros (próximamente); acá no se duplica la inscripción.
+                </div>
+              )}
             </div>
 
             {/* Días de medio mes */}

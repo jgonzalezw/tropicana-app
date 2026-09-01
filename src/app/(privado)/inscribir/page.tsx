@@ -60,17 +60,28 @@ export default async function PaginaInscribir() {
     ((cursos as Curso[]) ?? []).map((c) => [c.id, c.nombre])
   );
   const [{ data: inscripciones }, { data: cuotas }, { data: pagos }] = await Promise.all([
-    supabase.from("inscripciones").select("id, alumno_id, curso_id, estado").eq("estado", "activa"),
+    supabase
+      .from("inscripciones")
+      .select("id, alumno_id, curso_id, modalidad, estado")
+      .eq("estado", "activa"),
     supabase.from("cuotas").select("id, inscripcion_id, monto_devengado, descuento_adelanto, estado"),
     supabase.from("pagos").select("cuota_id, monto, descuento").eq("tipo", "cobro"),
   ]);
 
   const inscById = new Map<number, { alumno_id: number; curso_id: number }>();
   const cursosPorAlumno: Record<number, string[]> = {};
-  for (const i of (inscripciones as { id: number; alumno_id: number; curso_id: number }[]) ?? []) {
+  // Cursos con inscripción MENSUAL activa por alumno (para avisar del duplicado).
+  const mensualPorAlumno: Record<number, number[]> = {};
+  for (const i of (inscripciones as {
+    id: number;
+    alumno_id: number;
+    curso_id: number;
+    modalidad: string;
+  }[]) ?? []) {
     inscById.set(i.id, { alumno_id: i.alumno_id, curso_id: i.curso_id });
     const nom = cursosNombre.get(i.curso_id);
     if (nom) (cursosPorAlumno[i.alumno_id] ??= []).push(nom);
+    if (i.modalidad === "mensual") (mensualPorAlumno[i.alumno_id] ??= []).push(i.curso_id);
   }
 
   const pagadoPorCuota: Record<number, number> = {};
@@ -111,6 +122,7 @@ export default async function PaginaInscribir() {
       canales={canales}
       cursosPorAlumno={cursosPorAlumno}
       deudaPorAlumno={deudaPorAlumno}
+      mensualPorAlumno={mensualPorAlumno}
     />
   );
 }

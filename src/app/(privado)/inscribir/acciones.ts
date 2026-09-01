@@ -112,6 +112,22 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
     .maybeSingle();
   if (!alumno) return { error: "El alumno no existe." };
 
+  // No dejar dos inscripciones MENSUALES activas del mismo alumno en el mismo
+  // curso. Las parciales (clase/semana/medio mes) son paquetes y sí pueden
+  // repetirse.
+  if (e.modalidad === "mensual") {
+    const { data: dup } = await sb
+      .from("inscripciones")
+      .select("id")
+      .eq("alumno_id", e.alumnoId)
+      .eq("curso_id", e.cursoId)
+      .eq("modalidad", "mensual")
+      .eq("estado", "activa")
+      .maybeSingle();
+    if (dup)
+      return { error: "Este alumno ya tiene una inscripción mensual activa en este curso." };
+  }
+
   const [{ data: tarifaRows }, { data: descRows }, factorParam] = await Promise.all([
     sb.from("curso_tarifas").select("modalidad, precio").eq("curso_id", e.cursoId),
     sb.from("descuentos_adelanto").select("meses, porcentaje"),

@@ -71,15 +71,33 @@ export async function actualizarAlumno(id: number, d: DatosAlumno): Promise<Resu
   return { ok: true };
 }
 
+/** Historial dependiente de un alumno = inscripciones + pagos. Con historial
+ *  se desactiva (conserva lo registrado); sin historial se elimina de verdad. */
+async function contarDependencias(id: number): Promise<number> {
+  const a = admin();
+  const [{ count: insc }, { count: pagos }] = await Promise.all([
+    a.from("inscripciones").select("id", { count: "exact", head: true }).eq("alumno_id", id),
+    a.from("pagos").select("id", { count: "exact", head: true }).eq("alumno_id", id),
+  ]);
+  return (insc ?? 0) + (pagos ?? 0);
+}
+
 export async function eliminarODesactivarAlumno(id: number): Promise<Resultado> {
   if (!(await tienePermiso("alumnos", "eliminar"))) return { error: "Sin permiso." };
 
-  // Historial de un alumno = inscripciones / pagos (llegan en 0006/0007). Por
-  // ahora no hay dependientes, así que se elimina de verdad. Cuando existan
-  // esas tablas, se cuentan acá y con historial se desactiva.
+  if ((await contarDependencias(id)) > 0) {
+    const { error } = await admin()
+      .from("alumnos")
+      .update({ activo: false, actualizado_en: new Date().toISOString() })
+      .eq("id", id);
+    if (error) return { error: error.message };
+    revalidatePath("/alumnos");
+    return { ok: true, accion: "desactivado" };
+  }
+
   const { error } = await admin().from("alumnos").delete().eq("id", id);
   if (error) {
-    // Si en el futuro una FK lo impide, degradamos a desactivar.
+    // Defensa: si una FK lo impide igual, degradamos a desactivar.
     const { error: e2 } = await admin()
       .from("alumnos")
       .update({ activo: false, actualizado_en: new Date().toISOString() })
