@@ -15,6 +15,7 @@ export default function BarraLateral({
   puedeAlumnos,
   puedeProfesores,
   puedeCursos,
+  puedeInscribir,
   temas,
   temaActual,
 }: {
@@ -24,6 +25,7 @@ export default function BarraLateral({
   puedeAlumnos: boolean;
   puedeProfesores: boolean;
   puedeCursos: boolean;
+  puedeInscribir: boolean;
   temas: OpcionTema[];
   temaActual: string;
 }) {
@@ -40,6 +42,11 @@ export default function BarraLateral({
     {
       grupo: "Gestión",
       items: [
+        {
+          href: "/inscribir",
+          etiqueta: "Inscribir y cobrar",
+          mostrar: puedeInscribir,
+        },
         {
           href: "/alumnos",
           etiqueta: "Alumnos",

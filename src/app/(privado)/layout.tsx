@@ -43,15 +43,23 @@ export default async function LayoutPrivado({
     );
   }
 
-  const [puedeUsuarios, puedeConfig, puedeAlumnos, puedeProfesores, puedeCursos, temas] =
-    await Promise.all([
-      tienePermiso("usuarios", "ver"),
-      tienePermiso("administracion", "ver"),
-      tienePermiso("alumnos", "ver"),
-      tienePermiso("profesores", "ver"),
-      tienePermiso("cursos", "ver"),
-      obtenerTemas(),
-    ]);
+  const [
+    puedeUsuarios,
+    puedeConfig,
+    puedeAlumnos,
+    puedeProfesores,
+    puedeCursos,
+    puedeInscribir,
+    temas,
+  ] = await Promise.all([
+    tienePermiso("usuarios", "ver"),
+    tienePermiso("administracion", "ver"),
+    tienePermiso("alumnos", "ver"),
+    tienePermiso("profesores", "ver"),
+    tienePermiso("cursos", "ver"),
+    tienePermiso("inscripciones", "ver"),
+    obtenerTemas(),
+  ]);
 
   return (
     <div className="flex min-h-screen">
@@ -62,6 +70,7 @@ export default async function LayoutPrivado({
         puedeAlumnos={puedeAlumnos}
         puedeProfesores={puedeProfesores}
         puedeCursos={puedeCursos}
+        puedeInscribir={puedeInscribir}
         temas={temas.map((t) => ({ clave: t.clave, nombre: t.nombre }))}
         temaActual={perfil.tema ?? TEMA_DEFECTO}
       />

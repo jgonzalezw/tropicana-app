@@ -169,6 +169,33 @@ export type Asignacion = {
   creado_en: string;
 };
 
+/** Decisión del paso Cobro que viaja del navegador a la server action. */
+export type CobroInscripcion = {
+  modo: "entero" | "parcial" | "sin";
+  monto: number;
+  medio: string | null;
+  notaMedio: string;
+  /** Descuento manual (política "descuento"). */
+  ajuste: number;
+  ajusteMotivo: string;
+  total: number;
+  saldo: number;
+};
+
+/** Entrada de la server action que inscribe y cobra en un solo paso. */
+export type EntradaInscripcion = {
+  alumnoId: number;
+  cursoId: number;
+  modalidad: "mensual" | "clase" | "semana" | "medio_mes";
+  /** Fecha de inicio, ISO local YYYY-MM-DD. */
+  fechaInicio: string;
+  /** Meses adelantados (solo mensual); 1 en el resto. */
+  meses: number;
+  /** Subconjunto de días para medio mes; null = todos los del curso. */
+  diasElegidos: number[] | null;
+  cobro: CobroInscripcion;
+};
+
 export const MODULOS = [
   "alumnos",
   "profesores",
