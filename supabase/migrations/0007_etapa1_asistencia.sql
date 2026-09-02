@@ -47,7 +47,17 @@ create index if not exists asistencias_alumno_idx on public.asistencias(alumno_i
 create index if not exists asistencias_inscripcion_idx on public.asistencias(inscripcion_id);
 
 -- ---------------------------------------------------------------------
--- 3. ROW LEVEL SECURITY (lectura autenticados; escritura directa admin)
+-- 3. PARÁMETROS de asistencia (no hardcode)
+-- ---------------------------------------------------------------------
+insert into public.parametros (clave, valor, tipo, nombre, descripcion, grupo) values
+  ('faltas_toleradas', '2', 'numero', 'Faltas toleradas por mes',
+   'Cuántas faltas mensuales se toleran antes de avisar "sin tolerancia" en la toma de asistencia.', 'Asistencia'),
+  ('mostrar_deuda', 'true', 'booleano', 'Mostrar deuda en asistencia',
+   'Si se muestra la deuda del alumno junto a su nombre al tomar asistencia.', 'Asistencia')
+on conflict (clave) do nothing;
+
+-- ---------------------------------------------------------------------
+-- 4. ROW LEVEL SECURITY (lectura autenticados; escritura directa admin)
 --    Los operativos escriben por server actions con service_role.
 -- ---------------------------------------------------------------------
 alter table public.sesiones    enable row level security;

@@ -197,7 +197,7 @@ export type EntradaInscripcion = {
 };
 
 /** Fila del padrón de una sesión de asistencia (un alumno inscripto). */
-export type AlumnoSesion = {
+export type FilaAsistencia = {
   inscripcionId: number | null;
   alumnoId: number;
   apellido: string;
@@ -205,6 +205,10 @@ export type AlumnoSesion = {
   modalidad: "mensual" | "clase" | "semana" | "medio_mes";
   /** Parciales: clases que quedan en el paquete; mensual: null. */
   restantes: number | null;
+  /** Faltas del alumno en este curso, en el mes de la fecha elegida. */
+  faltasMes: number;
+  /** Deuda pendiente del alumno (0 si está al día). */
+  deuda: number;
 };
 
 export type MarcaAsistencia = {

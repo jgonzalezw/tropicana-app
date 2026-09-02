@@ -1,75 +1,57 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import type { AlumnoSesion, Curso, MarcaAsistencia } from "@/lib/tipos";
-import { compararPorApellido } from "@/lib/texto";
-import { isoFecha, ETIQUETA_MODALIDAD, type Modalidad } from "@/lib/inscripcion";
-import { cargarSesion, guardarAsistencia } from "./acciones";
+import type { Curso, FilaAsistencia, MarcaAsistencia } from "@/lib/tipos";
+import { ETIQUETA_MODALIDAD, fechaLarga, gs, isoFecha } from "@/lib/inscripcion";
+import { cargarPadron, guardarAsistencia } from "./acciones";
 
 type Estado = "presente" | "ausente";
-type Fila = AlumnoSesion;
 
 export default function ClienteAsistencia({
   cursos,
-  rosterPorCurso,
+  alumnosPorCurso,
+  faltasToleradas,
+  mostrarDeuda,
+  puedeRetro,
 }: {
   cursos: Curso[];
-  rosterPorCurso: Record<number, AlumnoSesion[]>;
+  alumnosPorCurso: Record<number, number>;
+  faltasToleradas: number;
+  mostrarDeuda: boolean;
+  puedeRetro: boolean;
 }) {
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
-  const hoyIso = useMemo(() => isoFecha(new Date()), []);
+  const hoyIso = isoFecha(new Date());
 
   const [cursoId, setCursoId] = useState<number | null>(cursos[0]?.id ?? null);
   const [fecha, setFecha] = useState(hoyIso);
+  const [selectorAbierto, setSelectorAbierto] = useState(false);
+  const [filas, setFilas] = useState<FilaAsistencia[]>([]);
   const [marcas, setMarcas] = useState<Record<number, Estado>>({});
-  const [extras, setExtras] = useState<Fila[]>([]);
   const [cargando, setCargando] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const base = useMemo(
-    () => (cursoId != null ? rosterPorCurso[cursoId] ?? [] : []),
-    [cursoId, rosterPorCurso]
-  );
+  const curso = cursos.find((c) => c.id === cursoId) ?? null;
 
-  // Cargar marcas ya guardadas al cambiar de curso/fecha (permite re-editar).
   const pedido = useRef(0);
   useEffect(() => {
     if (cursoId == null) return;
-    const idPedido = ++pedido.current;
+    const id = ++pedido.current;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setCargando(true);
-    cargarSesion(cursoId, fecha)
-      .then(({ marcas: guardadas }) => {
-        if (idPedido !== pedido.current) return; // llegó una respuesta vieja
-        const m: Record<number, Estado> = {};
-        for (const g of guardadas) m[g.alumnoId] = g.estado;
+    cargarPadron(cursoId, fecha)
+      .then(({ filas: f, marcas: m }) => {
+        if (id !== pedido.current) return;
+        setFilas(f);
         setMarcas(m);
-        // Marcas de alumnos que ya no están en el padrón base (parcial ya
-        // consumido) se agregan como extra para poder verlas/editarlas.
-        const idsBase = new Set(base.map((f) => f.alumnoId));
-        setExtras(
-          guardadas
-            .filter((g) => !idsBase.has(g.alumnoId))
-            .map((g) => ({
-              inscripcionId: g.inscripcionId,
-              alumnoId: g.alumnoId,
-              apellido: g.apellido,
-              nombre: g.nombre,
-              modalidad: "mensual" as Modalidad,
-              restantes: null,
-            }))
-        );
       })
       .finally(() => {
-        if (idPedido === pedido.current) setCargando(false);
+        if (id === pedido.current) setCargando(false);
       });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cursoId, fecha]);
-
-  const filas = useMemo(() => [...base, ...extras].sort(compararPorApellido), [base, extras]);
 
   const total = filas.length;
   const presentes = filas.filter((f) => marcas[f.alumnoId] === "presente").length;
@@ -77,13 +59,16 @@ export default function ClienteAsistencia({
   const marcados = presentes + ausentes;
   const sinMarcar = total - marcados;
 
+  const fechaLinea = `${fecha === hoyIso ? "Hoy · " : ""}${fechaLarga(parseISO(fecha))}${
+    curso?.hora ? ` · ${curso.hora.slice(0, 5)}` : ""
+  }`;
+
   function toggle(alumnoId: number) {
     setAviso(null);
-    setMarcas((prev) => {
-      const actual = prev[alumnoId];
-      const siguiente: Estado = actual === "presente" ? "ausente" : "presente";
-      return { ...prev, [alumnoId]: siguiente };
-    });
+    setMarcas((prev) => ({
+      ...prev,
+      [alumnoId]: prev[alumnoId] === "presente" ? "ausente" : "presente",
+    }));
   }
   function todosPresentes() {
     setAviso(null);
@@ -97,20 +82,16 @@ export default function ClienteAsistencia({
   function guardar() {
     if (cursoId == null || marcados === 0) return;
     setError(null);
-    const inscPorAlumno = new Map(filas.map((f) => [f.alumnoId, f.inscripcionId]));
+    const insc = new Map(filas.map((f) => [f.alumnoId, f.inscripcionId]));
     const payload: MarcaAsistencia[] = filas
       .filter((f) => marcas[f.alumnoId])
-      .map((f) => ({
-        alumnoId: f.alumnoId,
-        inscripcionId: inscPorAlumno.get(f.alumnoId) ?? null,
-        estado: marcas[f.alumnoId],
-      }));
+      .map((f) => ({ alumnoId: f.alumnoId, inscripcionId: insc.get(f.alumnoId) ?? null, estado: marcas[f.alumnoId] }));
     startTransition(async () => {
       const res = await guardarAsistencia({ cursoId, fecha, marcas: payload });
       if (res.error) setError(res.error);
       else {
         setAviso(res.resumen ?? "Asistencia guardada.");
-        router.refresh(); // recalcula clases restantes de los parciales
+        router.refresh();
         if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
       }
     });
@@ -118,11 +99,8 @@ export default function ClienteAsistencia({
 
   return (
     <div className="p-6 sm:p-8 max-w-3xl mx-auto pb-28">
-      <div className="mb-5">
+      <div className="mb-4">
         <h1 className="text-3xl">Tomar asistencia</h1>
-        <p className="text-[var(--texto-tenue)] mt-2 text-lg">
-          Marcá presente o ausente y guardá. Un toque marca presente; otro lo pasa a ausente.
-        </p>
       </div>
 
       {aviso && (
@@ -135,35 +113,82 @@ export default function ClienteAsistencia({
         </div>
       )}
 
-      {/* Selector de curso y fecha */}
-      <div className="bg-[var(--fondo-panel)] border border-[var(--borde)] rounded-[var(--radio-tarjeta)] p-4 mb-3">
-        <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3">
-          <label className="block">
-            <span className="block text-sm text-[var(--texto-tenue)] mb-1.5">Curso</span>
-            <select
-              value={cursoId ?? ""}
-              onChange={(e) => setCursoId(e.target.value ? Number(e.target.value) : null)}
-              className="entrada"
-            >
-              {cursos.length === 0 && <option value="">No hay cursos activos</option>}
-              {cursos.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.nombre}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block">
-            <span className="block text-sm text-[var(--texto-tenue)] mb-1.5">Fecha</span>
-            <input
-              type="date"
-              value={fecha}
-              onChange={(e) => setFecha(e.target.value)}
-              className="entrada"
-            />
-          </label>
-        </div>
+      {/* Selector de clase (tarjeta + desplegable) */}
+      <div className="relative mb-3">
+        <button
+          onClick={() => setSelectorAbierto((v) => !v)}
+          disabled={cursos.length === 0}
+          className="w-full flex items-center gap-3 text-left bg-[var(--fondo-panel)] border border-[var(--borde)] rounded-[var(--radio-tarjeta)] px-5 py-4 disabled:opacity-50"
+        >
+          <span className="flex-1 min-w-0">
+            <span className="block titulo text-2xl truncate">
+              {curso ? curso.nombre : "Sin cursos"}
+            </span>
+            <span className="block text-base text-[var(--texto-tenue)] mt-0.5">
+              {curso ? `${fechaLinea} · ${alumnosPorCurso[curso.id] ?? 0} alumnos` : "No hay cursos activos"}
+            </span>
+          </span>
+          <span
+            className={`shrink-0 text-[var(--primario)] text-xl transition-transform ${
+              selectorAbierto ? "rotate-180" : ""
+            }`}
+          >
+            ⌄
+          </span>
+        </button>
+
+        {selectorAbierto && cursos.length > 0 && (
+          <div className="absolute z-20 mt-2 w-full bg-[var(--fondo-elevado)] border border-[var(--borde)] rounded-[var(--radio-panel)] p-2 shadow-lg">
+            {cursos.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => {
+                  setCursoId(c.id);
+                  setSelectorAbierto(false);
+                  setAviso(null);
+                }}
+                className="w-full flex items-center gap-3 text-left px-3 py-2.5 rounded-[var(--radio-chico)] hover:bg-[var(--fondo-panel)]"
+              >
+                <span className="flex-1 min-w-0">
+                  <span className="block text-base font-semibold truncate">{c.nombre}</span>
+                  <span className="block text-sm text-[var(--texto-tenue)]">
+                    {alumnosPorCurso[c.id] ?? 0} alumnos
+                  </span>
+                </span>
+                {c.id === cursoId && <span className="text-[var(--primario)]">✓</span>}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
+
+      {/* Fecha (carga retroactiva para usuario autorizado) */}
+      {puedeRetro ? (
+        <label className="flex items-center gap-3 mb-4 px-1">
+          <span className="text-sm text-[var(--texto-tenue)]">Fecha de la clase</span>
+          <input
+            type="date"
+            value={fecha}
+            max={hoyIso}
+            onChange={(e) => {
+              setFecha(e.target.value || hoyIso);
+              setAviso(null);
+            }}
+            className="entrada max-w-[190px]"
+          />
+          {fecha !== hoyIso && (
+            <button
+              onClick={() => setFecha(hoyIso)}
+              className="text-sm text-[var(--primario)]"
+              type="button"
+            >
+              Volver a hoy
+            </button>
+          )}
+        </label>
+      ) : (
+        <div className="mb-4" />
+      )}
 
       {/* Contador + todos presentes */}
       {cursoId != null && (
@@ -187,52 +212,25 @@ export default function ClienteAsistencia({
       ) : cargando ? (
         <p className="text-[var(--texto-tenue)]">Cargando lista…</p>
       ) : total === 0 ? (
-        <p className="text-[var(--texto-tenue)]">
-          Este curso no tiene alumnos con inscripción activa.
-        </p>
+        <p className="text-[var(--texto-tenue)]">Este curso no tiene alumnos con inscripción activa.</p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-          {filas.map((f) => {
-            const estado = marcas[f.alumnoId];
-            const cls =
-              estado === "presente"
-                ? "bg-[var(--exito-fill)] border-[var(--exito)] text-[var(--exito-texto)]"
-                : estado === "ausente"
-                ? "bg-[var(--peligro-fill)] border-[var(--peligro)] text-[var(--peligro-texto)]"
-                : "bg-[var(--fondo-elevado)] border-[var(--borde)]";
-            return (
-              <button
-                key={f.alumnoId}
-                onClick={() => toggle(f.alumnoId)}
-                className={`w-full flex items-center gap-3 text-left rounded-[var(--radio-panel)] border px-4 py-3 min-h-[68px] ${cls}`}
-              >
-                <span
-                  className={`shrink-0 w-8 h-8 rounded-full grid place-items-center text-sm font-bold ${
-                    estado === "presente"
-                      ? "bg-[var(--exito)] text-[var(--fondo-panel)]"
-                      : estado === "ausente"
-                      ? "bg-[var(--peligro)] text-[var(--fondo-panel)]"
-                      : "border-2 border-[var(--texto-tenue)]"
-                  }`}
-                >
-                  {estado === "presente" ? "✓" : estado === "ausente" ? "✕" : ""}
-                </span>
-                <span className="flex-1 min-w-0">
-                  <span className="block font-semibold">
-                    {f.apellido}, {f.nombre}
-                  </span>
-                  <span className="block text-sm opacity-80">
-                    {estado === "presente"
-                      ? "Presente"
-                      : estado === "ausente"
-                      ? "Ausente"
-                      : etiquetaFila(f)}
-                  </span>
-                </span>
-              </button>
-            );
-          })}
+          {filas.map((f) => (
+            <FilaRow
+              key={f.alumnoId}
+              fila={f}
+              estado={marcas[f.alumnoId]}
+              faltasToleradas={faltasToleradas}
+              mostrarDeuda={mostrarDeuda}
+              onToggle={() => toggle(f.alumnoId)}
+            />
+          ))}
         </div>
+      )}
+      {cursoId != null && total > 0 && (
+        <p className="text-sm text-[var(--texto-tenue)] mt-3 px-1">
+          Un toque marca presente. Otro toque lo pasa a ausente.
+        </p>
       )}
 
       {error && (
@@ -268,9 +266,88 @@ export default function ClienteAsistencia({
   );
 }
 
-function etiquetaFila(f: Fila): string {
-  if (f.modalidad === "mensual") return "Mensual";
-  const nombre = ETIQUETA_MODALIDAD[f.modalidad];
-  if (f.restantes == null) return nombre;
-  return `${nombre} · quedan ${f.restantes} ${f.restantes === 1 ? "clase" : "clases"}`;
+function FilaRow({
+  fila,
+  estado,
+  faltasToleradas,
+  mostrarDeuda,
+  onToggle,
+}: {
+  fila: FilaAsistencia;
+  estado: Estado | undefined;
+  faltasToleradas: number;
+  mostrarDeuda: boolean;
+  onToggle: () => void;
+}) {
+  const cls =
+    estado === "presente"
+      ? "bg-[var(--exito-fill)] border-[var(--exito)] text-[var(--exito-texto)]"
+      : estado === "ausente"
+      ? "bg-[var(--peligro-fill)] border-[var(--peligro)] text-[var(--peligro-texto)]"
+      : "bg-[var(--fondo-elevado)] border-[var(--borde)]";
+
+  const restantesTol = faltasToleradas - fila.faltasMes;
+  const esParcial = fila.modalidad !== "mensual";
+
+  // Sub-línea según estado.
+  let sub: string;
+  if (estado === "presente") sub = "Presente";
+  else if (estado === "ausente") sub = "Ausente";
+  else if (esParcial)
+    sub = `${ETIQUETA_MODALIDAD[fila.modalidad]}${
+      fila.restantes != null ? ` · quedan ${fila.restantes} ${fila.restantes === 1 ? "clase" : "clases"}` : ""
+    }`;
+  else sub = fila.faltasMes === 0 ? "Sin faltas este mes" : `${fila.faltasMes} ${fila.faltasMes === 1 ? "falta" : "faltas"} este mes`;
+
+  // Pastilla de tolerancia (solo mensual, sin marcar).
+  const pill =
+    !estado && !esParcial
+      ? restantesTol <= 0
+        ? "Sin tolerancia"
+        : restantesTol === 1
+        ? "Última tolerada"
+        : null
+      : null;
+
+  return (
+    <button
+      onClick={onToggle}
+      className={`w-full flex items-center gap-3 text-left rounded-[var(--radio-panel)] border px-4 py-3 min-h-[72px] ${cls}`}
+    >
+      <span
+        className={`shrink-0 w-9 h-9 rounded-full grid place-items-center text-base font-bold ${
+          estado === "presente"
+            ? "bg-[var(--exito)] text-[var(--fondo-panel)]"
+            : estado === "ausente"
+            ? "bg-[var(--peligro)] text-[var(--fondo-panel)]"
+            : "border-2 border-[var(--texto-tenue)]"
+        }`}
+      >
+        {estado === "presente" ? "✓" : estado === "ausente" ? "✕" : ""}
+      </span>
+      <span className="flex-1 min-w-0">
+        <span className="block text-lg font-semibold truncate">
+          {fila.apellido}, {fila.nombre}
+        </span>
+        <span className="block text-sm opacity-80">{sub}</span>
+      </span>
+      {!estado && (pill || (mostrarDeuda && fila.deuda > 0)) && (
+        <span className="shrink-0 flex flex-col items-end gap-1">
+          {pill && (
+            <span className="whitespace-nowrap px-2.5 py-1 text-xs rounded-[var(--radio-control)] bg-[var(--peligro-fill)] text-[var(--peligro-texto)]">
+              {pill}
+            </span>
+          )}
+          {mostrarDeuda && fila.deuda > 0 && (
+            <span className="whitespace-nowrap text-sm text-[var(--peligro)]">Debe {gs(fila.deuda)}</span>
+          )}
+        </span>
+      )}
+    </button>
+  );
+}
+
+function parseISO(s: string): Date {
+  const [y, m, d] = s.split("-").map(Number);
+  return new Date(y, (m || 1) - 1, d || 1);
 }
