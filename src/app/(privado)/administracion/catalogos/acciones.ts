@@ -43,7 +43,11 @@ export async function agregarValor(catalogo_id: number, etiqueta: string) {
     .from("catalogo_valores")
     .insert({ catalogo_id, valor, etiqueta: limpio, orden, activo: true });
 
-  if (error) return { error: error.message };
+  if (error) {
+    if (error.code === "23505")
+      return { error: "Ya existe un valor con esa etiqueta en este catálogo." };
+    return { error: error.message };
+  }
 
   revalidatePath("/administracion/catalogos");
   return { ok: true };
@@ -61,7 +65,11 @@ export async function actualizarValor(id: number, etiqueta: string, activo: bool
     .update({ etiqueta: limpio, activo })
     .eq("id", id);
 
-  if (error) return { error: error.message };
+  if (error) {
+    if (error.code === "23505")
+      return { error: "Ya existe un valor con esa etiqueta en este catálogo." };
+    return { error: error.message };
+  }
 
   revalidatePath("/administracion/catalogos");
   return { ok: true };

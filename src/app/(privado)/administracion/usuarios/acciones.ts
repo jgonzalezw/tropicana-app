@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { tienePermiso } from "@/lib/sesion";
 
@@ -17,8 +16,12 @@ export async function actualizarUsuario(formData: FormData) {
   const rol_id = Number(formData.get("rol_id"));
   const activo = formData.get("activo") === "on";
 
-  const supabase = await createClient();
-  const { error } = await supabase
+  // Escribe con service_role tras el chequeo de permiso: con el cliente normal,
+  // la RLS de `perfiles` (solo es_admin) hacía que un Gerente actualizara 0
+  // filas SIN error → "no guarda ni avisa".
+  const admin = createAdminClient();
+  if (!admin) return { error: "Falta configurar la clave service_role en el servidor." };
+  const { error } = await admin
     .from("perfiles")
     .update({
       nombre,
