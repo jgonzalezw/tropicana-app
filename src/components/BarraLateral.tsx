@@ -16,6 +16,7 @@ export default function BarraLateral({
   puedeProfesores,
   puedeCursos,
   puedeInscribir,
+  puedeAsistencia,
   temas,
   temaActual,
 }: {
@@ -26,6 +27,7 @@ export default function BarraLateral({
   puedeProfesores: boolean;
   puedeCursos: boolean;
   puedeInscribir: boolean;
+  puedeAsistencia: boolean;
   temas: OpcionTema[];
   temaActual: string;
 }) {
@@ -46,6 +48,11 @@ export default function BarraLateral({
           href: "/inscribir",
           etiqueta: "Inscribir y cobrar",
           mostrar: puedeInscribir,
+        },
+        {
+          href: "/asistencia",
+          etiqueta: "Tomar asistencia",
+          mostrar: puedeAsistencia,
         },
         {
           href: "/alumnos",

@@ -196,6 +196,31 @@ export type EntradaInscripcion = {
   cobro: CobroInscripcion;
 };
 
+/** Fila del padrón de una sesión de asistencia (un alumno inscripto). */
+export type AlumnoSesion = {
+  inscripcionId: number | null;
+  alumnoId: number;
+  apellido: string;
+  nombre: string;
+  modalidad: "mensual" | "clase" | "semana" | "medio_mes";
+  /** Parciales: clases que quedan en el paquete; mensual: null. */
+  restantes: number | null;
+};
+
+export type MarcaAsistencia = {
+  alumnoId: number;
+  inscripcionId: number | null;
+  estado: "presente" | "ausente";
+};
+
+/** Entrada de la server action que guarda la asistencia de una sesión. */
+export type EntradaAsistencia = {
+  cursoId: number;
+  /** Fecha de la sesión, ISO local YYYY-MM-DD. */
+  fecha: string;
+  marcas: MarcaAsistencia[];
+};
+
 export const MODULOS = [
   "alumnos",
   "profesores",
