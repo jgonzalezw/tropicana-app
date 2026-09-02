@@ -6,7 +6,7 @@
 > `docs/design/README.md` (fuente de verdad del **diseño**), `docs/CONTEXTO_AVANCE.md`
 > (bitácora larga de Etapa 0), `docs/DESIGN_SYNC.md` (cómo entran los handoffs).
 >
-> **Última actualización:** 2026-09-01 — Inscribir y cobrar completo (pantalla + persistencia).
+> **Última actualización:** 2026-09-02 — Inscribir y cobrar (con fixes) **en producción en Vercel**.
 > **Rama de trabajo:** `claude/tropicana-app-context-d5zjt8` (lista para PR/merge a `main`).
 
 ---
@@ -60,9 +60,11 @@ Pantallas/componentes: **Login, App Shell, Inscribir y cobrar, Tomar asistencia,
 
 **Pendientes de Design (no me bloquean; registro):** #8 correcciones de Login (accent-100 solo informativo + estado "cuenta bloqueada"; el backend ya expone el contrato); #11 correcciones de Vender/Confirmar sesión incluido el selector de grupo.
 
+**Despliegue (producción):** ✅ **en Vercel** — `https://tropicana-app.vercel.app` (proyecto `jgonzalezw1/tropicana-app`, publica desde **`main`**). Variables cargadas en Vercel: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`. Usa la **misma base Supabase** que local (mismos usuarios/datos). Login probado OK en la nube. **Flujo de actualización:** el trabajo sigue en la rama `claude/tropicana-app-context-d5zjt8`; en cada avance estable se hace **fast-forward de esa rama a `main`** y Vercel redepliega producción solo. (Si algún día el login fallara en la nube: Supabase → Authentication → URL Configuration → Site URL + Redirect `https://tropicana-app.vercel.app`.)
+
 **Pendientes tuyos (Javier):**
-1. **Probar local** Inscribir y cobrar (`0005` y `0006` ya aplicadas): `git pull`, `npm run dev`, entrar a **Gestión → Inscribir y cobrar**, inscribir un alumno en un curso (probar mensual x1, mensual x3 con descuento, una clase, medio mes) y confirmar el cobro.
-2. Al desplegar en Vercel: cargar `SUPABASE_SERVICE_ROLE_KEY`.
+1. Que la usuaria **use y pruebe** hasta acá (Etapa 0 + Alumnos/Cursos/Profesores + Inscribir y cobrar) y anote lo que chirríe.
+2. *(Opcional, seguridad)* activar 2FA en tu cuenta de Vercel cuando puedas.
 
 **Decisión tomada (2026-08-31) — App Shell + catálogo de permisos: DIFERIDO.**
 Driver actual = rapidez / mínimo costo para una primera versión operativa con
