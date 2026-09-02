@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { Curso, FilaAsistencia, MarcaAsistencia } from "@/lib/tipos";
-import { ETIQUETA_MODALIDAD, fechaLarga, gs, isoFecha } from "@/lib/inscripcion";
+import { ETIQUETA_MODALIDAD, diaIso, fechaLarga, gs, isoFecha } from "@/lib/inscripcion";
 import { cargarPadron, guardarAsistencia } from "./acciones";
 
 type Estado = "presente" | "ausente";
@@ -25,8 +25,12 @@ export default function ClienteAsistencia({
   const [pendiente, startTransition] = useTransition();
   const hoyIso = isoFecha(new Date());
 
-  const [cursoId, setCursoId] = useState<number | null>(cursos[0]?.id ?? null);
+  // Solo los cursos que se dictan ese día (según sus días de la semana).
+  const cursosEn = (f: string) =>
+    cursos.filter((c) => (c.dias_semana ?? []).includes(diaIso(parseISO(f))));
+
   const [fecha, setFecha] = useState(hoyIso);
+  const [cursoId, setCursoId] = useState<number | null>(cursosEn(hoyIso)[0]?.id ?? null);
   const [selectorAbierto, setSelectorAbierto] = useState(false);
   const [filas, setFilas] = useState<FilaAsistencia[]>([]);
   const [marcas, setMarcas] = useState<Record<number, Estado>>({});
@@ -34,7 +38,17 @@ export default function ClienteAsistencia({
   const [aviso, setAviso] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const curso = cursos.find((c) => c.id === cursoId) ?? null;
+  const cursosDelDia = cursosEn(fecha);
+  const curso = cursosDelDia.find((c) => c.id === cursoId) ?? null;
+
+  // Cambiar la fecha reajusta el curso elegido si ya no se dicta ese día.
+  function cambiarFecha(nf: string) {
+    const f = nf || hoyIso;
+    setFecha(f);
+    setAviso(null);
+    const lista = cursosEn(f);
+    setCursoId((prev) => (prev != null && lista.some((c) => c.id === prev) ? prev : lista[0]?.id ?? null));
+  }
 
   const pedido = useRef(0);
   useEffect(() => {
@@ -117,15 +131,17 @@ export default function ClienteAsistencia({
       <div className="relative mb-3">
         <button
           onClick={() => setSelectorAbierto((v) => !v)}
-          disabled={cursos.length === 0}
+          disabled={cursosDelDia.length === 0}
           className="w-full flex items-center gap-3 text-left bg-[var(--fondo-panel)] border border-[var(--borde)] rounded-[var(--radio-tarjeta)] px-5 py-4 disabled:opacity-50"
         >
           <span className="flex-1 min-w-0">
             <span className="block titulo text-2xl truncate">
-              {curso ? curso.nombre : "Sin cursos"}
+              {curso ? curso.nombre : "No hay clases este día"}
             </span>
             <span className="block text-base text-[var(--texto-tenue)] mt-0.5">
-              {curso ? `${fechaLinea} · ${alumnosPorCurso[curso.id] ?? 0} alumnos` : "No hay cursos activos"}
+              {curso
+                ? `${fechaLinea} · ${alumnosPorCurso[curso.id] ?? 0} alumnos`
+                : `${fecha === hoyIso ? "Hoy · " : ""}${fechaLarga(parseISO(fecha))} · ningún curso se dicta`}
             </span>
           </span>
           <span
@@ -137,9 +153,9 @@ export default function ClienteAsistencia({
           </span>
         </button>
 
-        {selectorAbierto && cursos.length > 0 && (
+        {selectorAbierto && cursosDelDia.length > 0 && (
           <div className="absolute z-20 mt-2 w-full bg-[var(--fondo-elevado)] border border-[var(--borde)] rounded-[var(--radio-panel)] p-2 shadow-lg">
-            {cursos.map((c) => (
+            {cursosDelDia.map((c) => (
               <button
                 key={c.id}
                 onClick={() => {
@@ -170,15 +186,12 @@ export default function ClienteAsistencia({
             type="date"
             value={fecha}
             max={hoyIso}
-            onChange={(e) => {
-              setFecha(e.target.value || hoyIso);
-              setAviso(null);
-            }}
+            onChange={(e) => cambiarFecha(e.target.value)}
             className="entrada max-w-[190px]"
           />
           {fecha !== hoyIso && (
             <button
-              onClick={() => setFecha(hoyIso)}
+              onClick={() => cambiarFecha(hoyIso)}
               className="text-sm text-[var(--primario)]"
               type="button"
             >
@@ -208,7 +221,11 @@ export default function ClienteAsistencia({
 
       {/* Lista */}
       {cursoId == null ? (
-        <p className="text-[var(--texto-tenue)]">Elegí un curso.</p>
+        <p className="text-[var(--texto-tenue)]">
+          {cursosDelDia.length === 0
+            ? "No hay clases programadas para este día."
+            : "Elegí un curso."}
+        </p>
       ) : cargando ? (
         <p className="text-[var(--texto-tenue)]">Cargando lista…</p>
       ) : total === 0 ? (
