@@ -50,7 +50,9 @@ export default function ClienteCatalogos({
 
             <div className="divide-y divide-[var(--borde)]">
               {valoresCatalogo.map((v) => (
-                <FilaValor key={v.id} valor={v} />
+                // key incluye el catálogo activo: al cambiar de catálogo la fila
+                // se re-monta y no arrastra texto ni error del catálogo anterior.
+                <FilaValor key={`${activo}:${v.id}`} valor={v} />
               ))}
               {valoresCatalogo.length === 0 && (
                 <p className="text-[var(--texto-tenue)] py-3">
@@ -59,7 +61,9 @@ export default function ClienteCatalogos({
               )}
             </div>
 
-            <NuevoValor catalogoId={catalogo.id} />
+            {/* key por catálogo: limpia el texto tecleado y el mensaje de error
+                al cambiar de catálogo (antes se quedaban pegados). */}
+            <NuevoValor key={catalogo.id} catalogoId={catalogo.id} />
           </div>
         )}
       </div>

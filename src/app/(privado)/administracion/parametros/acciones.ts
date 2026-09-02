@@ -1,16 +1,24 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
-import { esAdministrador } from "@/lib/sesion";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { tienePermiso } from "@/lib/sesion";
+
+function admin() {
+  const a = createAdminClient();
+  if (!a) throw new Error("Falta configurar la clave service_role en el servidor.");
+  return a;
+}
 
 export async function guardarParametro(clave: string, valor: string) {
-  if (!(await esAdministrador())) {
-    return { error: "Sin permiso." };
+  // Gobernado por el permiso (no solo el rol administrador): cualquier rol con
+  // administracion.editar puede cambiar parámetros. La escritura va por
+  // service_role tras el chequeo, igual que el resto de operativos.
+  if (!(await tienePermiso("administracion", "editar"))) {
+    return { error: "No tenés permiso para editar parámetros." };
   }
 
-  const supabase = await createClient();
-  const { error } = await supabase
+  const { error } = await admin()
     .from("parametros")
     .update({ valor, actualizado_en: new Date().toISOString() })
     .eq("clave", clave);
