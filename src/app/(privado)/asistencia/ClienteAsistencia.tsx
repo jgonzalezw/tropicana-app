@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { Curso, FilaAsistencia, MarcaAsistencia } from "@/lib/tipos";
 import { ETIQUETA_MODALIDAD, diaIso, fechaLarga, gs, isoFecha } from "@/lib/inscripcion";
-import { cargarPadron, guardarAsistencia } from "./acciones";
+import { cargarPadron, guardarAsistencia, suspenderClase, reabrirSesion } from "./acciones";
 
 type Estado = "presente" | "ausente";
 
@@ -62,6 +62,10 @@ export default function ClienteAsistencia({
   const [cargando, setCargando] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [suspendida, setSuspendida] = useState(false);
+  const [motivoSusp, setMotivoSusp] = useState<string | null>(null);
+  const [formSusp, setFormSusp] = useState(false);
+  const [motivoInput, setMotivoInput] = useState("");
 
   const cursosDelDia = cursosEn(fecha);
   const curso = cursosDelDia.find((c) => c.id === cursoId) ?? null;
@@ -82,10 +86,14 @@ export default function ClienteAsistencia({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setCargando(true);
     cargarPadron(cursoId, fecha)
-      .then(({ filas: f, marcas: m }) => {
+      .then(({ filas: f, marcas: m, suspendida: s, motivoSuspension }) => {
         if (id !== pedido.current) return;
         setFilas(f);
         setMarcas(m);
+        setSuspendida(s);
+        setMotivoSusp(motivoSuspension);
+        setFormSusp(false);
+        setMotivoInput("");
       })
       .finally(() => {
         if (id === pedido.current) setCargando(false);
@@ -132,6 +140,34 @@ export default function ClienteAsistencia({
         setAviso(res.resumen ?? "Asistencia guardada.");
         router.refresh();
         if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    });
+  }
+
+  function confirmarSuspension() {
+    if (cursoId == null) return;
+    setError(null);
+    startTransition(async () => {
+      const res = await suspenderClase({ cursoId, fecha, motivo: motivoInput });
+      if (res.error) setError(res.error);
+      else {
+        setFormSusp(false);
+        setAviso(res.resumen ?? "Clase suspendida.");
+        router.refresh();
+        if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    });
+  }
+
+  function reabrir() {
+    if (cursoId == null) return;
+    setError(null);
+    startTransition(async () => {
+      const res = await reabrirSesion({ cursoId, fecha });
+      if (res.error) setError(res.error);
+      else {
+        setAviso("Clase reabierta. Podés tomar asistencia normalmente.");
+        router.refresh();
       }
     });
   }
@@ -230,51 +266,116 @@ export default function ClienteAsistencia({
         )}
       </label>
 
-      {/* Contador + todos presentes */}
-      {cursoId != null && (
-        <div className="flex items-center gap-3 mb-3 px-1">
-          <div className="text-[var(--texto-tenue)]">
-            <span className="titulo text-xl text-[var(--texto)]">{marcados}</span> de {total} marcados
-          </div>
-          <button
-            onClick={todosPresentes}
-            disabled={total === 0}
-            className="ml-auto px-4 py-2 text-sm rounded-[var(--radio-control)] border border-[var(--borde)] hover:border-[var(--primario)] disabled:opacity-40"
-          >
-            Todos presentes
-          </button>
-        </div>
-      )}
-
-      {/* Lista */}
-      {cursoId == null ? (
+      {cursoId == null && (
         <p className="text-[var(--texto-tenue)]">
           {cursosDelDia.length === 0
             ? "No hay clases programadas para este día."
             : "Elegí un curso."}
         </p>
-      ) : cargando ? (
-        <p className="text-[var(--texto-tenue)]">Cargando lista…</p>
-      ) : total === 0 ? (
-        <p className="text-[var(--texto-tenue)]">Este curso no tiene alumnos con inscripción activa.</p>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-          {filas.map((f) => (
-            <FilaRow
-              key={f.alumnoId}
-              fila={f}
-              estado={marcas[f.alumnoId]}
-              faltasToleradas={faltasToleradas}
-              mostrarDeuda={mostrarDeuda}
-              onToggle={() => toggle(f.alumnoId)}
-            />
-          ))}
+      )}
+
+      {/* Clase suspendida */}
+      {cursoId != null && suspendida && (
+        <div className="rounded-[var(--radio-tarjeta)] border border-[var(--peligro)] bg-[var(--peligro-fill)] p-5 mb-3">
+          <div className="text-lg font-semibold text-[var(--peligro-texto)]">Clase suspendida</div>
+          <p className="text-sm text-[var(--peligro-texto)] opacity-90 mt-1 leading-relaxed">
+            No computa asistencia. El fin de ciclo de los alumnos mensuales se corrió a la próxima
+            clase; los paquetes por clase se difieren solos.
+            {motivoSusp ? ` Motivo: ${motivoSusp}.` : ""}
+          </p>
+          <button
+            onClick={reabrir}
+            disabled={pendiente}
+            className="mt-3 px-4 py-2 text-sm rounded-[var(--radio-control)] border border-[var(--peligro)] text-[var(--peligro-texto)] disabled:opacity-40"
+          >
+            {pendiente ? "Procesando…" : "Reabrir clase (se dictó)"}
+          </button>
         </div>
       )}
-      {cursoId != null && total > 0 && (
-        <p className="text-sm text-[var(--texto-tenue)] mt-3 px-1">
-          Un toque marca presente. Otro toque lo pasa a ausente.
-        </p>
+
+      {/* Toma de asistencia (clase dictada) */}
+      {cursoId != null && !suspendida && (
+        <>
+          <div className="flex items-center gap-3 mb-3 px-1">
+            <div className="text-[var(--texto-tenue)]">
+              <span className="titulo text-xl text-[var(--texto)]">{marcados}</span> de {total} marcados
+            </div>
+            <button
+              onClick={todosPresentes}
+              disabled={total === 0}
+              className="ml-auto px-4 py-2 text-sm rounded-[var(--radio-control)] border border-[var(--borde)] hover:border-[var(--primario)] disabled:opacity-40"
+            >
+              Todos presentes
+            </button>
+          </div>
+
+          {cargando ? (
+            <p className="text-[var(--texto-tenue)]">Cargando lista…</p>
+          ) : total === 0 ? (
+            <p className="text-[var(--texto-tenue)]">Este curso no tiene alumnos con inscripción activa.</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {filas.map((f) => (
+                <FilaRow
+                  key={f.alumnoId}
+                  fila={f}
+                  estado={marcas[f.alumnoId]}
+                  faltasToleradas={faltasToleradas}
+                  mostrarDeuda={mostrarDeuda}
+                  onToggle={() => toggle(f.alumnoId)}
+                />
+              ))}
+            </div>
+          )}
+          {total > 0 && (
+            <p className="text-sm text-[var(--texto-tenue)] mt-3 px-1">
+              Un toque marca presente. Otro toque lo pasa a ausente.
+            </p>
+          )}
+
+          {/* Marcar clase suspendida */}
+          {!cargando &&
+            (!formSusp ? (
+              <button
+                onClick={() => {
+                  setFormSusp(true);
+                  setMotivoInput("");
+                }}
+                className="mt-4 text-[var(--primario)] text-sm"
+              >
+                Marcar esta clase como suspendida
+              </button>
+            ) : (
+              <div className="mt-4 p-4 rounded-[var(--radio-panel)] border border-[var(--borde)] bg-[var(--fondo-elevado)] space-y-2">
+                <div className="text-base font-medium">Suspender esta clase</div>
+                <p className="text-sm text-[var(--texto-tenue)] leading-relaxed">
+                  No se computa asistencia y se corre el fin de ciclo de todos los alumnos mensuales del
+                  curso (no gasta su tolerancia). Los paquetes por clase se difieren solos.
+                </p>
+                <input
+                  value={motivoInput}
+                  onChange={(e) => setMotivoInput(e.target.value)}
+                  placeholder="Motivo (opcional): feriado, profe ausente…"
+                  className="entrada"
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={confirmarSuspension}
+                    disabled={pendiente}
+                    className="px-4 py-2 text-sm font-semibold rounded-[var(--radio-control)] bg-[var(--peligro)] text-[var(--fondo-panel)] disabled:opacity-40"
+                  >
+                    {pendiente ? "Suspendiendo…" : "Confirmar suspensión"}
+                  </button>
+                  <button
+                    onClick={() => setFormSusp(false)}
+                    className="px-4 py-2 text-sm rounded-[var(--radio-control)] border border-[var(--borde)]"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            ))}
+        </>
       )}
 
       {error && (
@@ -284,7 +385,7 @@ export default function ClienteAsistencia({
       )}
 
       {/* Pie fijo */}
-      {cursoId != null && total > 0 && (
+      {cursoId != null && !suspendida && total > 0 && (
         <div className="sticky bottom-0 -mx-6 sm:-mx-8 mt-6 px-6 sm:px-8 py-4 bg-[var(--fondo-panel)] border-t border-[var(--borde)]">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-2 text-sm">
             <span className="flex items-center gap-1.5">
