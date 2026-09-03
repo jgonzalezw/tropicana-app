@@ -1,16 +1,16 @@
 -- =====================================================================
--- TROPICANA — 0009: suspensión de clase + corrimiento de fin de ciclo
+-- TROPICANA - 0009: suspension de clase + corrimiento de fin de ciclo
 -- ---------------------------------------------------------------------
--- Mecanismo ÚNICO compartido: "correr el fin de ciclo un día de clase".
--- Lo disparan dos casos, con la MISMA lógica:
---   • falta individual tolerada (el alumno falta y tiene tolerancia),
---   • suspensión de clase (la escuela suspende; corre a TODOS los mensuales
+-- Mecanismo UNICO compartido: "correr el fin de ciclo un dia de clase".
+-- Lo disparan dos casos, con la MISMA logica:
+--   - falta individual tolerada (el alumno falta y tiene tolerancia),
+--   - suspension de clase (la escuela suspende; corre a TODOS los mensuales
 --     del curso; nunca gasta la tolerancia personal del alumno).
 -- "Fin de ciclo" = vencimiento de la cuota vigente. Correrlo = moverlo a la
--- próxima fecha del patrón semanal del curso. Los parciales no llevan cuota:
+-- proxima fecha del patron semanal del curso. Los parciales no llevan cuota:
 -- al no marcarse asistencia, no consumen y se difieren solos.
 --
--- Ejecutar en Supabase → SQL Editor → New query. Idempotente y ADITIVO.
+-- Ejecutar en Supabase -> SQL Editor -> New query. Idempotente y ADITIVO.
 -- =====================================================================
 
 -- ---------------------------------------------------------------------
@@ -21,17 +21,15 @@ alter table public.sesiones add column if not exists motivo text;
 
 do $$
 begin
-  if not exists (
-    select 1 from pg_constraint where conname = 'sesiones_estado_check'
-  ) then
+  if not exists (select 1 from pg_constraint where conname = 'sesiones_estado_check') then
     alter table public.sesiones
       add constraint sesiones_estado_check check (estado in ('dictada', 'suspendida'));
   end if;
 end $$;
 
 -- ---------------------------------------------------------------------
--- 2. CORRIMIENTOS DE FIN DE CICLO — traza del efecto (falta o suspensión)
---    Una fila por (inscripción, sesión): un corrimiento como máximo por
+-- 2. CORRIMIENTOS DE FIN DE CICLO - traza del efecto (falta o suspension)
+--    Una fila por (inscripcion, sesion): un corrimiento como maximo por
 --    alumno por clase, para no aplicar el efecto dos veces.
 -- ---------------------------------------------------------------------
 create table if not exists public.corrimientos_ciclo (
@@ -41,7 +39,7 @@ create table if not exists public.corrimientos_ciclo (
   cuota_id              bigint references public.cuotas(id) on delete set null,
   sesion_id             bigint references public.sesiones(id) on delete cascade,
   tipo                  text not null check (tipo in ('falta', 'suspension')),
-  fecha_clase           date not null,               -- clase perdida/suspendida
+  fecha_clase           date not null,
   vencimiento_anterior  date,
   vencimiento_nuevo     date,
   motivo                text,
