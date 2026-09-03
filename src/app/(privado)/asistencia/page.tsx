@@ -49,7 +49,6 @@ export default async function PaginaAsistencia() {
       alumnosPorCurso={alumnosPorCurso}
       faltasToleradas={Math.max(1, Number(faltasParam) || 2)}
       mostrarDeuda={deudaParam !== "false"}
-      puedeRetro={puedeRetro}
       minRetroIso={minRetroIso}
     />
   );

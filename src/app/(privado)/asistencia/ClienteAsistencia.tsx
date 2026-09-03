@@ -13,20 +13,34 @@ export default function ClienteAsistencia({
   alumnosPorCurso,
   faltasToleradas,
   mostrarDeuda,
-  puedeRetro,
   minRetroIso,
 }: {
   cursos: Curso[];
   alumnosPorCurso: Record<number, number>;
   faltasToleradas: number;
   mostrarDeuda: boolean;
-  puedeRetro: boolean;
-  /** Fecha mínima (ISO) para carga retroactiva = hoy − ventana en semanas. */
+  /** Fecha mínima (ISO) para carga: hoy − ventana en semanas (hoy si no hay permiso retro). */
   minRetroIso: string;
 }) {
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
   const hoyIso = isoFecha(new Date());
+
+  // Fechas elegibles: desde la ventana permitida hasta HOY (nunca futuro),
+  // solo días en los que se dicta al menos un curso. Más reciente primero.
+  const fechasValidas = (() => {
+    const out: { iso: string; label: string }[] = [];
+    const start = parseISO(minRetroIso);
+    const d = parseISO(hoyIso);
+    while (d >= start) {
+      if (cursos.some((c) => (c.dias_semana ?? []).includes(diaIso(d)))) {
+        const iso = isoFecha(d);
+        out.push({ iso, label: (iso === hoyIso ? "Hoy · " : "") + fechaLarga(d) });
+      }
+      d.setDate(d.getDate() - 1);
+    }
+    return out;
+  })();
 
   // Solo los cursos que se dictan ese día (según sus días de la semana),
   // ordenados por hora de la clase (luego por nombre).
@@ -39,8 +53,9 @@ export default function ClienteAsistencia({
           a.nombre.localeCompare(b.nombre, "es")
       );
 
-  const [fecha, setFecha] = useState(hoyIso);
-  const [cursoId, setCursoId] = useState<number | null>(cursosEn(hoyIso)[0]?.id ?? null);
+  const fechaInicial = fechasValidas[0]?.iso ?? hoyIso;
+  const [fecha, setFecha] = useState(fechaInicial);
+  const [cursoId, setCursoId] = useState<number | null>(cursosEn(fechaInicial)[0]?.id ?? null);
   const [selectorAbierto, setSelectorAbierto] = useState(false);
   const [filas, setFilas] = useState<FilaAsistencia[]>([]);
   const [marcas, setMarcas] = useState<Record<number, Estado>>({});
@@ -189,31 +204,31 @@ export default function ClienteAsistencia({
         )}
       </div>
 
-      {/* Fecha (carga retroactiva para usuario autorizado) */}
-      {puedeRetro ? (
-        <label className="flex items-center gap-3 mb-4 px-1">
-          <span className="text-sm text-[var(--texto-tenue)]">Fecha de la clase</span>
-          <input
-            type="date"
-            value={fecha}
-            min={minRetroIso}
-            max={hoyIso}
-            onChange={(e) => cambiarFecha(e.target.value)}
-            className="entrada max-w-[190px]"
-          />
-          {fecha !== hoyIso && (
-            <button
-              onClick={() => cambiarFecha(hoyIso)}
-              className="text-sm text-[var(--primario)]"
-              type="button"
-            >
-              Volver a hoy
-            </button>
+      {/* Fecha de la clase: solo hoy o clases pasadas dentro de la ventana.
+          Selector propio (grande, alto contraste), pensado para baja visión;
+          por construcción no ofrece fechas futuras. */}
+      <label className="block mb-4 max-w-md">
+        <span className="block text-base text-[var(--texto-tenue)] mb-1.5">Fecha de la clase</span>
+        <select
+          value={fecha}
+          onChange={(e) => cambiarFecha(e.target.value)}
+          className="entrada text-lg py-3"
+        >
+          {fechasValidas.map((f) => (
+            <option key={f.iso} value={f.iso}>
+              {f.label}
+            </option>
+          ))}
+          {!fechasValidas.some((f) => f.iso === fecha) && (
+            <option value={fecha}>{fechaLarga(parseISO(fecha))}</option>
           )}
-        </label>
-      ) : (
-        <div className="mb-4" />
-      )}
+        </select>
+        {fechasValidas.length > 1 && (
+          <span className="block text-sm text-[var(--texto-tenue)] mt-1.5">
+            Hoy o una clase pasada (dentro de la ventana permitida). No se puede a futuro.
+          </span>
+        )}
+      </label>
 
       {/* Contador + todos presentes */}
       {cursoId != null && (
