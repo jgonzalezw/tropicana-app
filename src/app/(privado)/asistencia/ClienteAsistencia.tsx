@@ -14,20 +14,30 @@ export default function ClienteAsistencia({
   faltasToleradas,
   mostrarDeuda,
   puedeRetro,
+  minRetroIso,
 }: {
   cursos: Curso[];
   alumnosPorCurso: Record<number, number>;
   faltasToleradas: number;
   mostrarDeuda: boolean;
   puedeRetro: boolean;
+  /** Fecha mínima (ISO) para carga retroactiva = hoy − ventana en semanas. */
+  minRetroIso: string;
 }) {
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
   const hoyIso = isoFecha(new Date());
 
-  // Solo los cursos que se dictan ese día (según sus días de la semana).
+  // Solo los cursos que se dictan ese día (según sus días de la semana),
+  // ordenados por hora de la clase (luego por nombre).
   const cursosEn = (f: string) =>
-    cursos.filter((c) => (c.dias_semana ?? []).includes(diaIso(parseISO(f))));
+    cursos
+      .filter((c) => (c.dias_semana ?? []).includes(diaIso(parseISO(f))))
+      .sort(
+        (a, b) =>
+          (a.hora ?? "99:99").localeCompare(b.hora ?? "99:99") ||
+          a.nombre.localeCompare(b.nombre, "es")
+      );
 
   const [fecha, setFecha] = useState(hoyIso);
   const [cursoId, setCursoId] = useState<number | null>(cursosEn(hoyIso)[0]?.id ?? null);
@@ -168,6 +178,7 @@ export default function ClienteAsistencia({
                 <span className="flex-1 min-w-0">
                   <span className="block text-base font-semibold truncate">{c.nombre}</span>
                   <span className="block text-sm text-[var(--texto-tenue)]">
+                    {c.hora ? `${c.hora.slice(0, 5)} · ` : ""}
                     {alumnosPorCurso[c.id] ?? 0} alumnos
                   </span>
                 </span>
@@ -185,6 +196,7 @@ export default function ClienteAsistencia({
           <input
             type="date"
             value={fecha}
+            min={minRetroIso}
             max={hoyIso}
             onChange={(e) => cambiarFecha(e.target.value)}
             className="entrada max-w-[190px]"

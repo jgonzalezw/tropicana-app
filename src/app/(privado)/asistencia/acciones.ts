@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { tienePermiso, obtenerPerfilActual } from "@/lib/sesion";
+import { tienePermiso, obtenerParametro, obtenerPerfilActual } from "@/lib/sesion";
 import { compararPorApellido } from "@/lib/texto";
 import type { EntradaAsistencia, FilaAsistencia } from "@/lib/tipos";
 
@@ -16,6 +16,17 @@ function admin() {
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
 type Estado = "presente" | "ausente";
+
+function hoyISO(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function restarDias(iso: string, dias: number): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() - dias);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+}
 
 /**
  * Padrón completo de una clase (curso + fecha) para tomar asistencia:
@@ -199,6 +210,18 @@ export async function guardarAsistencia(
     return { error: "No tenés permiso para registrar asistencia." };
   if (!ISO.test(e.fecha)) return { error: "Fecha inválida." };
   if (!e.marcas.length) return { error: "No hay nada marcado." };
+
+  // Regla: nunca a futuro; el pasado solo con permiso de edición y dentro de la
+  // ventana (parámetro `asistencia_semanas_retro`, en semanas).
+  const hoy = hoyISO();
+  if (e.fecha > hoy) return { error: "No se puede registrar asistencia de una fecha futura." };
+  if (e.fecha < hoy) {
+    if (!(await tienePermiso("asistencia", "editar")))
+      return { error: "No tenés permiso para cargar asistencia de fechas pasadas." };
+    const semanas = Math.max(0, Number(await obtenerParametro("asistencia_semanas_retro")) || 2);
+    if (e.fecha < restarDias(hoy, semanas * 7))
+      return { error: `Solo se puede cargar hasta ${semanas} semanas hacia atrás.` };
+  }
 
   const perfil = await obtenerPerfilActual();
   const a = admin();

@@ -11,17 +11,32 @@ export default async function PaginaAsistencia() {
 
   const supabase = await createClient();
 
-  const [{ data: cursos }, { data: inscripciones }, faltasParam, deudaParam, puedeRetro] =
-    await Promise.all([
-      supabase.from("cursos").select("*").eq("activo", true).order("nombre"),
-      supabase
-        .from("inscripciones")
-        .select("curso_id, alumno:alumnos(activo)")
-        .eq("estado", "activa"),
-      obtenerParametro("faltas_toleradas"),
-      obtenerParametro("mostrar_deuda"),
-      tienePermiso("asistencia", "editar"),
-    ]);
+  const [
+    { data: cursos },
+    { data: inscripciones },
+    faltasParam,
+    deudaParam,
+    semanasParam,
+    puedeRetro,
+  ] = await Promise.all([
+    supabase.from("cursos").select("*").eq("activo", true).order("nombre"),
+    supabase
+      .from("inscripciones")
+      .select("curso_id, alumno:alumnos(activo)")
+      .eq("estado", "activa"),
+    obtenerParametro("faltas_toleradas"),
+    obtenerParametro("mostrar_deuda"),
+    obtenerParametro("asistencia_semanas_retro"),
+    tienePermiso("asistencia", "editar"),
+  ]);
+
+  // Ventana de carga retroactiva (semanas). Sin permiso de edición, solo hoy.
+  const semanasRetro = Math.max(0, Number(semanasParam) || 2);
+  const min = new Date();
+  min.setDate(min.getDate() - (puedeRetro ? semanasRetro * 7 : 0));
+  const minRetroIso = `${min.getFullYear()}-${String(min.getMonth() + 1).padStart(2, "0")}-${String(
+    min.getDate()
+  ).padStart(2, "0")}`;
 
   // Cuántos alumnos activos tiene cada curso (para el selector).
   const alumnosPorCurso: Record<number, number> = {};
@@ -35,6 +50,7 @@ export default async function PaginaAsistencia() {
       faltasToleradas={Math.max(1, Number(faltasParam) || 2)}
       mostrarDeuda={deudaParam !== "false"}
       puedeRetro={puedeRetro}
+      minRetroIso={minRetroIso}
     />
   );
 }
