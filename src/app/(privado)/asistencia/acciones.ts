@@ -189,7 +189,10 @@ export async function cargarPadron(
     .from("inscripciones")
     .select("id, alumno_id, modalidad, clases_total, alumno:alumnos(id, nombre, apellido, activo)")
     .eq("curso_id", cursoId)
-    .eq("estado", "activa");
+    .eq("estado", "activa")
+    // Vigente a esa fecha: la inscripción ya había empezado (no aparece quien
+    // se inscribió después de la fecha elegida, p. ej. en cargas retroactivas).
+    .lte("fecha_inicio", fecha);
 
   type InscRow = {
     id: number;
@@ -453,7 +456,8 @@ async function reconciliarFaltas(
     .from("inscripciones")
     .select("id, alumno_id, modalidad")
     .eq("curso_id", args.cursoId)
-    .eq("estado", "activa");
+    .eq("estado", "activa")
+    .lte("fecha_inicio", args.fecha);
   const mensual = new Map<number, number>(); // inscripcion_id -> alumno_id
   for (const r of (insc as { id: number; alumno_id: number; modalidad: string }[]) ?? [])
     if (r.modalidad === "mensual") mensual.set(r.id, r.alumno_id);
@@ -581,7 +585,8 @@ export async function suspenderClase(args: {
     .from("inscripciones")
     .select("id, alumno_id, modalidad")
     .eq("curso_id", args.cursoId)
-    .eq("estado", "activa");
+    .eq("estado", "activa")
+    .lte("fecha_inicio", args.fecha);
 
   let corridos = 0;
   for (const r of (insc as { id: number; alumno_id: number; modalidad: string }[]) ?? []) {
