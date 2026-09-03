@@ -64,6 +64,7 @@ export default function ClienteAsistencia({
   const [editando, setEditando] = useState(false);
   const [formSusp, setFormSusp] = useState(false);
   const [motivoInput, setMotivoInput] = useState("");
+  const [recarga, setRecarga] = useState(0);
 
   const curso = cursos.find((c) => c.id === cursoId) ?? null;
   const fechas = fechasDelCurso(cursoId);
@@ -90,7 +91,7 @@ export default function ClienteAsistencia({
       .finally(() => {
         if (id === pedido.current) setCargando(false);
       });
-  }, [cursoId, fecha]);
+  }, [cursoId, fecha, recarga]);
 
   const total = filas.length;
   const presentes = filas.filter((f) => marcas[f.alumnoId] === "presente").length;
@@ -134,6 +135,7 @@ export default function ClienteAsistencia({
       if (res.error) setError(res.error);
       else {
         setAviso(res.resumen ?? "Asistencia guardada.");
+        setRecarga((n) => n + 1);
         router.refresh();
         if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
       }
@@ -149,6 +151,7 @@ export default function ClienteAsistencia({
       else {
         setFormSusp(false);
         setAviso(res.resumen ?? "Clase suspendida.");
+        setRecarga((n) => n + 1);
         router.refresh();
         if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
       }
@@ -163,6 +166,7 @@ export default function ClienteAsistencia({
       if (res.error) setError(res.error);
       else {
         setAviso("Clase reabierta. Podés tomar o corregir la asistencia.");
+        setRecarga((n) => n + 1);
         router.refresh();
       }
     });
