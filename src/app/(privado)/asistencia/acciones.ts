@@ -143,12 +143,47 @@ export async function cargarPadron(
   marcas: Record<number, Estado>;
   suspendida: boolean;
   motivoSuspension: string | null;
+  completada: boolean;
+  /** Estado por fecha (ISO) del curso dentro de la ventana: para el selector. */
+  estadosPorFecha: Record<string, "completada" | "suspendida">;
 }> {
-  const vacio = { filas: [], marcas: {}, suspendida: false, motivoSuspension: null };
+  const vacio = {
+    filas: [],
+    marcas: {},
+    suspendida: false,
+    motivoSuspension: null,
+    completada: false,
+    estadosPorFecha: {} as Record<string, "completada" | "suspendida">,
+  };
   if (!(await tienePermiso("asistencia", "ver"))) return vacio;
   if (!ISO.test(fecha)) return vacio;
 
   const sb = await createClient();
+
+  // Estado de las sesiones del curso en la ventana (para marcar el selector).
+  const semanas = Math.max(0, Number(await obtenerParametro("asistencia_semanas_retro")) || 2);
+  const hoy = hoyISO();
+  const minVentana = restarDias(hoy, semanas * 7);
+  const estadosPorFecha: Record<string, "completada" | "suspendida"> = {};
+  const { data: sesWin } = await sb
+    .from("sesiones")
+    .select("id, fecha, estado")
+    .eq("curso_id", cursoId)
+    .gte("fecha", minVentana)
+    .lte("fecha", hoy);
+  const winRows = (sesWin as { id: number; fecha: string; estado: string }[]) ?? [];
+  const conAsistencia = new Set<number>();
+  if (winRows.length) {
+    const { data } = await sb
+      .from("asistencias")
+      .select("sesion_id")
+      .in("sesion_id", winRows.map((s) => s.id));
+    for (const r of (data as { sesion_id: number }[]) ?? []) conAsistencia.add(r.sesion_id);
+  }
+  for (const s of winRows) {
+    if (s.estado === "suspendida") estadosPorFecha[s.fecha] = "suspendida";
+    else if (conAsistencia.has(s.id)) estadosPorFecha[s.fecha] = "completada";
+  }
 
   const { data: insc } = await sb
     .from("inscripciones")
@@ -260,7 +295,14 @@ export async function cargarPadron(
     })
     .filter((f) => f.modalidad === "mensual" || f.restantes === null || f.restantes > 0 || marcas[f.alumnoId]);
 
-  return { filas: [...filas, ...extras].sort(compararPorApellido), marcas, suspendida, motivoSuspension };
+  return {
+    filas: [...filas, ...extras].sort(compararPorApellido),
+    marcas,
+    suspendida,
+    motivoSuspension,
+    completada: estadosPorFecha[fecha] === "completada",
+    estadosPorFecha,
+  };
 }
 
 async function deudaPorAlumno(

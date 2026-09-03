@@ -7,6 +7,7 @@ import { ETIQUETA_MODALIDAD, diaIso, fechaLarga, gs, isoFecha } from "@/lib/insc
 import { cargarPadron, guardarAsistencia, suspenderClase, reabrirSesion } from "./acciones";
 
 type Estado = "presente" | "ausente";
+type EstadoSesion = "completada" | "suspendida";
 
 export default function ClienteAsistencia({
   cursos,
@@ -14,48 +15,42 @@ export default function ClienteAsistencia({
   faltasToleradas,
   mostrarDeuda,
   minRetroIso,
+  puedeEditar,
 }: {
   cursos: Curso[];
   alumnosPorCurso: Record<number, number>;
   faltasToleradas: number;
   mostrarDeuda: boolean;
-  /** Fecha mínima (ISO) para carga: hoy − ventana en semanas (hoy si no hay permiso retro). */
+  /** Fecha mínima (ISO) para carga: hoy − ventana (hoy si no hay permiso retro/edición). */
   minRetroIso: string;
+  /** Puede cargar fechas pasadas y reabrir clases ya tomadas. */
+  puedeEditar: boolean;
 }) {
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
   const hoyIso = isoFecha(new Date());
 
-  // Fechas elegibles: desde la ventana permitida hasta HOY (nunca futuro),
-  // solo días en los que se dicta al menos un curso. Más reciente primero.
-  const fechasValidas = (() => {
+  // Fechas en que se dicta el curso elegido, dentro de la ventana, hoy→atrás.
+  const fechasDelCurso = (cid: number | null) => {
+    const c = cursos.find((x) => x.id === cid);
+    const dias = c?.dias_semana ?? [];
+    if (!dias.length) return [] as { iso: string; label: string }[];
     const out: { iso: string; label: string }[] = [];
     const start = parseISO(minRetroIso);
     const d = parseISO(hoyIso);
     while (d >= start) {
-      if (cursos.some((c) => (c.dias_semana ?? []).includes(diaIso(d)))) {
+      if (dias.includes(diaIso(d))) {
         const iso = isoFecha(d);
         out.push({ iso, label: (iso === hoyIso ? "Hoy · " : "") + fechaLarga(d) });
       }
       d.setDate(d.getDate() - 1);
     }
     return out;
-  })();
+  };
 
-  // Solo los cursos que se dictan ese día (según sus días de la semana),
-  // ordenados por hora de la clase (luego por nombre).
-  const cursosEn = (f: string) =>
-    cursos
-      .filter((c) => (c.dias_semana ?? []).includes(diaIso(parseISO(f))))
-      .sort(
-        (a, b) =>
-          (a.hora ?? "99:99").localeCompare(b.hora ?? "99:99") ||
-          a.nombre.localeCompare(b.nombre, "es")
-      );
-
-  const fechaInicial = fechasValidas[0]?.iso ?? hoyIso;
-  const [fecha, setFecha] = useState(fechaInicial);
-  const [cursoId, setCursoId] = useState<number | null>(cursosEn(fechaInicial)[0]?.id ?? null);
+  const cursoInicial = cursos[0]?.id ?? null;
+  const [cursoId, setCursoId] = useState<number | null>(cursoInicial);
+  const [fecha, setFecha] = useState(fechasDelCurso(cursoInicial)[0]?.iso ?? hoyIso);
   const [selectorAbierto, setSelectorAbierto] = useState(false);
   const [filas, setFilas] = useState<FilaAsistencia[]>([]);
   const [marcas, setMarcas] = useState<Record<number, Estado>>({});
@@ -64,34 +59,31 @@ export default function ClienteAsistencia({
   const [error, setError] = useState<string | null>(null);
   const [suspendida, setSuspendida] = useState(false);
   const [motivoSusp, setMotivoSusp] = useState<string | null>(null);
+  const [completada, setCompletada] = useState(false);
+  const [estadosPorFecha, setEstadosPorFecha] = useState<Record<string, EstadoSesion>>({});
+  const [editando, setEditando] = useState(false);
   const [formSusp, setFormSusp] = useState(false);
   const [motivoInput, setMotivoInput] = useState("");
 
-  const cursosDelDia = cursosEn(fecha);
-  const curso = cursosDelDia.find((c) => c.id === cursoId) ?? null;
-
-  // Cambiar la fecha reajusta el curso elegido si ya no se dicta ese día.
-  function cambiarFecha(nf: string) {
-    const f = nf || hoyIso;
-    setFecha(f);
-    setAviso(null);
-    const lista = cursosEn(f);
-    setCursoId((prev) => (prev != null && lista.some((c) => c.id === prev) ? prev : lista[0]?.id ?? null));
-  }
+  const curso = cursos.find((c) => c.id === cursoId) ?? null;
+  const fechas = fechasDelCurso(cursoId);
 
   const pedido = useRef(0);
   useEffect(() => {
-    if (cursoId == null) return;
+    if (cursoId == null || !fecha) return;
     const id = ++pedido.current;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setCargando(true);
     cargarPadron(cursoId, fecha)
-      .then(({ filas: f, marcas: m, suspendida: s, motivoSuspension }) => {
+      .then((r) => {
         if (id !== pedido.current) return;
-        setFilas(f);
-        setMarcas(m);
-        setSuspendida(s);
-        setMotivoSusp(motivoSuspension);
+        setFilas(r.filas);
+        setMarcas(r.marcas);
+        setSuspendida(r.suspendida);
+        setMotivoSusp(r.motivoSuspension);
+        setCompletada(r.completada);
+        setEstadosPorFecha(r.estadosPorFecha);
+        setEditando(false);
         setFormSusp(false);
         setMotivoInput("");
       })
@@ -106,16 +98,20 @@ export default function ClienteAsistencia({
   const marcados = presentes + ausentes;
   const sinMarcar = total - marcados;
 
-  const fechaLinea = `${fecha === hoyIso ? "Hoy · " : ""}${fechaLarga(parseISO(fecha))}${
-    curso?.hora ? ` · ${curso.hora.slice(0, 5)}` : ""
-  }`;
+  // Editable = clase pendiente, o completada que el usuario decidió corregir.
+  const editable = !suspendida && (!completada || editando);
+
+  function cambiarCurso(id: number) {
+    setCursoId(id);
+    setSelectorAbierto(false);
+    setAviso(null);
+    setFecha(fechasDelCurso(id)[0]?.iso ?? hoyIso);
+  }
 
   function toggle(alumnoId: number) {
+    if (!editable) return;
     setAviso(null);
-    setMarcas((prev) => ({
-      ...prev,
-      [alumnoId]: prev[alumnoId] === "presente" ? "ausente" : "presente",
-    }));
+    setMarcas((prev) => ({ ...prev, [alumnoId]: prev[alumnoId] === "presente" ? "ausente" : "presente" }));
   }
   function todosPresentes() {
     setAviso(null);
@@ -166,11 +162,17 @@ export default function ClienteAsistencia({
       const res = await reabrirSesion({ cursoId, fecha });
       if (res.error) setError(res.error);
       else {
-        setAviso("Clase reabierta. Podés tomar asistencia normalmente.");
+        setAviso("Clase reabierta. Podés tomar o corregir la asistencia.");
         router.refresh();
       }
     });
   }
+
+  const chipEstado = suspendida
+    ? { t: "Clase suspendida", c: "bg-[var(--peligro-fill)] text-[var(--peligro-texto)]" }
+    : completada
+    ? { t: "Asistencia tomada", c: "bg-[var(--exito-fill)] text-[var(--exito-texto)]" }
+    : { t: "Sin tomar", c: "bg-[var(--fondo-elevado)] text-[var(--texto-tenue)]" };
 
   return (
     <div className="p-6 sm:p-8 max-w-3xl mx-auto pb-28">
@@ -188,42 +190,32 @@ export default function ClienteAsistencia({
         </div>
       )}
 
-      {/* Selector de clase (tarjeta + desplegable) */}
+      {/* Selector de curso (todos los cursos activos) */}
       <div className="relative mb-3">
         <button
           onClick={() => setSelectorAbierto((v) => !v)}
-          disabled={cursosDelDia.length === 0}
+          disabled={cursos.length === 0}
           className="w-full flex items-center gap-3 text-left bg-[var(--fondo-panel)] border border-[var(--borde)] rounded-[var(--radio-tarjeta)] px-5 py-4 disabled:opacity-50"
         >
           <span className="flex-1 min-w-0">
-            <span className="block titulo text-2xl truncate">
-              {curso ? curso.nombre : "No hay clases este día"}
-            </span>
+            <span className="block titulo text-2xl truncate">{curso ? curso.nombre : "Sin cursos"}</span>
             <span className="block text-base text-[var(--texto-tenue)] mt-0.5">
               {curso
-                ? `${fechaLinea} · ${alumnosPorCurso[curso.id] ?? 0} alumnos`
-                : `${fecha === hoyIso ? "Hoy · " : ""}${fechaLarga(parseISO(fecha))} · ningún curso se dicta`}
+                ? `${curso.hora ? curso.hora.slice(0, 5) + " · " : ""}${alumnosPorCurso[curso.id] ?? 0} alumnos`
+                : "No hay cursos activos"}
             </span>
           </span>
-          <span
-            className={`shrink-0 text-[var(--primario)] text-xl transition-transform ${
-              selectorAbierto ? "rotate-180" : ""
-            }`}
-          >
+          <span className={`shrink-0 text-[var(--primario)] text-xl transition-transform ${selectorAbierto ? "rotate-180" : ""}`}>
             ⌄
           </span>
         </button>
 
-        {selectorAbierto && cursosDelDia.length > 0 && (
-          <div className="absolute z-20 mt-2 w-full bg-[var(--fondo-elevado)] border border-[var(--borde)] rounded-[var(--radio-panel)] p-2 shadow-lg">
-            {cursosDelDia.map((c) => (
+        {selectorAbierto && cursos.length > 0 && (
+          <div className="absolute z-20 mt-2 w-full bg-[var(--fondo-elevado)] border border-[var(--borde)] rounded-[var(--radio-panel)] p-2 shadow-lg max-h-80 overflow-auto">
+            {cursos.map((c) => (
               <button
                 key={c.id}
-                onClick={() => {
-                  setCursoId(c.id);
-                  setSelectorAbierto(false);
-                  setAviso(null);
-                }}
+                onClick={() => cambiarCurso(c.id)}
                 className="w-full flex items-center gap-3 text-left px-3 py-2.5 rounded-[var(--radio-chico)] hover:bg-[var(--fondo-panel)]"
               >
                 <span className="flex-1 min-w-0">
@@ -240,74 +232,90 @@ export default function ClienteAsistencia({
         )}
       </div>
 
-      {/* Fecha de la clase: solo hoy o clases pasadas dentro de la ventana.
-          Selector propio (grande, alto contraste), pensado para baja visión;
-          por construcción no ofrece fechas futuras. */}
-      <label className="block mb-4 max-w-md">
+      {/* Fecha de la clase: solo días en que se dicta el curso (hoy o pasado,
+          dentro de la ventana). Selector grande, alto contraste, sin futuro. */}
+      <label className="block mb-3 max-w-md">
         <span className="block text-base text-[var(--texto-tenue)] mb-1.5">Fecha de la clase</span>
         <select
           value={fecha}
-          onChange={(e) => cambiarFecha(e.target.value)}
+          onChange={(e) => {
+            setFecha(e.target.value);
+            setAviso(null);
+          }}
+          disabled={fechas.length === 0}
           className="entrada text-lg py-3"
         >
-          {fechasValidas.map((f) => (
-            <option key={f.iso} value={f.iso}>
-              {f.label}
-            </option>
-          ))}
-          {!fechasValidas.some((f) => f.iso === fecha) && (
-            <option value={fecha}>{fechaLarga(parseISO(fecha))}</option>
-          )}
+          {fechas.map((f) => {
+            const e = estadosPorFecha[f.iso];
+            const pre = e === "completada" ? "✓ " : e === "suspendida" ? "⊘ " : "";
+            return (
+              <option key={f.iso} value={f.iso}>
+                {pre}
+                {f.label}
+              </option>
+            );
+          })}
+          {fechas.length === 0 && <option value={fecha}>Sin días de clase</option>}
         </select>
-        {fechasValidas.length > 1 && (
-          <span className="block text-sm text-[var(--texto-tenue)] mt-1.5">
-            Hoy o una clase pasada (dentro de la ventana permitida). No se puede a futuro.
-          </span>
-        )}
       </label>
 
-      {cursoId == null && (
-        <p className="text-[var(--texto-tenue)]">
-          {cursosDelDia.length === 0
-            ? "No hay clases programadas para este día."
-            : "Elegí un curso."}
-        </p>
-      )}
-
-      {/* Clase suspendida */}
-      {cursoId != null && suspendida && (
-        <div className="rounded-[var(--radio-tarjeta)] border border-[var(--peligro)] bg-[var(--peligro-fill)] p-5 mb-3">
-          <div className="text-lg font-semibold text-[var(--peligro-texto)]">Clase suspendida</div>
-          <p className="text-sm text-[var(--peligro-texto)] opacity-90 mt-1 leading-relaxed">
-            No computa asistencia. El fin de ciclo de los alumnos mensuales se corrió a la próxima
-            clase; los paquetes por clase se difieren solos.
-            {motivoSusp ? ` Motivo: ${motivoSusp}.` : ""}
-          </p>
-          <button
-            onClick={reabrir}
-            disabled={pendiente}
-            className="mt-3 px-4 py-2 text-sm rounded-[var(--radio-control)] border border-[var(--peligro)] text-[var(--peligro-texto)] disabled:opacity-40"
-          >
-            {pendiente ? "Procesando…" : "Reabrir clase (se dictó)"}
-          </button>
+      {/* Estado de la clase elegida */}
+      {cursoId != null && fechas.length > 0 && (
+        <div className="flex items-center gap-2 mb-4 px-1">
+          <span className={`px-3 py-1 text-sm rounded-[var(--radio-control)] ${chipEstado.c}`}>{chipEstado.t}</span>
+          {completada && !suspendida && (
+            <span className="text-sm text-[var(--texto-tenue)]">
+              {presentes} presentes · {ausentes} ausentes
+            </span>
+          )}
         </div>
       )}
 
-      {/* Toma de asistencia (clase dictada) */}
-      {cursoId != null && !suspendida && (
-        <>
-          <div className="flex items-center gap-3 mb-3 px-1">
-            <div className="text-[var(--texto-tenue)]">
-              <span className="titulo text-xl text-[var(--texto)]">{marcados}</span> de {total} marcados
-            </div>
+      {cursoId == null && (
+        <p className="text-[var(--texto-tenue)]">Elegí un curso.</p>
+      )}
+      {cursoId != null && fechas.length === 0 && (
+        <p className="text-[var(--texto-tenue)]">Este curso no tiene días de clase cargados.</p>
+      )}
+
+      {/* Clase suspendida */}
+      {cursoId != null && fechas.length > 0 && suspendida && (
+        <div className="rounded-[var(--radio-tarjeta)] border border-[var(--peligro)] bg-[var(--peligro-fill)] p-5 mb-3">
+          <div className="text-lg font-semibold text-[var(--peligro-texto)]">Clase suspendida</div>
+          <p className="text-sm text-[var(--peligro-texto)] opacity-90 mt-1 leading-relaxed">
+            No computa asistencia. El fin de ciclo de los alumnos mensuales se corrió a la próxima clase;
+            los paquetes por clase se difieren solos.
+            {motivoSusp ? ` Motivo: ${motivoSusp}.` : ""}
+          </p>
+          {puedeEditar && (
             <button
-              onClick={todosPresentes}
-              disabled={total === 0}
-              className="ml-auto px-4 py-2 text-sm rounded-[var(--radio-control)] border border-[var(--borde)] hover:border-[var(--primario)] disabled:opacity-40"
+              onClick={reabrir}
+              disabled={pendiente}
+              className="mt-3 px-4 py-2 text-sm rounded-[var(--radio-control)] border border-[var(--peligro)] text-[var(--peligro-texto)] disabled:opacity-40"
             >
-              Todos presentes
+              {pendiente ? "Procesando…" : "Reabrir clase (se dictó)"}
             </button>
-          </div>
+          )}
+        </div>
+      )}
+
+      {/* Cuerpo de asistencia */}
+      {cursoId != null && fechas.length > 0 && !suspendida && (
+        <>
+          {editable && (
+            <div className="flex items-center gap-3 mb-3 px-1">
+              <div className="text-[var(--texto-tenue)]">
+                <span className="titulo text-xl text-[var(--texto)]">{marcados}</span> de {total} marcados
+              </div>
+              <button
+                onClick={todosPresentes}
+                disabled={total === 0}
+                className="ml-auto px-4 py-2 text-sm rounded-[var(--radio-control)] border border-[var(--borde)] hover:border-[var(--primario)] disabled:opacity-40"
+              >
+                Todos presentes
+              </button>
+            </div>
+          )}
 
           {cargando ? (
             <p className="text-[var(--texto-tenue)]">Cargando lista…</p>
@@ -322,19 +330,36 @@ export default function ClienteAsistencia({
                   estado={marcas[f.alumnoId]}
                   faltasToleradas={faltasToleradas}
                   mostrarDeuda={mostrarDeuda}
+                  readOnly={!editable}
                   onToggle={() => toggle(f.alumnoId)}
                 />
               ))}
             </div>
           )}
-          {total > 0 && (
+
+          {/* Completada en solo-lectura: botón para corregir/completar */}
+          {completada && !editando && !cargando && (
+            <div className="mt-4">
+              {puedeEditar ? (
+                <button onClick={() => setEditando(true)} className="text-[var(--primario)] text-base">
+                  Corregir o completar esta asistencia
+                </button>
+              ) : (
+                <p className="text-sm text-[var(--texto-tenue)]">
+                  Asistencia ya registrada (solo lectura). Pedí a un usuario autorizado que la reabra para corregir.
+                </p>
+              )}
+            </div>
+          )}
+
+          {editable && total > 0 && (
             <p className="text-sm text-[var(--texto-tenue)] mt-3 px-1">
               Un toque marca presente. Otro toque lo pasa a ausente.
             </p>
           )}
 
-          {/* Marcar clase suspendida */}
-          {!cargando &&
+          {/* Marcar clase suspendida (en modo editable) */}
+          {editable && !cargando &&
             (!formSusp ? (
               <button
                 onClick={() => {
@@ -349,8 +374,8 @@ export default function ClienteAsistencia({
               <div className="mt-4 p-4 rounded-[var(--radio-panel)] border border-[var(--borde)] bg-[var(--fondo-elevado)] space-y-2">
                 <div className="text-base font-medium">Suspender esta clase</div>
                 <p className="text-sm text-[var(--texto-tenue)] leading-relaxed">
-                  No se computa asistencia y se corre el fin de ciclo de todos los alumnos mensuales del
-                  curso (no gasta su tolerancia). Los paquetes por clase se difieren solos.
+                  No se computa asistencia y se corre el fin de ciclo de todos los alumnos mensuales del curso
+                  (no gasta su tolerancia). Los paquetes por clase se difieren solos.
                 </p>
                 <input
                   value={motivoInput}
@@ -366,10 +391,7 @@ export default function ClienteAsistencia({
                   >
                     {pendiente ? "Suspendiendo…" : "Confirmar suspensión"}
                   </button>
-                  <button
-                    onClick={() => setFormSusp(false)}
-                    className="px-4 py-2 text-sm rounded-[var(--radio-control)] border border-[var(--borde)]"
-                  >
+                  <button onClick={() => setFormSusp(false)} className="px-4 py-2 text-sm rounded-[var(--radio-control)] border border-[var(--borde)]">
                     Cancelar
                   </button>
                 </div>
@@ -384,8 +406,8 @@ export default function ClienteAsistencia({
         </p>
       )}
 
-      {/* Pie fijo */}
-      {cursoId != null && !suspendida && total > 0 && (
+      {/* Pie fijo: guardar (solo en modo editable) */}
+      {cursoId != null && fechas.length > 0 && editable && total > 0 && (
         <div className="sticky bottom-0 -mx-6 sm:-mx-8 mt-6 px-6 sm:px-8 py-4 bg-[var(--fondo-panel)] border-t border-[var(--borde)]">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-2 text-sm">
             <span className="flex items-center gap-1.5">
@@ -403,7 +425,7 @@ export default function ClienteAsistencia({
             disabled={marcados === 0 || pendiente}
             className="w-full px-5 py-3 text-lg font-semibold rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)] hover:bg-[var(--primario-hover)] disabled:opacity-40"
           >
-            {pendiente ? "Guardando…" : "Guardar asistencia"}
+            {pendiente ? "Guardando…" : completada ? "Guardar cambios" : "Guardar asistencia"}
           </button>
         </div>
       )}
@@ -416,12 +438,14 @@ function FilaRow({
   estado,
   faltasToleradas,
   mostrarDeuda,
+  readOnly,
   onToggle,
 }: {
   fila: FilaAsistencia;
   estado: Estado | undefined;
   faltasToleradas: number;
   mostrarDeuda: boolean;
+  readOnly: boolean;
   onToggle: () => void;
 }) {
   const cls =
@@ -434,7 +458,6 @@ function FilaRow({
   const restantesTol = faltasToleradas - fila.faltasMes;
   const esParcial = fila.modalidad !== "mensual";
 
-  // Sub-línea según estado.
   let sub: string;
   if (estado === "presente") sub = "Presente";
   else if (estado === "ausente") sub = "Ausente";
@@ -444,20 +467,16 @@ function FilaRow({
     }`;
   else sub = fila.faltasMes === 0 ? "Sin faltas este mes" : `${fila.faltasMes} ${fila.faltasMes === 1 ? "falta" : "faltas"} este mes`;
 
-  // Pastilla de tolerancia (solo mensual, sin marcar).
   const pill =
-    !estado && !esParcial
-      ? restantesTol <= 0
-        ? "Sin tolerancia"
-        : restantesTol === 1
-        ? "Última tolerada"
-        : null
-      : null;
+    !estado && !esParcial ? (restantesTol <= 0 ? "Sin tolerancia" : restantesTol === 1 ? "Última tolerada" : null) : null;
 
   return (
     <button
       onClick={onToggle}
-      className={`w-full flex items-center gap-3 text-left rounded-[var(--radio-panel)] border px-4 py-3 min-h-[72px] ${cls}`}
+      disabled={readOnly}
+      className={`w-full flex items-center gap-3 text-left rounded-[var(--radio-panel)] border px-4 py-3 min-h-[72px] ${cls} ${
+        readOnly ? "cursor-default" : ""
+      }`}
     >
       <span
         className={`shrink-0 w-9 h-9 rounded-full grid place-items-center text-base font-bold ${

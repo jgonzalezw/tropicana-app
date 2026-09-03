@@ -50,6 +50,7 @@ export default async function PaginaAsistencia() {
       faltasToleradas={Math.max(1, Number(faltasParam) || 2)}
       mostrarDeuda={deudaParam !== "false"}
       minRetroIso={minRetroIso}
+      puedeEditar={puedeRetro}
     />
   );
 }
