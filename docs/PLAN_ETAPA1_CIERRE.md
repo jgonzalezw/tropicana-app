@@ -13,9 +13,26 @@
   histórica) y el **tope por fin de ciclo** (renovación).
 - Entrega lo prometido de Etapa 1: **comisiones + liquidación básica**.
 
-## 1. Hitos (recomiendo construir en este orden, uno a la vez)
+## 1. Hitos — ORDEN POR PRIORIDAD (2026-09-04): liquidar al profesor primero
 
-**Hito A — Renovación mensual + Estado de cuenta del alumno**
+> Prioridad de Javier: **poder liquidar al profesor ya**. La liquidación NO
+> depende de renovación ni de estado de cuenta: se calcula desde `pagos`
+> cobrados + `asignaciones` (% congelados). Costos fijos quedan al final.
+
+**Hito 1 (PRIORIDAD) — Comisiones devengadas + Liquidación básica + pago al profesor**
+- Migración con `comisiones_devengadas`, `liquidaciones`, `liquidacion_items`.
+- **Devengo sobre lo COBRADO**, a **mes vencido** (`rezago_liquidacion_meses`=1),
+  con **prorrateo** cuando un cobro cubre varios meses, y **tasa congelada** por
+  la asignación que cubrió el período (`pct_ingresos`/`pct_referido` de la fila
+  `desde/hasta`). Base: cuotas + parciales + clases de prueba.
+- Recalcular/generar el devengado de un período (un clic por profesor o global).
+- **Liquidación por profesor/período:** `neto = Σ devengado − Σ pagos al profesor`
+  (los pagos ya existen como `pagos.tipo='pago'`). Estados abierta/cerrada/pagada.
+- Pantalla de liquidación + **registrar pago al profesor** (reusa el paso `Cobro`
+  en dirección pago). Nav "Profesores → Liquidaciones", permiso `comisiones`.
+- Depende solo de tablas existentes (pagos, cuotas, asignaciones, profesores).
+
+**Hito 2 — Renovación mensual + Estado de cuenta del alumno**
 - **Renovación (D4, manual):** un clic genera la cuota del mes siguiente para una
   inscripción mensual, con **precio actual** (snapshot) y su vencimiento; nunca
   automática.
@@ -28,7 +45,7 @@
 - Sin tablas nuevas mayores (solo `inscripciones.fecha_baja`). Reusa `cuotas`,
   `pagos`.
 
-**Hito B — Costos fijos + devengado**
+**Hito 3 (ÚLTIMO) — Costos fijos + devengado**
 - `costos_fijos(id, nombre, monto, frecuencia, activo, …)` y
   `costo_fijo_devengos(id, costo_fijo_id, periodo, monto)`.
 - Alta/edición con `EntidadCostoFijo` (mismo patrón compartido).
@@ -36,20 +53,8 @@
   monto÷3; anual = monto÷12; único = en su mes. Generación por período (un clic /
   al cerrar el mes).
 
-**Hito C — Comisiones devengadas + Liquidación básica**
-- `comisiones_devengadas(id, profesor_id, asignacion_id, periodo, base, tipo
-  'comision'|'referido', monto, origen …)`.
-- `liquidaciones(id, profesor_id, periodo, estado 'abierta'|'cerrada'|'pagada',
-  total_devengado, total_pagado, neto)` + `liquidacion_items` (tipos completos
-  para ampliación futura; en Etapa 1 se usan comision/referido/pago).
-- **Devengo sobre lo COBRADO**, a **mes vencido** (`rezago_liquidacion_meses`=1),
-  con **prorrateo** cuando un cobro cubre varios meses. **Tasa congelada** por la
-  asignación que cubrió el período (lee `pct_ingresos`/`pct_referido` de la fila
-  `desde/hasta` vigente ese mes).
-- **Liquidación básica:** `neto = Σ devengado del período − Σ pagos al profesor`
-  (los pagos a profesor ya existen como `pagos.tipo='pago'`).
-- Pantalla: liquidación por profesor/período (devengado, pagos, neto) + registrar
-  pago al profesor (reusa el paso `Cobro` en dirección pago).
+*(El detalle de datos de comisiones/liquidación está en el Hito 1, arriba, y en
+`docs/PLAN_ETAPA1.md` §4.10.)*
 
 ## 2. Reglas de negocio (a confirmar)
 1. **Prorrateo de comisión:** un pago que cubre N meses devenga la comisión
