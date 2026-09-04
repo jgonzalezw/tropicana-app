@@ -68,24 +68,34 @@
 5. **Renovación:** genera la cuota del mes siguiente con el **precio vigente del
    curso** al momento de renovar (no reescribe cuotas anteriores). (Plan: sí.)
 
-## 3. Decisión ABIERTA (necesito tu definición — no la resuelvo solo)
-- **Comisión por "referido" (`pct_referido`): ¿a quién y sobre qué?** Hoy la
-  asignación guarda dos %: `pct_ingresos` (sobre ingresos del curso) y
-  `pct_referido`. Necesito precisar la semántica del referido para calcularla:
-  - (a) ¿El `pct_referido` lo gana el **profesor titular** por cada alumno que
-    fue **referido por otro alumno** (`alumnos.referido_por_alumno_id`), sobre lo
-    cobrado a ese alumno en el curso? o
-  - (b) ¿Es una comisión para el **alumno/persona que refirió** (crédito/
-    descuento), no para el profesor? o
-  - (c) otra definición.
-  De esto depende el modelo de `comisiones_devengadas` tipo `referido`. **Sin tu
-  definición, construyo A y B, y en C dejo el `pct_ingresos` funcionando y el
-  `referido` como gancho hasta que lo definas.**
+## 3. Comisión por "referido" — DEFINIDO (2026-09-04) — RF-02.2 / RF-07.2
+La comisión por referido la percibe **el profesor que REFIRIÓ al alumno** (no el
+titular del curso), según el **`pct_referido` fijado en su asignación**, sobre
+**los cobros de ese alumno en el curso del otro profesor**. Se construye así (no
+como gancho).
+
+**Brecha de modelo a resolver antes de construir el `referido` (a confirmar):**
+- Hoy `alumnos.referido_por_alumno_id` apunta a **otro alumno**, no a un
+  **profesor**. La definición habla del **profesor que refirió** → falta cómo se
+  registra eso. Opciones a decidir: (i) agregar `alumnos.referido_por_profesor_id`;
+  (ii) tabla de referidos; (iii) derivarlo de algo existente.
+- "según el % fijado en **su** asignación": un profesor puede tener varias
+  asignaciones (varios cursos), cada una con su `pct_referido`. Falta definir
+  **cuál `pct_referido`** aplica (¿un % de referido por profesor, no por curso?
+  ¿el de alguna asignación en particular?).
+- El **`pct_ingresos`** (comisión del titular sobre lo cobrado en su curso) no
+  tiene esta brecha: se construye directo en el Hito 1.
+
+**Aparte — "bono por referido" sobre el monto de inscripción: PENDIENTE de
+validar → queda como GANCHO** (no se calcula todavía).
 
 ## 4. Qué necesitaré de vos
 - Aplicar la migración del hito que toque (te paso link + inline, en ASCII).
-- Confirmar las 5 reglas del §2 y **definir el §3 (referido)**.
+- Confirmar las **5 reglas del §2** (aún pendientes de tu OK).
+- Resolver la **brecha de modelo del referido** (§3) para poder calcularlo.
 - Probar cada hito antes del siguiente.
+- **Estado:** Javier avisa luego con las respuestas pendientes y el OK para
+  arrancar el Hito 1. **NO construir hasta entonces.**
 
 ## 5. Fuera de alcance (fase 2, ya acordado)
 Liquidación ampliada (relevos, bonos, particulares, costos de sala), clases
