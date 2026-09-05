@@ -15,19 +15,38 @@ export default async function PaginaInscribir() {
     { data: alumnos },
     { data: cursos },
     { data: tarifaRows },
-    { data: descRows },
     { data: catCanal },
+    { data: planRows },
     factorParam,
     mediosParam,
+    diasCompromisoParam,
   ] = await Promise.all([
     supabase.from("alumnos").select("*").eq("activo", true).order("apellido").order("nombre"),
     supabase.from("cursos").select("*").eq("activo", true).order("nombre"),
     supabase.from("curso_tarifas").select("curso_id, modalidad, precio"),
-    supabase.from("descuentos_adelanto").select("meses, porcentaje").order("meses"),
     supabase.from("catalogos").select("id").eq("clave", "canal_captacion").maybeSingle(),
+    supabase
+      .from("planes")
+      .select("id, curso_id, cantidad_clases, precio")
+      .eq("tipo_servicio", "curso_regular")
+      .eq("modalidad", "mensual")
+      .eq("activo", true),
     obtenerParametro("medio_mes_factor"),
     obtenerParametro("medios_pago"),
+    obtenerParametro("dias_compromiso_pago"),
   ]);
+
+  // Plan Regular (mensual) por curso: N de clases y precio del ciclo.
+  const planPorCurso: Record<number, { id: number; clasesPlan: number | null; precio: number }> = {};
+  for (const p of (planRows as {
+    id: number;
+    curso_id: number | null;
+    cantidad_clases: number | null;
+    precio: number;
+  }[]) ?? []) {
+    if (p.curso_id != null && !(p.curso_id in planPorCurso))
+      planPorCurso[p.curso_id] = { id: p.id, clasesPlan: p.cantidad_clases, precio: Number(p.precio) };
+  }
 
   // Tarifas parciales por curso.
   const tarifas: Record<number, TarifasCurso> = {};
@@ -37,11 +56,6 @@ export default async function PaginaInscribir() {
     else if (r.modalidad === "semana") t.semana = r.precio;
     else if (r.modalidad === "medio_mes") t.medio_mes = r.precio;
   }
-
-  // Descuento por meses adelantados (tabla B).
-  const tablaDescuento: Record<number, number> = {};
-  for (const r of (descRows as { meses: number; porcentaje: number }[]) ?? [])
-    tablaDescuento[r.meses] = Number(r.porcentaje);
 
   // Canales de captación (para el alta rápida de alumno).
   let canales: { valor: string; etiqueta: string }[] = [];
@@ -116,7 +130,8 @@ export default async function PaginaInscribir() {
       alumnos={(alumnos as Alumno[]) ?? []}
       cursos={(cursos as Curso[]) ?? []}
       tarifas={tarifas}
-      tablaDescuento={tablaDescuento}
+      planPorCurso={planPorCurso}
+      diasCompromiso={Math.max(1, Number(diasCompromisoParam) || 30)}
       factorMedio={Math.max(1, Number(factorParam) || 2)}
       medios={medios}
       canales={canales}

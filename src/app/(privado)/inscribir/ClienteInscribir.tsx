@@ -10,7 +10,7 @@ import {
   DIAS_LARGOS,
   ETIQUETA_MODALIDAD,
   clasesModalidad,
-  descuentoAdelanto,
+  clasesPorConteo,
   diasMedioMes,
   fechaLarga,
   gs,
@@ -24,14 +24,22 @@ import { etiquetaDias } from "@/components/entidades/EntidadCurso";
 import { crearAlumnoDesdeInscripcion, inscribirYCobrar } from "./acciones";
 
 type Canal = { valor: string; etiqueta: string };
+type PlanRegular = { id: number; clasesPlan: number | null; precio: number };
 const VACIA: TarifasCurso = { clase: null, semana: null, medio_mes: null };
 const MODALIDADES: Modalidad[] = ["mensual", "clase", "semana", "medio_mes"];
+
+// La modalidad "mensual" ahora es la venta del Plan Regular (un ciclo de N clases).
+const ETIQUETA_VENTA: Record<Modalidad, string> = {
+  ...ETIQUETA_MODALIDAD,
+  mensual: "Plan Regular",
+};
 
 export default function ClienteInscribir({
   alumnos,
   cursos,
   tarifas,
-  tablaDescuento,
+  planPorCurso,
+  diasCompromiso,
   factorMedio,
   medios,
   canales,
@@ -42,7 +50,8 @@ export default function ClienteInscribir({
   alumnos: Alumno[];
   cursos: Curso[];
   tarifas: Record<number, TarifasCurso>;
-  tablaDescuento: Record<number, number>;
+  planPorCurso: Record<number, PlanRegular>;
+  diasCompromiso: number;
   factorMedio: number;
   medios: string[];
   canales: Canal[];
@@ -59,31 +68,31 @@ export default function ClienteInscribir({
   const [modalidad, setModalidad] = useState<Modalidad>("mensual");
   const [medioDia, setMedioDia] = useState<number[] | null>(null);
   const [fechaIdx, setFechaIdx] = useState(0);
-  const [mesesOpt, setMesesOpt] = useState<number | "libre">(1);
-  const [mesesTexto, setMesesTexto] = useState("");
   const [cobro, setCobro] = useState<PayloadCobro | null>(null);
+  const [fechaCompromiso, setFechaCompromiso] = useState<string>("");
   const [aviso, setAviso] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const hoy = useMemo(() => new Date(), []);
+  const maxCompromiso = useMemo(() => {
+    const d = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+    d.setDate(d.getDate() + Math.max(1, diasCompromiso));
+    return d;
+  }, [hoy, diasCompromiso]);
+
   const tarifaCurso = curso ? tarifas[curso.id] ?? VACIA : VACIA;
+  const esRegular = modalidad === "mensual";
+  const planCurso = curso ? planPorCurso[curso.id] : undefined;
+  const clasesPlan = planCurso?.clasesPlan ?? null;
+  const faltaPlan = esRegular && !!curso && !planCurso;
 
-  const meses =
-    modalidad !== "mensual"
-      ? 1
-      : mesesOpt === "libre"
-      ? Math.max(1, parseInt(mesesTexto.replace(/\D/g, ""), 10) || 1)
-      : mesesOpt;
-
+  // Precio: Plan Regular usa el precio del plan (un ciclo); parciales, su tarifa.
   const precioUnit = curso
-    ? precioModalidad(modalidad, curso.precio_mensual, tarifaCurso, 1)
+    ? esRegular
+      ? planCurso?.precio ?? curso.precio_mensual
+      : precioModalidad(modalidad, curso.precio_mensual, tarifaCurso, 1)
     : 0;
-  const subtotal = modalidad === "mensual" ? precioUnit * meses : precioUnit;
-  const { pct, monto: descAdelanto } =
-    modalidad === "mensual"
-      ? descuentoAdelanto(subtotal, meses, tablaDescuento)
-      : { pct: 0, monto: 0 };
-  const total = Math.max(0, subtotal - descAdelanto);
+  const total = precioUnit;
 
   const diasFecha = curso
     ? modalidad === "medio_mes"
@@ -93,21 +102,30 @@ export default function ClienteInscribir({
   const fechas = curso ? proximasClases(diasFecha, 3, hoy) : [];
   const fechaSel = fechas[Math.min(fechaIdx, Math.max(0, fechas.length - 1))] ?? null;
 
+  // Preview de la última clase del ciclo (fecha_fin) para el Plan Regular.
+  const fechaFinPrev =
+    esRegular && curso && fechaSel && clasesPlan && clasesPlan > 0
+      ? clasesPorConteo(curso.dias_semana, fechaSel, clasesPlan).at(-1) ?? null
+      : null;
+
   const clasesPeriodo =
-    curso && modalidad !== "mensual" && fechaSel
+    curso && !esRegular && fechaSel
       ? clasesModalidad(curso.dias_semana, fechaSel, modalidad, factorMedio, medioDia)
       : [];
 
   const cuentaId = curso
-    ? `${curso.id}·${modalidad}·${meses}·${fechaIdx}·${(medioDia ?? []).join("")}`
+    ? `${curso.id}·${modalidad}·${fechaIdx}·${(medioDia ?? []).join("")}`
     : "";
   const mueve = cobro ? Math.max(0, cobro.total - cobro.saldo) : 0;
+  const saldoActual = cobro ? cobro.saldo : total;
+  const pideCompromiso = total > 0 && saldoActual > 0;
+  const fechaCompromisoEfectiva = fechaCompromiso || isoFecha(maxCompromiso);
 
-  // Ya tiene una inscripción mensual activa en este curso (no se puede repetir).
+  // Ya tiene una membresía (Plan Regular) activa en este curso (no se repite).
   const yaMensual =
     !!alumno &&
     !!curso &&
-    modalidad === "mensual" &&
+    esRegular &&
     (mensualPorAlumno[alumno.id] ?? []).includes(curso.id);
 
   function resetTodo() {
@@ -117,9 +135,8 @@ export default function ClienteInscribir({
     setModalidad("mensual");
     setMedioDia(null);
     setFechaIdx(0);
-    setMesesOpt(1);
-    setMesesTexto("");
     setCobro(null);
+    setFechaCompromiso("");
     setError(null);
   }
 
@@ -128,9 +145,8 @@ export default function ClienteInscribir({
     setModalidad("mensual");
     setMedioDia(null);
     setFechaIdx(0);
-    setMesesOpt(1);
-    setMesesTexto("");
     setCobro(null);
+    setFechaCompromiso("");
     setError(null);
   }
 
@@ -138,8 +154,6 @@ export default function ClienteInscribir({
     setModalidad(m);
     setMedioDia(null);
     setFechaIdx(0);
-    setMesesOpt(1);
-    setMesesTexto("");
     setError(null);
   }
 
@@ -156,15 +170,17 @@ export default function ClienteInscribir({
     setError(null);
     if (!alumno) return setError("Falta elegir o cargar el alumno.");
     if (!curso) return setError("Falta elegir el curso.");
+    if (faltaPlan)
+      return setError("Este curso no tiene un Plan Regular configurado. Cargalo en Gestión → Planes.");
     if (yaMensual)
-      return setError("Este alumno ya tiene una inscripción mensual activa en este curso.");
+      return setError("Este alumno ya tiene una membresía (Plan Regular) activa en este curso.");
     if (!fechaSel) return setError("No hay una fecha de inicio válida para este curso.");
-    if (modalidad === "mensual" && mesesOpt === "libre" && meses < 2)
-      return setError("Escribí cuántos meses paga (2 o más).");
     if (cobro && cobro.modo !== "sin" && mueve > 0 && !cobro.medio)
       return setError("Elegí el medio de pago.");
     if (cobro && cobro.ajuste > 0 && !cobro.ajusteMotivo.trim())
       return setError("El descuento necesita un motivo.");
+    if (pideCompromiso && !fechaCompromisoEfectiva)
+      return setError("Cargá la fecha de compromiso de pago del saldo.");
 
     const c = cobro;
     startTransition(async () => {
@@ -172,8 +188,9 @@ export default function ClienteInscribir({
         alumnoId: alumno.id,
         cursoId: curso.id,
         modalidad,
+        planId: esRegular ? planCurso?.id ?? null : null,
         fechaInicio: isoFecha(fechaSel),
-        meses,
+        meses: 1,
         diasElegidos: modalidad === "medio_mes" ? medioDia : null,
         cobro: {
           modo: c?.modo ?? "sin",
@@ -184,6 +201,7 @@ export default function ClienteInscribir({
           ajusteMotivo: c?.ajusteMotivo ?? "",
           total: c?.total ?? total,
           saldo: c?.saldo ?? total,
+          fechaCompromiso: pideCompromiso ? fechaCompromisoEfectiva : null,
         },
       });
       if (res.error) setError(res.error);
@@ -196,7 +214,8 @@ export default function ClienteInscribir({
     });
   }
 
-  const puedeConfirmar = !!alumno && !!curso && !!fechaSel && !pendiente && !yaMensual;
+  const puedeConfirmar =
+    !!alumno && !!curso && !!fechaSel && !pendiente && !yaMensual && !faltaPlan;
 
   return (
     <div className="p-6 sm:p-8 max-w-3xl mx-auto pb-28">
@@ -330,19 +349,28 @@ export default function ClienteInscribir({
                         : "border-[var(--borde)] hover:border-[var(--primario)]"
                     }`}
                   >
-                    {ETIQUETA_MODALIDAD[m]}
+                    {ETIQUETA_VENTA[m]}
                   </button>
                 ))}
               </div>
               <div className="flex items-baseline gap-2 mt-2.5">
-                <span className="text-sm text-[var(--texto-tenue)]">{ETIQUETA_MODALIDAD[modalidad]}</span>
+                <span className="text-sm text-[var(--texto-tenue)]">
+                  {ETIQUETA_VENTA[modalidad]}
+                  {esRegular && clasesPlan ? ` · ${clasesPlan} clases` : ""}
+                </span>
                 <span className="ml-auto text-lg font-bold">{gs(precioUnit)}</span>
               </div>
+              {faltaPlan && (
+                <div className="mt-2.5 rounded-[var(--radio-panel)] border border-[var(--peligro)] bg-[var(--accent-100)] px-4 py-3 text-sm text-[var(--peligro-texto)]">
+                  Este curso no tiene un <span className="font-semibold">Plan Regular</span> configurado.
+                  Cargalo en Gestión → Planes antes de vender el mensual.
+                </div>
+              )}
               {yaMensual && (
                 <div className="mt-2.5 rounded-[var(--radio-panel)] border border-[var(--primario)] bg-[var(--accent-100)] px-4 py-3 text-sm text-[var(--peligro-texto)]">
-                  Este alumno ya tiene una inscripción mensual activa en{" "}
-                  <span className="font-semibold">{curso.nombre}</span>. Para cobrarle otra cuota usá
-                  el módulo de cobros (próximamente); acá no se duplica la inscripción.
+                  Este alumno ya tiene una membresía activa en{" "}
+                  <span className="font-semibold">{curso.nombre}</span>. La renovación se hará desde su
+                  membresía (próximamente); acá no se duplica.
                 </div>
               )}
             </div>
@@ -384,7 +412,7 @@ export default function ClienteInscribir({
             {/* Fecha de inicio */}
             <div>
               <div className="text-sm text-[var(--texto-tenue)] mb-1.5">
-                {modalidad === "mensual" ? "Empieza a tomar clases" : "Desde qué clase arranca"}
+                {esRegular ? "Empieza a tomar clases" : "Desde qué clase arranca"}
               </div>
               <div className="flex flex-wrap gap-2">
                 {fechas.map((f, i) => (
@@ -406,8 +434,12 @@ export default function ClienteInscribir({
                 )}
               </div>
               <div className="text-sm text-[var(--texto-tenue)] mt-2">
-                {modalidad === "mensual"
-                  ? "La primera cuota se devenga desde esta fecha. Próximo vencimiento: un mes después."
+                {esRegular
+                  ? clasesPlan
+                    ? `Membresía de ${clasesPlan} clases.${
+                        fechaFinPrev ? ` Termina aprox. el ${fechaLarga(fechaFinPrev)}.` : ""
+                      }`
+                    : "El plan no tiene N de clases cargado."
                   : "Se cobra una sola vez, por el período elegido. No genera cuota mensual."}
               </div>
               {clasesPeriodo.length > 0 && (
@@ -423,76 +455,20 @@ export default function ClienteInscribir({
       </Paso>
 
       {/* Paso 3 — Cobro */}
-      <Paso n={3} titulo="Cobro de la primera cuota">
+      <Paso n={3} titulo={esRegular ? "Cobro del ciclo" : "Cobro"}>
         {!curso ? (
           <p className="text-[var(--texto-tenue)]">Elegí el curso para ver la cuota.</p>
         ) : (
           <div className="rounded-[var(--radio-panel)] bg-[var(--fondo-elevado)] p-4 space-y-3">
-            {/* Meses adelantados (solo mensual) */}
-            {modalidad === "mensual" && (
-              <div>
-                <div className="text-sm text-[var(--texto-tenue)] mb-1.5">Meses a pagar</div>
-                <div className="flex flex-wrap gap-2">
-                  {[1, 2, 3, "libre"].map((v) => {
-                    const val = v as number | "libre";
-                    const on = mesesOpt === val;
-                    return (
-                      <button
-                        key={String(v)}
-                        onClick={() => {
-                          setMesesOpt(val);
-                          if (val !== "libre") setMesesTexto("");
-                          setError(null);
-                        }}
-                        className={`px-4 py-2 text-sm rounded-[var(--radio-control)] border ${
-                          on
-                            ? "bg-[var(--primario)] text-[var(--primario-texto)] border-[var(--primario)] font-semibold"
-                            : "border-[var(--borde)] hover:border-[var(--primario)]"
-                        }`}
-                      >
-                        {val === "libre" ? "Más" : val}
-                      </button>
-                    );
-                  })}
-                </div>
-                {mesesOpt === "libre" && (
-                  <input
-                    value={mesesTexto}
-                    onChange={(e) => {
-                      setMesesTexto(e.target.value);
-                      setError(null);
-                    }}
-                    inputMode="numeric"
-                    placeholder="6"
-                    className="entrada mt-2 max-w-[140px]"
-                  />
-                )}
-              </div>
-            )}
-
             {/* Desglose */}
             <div className="flex items-baseline gap-2">
               <span className="text-base text-[var(--texto-tenue)]">
-                {modalidad !== "mensual"
-                  ? `A cobrar · ${ETIQUETA_MODALIDAD[modalidad].toLowerCase()}`
-                  : meses > 1
-                  ? `${meses} meses × ${gs(curso.precio_mensual)}`
-                  : "Cuota del mes"}
+                {esRegular
+                  ? `Plan Regular${clasesPlan ? ` · ${clasesPlan} clases` : ""}`
+                  : `A cobrar · ${ETIQUETA_VENTA[modalidad].toLowerCase()}`}
               </span>
-              <span className="ml-auto titulo text-2xl">{gs(subtotal)}</span>
+              <span className="ml-auto titulo text-2xl">{gs(total)}</span>
             </div>
-            {descAdelanto > 0 && (
-              <div className="space-y-1">
-                <div className="flex items-baseline gap-2 text-[var(--exito-texto)]">
-                  <span className="text-sm">Descuento por pago adelantado ({pct}%)</span>
-                  <span className="ml-auto text-base font-bold">− {gs(descAdelanto)}</span>
-                </div>
-                <div className="flex items-baseline gap-2 pt-2 border-t border-[var(--borde)]">
-                  <span className="text-sm text-[var(--texto-tenue)]">Total a pagar</span>
-                  <span className="ml-auto titulo text-2xl">{gs(total)}</span>
-                </div>
-              </div>
-            )}
 
             <Cobro
               referencia={total}
@@ -506,6 +482,30 @@ export default function ClienteInscribir({
                 setError(null);
               }}
             />
+
+            {/* Fecha de compromiso de pago (cuando queda saldo) */}
+            {pideCompromiso && (
+              <div className="pt-2 border-t border-[var(--borde)]">
+                <label className="text-sm text-[var(--texto-tenue)] block mb-1.5">
+                  Fecha de compromiso de pago del saldo
+                </label>
+                <input
+                  type="date"
+                  value={fechaCompromisoEfectiva}
+                  min={isoFecha(hoy)}
+                  max={isoFecha(maxCompromiso)}
+                  onChange={(e) => {
+                    setFechaCompromiso(e.target.value);
+                    setError(null);
+                  }}
+                  className="entrada max-w-[200px]"
+                />
+                <p className="text-sm text-[var(--texto-tenue)] mt-1.5">
+                  Queda saldo pendiente. Debe pagarse a más tardar esta fecha (máx. {diasCompromiso} días
+                  desde hoy).
+                </p>
+              </div>
+            )}
           </div>
         )}
       </Paso>

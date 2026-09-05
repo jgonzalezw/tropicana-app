@@ -180,6 +180,12 @@ export type CobroInscripcion = {
   ajusteMotivo: string;
   total: number;
   saldo: number;
+  /**
+   * Fecha máxima de compromiso de pago del saldo (ISO local YYYY-MM-DD).
+   * Solo se usa cuando queda saldo (pago parcial o sin pago). null si se pagó
+   * todo. El servidor la valida contra el parámetro `dias_compromiso_pago`.
+   */
+  fechaCompromiso: string | null;
 };
 
 /** Entrada de la server action que inscribe y cobra en un solo paso. */
@@ -187,6 +193,11 @@ export type EntradaInscripcion = {
   alumnoId: number;
   cursoId: number;
   modalidad: "mensual" | "clase" | "semana" | "medio_mes";
+  /**
+   * Plan a vender cuando la modalidad es el Plan Regular (mensual). El servidor
+   * igual lo re-busca por curso; viaja para trazabilidad. null en parciales.
+   */
+  planId: number | null;
   /** Fecha de inicio, ISO local YYYY-MM-DD. */
   fechaInicio: string;
   /** Meses adelantados (solo mensual); 1 en el resto. */
