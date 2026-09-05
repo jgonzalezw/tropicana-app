@@ -102,7 +102,41 @@ criterio lo define el plan**. Cambios concretos para construir ya:
 5. **Mes vencido / prorrateo / tasa congelada:** se mantienen como reglas del
    criterio (1)/(2).
 
-## 4. Decisiones a validar antes de construir el Paso 1
+## 3bis. Dónde queda la toma de asistencia (aclaración 2026-09-05)
+"Tomar asistencia" = **registrar la sesión que descuenta contador y corre
+fechas** sobre el calendario de la membresía. Aplica a lo que ocupa sala **por
+calendario**: **cursos regulares y talleres**. En **particular/alquiler** la
+asistencia va **implícita en "confirmar sesión"** (Paso 2). La **clase de
+prueba** se marca dentro de la lista de asistencia de la sesión del curso. →
+La pantalla de asistencia actual **se conserva** para cursos regulares y se
+reutiliza para talleres; no se duplica para el resto.
+
+## 4. Decisiones — RESUELTAS (2026-09-05)
+- **D1 = (a):** introducir ya una tabla mínima `planes` con sus atributos clave
+  (incluido `criterio_liquidacion`) y **mapear las modalidades actuales a
+  planes**. `inscripciones` gana `plan_id` (= membresía de tipo curso regular).
+- **D2 (criterio 1, cursos regulares):** la comisión se paga **al cerrar el
+  período en que se completan el pago Y las clases** (membresía cobrada +
+  completada), no simplemente a mes vencido sobre lo cobrado.
+- **D3 (referido):** se deja como **item gancho** en el Paso 1 (no se calcula
+  todavía; persiste la brecha de modelo referido_por-alumno vs. profesor).
+- **D4 (periodicidad de liquidación):** **parámetro general** `periodicidad_liquidacion`
+  con valores **`semana` (semana vencida) · `mes` (mes vencido) · `membresia`
+  (al completarse)**. Define cada cuánto se corre/cierra la liquidación en la
+  academia; aplica a todos los criterios.
+- **D5 (refresh PII) = (a):** copiar los datos **tal cual** (incluye WhatsApp,
+  nombres, emails) a la base local. *Nota: la copia local contendrá datos
+  personales; mantenerla solo en la máquina local, no compartirla.* El esquema
+  `auth` de Supabase (credenciales/hashes) no se copia.
+
+### Punto abierto menor a confirmar (para no adivinar)
+- **Definición operativa de "completada" (criterio 1, mensual continuo):**
+  propongo que un período esté **completado** cuando **(i)** su fin de ciclo
+  (vencimiento del período) ya pasó —sus clases ya ocurrieron— **y (ii)** la
+  cuota de ese período está **pagada** (saldo 0). Recién ahí la comisión de ese
+  período queda disponible para liquidar. ¿Lo tomamos así?
+
+## 4bis. (Decisiones originales, para trazabilidad)
 - **D1 — ¿Dónde vive el `criterio_liquidacion` en el Paso 1?** Opciones:
   (a) introducir ya una tabla mínima `planes` con sus atributos clave (incluido
   el criterio) y **mapear las modalidades actuales a planes** (más fiel al motor,
@@ -154,9 +188,40 @@ Además: el esquema `auth` de Supabase (hashes/credenciales) **no se copia**.
 **Recomiendo (b).** Decime (a/b/c) y qué campos considerás sensibles, y lo
 implemento (con instrucciones en lenguaje claro).
 
-## 7. Próximos pasos
-1. Validás este reencuadre y el plan (o pedís ajustes).
-2. Respondés **D1–D4** (§4) y elegís **(a/b/c)** del refresh (§6).
-3. Con tu OK, construyo el **Paso 1 (liquidación)** bajo el modelo nuevo: primero
-   la migración en local (validada contra Postgres), la pantalla, y recién con tu
-   visto bueno la aplicás en producción.
+## 7. Paso 1 concreto — Liquidación (para construir tras el OK final)
+**Migración `0010_motor_planes_liquidacion` (local primero):**
+- `planes` (motor, atributos clave sección 2): `id, nombre, tipo_servicio
+  ('curso_regular'|'taller'|'particular'|'alquiler'|'prueba'), criterio_liquidacion
+  (1|2|3|4), activo, …` (los atributos de acceso/contador/vigencia se completan
+  en pasos siguientes; en el Paso 1 se usa lo mínimo para liquidar curso regular).
+- **Seed:** un plan por cada modalidad actual de curso regular, y
+  `inscripciones += plan_id` (backfill de las existentes al plan que corresponde).
+- `comisiones_devengadas (id, profesor_id, plan_id, membresia_id[=inscripcion_id],
+  periodo, criterio, base, tipo['comision'|'referido'], monto, origen, creado_en)`.
+- `liquidaciones (id, profesor_id, periodo, periodicidad, estado
+  'abierta'|'cerrada'|'pagada', total_devengado, total_pagado, neto)` +
+  `liquidacion_items`.
+- **Parámetros:** `periodicidad_liquidacion` (`semana`|`mes`|`membresia`, default
+  `mes`) y se conserva `rezago_liquidacion_meses`.
+- RLS igual al resto (lectura autenticados; escritura service_role tras permiso).
+
+**Cálculo (criterio-driven; Paso 1 implementa criterio 1 para curso regular):**
+- Criterio (1): base = lo cobrado del período de la membresía; % = `pct_ingresos`
+  congelado de la asignación vigente; **devenga cuando el período está cobrado
+  (saldo 0) y completado (fin de ciclo pasó)** — según definición a confirmar en §4.
+- `referido`: item gancho (no calcula aún).
+- La liquidación se corre/cierra según `periodicidad_liquidacion`.
+
+**Pantalla:** "Profesores → Liquidaciones": elegir profesor + período; ver
+devengado (items), pagos ya hechos y **neto**; registrar pago al profesor
+(reusa `Cobro` en dirección pago). Permiso `comisiones`.
+
+**Flujo de release del Paso 1:** construyo en la rama; **vos lo probás en local**
+(incluida la migración en tu Postgres local); con tu OK, aplicás `0010` en
+Supabase y pasa a producción.
+
+## 8. Próximos pasos
+1. Confirmás el **punto abierto menor** de §4 (definición de "completada").
+2. Con ese OK, construyo el **Paso 1** en la rama de trabajo y te aviso para que
+   lo pruebes en local (migración + pantalla). Nada a producción sin tu visto bueno.
+3. Cuando quieras el **refresh**, lo implemento con la opción **(a)** ya elegida.
