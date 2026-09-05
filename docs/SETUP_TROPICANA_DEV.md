@@ -67,6 +67,34 @@ node scripts/seed_modulo_usuarios.mjs
    mano **2-3 cursos y alumnos** de prueba (o, más adelante, armamos el script de
    *refresh* que copia datos de producción a dev — pendiente de tu pedido).
 
+## 8. Refresh de datos: producción → dev (opcional, para probar con datos reales)
+Copia los datos de dominio de producción a `tropicana-dev` (alumnos, cursos,
+planes, membresías, cuotas, pagos, asistencia, etc.). **Lee** de producción (solo
+SELECT) y **escribe** en dev (borra y reemplaza). Producción **no se toca**.
+Los usuarios/login y la config (perfiles, parámetros) **no** se copian: dev
+conserva su propio admin. Las referencias a usuarios se anulan.
+
+**Requisitos:** haber aplicado `0012` en dev (paso de 1B) y tener `pg` instalado
+(`npm install` en la carpeta del repo ya lo trae).
+
+1. En Supabase, de **cada** proyecto (producción y `tropicana-dev`): **Settings →
+   Database → Connection string → URI**. Usá la del **"Session pooler"** (puerto
+   5432). Traen la contraseña adentro: son secretas, no las pegues en ningún lado.
+2. En la carpeta del repo, corré (PowerShell):
+   ```powershell
+   $env:PROD_DB_URL="<URI de producción>"
+   $env:DEV_DB_URL="<URI de tropicana-dev>"
+   node scripts/refresh-dev.mjs --yes
+   ```
+   (En `cmd` usá `set PROD_DB_URL=...` en vez de `$env:`.)
+3. El script imprime cuántas filas copió por tabla. Al terminar, recargá la app
+   local: vas a ver los datos reales. Seguís logueándote con tu **usuario admin de
+   dev** (no cambió).
+
+> Es re-ejecutable: cada corrida deja dev igual a producción en ese momento.
+> Nunca escribe en producción. Si `PROD_DB_URL` y `DEV_DB_URL` fueran iguales, el
+> script aborta.
+
 ---
 Cuando `tropicana-dev` esté andando, avisá y arrancamos **1B** (venta del Plan
 Regular + asistencia) probándolo contra esta base, sin riesgo para producción.

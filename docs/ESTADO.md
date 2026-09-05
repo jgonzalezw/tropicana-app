@@ -125,9 +125,13 @@ la nube.
    cuando funcionaron, Javier las aplica en **Supabase** (paso manual suyo,
    separado). Nunca una migración en producción sin haberla probado en local.
    (Sigue vigente la regla de sincronización de migraciones de §6.)
-3. **Refresh de datos prod→local:** ad-hoc, cuando Javier lo pida (no automático).
-   Mecanismo propuesto en `docs/PLAN_CIERRE_ETAPA1_v2_MOTOR.md` §6 (pendiente de
-   decisión sobre PII antes de implementar).
+3. **Refresh de datos prod→dev:** ✅ **implementado** (2026-09-05) en
+   `scripts/refresh-dev.mjs` (Node + `pg`). Copia los datos de dominio de
+   producción a `tropicana-dev` (solo lectura sobre prod; borra/reescribe dev).
+   No copia usuarios/config (perfiles, parámetros) y **anula** las referencias a
+   usuarios (`usuario_id`, `registrado_por`); preserva ids y auto-referencias
+   (tutor/referido/renovación) y reajusta secuencias. Decisión PII = copiar tal
+   cual (D5=a). Validado en sandbox con dos bases. Pasos: `docs/SETUP_TROPICANA_DEV.md` §8.
 
 **Regla de trabajo (permanente):** ante cualquier pedido, primero **proponer el
 plan y esperar el OK** antes de construir; **un hito a la vez**, cerrado (probado
