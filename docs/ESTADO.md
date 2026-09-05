@@ -83,6 +83,15 @@ Pantallas/componentes: **Login, App Shell, Inscribir y cobrar, Tomar asistencia,
 2. Que la usuaria **use y pruebe** todo y anote lo que chirríe.
 3. *(Opcional, seguridad)* activar 2FA en tu cuenta de Vercel cuando puedas.
 
+**Decisión de modelo (2026-09-05) — modalidades = planes distintos (opción 2).**
+Cada modalidad comercial (`mensual`, `medio_mes`, `clase`, `semana`) será un
+**tipo de plan propio**, no un atributo dentro de un mismo plan. `0011` solo
+convirtió las inscripciones `mensual` (Plan Regular). Los tipos medio_mes/clase/
+semana se modelan en un paso posterior. **Pendiente puntual:** la inscripción
+**id=7** (`medio_mes`, curso de 2 clases/semana) quedó **sin plan**; se le asigna
+cuando se modele ese tipo de plan (o antes, con un "Plan Medio Mes" puntual, si el
+alumno está activo este ciclo).
+
 **Decisión tomada (2026-08-31) — App Shell + catálogo de permisos: DIFERIDO.**
 Driver actual = rapidez / mínimo costo para una primera versión operativa con
 usuarios de **confianza total** (gerente, etc.). Se construye Etapa 1 con el
