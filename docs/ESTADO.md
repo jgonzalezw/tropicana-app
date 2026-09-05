@@ -6,8 +6,17 @@
 > `docs/design/README.md` (fuente de verdad del **diseño**), `docs/CONTEXTO_AVANCE.md`
 > (bitácora larga de Etapa 0), `docs/DESIGN_SYNC.md` (cómo entran los handoffs).
 >
-> **Última actualización:** 2026-09-02 — Tomar asistencia (núcleo) construido + fixes de permisos/errores.
+> **Última actualización:** 2026-09-05 — Reencuadre a **Motor de Planes y Membresías** (paso 0) + metodología de release.
 > **Rama de trabajo:** `claude/tropicana-app-context-d5zjt8` (lista para PR/merge a `main`).
+>
+> **REENCUADRE VIGENTE (2026-09-05):** el sistema se replantea al **Motor de
+> Planes y Membresías** (doc "Diseño del Motor de Planes y Membresías" v1.3). El
+> plan de cierre de Etapa 1 bajo ese modelo está en
+> `docs/PLAN_CIERRE_ETAPA1_v2_MOTOR.md` (**supersede** a `docs/PLAN_ETAPA1_CIERRE.md`).
+> Secuencia: (1) liquidación con criterio configurable por plan · (2)
+> particulares/alquiler + confirmar sesión + renovación/estado de cuenta · (3)
+> App Shell + dashboard operativo · (4) costos fijos · (5) agenda de sala · (6)
+> alineación a estándares. **En espera del OK de Javier para construir el Paso 1.**
 
 ---
 
@@ -87,3 +96,26 @@ No es indispensable para empezar a registrar y operar.
 Plan corto y visto bueno antes de construir algo grande · un hito a la vez (probado + commiteado + este `ESTADO.md` actualizado) · cada respuesta cierra con próximos pasos y qué necesito de vos · anticipar conflictos con opciones + recomendación · validar con evidencia · lenguaje claro y pasos manuales numerados. Los prompts numerados del historial son **historial, no pendientes**: lo vigente es lo que Javier pida de acá en más.
 
 **Regla de sincronización de migraciones (permanente, pedida por Javier 2026-09-04):** cada vez que Javier confirme que aplicó una migración en Supabase, actualizar **en el acto** el estado de esa migración en este `ESTADO.md` marcándola **aplicada con la fecha**, y commitear. Nunca dejar el estado de migraciones desincronizado entre lo que Javier informa y lo que figura acá.
+
+## 7. Metodología de release y regla de trabajo (permanentes, pedidas por Javier 2026-09-05)
+
+**Ambientes:** solo dos — **desarrollo local** (donde Code construye y Javier
+prueba) y **producción** (Vercel + Supabase, lo usa Natalia). No hay staging en
+la nube.
+
+**Flujo de release (obligatorio):**
+1. Todo cambio se prueba primero en **local**; pasa a producción **solo con OK
+   explícito de Javier**. Nada va directo a producción sin su visto bueno.
+2. **Migraciones:** se aplican y prueban primero en la **base local**; solo
+   cuando funcionaron, Javier las aplica en **Supabase** (paso manual suyo,
+   separado). Nunca una migración en producción sin haberla probado en local.
+   (Sigue vigente la regla de sincronización de migraciones de §6.)
+3. **Refresh de datos prod→local:** ad-hoc, cuando Javier lo pida (no automático).
+   Mecanismo propuesto en `docs/PLAN_CIERRE_ETAPA1_v2_MOTOR.md` §6 (pendiente de
+   decisión sobre PII antes de implementar).
+
+**Regla de trabajo (permanente):** ante cualquier pedido, primero **proponer el
+plan y esperar el OK** antes de construir; **un hito a la vez**, cerrado (probado
+en local + versionado + `ESTADO.md` actualizado) antes del siguiente; cada
+respuesta cierra con **próximos pasos y qué se necesita de Javier**; y si un
+pedido **choca con el repo o una decisión previa, avisar antes de ejecutar**.

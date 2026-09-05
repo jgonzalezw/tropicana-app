@@ -1,0 +1,162 @@
+# Tropicana — Cierre de Etapa 1 v2, bajo el Motor de Planes y Membresías
+
+> Creado 2026-09-05 (paso 0, reencuadre). Fuente: "Diseño del Motor de Planes y
+> Membresías" v1.3 (complementa Requerimientos v5.3). **Supersede** a
+> `docs/PLAN_ETAPA1_CIERRE.md` (v1, modelo viejo de inscripción-a-curso).
+> **Estado: plan para validar. NO construir hasta OK explícito de Javier.**
+
+## 0. Confirmación de entendimiento (paso 0)
+Entendí el modelo:
+- **Plan** = unidad de configuración (acceso, contador, vigencia, renovación,
+  tolerancia, **criterio de liquidación**, cupo, uso de sala, tarifa, duración).
+- **Membresía** = lo vendido (instancia de un plan) con inicio, vigencia y
+  **contadores** que se consumen; **única entidad que genera movimientos**.
+- **Calendario de la membresía** = las clases que el alumno arma eligiendo días
+  de las grillas de los cursos/estilos a los que el plan da acceso; base de
+  tolerancia, consumo y corrimientos.
+- **Sesión** = un uso concreto (fecha/hora/duración) que ocupa sala y descuenta
+  contador. En curso/taller la franja se deriva del calendario; en
+  **particular/alquiler** la franja se define **al confirmar la sesión**.
+- Los **5 tipos** (curso regular, taller, particular, alquiler, prueba) son la
+  **misma estructura** con distintos valores (sección 2.2), sin código nuevo por
+  tipo.
+- **3.6 — Ocupación de sala:** por **calendario** (curso/taller, horario conocido
+  al vender) vs. por **sesión con horario** (particular/alquiler, horario al
+  confirmar). **CONFIRMAR** sesión realizada (registrar + liquidar) es Etapa 1;
+  **RESERVAR** con disponibilidad/choques es Etapa 2. Con una sala y control
+  manual, se opera sin reserva preventiva.
+- **6 — Notificaciones:** esquema desacoplado de 3 piezas (eventos / reglas
+  configurables / plantillas), con escalonamiento: ahora **documentos + envío
+  manual asistido**; automático por WhatsApp API, después.
+- **Liquidación configurable por plan** (3.5): 4 criterios — (1) % sobre
+  membresía cobrada y completada, (2) proporcional a clases entregadas, (3)
+  tarifa por clase realizada, (4) pago inmediato por sesión neto de sala
+  (externo).
+
+## 1. Mapa de impacto — contrastado con el repo (evidencia)
+Tablas existentes hoy (migraciones 0001–0009): `perfiles, roles, rol_permisos,
+parametros, catalogos, catalogo_valores, temas` (Etapa 0) · `profesores,
+alumnos, cursos, curso_tarifas, asignaciones, descuentos_adelanto` (0005) ·
+`inscripciones, cuotas, pagos` (0006) · `sesiones, asistencias` (0007) ·
+`corrimientos_ciclo` (0009). Pantallas: `alumnos, cursos, profesores, inscribir,
+asistencia, administracion`. Componentes: `EntidadAlumno/Curso/Profesor`,
+`Cobro`.
+
+| Pieza en el repo | Clasificación | Detalle bajo el motor |
+| --- | --- | --- |
+| `inscripciones` (modalidad, `precio_aplicado`, `dias_elegidos`) | **Se generaliza** | Es la **membresía de tipo curso regular** (versión mínima: 1 curso, calendario = clases del curso). Las modalidades (mensual/clase/semana/medio_mes) pasan a ser **planes**. No hace falta renombrar la tabla ahora; se generaliza por capas. |
+| `cuotas` + `pagos` (paso `Cobro`) | **Se conserva** | Ya es la capa financiera única. No se rehace. |
+| `asistencias` + `corrimientos_ciclo` | **Se conserva** | Ya es "registrar sesión que descuenta contador y corre fechas". Pasará a operar sobre el **calendario de la membresía** (hoy opera sobre el curso, que es el caso mínimo). |
+| Suspensión de clase (`suspenderClase`/`aplicarCorrimiento`) | **Se conserva** | Disparador masivo del corrimiento; se reutiliza. |
+| `asignaciones` (`pct_ingresos`/`pct_referido` congelados, `desde/hasta`) | **Se conserva/extiende** | Sirve para el **criterio (1)**. Falta agregar el **criterio de liquidación por plan** y soporte de criterios 2/3/4. |
+| `cursos` (`dias_semana`, `hora`) | **Se amplía** | Ya tiene `hora` (inicio). Falta **`duracion_min`** (prerrequisito de la agenda, paso 5). |
+| `profesores`, `alumnos` (+ componentes) | **Se conserva** | Sin cambios de fondo (sí alineación a estándares, paso 6). |
+| `sesiones` (curso+fecha, estado dictada/suspendida) | **Se conserva/extiende** | Hoy es la sesión de curso por calendario. Para particular/alquiler se agrega **sesión con horario** (hora inicio + duración, saldo). |
+| **Sala** | **Nuevo** | Entidad de primera clase (previendo varias salas/sedes) + agenda. |
+| **Plan** | **Nuevo** | Entidad de configuración (atributos sección 2). |
+| **Calendario de membresía** | **Nuevo** | Clases elegidas por el alumno (multi-curso). El caso 1-curso ya está implícito en `inscripciones.dias_elegidos`. |
+| **Cupo por clase** | **Nuevo (atributo)** | Se modela desde ya; la reserva contra disponibilidad es Etapa 2. |
+| **Notificaciones/documentos** | **Nuevo** | Capa desacoplada (sección 6). |
+
+**Conclusión:** el reencuadre es sobre todo **conceptual**; la capa financiera,
+asistencia y suspensión se conservan; lo nuevo real es plan, calendario de
+membresía, sesión con horario, sala/agenda, cupo y notificaciones.
+
+## 2. Secuencia priorizada del cierre (sección 9 del documento)
+- **Paso 0 — Reencuadre (este documento).** No se construye.
+- **Paso 1 — Liquidación a profesores** bajo el modelo nuevo, con **criterio de
+  liquidación configurable** (ver §3). *Urgencia real.*
+- **Paso 2 — Venta de particulares/alquiler + confirmar sesión con horario (sin
+  reserva) + renovación + estado de cuenta del alumno.**
+- **Paso 3 — App Shell (armazón + visual ya diseñado) + Dashboard operativo como
+  inicio. Sin permisos granulares.**
+- **Paso 4 — Costos fijos** (cierra lo financiero).
+- **Paso 5 — Agenda de sala** (+ `duracion_min` en cursos).
+- **Paso 6 — Pasada de alineación a estándares** (sección 5) del resto.
+- *Etapa 2 (después):* reserva/disponibilidad de sala, permisos granulares,
+  notificación automática, clases ilimitadas, inventario.
+
+Se construye **un paso a la vez**, cada uno cerrado (probado en local +
+versionado + `ESTADO.md`) antes del siguiente.
+
+## 3. Qué cambia en el bloque de liquidación (Paso 1) por el modelo nuevo
+El Hito 1 v1 calculaba la comisión con **un solo criterio** (% sobre lo cobrado,
+leído de `asignaciones`). Bajo el motor, la liquidación es **por criterio, y el
+criterio lo define el plan**. Cambios concretos para construir ya:
+
+1. **El cálculo se vuelve "criterio-driven":** el liquidador resuelve el monto
+   según el `criterio_liquidacion` que aplica a cada membresía/plan, no un único
+   camino. Criterios de Etapa 1: (1) % sobre membresía cobrada y completada; (2)
+   proporcional a clases entregadas; (3) tarifa por clase realizada; (4) pago
+   inmediato por sesión neto de sala (externo). Comisión por **referido**
+   (RF-02.2/RF-07.2, ya definida) y **costo de sala** entran como items.
+2. **De dónde sale el criterio hoy:** como el motor de planes completo aún no
+   existe, hay que decidir **dónde vive el criterio en el Paso 1** (ver decisión
+   D1). Lo ya vendido (`inscripciones` de curso regular) corresponde al **criterio
+   (1)**; el externo/particular necesita (3)/(4) cuando exista su venta (Paso 2).
+3. **Tablas de liquidación diseñadas membership-aware:** `comisiones_devengadas`,
+   `liquidaciones`, `liquidacion_items` referencian la **membresía** (hoy =
+   `inscripciones`) y el **criterio** aplicado, para no rehacerlas cuando llegue
+   la venta de particular/alquiler (Paso 2).
+4. **Base "lo cobrado"** sigue leyéndose de `pagos`/`cuotas` (se conserva).
+5. **Mes vencido / prorrateo / tasa congelada:** se mantienen como reglas del
+   criterio (1)/(2).
+
+## 4. Decisiones a validar antes de construir el Paso 1
+- **D1 — ¿Dónde vive el `criterio_liquidacion` en el Paso 1?** Opciones:
+  (a) introducir ya una tabla mínima `planes` con sus atributos clave (incluido
+  el criterio) y **mapear las modalidades actuales a planes** (más fiel al motor,
+  algo más de trabajo ahora); o (b) poner el criterio como atributo en un lugar
+  intermedio (p. ej. por `asignacion`/`curso`) y migrar a `planes` en el Paso 2.
+  **Recomiendo (a)**: alinea desde el inicio y evita retrabajo, sin construir aún
+  la venta multi-curso.
+- **D2 — Reglas del criterio (1)/(2):** prorrateo mes a mes, base = cuotas +
+  parciales + prueba, mes vencido (`rezago_liquidacion_meses`=1). ¿Confirmás?
+- **D3 — Referido:** ya definido (lo cobra el profesor que refirió). Persiste la
+  **brecha de modelo** (`referido_por` apunta a alumno, no a profesor; y cuál
+  `pct_referido` aplica). Hay que resolverla para calcular el referido, o dejar
+  ese **item** como gancho en el Paso 1 y activarlo cuando se resuelva.
+- **D4 — "Membresía cobrada y completada" (criterio 1):** ¿la comisión se
+  devenga al **completar** la membresía, o a mes vencido sobre lo cobrado del
+  período (como venía)? El texto del criterio (1) dice "cobrada y completada".
+  Necesito tu precisión (impacta cuándo se paga).
+
+## 5. Metodología de release (adoptada — ver `ESTADO.md` §7)
+Dos ambientes: **local** (build + pruebas de Javier) y **producción** (Vercel +
+Supabase, lo usa Natalia). Todo se prueba en local; pasa a producción solo con
+OK explícito. Migraciones: primero en local, y solo tras el OK, Javier las aplica
+en Supabase (paso manual suyo). Refresh de datos prod→local: ad-hoc, cuando
+Javier lo pida.
+
+## 6. Mecanismo de refresh prod→local (PROPUESTA — no implementado aún)
+Objetivo: traer una copia de datos de producción (Supabase) al Postgres local,
+**sin afectar producción** (solo lectura sobre prod). Corre en la máquina de
+Javier (yo no tengo acceso ni a su Supabase ni a su disco).
+
+**Propuesta técnica:** un script `scripts/refresh-local.sh` que:
+1. Lee la cadena de conexión de producción desde una variable de entorno local
+   (`SUPABASE_DB_URL`), **nunca** escrita en el repo ni pegada en el chat.
+2. `pg_dump` **solo del esquema `public`**, en dos partes: estructura (para
+   validar contra migraciones) y datos, excluyendo tablas/entornos que no
+   correspondan.
+3. Restaura en la base local (la que ya uso para validar migraciones).
+4. Es **solo lectura** sobre producción (pg_dump no modifica origen).
+
+**Decisión que necesito antes de implementarlo (datos sensibles / PII):** las
+tablas traen datos personales — `alumnos`/`profesores` (WhatsApp, nombres),
+`perfiles` (email). ¿Cómo copiamos?
+- (a) **Tal cual** (incluye PII): más fiel para depurar, pero PII en local.
+- (b) **Anonimizado** (enmascarar WhatsApp/email/nombres al restaurar): más
+  seguro; recomendado.
+- (c) **Solo tablas operativas no sensibles** (cursos, planes, pagos con sujeto
+  anonimizado): mínimo PII.
+Además: el esquema `auth` de Supabase (hashes/credenciales) **no se copia**.
+**Recomiendo (b).** Decime (a/b/c) y qué campos considerás sensibles, y lo
+implemento (con instrucciones en lenguaje claro).
+
+## 7. Próximos pasos
+1. Validás este reencuadre y el plan (o pedís ajustes).
+2. Respondés **D1–D4** (§4) y elegís **(a/b/c)** del refresh (§6).
+3. Con tu OK, construyo el **Paso 1 (liquidación)** bajo el modelo nuevo: primero
+   la migración en local (validada contra Postgres), la pantalla, y recién con tu
+   visto bueno la aplicás en producción.
