@@ -129,12 +129,52 @@ reutiliza para talleres; no se duplica para el resto.
   personales; mantenerla solo en la máquina local, no compartirla.* El esquema
   `auth` de Supabase (credenciales/hashes) no se copia.
 
-### Punto abierto menor a confirmar (para no adivinar)
-- **Definición operativa de "completada" (criterio 1, mensual continuo):**
-  propongo que un período esté **completado** cuando **(i)** su fin de ciclo
-  (vencimiento del período) ya pasó —sus clases ya ocurrieron— **y (ii)** la
-  cuota de ese período está **pagada** (saldo 0). Recién ahí la comisión de ese
-  período queda disponible para liquidar. ¿Lo tomamos así?
+### "Completada" — DEFINIDO (2026-09-05, refina D2)
+- **Terminología: "Plan Regular"** (no "Plan Mensual").
+- El contador cuenta **clases del plan sobre el calendario del curso, en los días
+  elegidos por el alumno al inscribirse**. Ej.: plan de **8 clases, 2/semana**.
+- Una membresía está **completada cuando se realiza su última clase** dentro del
+  calendario, **incluyendo el traslado de clases suspendidas por la academia**
+  (una suspensión corre la clase; la membresía completa cuando se dictó la N-ésima
+  clase efectiva). Es **por conteo de clases realizadas = N del plan**, no por
+  fecha de fin de ciclo.
+- **Bono de tolerancia:** si hubo falta con licencia, se **anota** para usarse
+  como **primera clase de la siguiente membresía** si se **renueva con
+  continuidad**. Entonces la nueva membresía tendría **1 (bono) + N (plan)**
+  clases (ej.: 1 + 8 = 9).
+- **Criterio (1) de liquidación:** la comisión se devenga/paga cuando la
+  membresía está **cobrada (saldo 0) Y completada (N clases realizadas, con
+  corrimientos)**.
+
+### IMPLICACIÓN / CONFLICTO CON EL REPO (a resolver antes de construir el Paso 1)
+Hoy el "curso regular" está modelado como **mensual continuo con cuotas por mes**
+(`inscripciones.modalidad='mensual'` → `cuotas` una por mes). La definición nueva
+lo modela como **plan de N clases con calendario personal y contador de clases
+realizadas**. Son dos cosas distintas:
+- El **período** deja de ser "un mes" y pasa a ser "N clases" (un ciclo del plan).
+- **"Completada"** exige contar clases realizadas con corrimientos → requiere el
+  **calendario de la membresía + contador** (esto es el "Motor base" de la sección
+  8, que el doc ubica en Etapa 1) — **más grande que una liquidación de solo
+  lectura** sobre `pagos`.
+- Afecta datos ya cargados en producción (las inscripciones mensuales de prueba
+  de Natalia): habría que **recrearlas como planes de N clases** o migrarlas.
+
+Por eso el **Paso 1 real** ya no es "leer pagos + %"; para liquidar el criterio (1)
+tal como quedó definido, el Paso 1 debe incluir el **motor base del Plan Regular**
+(plan con N clases, calendario del alumno, contador de clases realizadas con
+corrimientos, detección de "completada", y el bono que salta a la renovación).
+
+### Preguntas de alcance para dimensionar el Paso 1 (necesito tu decisión)
+- **P1 — Cobro del Plan Regular:** ¿el plan de N clases se **cobra por ciclo**
+  (un cobro por las N clases, como paquete renovable) o se sigue **cobrando por
+  mes**? Esto define si `cuotas` pasa a ser "una por ciclo" o sigue mensual.
+- **P2 — Datos de producción actuales:** las inscripciones mensuales que ya
+  existen, ¿son **de prueba y se pueden recrear** como planes de N clases (camino
+  limpio), o hay que **migrar** datos reales que Natalia ya usa?
+- **P3 — Alcance del Paso 1:** ¿construimos el **motor base del Plan Regular +
+  liquidación criterio (1)** juntos (fiel, más grande) — **recomendado** —, o
+  querés una **liquidación puente** más simple para pagar ya, y el motor base
+  después (riesgo: liquidar con un criterio distinto al definido)?
 
 ## 4bis. (Decisiones originales, para trazabilidad)
 - **D1 — ¿Dónde vive el `criterio_liquidacion` en el Paso 1?** Opciones:
