@@ -92,6 +92,55 @@ decide en la validación local.)*
   cálculo activo del Paso 1 es el **(1)**; los demás se activan cuando haya planes
   que los usen (particular/alquiler, Paso 2).
 
+## 4bis. Matices confirmados por Javier (2026-09-05) — incorporados al diseño
+1. **Tolerancia por plan:** el `plan` consigna la **cantidad de faltas con
+   licencia toleradas** (`tolerancia_faltas`), con **default = parámetro del
+   sistema** `faltas_toleradas` (hoy 1), pero **configurable por plan**. El
+   **bono de tolerancia** = la **suma de faltas con licencia** del ciclo (hasta
+   el tope de `tolerancia_faltas`); ese número se suma a las clases de la
+   **renovación con continuidad** (`clases_plan = N + bono`).
+2. **Fechas de la membresía:**
+   - `fecha_inicio` = **inicio de clases**: como hoy en nueva inscripción, o la
+     fecha de la **primera clase del ciclo** que se renueva.
+   - `fecha_fin` = fecha de la **última clase prevista** según el calendario para
+     la cantidad total de clases del plan. **Las suspensiones de la academia
+     actualizan `fecha_fin`** (la corren). `fecha_fin` es la base para detectar
+     **membresías por vencer** (acciones de renovación).
+   - `creado_en` (ya existe) = **fecha del proceso** (creación/renovación),
+     distinta del inicio de clases.
+3. **Pago diferido:** todo **saldo de cuota** no pagado en la fecha de venta debe
+   tener una **fecha máxima de compromiso de pago** (`cuotas.fecha_compromiso`)
+   para poder **notificar vencimientos**.
+4. **Calendario del alumno:** por **cada curso del plan**, el alumno elige qué
+   **días de la semana** toma; la **suma = cantidad de clases del plan**. En Paso
+   1 (1 curso) es igual al selector de días actual.
+
+## 4ter. Sala/cupo — CONFIRMADO (entendido y planificado así)
+**No es la membresía la que bloquea la sala**, sino la **existencia y vigencia
+del curso y su oferta en planes**. El **curso** (con su calendario: días, hora,
+duración) mientras esté **vigente y ofertado en planes** es lo que **asigna
+profesor y sala** en el calendario; las **membresías van colmando el cupo** de
+cada clase (`cupo` es atributo, se modela desde ya). Objetivo: que otros tipos
+(particular/alquiler) **no bloqueen la sala** en las franjas donde se vende el
+plan. La **reserva/choques** es Etapa 2, pero el **principio** (la franja del
+curso ofertado está protegida) se respeta desde el diseño de la agenda. → No
+requiere corrección; queda explícito.
+
+## 4quater. Interacción con lo construido (0009) — a confirmar antes de migrar
+Hoy el mecanismo de suspensión/falta (0009) corre el **`cuotas.vencimiento`**
+como "fin de ciclo". Con el modelo nuevo, el **fin de ciclo pasa a ser
+`membresia.fecha_fin`** (última clase por calendario) y **`cuotas.vencimiento`
+se reserva para la fecha de compromiso de pago** (matiz 3, lo renombro a
+`fecha_compromiso` conceptualmente). Entonces, en el Paso 1:
+- La **suspensión de la academia** correrá **`membresia.fecha_fin`** (y el
+  contador de clases), **no** el vencimiento de la cuota.
+- La **falta con licencia** anota **bono** (no corre fecha_fin del ciclo actual;
+  el efecto salta a la renovación).
+- El `corrimientos_ciclo` (traza) se conserva, pero apuntando al nuevo efecto.
+**Propuesta:** re-apuntar el corrimiento a `membresia.fecha_fin` + contador, y
+dejar `cuotas` con `fecha_compromiso` para saldos. ¿OK con este reencuadre del
+mecanismo 0009?
+
 ## 5. Qué necesito de vos
 1. **OK a este diseño** (o ajustes).
 2. Con el OK, construyo **1A** (esquema + migración) y lo valido contra Postgres;
