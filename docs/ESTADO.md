@@ -119,3 +119,20 @@ plan y esperar el OK** antes de construir; **un hito a la vez**, cerrado (probad
 en local + versionado + `ESTADO.md` actualizado) antes del siguiente; cada
 respuesta cierra con **próximos pasos y qué se necesita de Javier**; y si un
 pedido **choca con el repo o una decisión previa, avisar antes de ejecutar**.
+
+**Regla de Design (permanente, pedida por Javier 2026-09-05):** avisar **antes de
+construir** cuando una pantalla/flujo **nuevo** (sin mockup aprobado) o un
+rediseño visual/navegación requiera pasar por **Claude Design** para mantener
+estándares y buen diseño. No requieren Design: backend/migraciones y pantallas
+con mockup ya aprobado (se implementan fieles). Requieren aviso a Design (Javier
+decide mandarla a Design primero o que Code haga una v1 y Design refine):
+Liquidaciones, Estado de cuenta, Agenda de sala, App Shell visual, y toda
+pantalla nueva del motor sin mockup.
+
+**Reencuadre del mecanismo 0009 (confirmado 2026-09-05):** con el modelo de
+membresías, el "fin de ciclo" pasa a `membresia.fecha_fin` (última clase por
+calendario); la **suspensión de la academia corre `fecha_fin` + el contador de
+clases** (no `cuotas.vencimiento`); la **falta con licencia** anota **bono** (no
+corre el ciclo actual; salta a la renovación); `cuotas.vencimiento`/`fecha_compromiso`
+pasa a ser la fecha de compromiso de pago del saldo. La traza `corrimientos_ciclo`
+se conserva re-apuntada al nuevo efecto (se ajusta en el sub-hito 1B).
