@@ -8,21 +8,22 @@
  * Se corre en la maquina de Javier (tiene acceso a ambos Supabase). Code corre
  * en la nube y NO tiene acceso a ninguno.
  *
- * Uso (PowerShell / cmd):
- *   set PROD_DB_URL=postgresql://postgres.<ref>:<pass>@aws-0-<region>.pooler.supabase.com:5432/postgres
- *   set DEV_DB_URL=postgresql://postgres.<ref>:<pass>@aws-0-<region>.pooler.supabase.com:5432/postgres
+ * Uso (PowerShell):
+ *   $env:PROD_DB_URL="postgresql://postgres.<ref>:<pass>@aws-0-<region>.pooler.supabase.com:5432/postgres"
+ *   $env:DEV_DB_URL="postgresql://postgres.<ref>:<pass>@aws-0-<region>.pooler.supabase.com:5432/postgres"
  *   node scripts/refresh-dev.mjs --yes
  *
- * Las URLs salen de Supabase -> Settings -> Database -> Connection string (URI),
- * preferentemente la del "Session pooler" (puerto 5432). NUNCA se guardan en el
- * repo ni se pegan en el chat.
+ * Las URLs salen de Supabase -> boton "Connect" -> Connection string -> Session
+ * pooler (puerto 5432), reemplazando [YOUR-PASSWORD]. NUNCA se guardan en el repo
+ * ni se pegan en el chat.
  *
  * Notas:
  *  - Solo copia tablas de DOMINIO. La config (roles, perfiles, parametros,
  *    catalogos, temas) NO se toca: dev conserva su propio admin y ajustes.
- *  - Las referencias a usuarios (perfiles) se ANULAN al copiar (usuario_id,
- *    registrado_por) porque los perfiles/auth de prod no existen en dev. Son
- *    columnas "on delete set null", asi que no se pierde dato de dominio.
+ *  - Las columnas que referencian a usuarios (perfiles / auth.users) se ANULAN
+ *    automaticamente al copiar (son "on delete set null": no se pierde dato de
+ *    dominio). Las auto-referencias (tutor, referido, renovacion) se completan
+ *    en una segunda pasada. Ambas cosas se detectan solas por las FK del esquema.
  *  - Preserva los ids (OVERRIDING SYSTEM VALUE) y reajusta las secuencias.
  */
 
@@ -31,26 +32,27 @@ import pg from "pg";
 const { Client } = pg;
 
 // Orden padre -> hijo (respeta las llaves foraneas al insertar).
-// nullCols: se ponen en NULL (referencias a perfiles/auth, inexistentes en dev).
-// deferCols: auto-referencias; se insertan en NULL y se completan en una 2da pasada.
-const TABLAS = [
-  { t: "profesores", nullCols: ["usuario_id"] },
-  { t: "alumnos", deferCols: ["tutor_alumno_id", "referido_por_alumno_id"] },
-  { t: "cursos" },
-  { t: "curso_tarifas" },
-  { t: "planes" },
-  { t: "asignaciones" },
-  { t: "descuentos_adelanto" },
-  { t: "inscripciones", deferCols: ["membresia_anterior_id"] },
-  { t: "cuotas" },
-  { t: "sesiones" },
-  { t: "asistencias", nullCols: ["registrado_por"] },
-  { t: "liquidaciones" },
-  { t: "comisiones_devengadas" },
-  { t: "liquidacion_items" },
-  { t: "pagos", nullCols: ["registrado_por"] },
-  { t: "corrimientos_ciclo", nullCols: ["registrado_por"] },
+const ORDEN = [
+  "profesores",
+  "alumnos",
+  "cursos",
+  "curso_tarifas",
+  "planes",
+  "asignaciones",
+  "descuentos_adelanto",
+  "inscripciones",
+  "cuotas",
+  "sesiones",
+  "asistencias",
+  "liquidaciones",
+  "comisiones_devengadas",
+  "liquidacion_items",
+  "pagos",
+  "corrimientos_ciclo",
 ];
+
+// Tablas de usuarios/config a cuyas FK hay que anular (no se copian a dev).
+const TABLAS_USUARIO = new Set(["perfiles", "users"]);
 
 function fatal(msg) {
   console.error("ERROR: " + msg);
@@ -63,18 +65,42 @@ function clienteDe(url) {
   return new Client({ connectionString: url, ssl: noSsl ? false : { rejectUnauthorized: false } });
 }
 
-async function copiarTabla(prod, dev, spec) {
-  const { t } = spec;
-  const nullCols = spec.nullCols ?? [];
-  const deferCols = spec.deferCols ?? [];
+/**
+ * Lee las FK del esquema public y arma, por tabla:
+ *  - nullCols: columnas que apuntan a perfiles/auth.users (se anulan).
+ *  - deferCols: columnas que apuntan a la misma tabla (auto-ref, 2da pasada).
+ */
+async function mapaReferencias(db) {
+  const { rows } = await db.query(`
+    select tc.table_name as tbl,
+           kcu.column_name as col,
+           ccu.table_name as ref_tbl
+    from information_schema.table_constraints tc
+    join information_schema.key_column_usage kcu
+      on kcu.constraint_name = tc.constraint_name
+     and kcu.constraint_schema = tc.constraint_schema
+    join information_schema.constraint_column_usage ccu
+      on ccu.constraint_name = tc.constraint_name
+     and ccu.constraint_schema = tc.constraint_schema
+    where tc.constraint_type = 'FOREIGN KEY'
+      and tc.table_schema = 'public'
+  `);
+  const nullCols = {};
+  const deferCols = {};
+  for (const r of rows) {
+    if (TABLAS_USUARIO.has(r.ref_tbl)) (nullCols[r.tbl] ??= new Set()).add(r.col);
+    else if (r.ref_tbl === r.tbl) (deferCols[r.tbl] ??= new Set()).add(r.col);
+  }
+  return { nullCols, deferCols };
+}
 
+async function copiarTabla(prod, dev, t, nullCols, deferCols) {
   const { rows } = await prod.query(`select * from public.${t}`);
   if (rows.length === 0) return { tabla: t, filas: 0 };
 
   const cols = Object.keys(rows[0]);
   const pendientes = []; // { id, valores {col:val} } para deferCols
 
-  // Normaliza filas: anula nullCols; guarda y anula deferCols.
   const filas = rows.map((r) => {
     const fila = { ...r };
     for (const c of nullCols) if (c in fila) fila[c] = null;
@@ -91,7 +117,6 @@ async function copiarTabla(prod, dev, spec) {
     return fila;
   });
 
-  // Inserta en lotes con OVERRIDING SYSTEM VALUE (preserva ids identity).
   const colList = cols.map((c) => `"${c}"`).join(", ");
   const LOTE = 400;
   for (let i = 0; i < filas.length; i += LOTE) {
@@ -110,10 +135,10 @@ async function copiarTabla(prod, dev, spec) {
     );
   }
 
-  // 2da pasada: completa las auto-referencias.
   for (const p of pendientes) {
-    const sets = Object.keys(p.dif).map((c, i) => `"${c}" = $${i + 1}`);
-    const vals = Object.values(p.dif);
+    const claves = Object.keys(p.dif);
+    const sets = claves.map((c, i) => `"${c}" = $${i + 1}`);
+    const vals = claves.map((c) => p.dif[c]);
     vals.push(p.id);
     await dev.query(`update public.${t} set ${sets.join(", ")} where id = $${vals.length}`, vals);
   }
@@ -122,16 +147,13 @@ async function copiarTabla(prod, dev, spec) {
 }
 
 async function reajustarSecuencia(dev, t) {
-  // Solo si la tabla tiene columna id con secuencia asociada (identity).
   const col = await dev.query(
     `select 1 from information_schema.columns
       where table_schema = 'public' and table_name = $1 and column_name = 'id'`,
     [t]
   );
   if (col.rows.length === 0) return;
-  const { rows } = await dev.query(
-    `select pg_get_serial_sequence('public.${t}', 'id') as seq`
-  );
+  const { rows } = await dev.query(`select pg_get_serial_sequence('public.${t}', 'id') as seq`);
   const seq = rows[0]?.seq;
   if (!seq) return;
   await dev.query(
@@ -157,25 +179,26 @@ async function main() {
   await dev.connect();
 
   try {
-    // Sanidad: dev debe tener el esquema (planes existe = 0012 aplicada).
     const chk = await dev.query(
       "select to_regclass('public.planes') as p, to_regclass('public.inscripciones') as i"
     );
     if (!chk.rows[0].p || !chk.rows[0].i)
       fatal("La base DEV no tiene el esquema del motor. Aplicá primero setup_dev_full.sql y 0012 en dev.");
 
+    const { nullCols, deferCols } = await mapaReferencias(dev);
+
     console.log("Vaciando tablas de dominio en DEV...");
-    const lista = TABLAS.map((x) => `public.${x.t}`).join(", ");
+    const lista = ORDEN.map((t) => `public.${t}`).join(", ");
     await dev.query(`truncate ${lista} restart identity cascade`);
 
     console.log("Copiando datos de PROD -> DEV:");
-    for (const spec of TABLAS) {
-      const r = await copiarTabla(prod, dev, spec);
-      console.log(`  ${r.tabla.padEnd(22)} ${r.filas} filas`);
+    for (const t of ORDEN) {
+      const r = await copiarTabla(prod, dev, t, nullCols[t] ?? new Set(), deferCols[t] ?? new Set());
+      console.log(`  ${t.padEnd(22)} ${r.filas} filas`);
     }
 
     console.log("Reajustando secuencias...");
-    for (const spec of TABLAS) await reajustarSecuencia(dev, spec.t);
+    for (const t of ORDEN) await reajustarSecuencia(dev, t);
 
     console.log("\nRefresh completo. DEV ahora tiene los datos de PROD (sin usuarios/config).");
     console.log("Login de dev: seguí usando tu usuario admin de dev (no se tocó).");
