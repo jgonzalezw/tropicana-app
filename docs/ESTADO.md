@@ -88,9 +88,13 @@ Cada modalidad comercial (`mensual`, `medio_mes`, `clase`, `semana`) será un
 **tipo de plan propio**, no un atributo dentro de un mismo plan. `0011` solo
 convirtió las inscripciones `mensual` (Plan Regular). Los tipos medio_mes/clase/
 semana se modelan en un paso posterior. **Pendiente puntual:** la inscripción
-**id=7** (`medio_mes`, curso de 2 clases/semana) quedó **sin plan**; se le asigna
-cuando se modele ese tipo de plan (o antes, con un "Plan Medio Mes" puntual, si el
-alumno está activo este ciclo).
+**id=7** (`medio_mes`, curso de 2 clases/semana) quedó **sin plan** tras 0011.
+Confirmado que el **alumno está activo** → se le crea un **"Plan Medio Mes"**
+puntual. Fix construido y validado en el sandbox: `scripts/fix_id7_plan_medio_mes.sql`
+(auto-deriva N = `clases_total` o días×4, y precio = tarifa `medio_mes` del curso;
+idempotente; guarda por `id=7 and modalidad='medio_mes'`). **PENDIENTE de aplicar
+en producción** (Javier corre pre-check y aplica). Nota: ese curso quedará con
+**dos planes** (Plan Regular + Plan Medio Mes), lo cual es correcto bajo la opción 2.
 
 **Decisión tomada (2026-08-31) — App Shell + catálogo de permisos: DIFERIDO.**
 Driver actual = rapidez / mínimo costo para una primera versión operativa con
