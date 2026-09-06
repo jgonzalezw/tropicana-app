@@ -66,7 +66,8 @@ export async function crearPlan(d: DatosPlan): Promise<Resultado> {
     .insert({
       nombre: d.nombre.trim(),
       tipo_servicio: "curso_regular",
-      modalidad: d.cursoIds.length > 1 ? "combo" : "mensual",
+      // modalidad es una etiqueta heredada; los planes de esta pantalla la dejan
+      // en null (el motor usa plan_cursos para saber los cursos, no la modalidad).
       curso_id: d.cursoIds[0], // curso principal (compat)
       cantidad_clases: d.cantidad_clases,
       precio: d.precio,
@@ -96,7 +97,6 @@ export async function actualizarPlan(id: number, d: DatosPlan): Promise<Resultad
     .from("planes")
     .update({
       nombre: d.nombre.trim(),
-      modalidad: d.cursoIds.length > 1 ? "combo" : "mensual",
       curso_id: d.cursoIds[0],
       cantidad_clases: d.cantidad_clases,
       precio: d.precio,
