@@ -65,6 +65,11 @@ export default function BarraLateral({
           mostrar: puedeCursos,
         },
         {
+          href: "/planes",
+          etiqueta: "Planes",
+          mostrar: puedeCursos,
+        },
+        {
           href: "/profesores",
           etiqueta: "Profesores",
           mostrar: puedeProfesores,

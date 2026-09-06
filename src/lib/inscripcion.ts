@@ -79,6 +79,29 @@ export function clasesPorConteo(dias: number[], inicio: Date, n: number): Date[]
   return out;
 }
 
+/**
+ * Fecha en la que cae la clase N-esima, combinando varios cursos. `diasConteo`
+ * es la lista de dias de la semana (1=lun..7=dom) con repeticion: una entrada
+ * por cada (curso, dia) elegido. Ej: curso A {1,3} + curso B {1} -> [1,3,1].
+ * Asi, un dia con 2 cursos cuenta 2 clases. Devuelve la fecha de la clase N.
+ */
+export function fechaClaseN(diasConteo: number[], inicio: Date, n: number): Date | null {
+  if (n <= 0 || diasConteo.length === 0) return null;
+  const counts = new Map<number, number>();
+  for (const d of diasConteo) counts.set(d, (counts.get(d) ?? 0) + 1);
+  let acc = 0;
+  const d = new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate());
+  for (let i = 0; i < 800; i++) {
+    const c = counts.get(diaIso(d)) ?? 0;
+    if (c > 0) {
+      acc += c;
+      if (acc >= n) return new Date(d);
+    }
+    d.setDate(d.getDate() + 1);
+  }
+  return null;
+}
+
 /** Clases del curso que caen dentro de una ventana de `ventana` días. */
 export function clasesEnPeriodo(diasCurso: number[], inicio: Date, ventana: number): Date[] {
   const out: Date[] = [];

@@ -77,6 +77,7 @@ async function sincronizarPlanRegular(
     .limit(1)
     .maybeSingle();
 
+  let planId: number;
   if (existente) {
     const { error } = await a
       .from("planes")
@@ -88,22 +89,41 @@ async function sincronizarPlanRegular(
         actualizado_en: new Date().toISOString(),
       })
       .eq("id", existente.id);
-    return error?.message ?? null;
+    if (error) return error.message;
+    planId = existente.id as number;
+  } else {
+    const { data, error } = await a
+      .from("planes")
+      .insert({
+        nombre: nombrePlan,
+        tipo_servicio: "curso_regular",
+        modalidad: "mensual",
+        curso_id: cursoId,
+        cantidad_clases: n,
+        precio: precioMensual,
+        criterio_liquidacion: 1,
+        tolerancia_faltas: null,
+        renovable: true,
+        activo: true,
+      })
+      .select("id")
+      .single();
+    if (error) return error.message;
+    planId = data.id as number;
   }
 
-  const { error } = await a.from("planes").insert({
-    nombre: nombrePlan,
-    tipo_servicio: "curso_regular",
-    modalidad: "mensual",
-    curso_id: cursoId,
-    cantidad_clases: n,
-    precio: precioMensual,
-    criterio_liquidacion: 1,
-    tolerancia_faltas: null,
-    renovable: true,
-    activo: true,
-  });
-  return error?.message ?? null;
+  // Relacion plan <-> curso (plan_cursos), idempotente.
+  const { data: rel } = await a
+    .from("plan_cursos")
+    .select("id")
+    .eq("plan_id", planId)
+    .eq("curso_id", cursoId)
+    .maybeSingle();
+  if (!rel) {
+    const { error } = await a.from("plan_cursos").insert({ plan_id: planId, curso_id: cursoId });
+    if (error) return error.message;
+  }
+  return null;
 }
 
 export async function crearCurso(d: DatosCurso): Promise<Resultado> {

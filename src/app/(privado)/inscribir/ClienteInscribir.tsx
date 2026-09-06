@@ -2,71 +2,56 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import type { Alumno, Curso, DatosAlumno, TarifasCurso } from "@/lib/tipos";
+import type { Alumno, DatosAlumno } from "@/lib/tipos";
 import EntidadAlumno from "@/components/entidades/EntidadAlumno";
 import Cobro, { type PayloadCobro } from "@/components/Cobro";
 import {
-  type Modalidad,
   DIAS_LARGOS,
-  ETIQUETA_MODALIDAD,
-  clasesModalidad,
-  clasesPorConteo,
-  diasMedioMes,
+  fechaClaseN,
   fechaLarga,
   gs,
   isoFecha,
-  listaFechas,
-  precioModalidad,
   proximasClases,
-  totalMedioMes,
 } from "@/lib/inscripcion";
 import { etiquetaDias } from "@/components/entidades/EntidadCurso";
 import { crearAlumnoDesdeInscripcion, inscribirYCobrar } from "./acciones";
 
 type Canal = { valor: string; etiqueta: string };
-type PlanRegular = { id: number; clasesPlan: number | null; precio: number };
-const VACIA: TarifasCurso = { clase: null, semana: null, medio_mes: null };
-const MODALIDADES: Modalidad[] = ["mensual", "clase", "semana", "medio_mes"];
-
-// La modalidad "mensual" ahora es la venta del Plan Regular (un ciclo de N clases).
-const ETIQUETA_VENTA: Record<Modalidad, string> = {
-  ...ETIQUETA_MODALIDAD,
-  mensual: "Plan Regular",
+export type CursoPlan = { id: number; nombre: string; dias_semana: number[]; hora: string | null };
+export type PlanVenta = {
+  id: number;
+  nombre: string;
+  cantidadClases: number | null;
+  precio: number;
+  cursos: CursoPlan[];
 };
 
 export default function ClienteInscribir({
   alumnos,
-  cursos,
-  tarifas,
-  planPorCurso,
+  planes,
   diasCompromiso,
-  factorMedio,
   medios,
   canales,
   cursosPorAlumno,
   deudaPorAlumno,
-  mensualPorAlumno,
+  planesActivosPorAlumno,
 }: {
   alumnos: Alumno[];
-  cursos: Curso[];
-  tarifas: Record<number, TarifasCurso>;
-  planPorCurso: Record<number, PlanRegular>;
+  planes: PlanVenta[];
   diasCompromiso: number;
-  factorMedio: number;
   medios: string[];
   canales: Canal[];
   cursosPorAlumno: Record<number, string[]>;
   deudaPorAlumno: Record<number, number>;
-  mensualPorAlumno: Record<number, number[]>;
+  planesActivosPorAlumno: Record<number, number[]>;
 }) {
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
 
   const [alumno, setAlumno] = useState<Alumno | null>(null);
   const [remountAlumno, setRemountAlumno] = useState(0);
-  const [curso, setCurso] = useState<Curso | null>(null);
-  const [modalidad, setModalidad] = useState<Modalidad>("mensual");
-  const [medioDia, setMedioDia] = useState<number[] | null>(null);
+  const [plan, setPlan] = useState<PlanVenta | null>(null);
+  const [diasPorCurso, setDiasPorCurso] = useState<Record<number, number[]>>({});
   const [fechaIdx, setFechaIdx] = useState(0);
   const [cobro, setCobro] = useState<PayloadCobro | null>(null);
   const [fechaCompromiso, setFechaCompromiso] = useState<string>("");
@@ -80,81 +65,60 @@ export default function ClienteInscribir({
     return d;
   }, [hoy, diasCompromiso]);
 
-  const tarifaCurso = curso ? tarifas[curso.id] ?? VACIA : VACIA;
-  const esRegular = modalidad === "mensual";
-  const planCurso = curso ? planPorCurso[curso.id] : undefined;
-  const clasesPlan = planCurso?.clasesPlan ?? null;
-  const faltaPlan = esRegular && !!curso && !planCurso;
+  const N = plan?.cantidadClases ?? null;
+  const total = plan?.precio ?? 0;
 
-  // Precio: Plan Regular usa el precio del plan (un ciclo); parciales, su tarifa.
-  const precioUnit = curso
-    ? esRegular
-      ? planCurso?.precio ?? curso.precio_mensual
-      : precioModalidad(modalidad, curso.precio_mensual, tarifaCurso, 1)
-    : 0;
-  const total = precioUnit;
+  // Lista con repetición: una entrada por (curso, día) elegido.
+  const diasConteo = useMemo(() => {
+    if (!plan) return [];
+    const out: number[] = [];
+    for (const c of plan.cursos) for (const d of diasPorCurso[c.id] ?? []) out.push(d);
+    return out;
+  }, [plan, diasPorCurso]);
 
-  const diasFecha = curso
-    ? modalidad === "medio_mes"
-      ? diasMedioMes(curso.dias_semana, medioDia)
-      : curso.dias_semana
-    : [];
-  const fechas = curso ? proximasClases(diasFecha, 3, hoy) : [];
+  const unionDias = useMemo(() => Array.from(new Set(diasConteo)).sort(), [diasConteo]);
+  const fechas = useMemo(() => (plan ? proximasClases(unionDias, 3, hoy) : []), [plan, unionDias, hoy]);
   const fechaSel = fechas[Math.min(fechaIdx, Math.max(0, fechas.length - 1))] ?? null;
+  const fechaFin = fechaSel && N ? fechaClaseN(diasConteo, fechaSel, N) : null;
 
-  // Preview de la última clase del ciclo (fecha_fin) para el Plan Regular.
-  const fechaFinPrev =
-    esRegular && curso && fechaSel && clasesPlan && clasesPlan > 0
-      ? clasesPorConteo(curso.dias_semana, fechaSel, clasesPlan).at(-1) ?? null
-      : null;
-
-  const clasesPeriodo =
-    curso && !esRegular && fechaSel
-      ? clasesModalidad(curso.dias_semana, fechaSel, modalidad, factorMedio, medioDia)
-      : [];
-
-  const cuentaId = curso
-    ? `${curso.id}·${modalidad}·${fechaIdx}·${(medioDia ?? []).join("")}`
-    : "";
   const mueve = cobro ? Math.max(0, cobro.total - cobro.saldo) : 0;
   const saldoActual = cobro ? cobro.saldo : total;
   const pideCompromiso = total > 0 && saldoActual > 0;
   const fechaCompromisoEfectiva = fechaCompromiso || isoFecha(maxCompromiso);
 
-  // Ya tiene una membresía (Plan Regular) activa en este curso (no se repite).
-  const yaMensual =
-    !!alumno &&
-    !!curso &&
-    esRegular &&
-    (mensualPorAlumno[alumno.id] ?? []).includes(curso.id);
+  const yaTiene = !!alumno && !!plan && (planesActivosPorAlumno[alumno.id] ?? []).includes(plan.id);
+  const cuentaId = plan
+    ? `${plan.id}·${fechaIdx}·${plan.cursos.map((c) => (diasPorCurso[c.id] ?? []).join("")).join("-")}`
+    : "";
 
   function resetTodo() {
     setAlumno(null);
     setRemountAlumno((n) => n + 1);
-    setCurso(null);
-    setModalidad("mensual");
-    setMedioDia(null);
+    setPlan(null);
+    setDiasPorCurso({});
     setFechaIdx(0);
     setCobro(null);
     setFechaCompromiso("");
     setError(null);
   }
-
-  function elegirCurso(c: Curso) {
-    setCurso(c);
-    setModalidad("mensual");
-    setMedioDia(null);
+  function elegirPlan(p: PlanVenta) {
+    setPlan(p);
+    // Por defecto, todos los días de cada curso.
+    const init: Record<number, number[]> = {};
+    for (const c of p.cursos) init[c.id] = [...c.dias_semana];
+    setDiasPorCurso(init);
     setFechaIdx(0);
     setCobro(null);
     setFechaCompromiso("");
     setError(null);
   }
-
-  function cambiarModalidad(m: Modalidad) {
-    setModalidad(m);
-    setMedioDia(null);
+  function toggleDia(cursoId: number, dia: number) {
+    setDiasPorCurso((prev) => {
+      const actual = prev[cursoId] ?? [];
+      const next = actual.includes(dia) ? actual.filter((d) => d !== dia) : [...actual, dia].sort();
+      return { ...prev, [cursoId]: next };
+    });
     setFechaIdx(0);
-    setError(null);
   }
 
   async function guardarAlumnoNuevo(datos: DatosAlumno) {
@@ -169,29 +133,26 @@ export default function ClienteInscribir({
   function confirmar() {
     setError(null);
     if (!alumno) return setError("Falta elegir o cargar el alumno.");
-    if (!curso) return setError("Falta elegir el curso.");
-    if (faltaPlan)
-      return setError("Este curso no tiene un Plan Regular configurado. Cargalo en Gestión → Planes.");
-    if (yaMensual)
-      return setError("Este alumno ya tiene una membresía (Plan Regular) activa en este curso.");
-    if (!fechaSel) return setError("No hay una fecha de inicio válida para este curso.");
-    if (cobro && cobro.modo !== "sin" && mueve > 0 && !cobro.medio)
-      return setError("Elegí el medio de pago.");
-    if (cobro && cobro.ajuste > 0 && !cobro.ajusteMotivo.trim())
-      return setError("El descuento necesita un motivo.");
-    if (pideCompromiso && !fechaCompromisoEfectiva)
-      return setError("Cargá la fecha de compromiso de pago del saldo.");
+    if (!plan) return setError("Falta elegir el plan.");
+    if (yaTiene) return setError("Este alumno ya tiene una membresía activa de este plan.");
+    if (!N || N <= 0) return setError("El plan no tiene una cantidad de clases (N) cargada. Cargala en Planes.");
+    if (diasConteo.length === 0) return setError("Elegí al menos un día de clase.");
+    if (!fechaSel) return setError("No hay una fecha de inicio válida.");
+    if (cobro && cobro.modo !== "sin" && mueve > 0 && !cobro.medio) return setError("Elegí el medio de pago.");
+    if (cobro && cobro.ajuste > 0 && !cobro.ajusteMotivo.trim()) return setError("El descuento necesita un motivo.");
+    if (pideCompromiso && !fechaCompromisoEfectiva) return setError("Cargá la fecha de compromiso de pago.");
 
     const c = cobro;
+    const diasPorCursoOut = plan.cursos
+      .map((cu) => ({ cursoId: cu.id, dias: diasPorCurso[cu.id] ?? [] }))
+      .filter((x) => x.dias.length > 0);
+
     startTransition(async () => {
       const res = await inscribirYCobrar({
         alumnoId: alumno.id,
-        cursoId: curso.id,
-        modalidad,
-        planId: esRegular ? planCurso?.id ?? null : null,
+        planId: plan.id,
         fechaInicio: isoFecha(fechaSel),
-        meses: 1,
-        diasElegidos: modalidad === "medio_mes" ? medioDia : null,
+        diasPorCurso: diasPorCursoOut,
         cobro: {
           modo: c?.modo ?? "sin",
           monto: c?.monto ?? 0,
@@ -207,7 +168,7 @@ export default function ClienteInscribir({
       if (res.error) setError(res.error);
       else {
         resetTodo();
-        setAviso(res.resumen ?? "Inscripción registrada.");
+        setAviso(res.resumen ?? "Membresía registrada.");
         router.refresh();
         if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
       }
@@ -215,14 +176,14 @@ export default function ClienteInscribir({
   }
 
   const puedeConfirmar =
-    !!alumno && !!curso && !!fechaSel && !pendiente && !yaMensual && !faltaPlan;
+    !!alumno && !!plan && !!fechaSel && !!N && diasConteo.length > 0 && !pendiente && !yaTiene;
 
   return (
     <div className="p-6 sm:p-8 max-w-3xl mx-auto pb-28">
       <div className="mb-6">
         <h1 className="text-3xl">Inscribir y cobrar</h1>
         <p className="text-[var(--texto-tenue)] mt-2 text-lg">
-          Alumno, curso y primera cuota en una sola pantalla.
+          Alumno, plan y primer cobro en una sola pantalla.
         </p>
       </div>
 
@@ -288,32 +249,31 @@ export default function ClienteInscribir({
         )}
       </Paso>
 
-      {/* Paso 2 — Curso e inicio */}
-      <Paso n={2} titulo="Curso e inicio">
+      {/* Paso 2 — Plan */}
+      <Paso n={2} titulo="Plan y días">
         {!alumno ? (
           <p className="text-[var(--texto-tenue)]">Elegí primero el alumno.</p>
-        ) : !curso ? (
+        ) : !plan ? (
           <div className="space-y-2">
-            {cursos.map((c) => (
+            {planes.map((p) => (
               <button
-                key={c.id}
-                onClick={() => elegirCurso(c)}
+                key={p.id}
+                onClick={() => elegirPlan(p)}
                 className="w-full flex items-center gap-3 text-left rounded-[var(--radio-panel)] bg-[var(--fondo-elevado)] border border-[var(--borde)] px-4 py-3 hover:border-[var(--primario)]"
               >
                 <div className="flex-1 min-w-0">
-                  <div className="text-base font-semibold">{c.nombre}</div>
+                  <div className="text-base font-semibold">{p.nombre}</div>
                   <div className="text-sm text-[var(--texto-tenue)] mt-0.5">
-                    {[c.linea, c.nivel].filter(Boolean).join(" · ")}
-                    {c.dias_semana.length ? ` · ${etiquetaDias(c.dias_semana)}` : ""}
-                    {c.hora ? ` · ${c.hora.slice(0, 5)}` : ""}
+                    {p.cursos.map((c) => c.nombre).join(" · ")}
+                    {p.cantidadClases ? ` · ${p.cantidadClases} clases` : ""}
                   </div>
                 </div>
-                <div className="text-base font-bold shrink-0">{gs(c.precio_mensual)}</div>
+                <div className="text-base font-bold shrink-0">{gs(p.precio)}</div>
               </button>
             ))}
-            {cursos.length === 0 && (
+            {planes.length === 0 && (
               <p className="text-[var(--texto-tenue)]">
-                No hay cursos activos. Cargá uno en Gestión → Cursos.
+                No hay planes activos. Cargá uno en Gestión → Planes.
               </p>
             )}
           </div>
@@ -321,99 +281,69 @@ export default function ClienteInscribir({
           <div className="rounded-[var(--radio-panel)] bg-[var(--fondo-elevado)] p-4 space-y-4">
             <div className="flex items-start gap-3">
               <div className="flex-1 min-w-0">
-                <div className="text-lg font-semibold">{curso.nombre}</div>
+                <div className="text-lg font-semibold">{plan.nombre}</div>
                 <div className="text-sm text-[var(--texto-tenue)] mt-0.5">
-                  {etiquetaDias(curso.dias_semana)}
-                  {curso.hora ? ` · ${curso.hora.slice(0, 5)}` : ""}
+                  {N ? `${N} clases · ` : ""}
+                  {gs(plan.precio)}
                 </div>
               </div>
-              <button
-                onClick={() => setCurso(null)}
-                className="text-[var(--primario)] text-base shrink-0"
-              >
+              <button onClick={() => setPlan(null)} className="text-[var(--primario)] text-base shrink-0">
                 Cambiar
               </button>
             </div>
 
-            {/* Modalidad */}
-            <div>
-              <div className="text-sm text-[var(--texto-tenue)] mb-1.5">Modalidad</div>
-              <div className="grid grid-cols-2 gap-2">
-                {MODALIDADES.map((m) => (
-                  <button
-                    key={m}
-                    onClick={() => cambiarModalidad(m)}
-                    className={`px-4 py-2.5 text-sm rounded-[var(--radio-control)] border ${
-                      modalidad === m
-                        ? "bg-[var(--primario)] text-[var(--primario-texto)] border-[var(--primario)] font-semibold"
-                        : "border-[var(--borde)] hover:border-[var(--primario)]"
-                    }`}
-                  >
-                    {ETIQUETA_VENTA[m]}
-                  </button>
-                ))}
-              </div>
-              <div className="flex items-baseline gap-2 mt-2.5">
-                <span className="text-sm text-[var(--texto-tenue)]">
-                  {ETIQUETA_VENTA[modalidad]}
-                  {esRegular && clasesPlan ? ` · ${clasesPlan} clases` : ""}
-                </span>
-                <span className="ml-auto text-lg font-bold">{gs(precioUnit)}</span>
-              </div>
-              {faltaPlan && (
-                <div className="mt-2.5 rounded-[var(--radio-panel)] border border-[var(--peligro)] bg-[var(--accent-100)] px-4 py-3 text-sm text-[var(--peligro-texto)]">
-                  Este curso no tiene un <span className="font-semibold">Plan Regular</span> configurado.
-                  Cargalo en Gestión → Planes antes de vender el mensual.
-                </div>
-              )}
-              {yaMensual && (
-                <div className="mt-2.5 rounded-[var(--radio-panel)] border border-[var(--primario)] bg-[var(--accent-100)] px-4 py-3 text-sm text-[var(--peligro-texto)]">
-                  Este alumno ya tiene una membresía activa en{" "}
-                  <span className="font-semibold">{curso.nombre}</span>. La renovación se hará desde su
-                  membresía (próximamente); acá no se duplica.
-                </div>
-              )}
-            </div>
-
-            {/* Días de medio mes */}
-            {modalidad === "medio_mes" && curso.dias_semana.length > 1 && (
-              <div>
-                <div className="text-sm text-[var(--texto-tenue)] mb-1.5">En qué días las toma</div>
-                <div className="flex flex-wrap gap-2">
-                  {curso.dias_semana.map((d) => {
-                    const sel = diasMedioMes(curso.dias_semana, medioDia);
-                    const activo = sel.includes(d);
-                    const ultimo = activo && sel.length === 1;
-                    return (
-                      <button
-                        key={d}
-                        onClick={() => {
-                          if (ultimo) return;
-                          const next = activo ? sel.filter((x) => x !== d) : [...sel, d].sort();
-                          setMedioDia(next.length === curso.dias_semana.length ? null : next);
-                          setFechaIdx(0);
-                        }}
-                        className={`px-4 py-2 text-sm rounded-[var(--radio-control)] border ${
-                          activo
-                            ? "bg-[var(--exito-fill)] text-[var(--exito-texto)] border-[var(--exito)] font-medium"
-                            : "bg-[var(--fondo-panel)] text-[var(--texto-tenue)] border-[var(--borde)] hover:border-[var(--primario)]"
-                        }`}
-                      >
-                        {activo ? "✓ " : ""}
-                        {DIAS_LARGOS[d]}
-                      </button>
-                    );
-                  })}
-                </div>
-                <div className="text-sm text-[var(--texto-tenue)] mt-1.5">{resumenMedio(curso, medioDia, factorMedio)}</div>
+            {yaTiene && (
+              <div className="rounded-[var(--radio-panel)] border border-[var(--primario)] bg-[var(--accent-100)] px-4 py-3 text-sm text-[var(--peligro-texto)]">
+                Este alumno ya tiene una membresía activa de este plan. La renovación se hará desde su
+                membresía (próximamente); acá no se duplica.
               </div>
             )}
 
+            {/* Días por curso */}
+            {plan.cursos.map((c) => (
+              <div key={c.id}>
+                <div className="text-sm text-[var(--texto-tenue)] mb-1.5">
+                  {c.nombre}
+                  {c.hora ? ` · ${c.hora.slice(0, 5)}` : ""} — qué días toma
+                </div>
+                {c.dias_semana.length === 0 ? (
+                  <div className="text-sm text-[var(--peligro-texto)]">
+                    Este curso no tiene días cargados (revisá el curso).
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {c.dias_semana.map((d) => {
+                      const on = (diasPorCurso[c.id] ?? []).includes(d);
+                      return (
+                        <button
+                          key={d}
+                          onClick={() => toggleDia(c.id, d)}
+                          className={`px-4 py-2 text-sm rounded-[var(--radio-control)] border ${
+                            on
+                              ? "bg-[var(--exito-fill)] text-[var(--exito-texto)] border-[var(--exito)] font-medium"
+                              : "bg-[var(--fondo-panel)] text-[var(--texto-tenue)] border-[var(--borde)] hover:border-[var(--primario)]"
+                          }`}
+                        >
+                          {on ? "✓ " : ""}
+                          {DIAS_LARGOS[d]}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {/* Resumen del calendario */}
+            <div className="text-sm text-[var(--texto-tenue)]">
+              {diasConteo.length > 0
+                ? `${diasConteo.length} ${diasConteo.length === 1 ? "clase" : "clases"} por semana · ${etiquetaDias(unionDias)}`
+                : "Elegí al menos un día."}
+            </div>
+
             {/* Fecha de inicio */}
             <div>
-              <div className="text-sm text-[var(--texto-tenue)] mb-1.5">
-                {esRegular ? "Empieza a tomar clases" : "Desde qué clase arranca"}
-              </div>
+              <div className="text-sm text-[var(--texto-tenue)] mb-1.5">Empieza a tomar clases</div>
               <div className="flex flex-wrap gap-2">
                 {fechas.map((f, i) => (
                   <button
@@ -430,42 +360,29 @@ export default function ClienteInscribir({
                   </button>
                 ))}
                 {fechas.length === 0 && (
-                  <span className="text-sm text-[var(--texto-tenue)]">Este curso no tiene días de clase cargados.</span>
+                  <span className="text-sm text-[var(--texto-tenue)]">Elegí días para ver fechas de inicio.</span>
                 )}
               </div>
               <div className="text-sm text-[var(--texto-tenue)] mt-2">
-                {esRegular
-                  ? clasesPlan
-                    ? `Membresía de ${clasesPlan} clases.${
-                        fechaFinPrev ? ` Termina aprox. el ${fechaLarga(fechaFinPrev)}.` : ""
-                      }`
-                    : "El plan no tiene N de clases cargado."
-                  : "Se cobra una sola vez, por el período elegido. No genera cuota mensual."}
+                {N
+                  ? `Membresía de ${N} clases.${fechaFin ? ` Termina aprox. el ${fechaLarga(fechaFin)}.` : ""}`
+                  : "El plan no tiene N de clases cargado."}
               </div>
-              {clasesPeriodo.length > 0 && (
-                <div className="text-sm text-[var(--texto-tenue)] mt-1.5">
-                  {clasesPeriodo.length === 1
-                    ? `Incluye solo la clase de ${listaFechas(clasesPeriodo)}.`
-                    : `Incluye las clases de ${listaFechas(clasesPeriodo)}.`}
-                </div>
-              )}
             </div>
           </div>
         )}
       </Paso>
 
       {/* Paso 3 — Cobro */}
-      <Paso n={3} titulo={esRegular ? "Cobro del ciclo" : "Cobro"}>
-        {!curso ? (
-          <p className="text-[var(--texto-tenue)]">Elegí el curso para ver la cuota.</p>
+      <Paso n={3} titulo="Cobro del ciclo">
+        {!plan ? (
+          <p className="text-[var(--texto-tenue)]">Elegí el plan para ver el cobro.</p>
         ) : (
           <div className="rounded-[var(--radio-panel)] bg-[var(--fondo-elevado)] p-4 space-y-3">
-            {/* Desglose */}
             <div className="flex items-baseline gap-2">
               <span className="text-base text-[var(--texto-tenue)]">
-                {esRegular
-                  ? `Plan Regular${clasesPlan ? ` · ${clasesPlan} clases` : ""}`
-                  : `A cobrar · ${ETIQUETA_VENTA[modalidad].toLowerCase()}`}
+                {plan.nombre}
+                {N ? ` · ${N} clases` : ""}
               </span>
               <span className="ml-auto titulo text-2xl">{gs(total)}</span>
             </div>
@@ -483,7 +400,6 @@ export default function ClienteInscribir({
               }}
             />
 
-            {/* Fecha de compromiso de pago (cuando queda saldo) */}
             {pideCompromiso && (
               <div className="pt-2 border-t border-[var(--borde)]">
                 <label className="text-sm text-[var(--texto-tenue)] block mb-1.5">
@@ -516,11 +432,10 @@ export default function ClienteInscribir({
         </p>
       )}
 
-      {/* Barra de confirmación */}
       <div className="sticky bottom-0 -mx-6 sm:-mx-8 mt-6 px-6 sm:px-8 py-4 bg-[var(--fondo-panel)] border-t border-[var(--borde)]">
         <div className="flex items-baseline mb-2">
           <span className="text-sm text-[var(--texto-tenue)]">
-            {!alumno ? "Sin alumno todavía" : !curso ? "Falta el curso" : "Cobra hoy"}
+            {!alumno ? "Sin alumno todavía" : !plan ? "Falta el plan" : "Cobra hoy"}
           </span>
           <span className="ml-auto titulo text-2xl">{gs(mueve)}</span>
         </div>
@@ -542,15 +457,6 @@ function esHoy(d: Date, hoy: Date): boolean {
     d.getMonth() === hoy.getMonth() &&
     d.getDate() === hoy.getDate()
   );
-}
-
-function resumenMedio(curso: Curso, medioDia: number[] | null, factor: number): string {
-  const total = totalMedioMes(curso.dias_semana, factor);
-  const k = diasMedioMes(curso.dias_semana, medioDia).length;
-  const sem = Math.ceil(total / Math.max(1, k));
-  return `${total} clases · ${k === 1 ? "un día por semana" : `${k} días por semana`} · se completan en ${sem} ${
-    sem === 1 ? "semana" : "semanas"
-  }`;
 }
 
 function Paso({ n, titulo, children }: { n: number; titulo: string; children: React.ReactNode }) {

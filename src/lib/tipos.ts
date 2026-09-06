@@ -158,6 +158,35 @@ export type DatosCurso = {
   tarifas: TarifasCurso;
 };
 
+/** Plan vendible (motor). Puede dar acceso a uno o varios cursos (plan_cursos). */
+export type Plan = {
+  id: number;
+  nombre: string;
+  tipo_servicio: string;
+  curso_id: number | null;
+  cantidad_clases: number | null;
+  precio: number;
+  criterio_liquidacion: number;
+  tolerancia_faltas: number | null;
+  modalidad: string | null;
+  renovable: boolean;
+  activo: boolean;
+  creado_en: string;
+  actualizado_en: string;
+  /** Cursos incluidos en el plan (desde plan_cursos), poblado por la pantalla. */
+  cursoIds?: number[];
+};
+
+/** Datos que la pantalla de Planes envía al host para crear/editar. */
+export type DatosPlan = {
+  nombre: string;
+  precio: number;
+  cantidad_clases: number | null;
+  criterio_liquidacion: number;
+  tolerancia_faltas: number | null;
+  cursoIds: number[];
+};
+
 export type Asignacion = {
   id: number;
   curso_id: number;
@@ -188,22 +217,18 @@ export type CobroInscripcion = {
   fechaCompromiso: string | null;
 };
 
-/** Entrada de la server action que inscribe y cobra en un solo paso. */
+/** Días elegidos para un curso dentro del plan que se vende. */
+export type DiasCursoVenta = { cursoId: number; dias: number[] };
+
+/** Entrada de la server action que vende un plan y cobra en un solo paso. */
 export type EntradaInscripcion = {
   alumnoId: number;
-  cursoId: number;
-  modalidad: "mensual" | "clase" | "semana" | "medio_mes";
-  /**
-   * Plan a vender cuando la modalidad es el Plan Regular (mensual). El servidor
-   * igual lo re-busca por curso; viaja para trazabilidad. null en parciales.
-   */
-  planId: number | null;
+  /** Plan que se vende (motor). El servidor recomputa N y precio. */
+  planId: number;
   /** Fecha de inicio, ISO local YYYY-MM-DD. */
   fechaInicio: string;
-  /** Meses adelantados (solo mensual); 1 en el resto. */
-  meses: number;
-  /** Subconjunto de días para medio mes; null = todos los del curso. */
-  diasElegidos: number[] | null;
+  /** Días elegidos por cada curso del plan (1=lun..7=dom). */
+  diasPorCurso: DiasCursoVenta[];
   cobro: CobroInscripcion;
 };
 

@@ -7,18 +7,12 @@ import { tienePermiso, obtenerParametro, obtenerPerfilActual } from "@/lib/sesio
 import { soloDigitos } from "@/lib/texto";
 import type { Alumno, DatosAlumno, EntradaInscripcion } from "@/lib/tipos";
 import {
-  type Modalidad,
-  type TarifasParciales,
-  clasesModalidad,
-  clasesPorConteo,
-  diasMedioMes,
+  fechaClaseN,
   fechaLarga,
   gs,
   isoFecha,
-  precioModalidad,
   primerDiaDelMes,
   sumarMeses,
-  totalMedioMes,
 } from "@/lib/inscripcion";
 
 function admin() {
@@ -28,8 +22,6 @@ function admin() {
 }
 
 // ── Alta rápida de alumno desde la inscripción ──────────────────────────
-// Igual que crearAlumno pero devuelve el alumno creado, para seleccionarlo
-// en el acto sin recargar el padrón.
 
 function validarAlumno(d: DatosAlumno): string | null {
   if (!d.nombre.trim() || !d.apellido.trim()) return "Nombre y apellido son obligatorios.";
@@ -73,19 +65,9 @@ export async function crearAlumnoDesdeInscripcion(
   return { alumno: data as Alumno };
 }
 
-// ── Inscribir y cobrar ──────────────────────────────────────────────────
+// ── Vender plan y cobrar ────────────────────────────────────────────────
 
 type ResultadoInscripcion = { ok?: true; resumen?: string; error?: string };
-
-function tarifasDesde(rows: { modalidad: string; precio: number }[]): TarifasParciales {
-  const t: TarifasParciales = { clase: null, semana: null, medio_mes: null };
-  for (const r of rows) {
-    if (r.modalidad === "clase") t.clase = Number(r.precio);
-    else if (r.modalidad === "semana") t.semana = Number(r.precio);
-    else if (r.modalidad === "medio_mes") t.medio_mes = Number(r.precio);
-  }
-  return t;
-}
 
 export async function inscribirYCobrar(e: EntradaInscripcion): Promise<ResultadoInscripcion> {
   if (!(await tienePermiso("inscripciones", "crear")))
@@ -95,15 +77,10 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
   const a = admin();
   const sb = await createClient();
 
-  // 1. Datos reales de la base (nunca se confía en los montos del navegador).
-  const { data: curso } = await sb
-    .from("cursos")
-    .select("id, nombre, dias_semana, precio_mensual, activo")
-    .eq("id", e.cursoId)
-    .maybeSingle();
-  if (!curso) return { error: "El curso no existe." };
-  if (!curso.activo) return { error: "El curso está desactivado." };
+  const inicio = parseFechaISO(e.fechaInicio);
+  if (!inicio) return { error: "Fecha de inicio inválida." };
 
+  // 1. Alumno y plan (datos autoritativos del servidor).
   const { data: alumno } = await sb
     .from("alumnos")
     .select("id, nombre, apellido")
@@ -111,161 +88,66 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
     .maybeSingle();
   if (!alumno) return { error: "El alumno no existe." };
 
-  const modalidad = e.modalidad as Modalidad;
-  const inicio = parseFechaISO(e.fechaInicio);
-  if (!inicio) return { error: "Fecha de inicio inválida." };
-  const c = e.cobro;
-  const glosa = medioGlosa(c);
+  const { data: plan } = await sb
+    .from("planes")
+    .select("id, nombre, cantidad_clases, precio, activo")
+    .eq("id", e.planId)
+    .maybeSingle();
+  if (!plan) return { error: "El plan no existe." };
+  if (!plan.activo) return { error: "El plan está desactivado." };
 
-  // ── Plan Regular (mensual): membresía + una cuota por ciclo ───────────
-  if (modalidad === "mensual") {
-    // No repetir una membresía activa del mismo alumno en el mismo curso.
-    const { data: dup } = await sb
-      .from("inscripciones")
-      .select("id")
-      .eq("alumno_id", e.alumnoId)
-      .eq("curso_id", e.cursoId)
-      .eq("modalidad", "mensual")
-      .eq("estado", "activa")
-      .maybeSingle();
-    if (dup) return { error: "Este alumno ya tiene una membresía activa en este curso." };
-
-    // Plan Regular del curso (dato autoritativo del servidor).
-    const { data: plan } = await sb
-      .from("planes")
-      .select("id, cantidad_clases, precio")
-      .eq("curso_id", e.cursoId)
-      .eq("tipo_servicio", "curso_regular")
-      .eq("modalidad", "mensual")
-      .eq("activo", true)
-      .order("id")
-      .limit(1)
-      .maybeSingle();
-    if (!plan) return { error: "El curso no tiene un Plan Regular configurado." };
-
-    const clasesPlan = plan.cantidad_clases as number | null;
-    const precioUnit = Number(plan.precio);
-    const referencia = Math.max(0, precioUnit);
-
-    // fecha_fin = fecha de la clase N por el calendario del curso.
-    let fechaFin: string | null = null;
-    const dias = (curso.dias_semana as number[]) ?? [];
-    if (clasesPlan && clasesPlan > 0 && dias.length > 0) {
-      const clases = clasesPorConteo(dias, inicio, clasesPlan);
-      const ultima = clases[clases.length - 1];
-      if (ultima) fechaFin = isoFecha(ultima);
-    }
-
-    // Movimiento de dinero (recomputado): lo que se mueve = total − saldo.
-    const mueveBruto = c.modo === "sin" ? 0 : Math.max(0, (Number(c.total) || 0) - (Number(c.saldo) || 0));
-    const mueve = Math.min(referencia, Math.max(0, Math.round(mueveBruto)));
-    const descManual = Math.min(referencia, Math.max(0, Math.round(Number(c.ajuste) || 0)));
-    if (mueve > 0 && !c.medio) return { error: "Elegí el medio de pago." };
-    if (descManual > 0 && !c.ajusteMotivo.trim())
-      return { error: "El descuento manual necesita un motivo." };
-
-    // Fecha de compromiso de pago (solo si queda saldo), tope por parámetro.
-    const saldo = Math.max(0, referencia - mueve - descManual);
-    let fechaCompromiso: string | null = null;
-    if (saldo > 0) {
-      const diasMax = Math.max(1, Number(await obtenerParametro("dias_compromiso_pago")) || 30);
-      const fc = parseFechaISO(c.fechaCompromiso ?? "");
-      if (!fc) return { error: "Cargá la fecha de compromiso de pago del saldo." };
-      const hoy0 = hoyLocal();
-      const maxF = new Date(hoy0);
-      maxF.setDate(maxF.getDate() + diasMax);
-      if (fc < hoy0) return { error: "La fecha de compromiso no puede ser anterior a hoy." };
-      if (fc > maxF) return { error: `La fecha de compromiso no puede superar ${diasMax} días desde hoy.` };
-      fechaCompromiso = isoFecha(fc);
-    }
-
-    // Membresía.
-    const { data: insc, error: errInsc } = await a
-      .from("inscripciones")
-      .insert({
-        alumno_id: e.alumnoId,
-        curso_id: e.cursoId,
-        modalidad: "mensual",
-        fecha_inicio: isoFecha(inicio),
-        estado: "activa",
-        plan_id: plan.id,
-        clases_plan: clasesPlan,
-        ciclo_numero: 1,
-        fecha_fin: fechaFin,
-        clases_total: null,
-        dias_elegidos: null,
-        precio_aplicado: precioUnit,
-      })
-      .select("id")
-      .single();
-    if (errInsc) return { error: errInsc.message };
-    const inscripcionId = insc.id as number;
-
-    // Una sola cuota por el ciclo.
-    const { data: cuota, error: errCuota } = await a
-      .from("cuotas")
-      .insert({
-        inscripcion_id: inscripcionId,
-        periodo: isoFecha(primerDiaDelMes(inicio)),
-        monto_devengado: precioUnit,
-        descuento_adelanto: 0,
-        vencimiento: fechaCompromiso ?? isoFecha(sumarMeses(inicio, 1)),
-        fecha_compromiso: fechaCompromiso,
-        estado: "pendiente",
-      })
-      .select("id")
-      .single();
-    if (errCuota) return { error: errCuota.message };
-
-    // Asentar el cobro contra la cuota del ciclo.
-    const porDesc = Math.min(descManual, referencia);
-    const porPlata = Math.min(mueve, referencia - porDesc);
-    const saldado = porDesc + porPlata;
-    const estadoCuota =
-      referencia === 0 || saldado >= referencia ? "pagada" : saldado > 0 ? "parcial" : "pendiente";
-    if (estadoCuota !== "pendiente")
-      await a.from("cuotas").update({ estado: estadoCuota }).eq("id", cuota.id);
-    if (porPlata > 0 || porDesc > 0) {
-      const { error: errPago } = await a.from("pagos").insert({
-        tipo: "cobro",
-        motivo: "cuota",
-        alumno_id: e.alumnoId,
-        inscripcion_id: inscripcionId,
-        cuota_id: cuota.id,
-        monto: porPlata,
-        medio: porPlata > 0 ? c.medio : null,
-        descuento: porDesc,
-        descuento_motivo: porDesc > 0 ? c.ajusteMotivo.trim() : null,
-        glosa,
-        registrado_por: perfil?.id ?? null,
-      });
-      if (errPago) return { error: "Se inscribió, pero falló registrar el cobro: " + errPago.message };
-    }
-
-    revalidatePath("/inscribir");
-    return {
-      ok: true,
-      resumen: armarResumen(alumno, curso.nombre, "mensual", 1, inicio, porPlata, c.medio),
-    };
-  }
-
-  // ── Parciales (clase/semana/medio_mes): flujo de paquete existente ────
-  const [{ data: tarifaRows }, factorParam] = await Promise.all([
-    sb.from("curso_tarifas").select("modalidad, precio").eq("curso_id", e.cursoId),
-    obtenerParametro("medio_mes_factor"),
-  ]);
-  const tarifas = tarifasDesde((tarifaRows as { modalidad: string; precio: number }[]) ?? []);
-  const factorMedio = Math.max(1, Number(factorParam) || 2);
-
-  const precioUnit = precioModalidad(modalidad, Number(curso.precio_mensual), tarifas, 1);
+  const clasesPlan = plan.cantidad_clases as number | null;
+  if (!clasesPlan || clasesPlan <= 0)
+    return { error: "El plan no tiene una cantidad de clases (N) cargada." };
+  const precioUnit = Number(plan.precio);
   const referencia = Math.max(0, precioUnit);
 
-  const diasElegidos =
-    modalidad === "medio_mes" ? diasMedioMes(curso.dias_semana, e.diasElegidos) : null;
-  const clasesTotal =
-    clasesModalidad(curso.dias_semana, inicio, modalidad, factorMedio, e.diasElegidos).length ||
-    (modalidad === "medio_mes" ? totalMedioMes(curso.dias_semana, factorMedio) : 1);
+  // 2. Cursos del plan (con sus días válidos).
+  const { data: pcRows } = await sb
+    .from("plan_cursos")
+    .select("curso_id")
+    .eq("plan_id", e.planId);
+  const cursoIds = ((pcRows as { curso_id: number }[]) ?? []).map((r) => r.curso_id);
+  if (cursoIds.length === 0) return { error: "El plan no tiene cursos asociados." };
 
+  const { data: cursoRows } = await sb
+    .from("cursos")
+    .select("id, dias_semana")
+    .in("id", cursoIds);
+  const diasValidos = new Map<number, number[]>();
+  for (const r of (cursoRows as { id: number; dias_semana: number[] }[]) ?? [])
+    diasValidos.set(r.id, r.dias_semana ?? []);
+
+  // 3. Validar la selección de días y armar la lista con repetición.
+  const seleccion = (e.diasPorCurso ?? []).filter((x) => x.dias.length > 0);
+  const diasConteo: number[] = [];
+  for (const s of seleccion) {
+    const validos = diasValidos.get(s.cursoId);
+    if (!validos) return { error: "Un curso elegido no pertenece al plan." };
+    for (const d of s.dias) {
+      if (!validos.includes(d)) return { error: "Un día elegido no corresponde al curso." };
+      diasConteo.push(d);
+    }
+  }
+  if (diasConteo.length === 0) return { error: "Elegí al menos un día de clase." };
+
+  const cursoPrincipal = seleccion[0].cursoId;
+  const ultima = fechaClaseN(diasConteo, inicio, clasesPlan);
+  const fechaFin = ultima ? isoFecha(ultima) : null;
+
+  // 4. No repetir una membresía activa del mismo plan para el alumno.
+  const { data: dup } = await sb
+    .from("inscripciones")
+    .select("id")
+    .eq("alumno_id", e.alumnoId)
+    .eq("plan_id", e.planId)
+    .eq("estado", "activa")
+    .maybeSingle();
+  if (dup) return { error: "Este alumno ya tiene una membresía activa de este plan." };
+
+  // 5. Movimiento de dinero (recomputado): lo que se mueve = total − saldo.
+  const c = e.cobro;
+  const glosa = medioGlosa(c);
   const mueveBruto = c.modo === "sin" ? 0 : Math.max(0, (Number(c.total) || 0) - (Number(c.saldo) || 0));
   const mueve = Math.min(referencia, Math.max(0, Math.round(mueveBruto)));
   const descManual = Math.min(referencia, Math.max(0, Math.round(Number(c.ajuste) || 0)));
@@ -273,16 +155,36 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
   if (descManual > 0 && !c.ajusteMotivo.trim())
     return { error: "El descuento manual necesita un motivo." };
 
+  // 6. Fecha de compromiso de pago (solo si queda saldo), tope por parámetro.
+  const saldo = Math.max(0, referencia - mueve - descManual);
+  let fechaCompromiso: string | null = null;
+  if (saldo > 0) {
+    const diasMax = Math.max(1, Number(await obtenerParametro("dias_compromiso_pago")) || 30);
+    const fc = parseFechaISO(c.fechaCompromiso ?? "");
+    if (!fc) return { error: "Cargá la fecha de compromiso de pago del saldo." };
+    const hoy0 = hoyLocal();
+    const maxF = new Date(hoy0);
+    maxF.setDate(maxF.getDate() + diasMax);
+    if (fc < hoy0) return { error: "La fecha de compromiso no puede ser anterior a hoy." };
+    if (fc > maxF) return { error: `La fecha de compromiso no puede superar ${diasMax} días desde hoy.` };
+    fechaCompromiso = isoFecha(fc);
+  }
+
+  // 7. Membresía.
   const { data: insc, error: errInsc } = await a
     .from("inscripciones")
     .insert({
       alumno_id: e.alumnoId,
-      curso_id: e.cursoId,
-      modalidad,
+      curso_id: cursoPrincipal,
+      modalidad: "mensual",
       fecha_inicio: isoFecha(inicio),
       estado: "activa",
-      clases_total: clasesTotal,
-      dias_elegidos: diasElegidos,
+      plan_id: plan.id,
+      clases_plan: clasesPlan,
+      ciclo_numero: 1,
+      fecha_fin: fechaFin,
+      clases_total: null,
+      dias_elegidos: null,
       precio_aplicado: precioUnit,
     })
     .select("id")
@@ -290,14 +192,46 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
   if (errInsc) return { error: errInsc.message };
   const inscripcionId = insc.id as number;
 
-  if (mueve > 0 || descManual > 0) {
-    const porDesc = Math.min(descManual, referencia);
-    const porPlata = Math.min(mueve, referencia - porDesc);
+  // 8. Días elegidos por curso (inscripcion_cursos).
+  const icRows = seleccion.map((s) => ({
+    inscripcion_id: inscripcionId,
+    curso_id: s.cursoId,
+    dias: s.dias,
+  }));
+  const { error: errIC } = await a.from("inscripcion_cursos").insert(icRows);
+  if (errIC) return { error: "Se creó la membresía, pero falló guardar los días: " + errIC.message };
+
+  // 9. Una sola cuota por el ciclo.
+  const { data: cuota, error: errCuota } = await a
+    .from("cuotas")
+    .insert({
+      inscripcion_id: inscripcionId,
+      periodo: isoFecha(primerDiaDelMes(inicio)),
+      monto_devengado: precioUnit,
+      descuento_adelanto: 0,
+      vencimiento: fechaCompromiso ?? isoFecha(sumarMeses(inicio, 1)),
+      fecha_compromiso: fechaCompromiso,
+      estado: "pendiente",
+    })
+    .select("id")
+    .single();
+  if (errCuota) return { error: errCuota.message };
+
+  // 10. Asentar el cobro contra la cuota del ciclo.
+  const porDesc = Math.min(descManual, referencia);
+  const porPlata = Math.min(mueve, referencia - porDesc);
+  const saldado = porDesc + porPlata;
+  const estadoCuota =
+    referencia === 0 || saldado >= referencia ? "pagada" : saldado > 0 ? "parcial" : "pendiente";
+  if (estadoCuota !== "pendiente")
+    await a.from("cuotas").update({ estado: estadoCuota }).eq("id", cuota.id);
+  if (porPlata > 0 || porDesc > 0) {
     const { error: errPago } = await a.from("pagos").insert({
       tipo: "cobro",
-      motivo: "inscripcion",
+      motivo: "cuota",
       alumno_id: e.alumnoId,
       inscripcion_id: inscripcionId,
+      cuota_id: cuota.id,
       monto: porPlata,
       medio: porPlata > 0 ? c.medio : null,
       descuento: porDesc,
@@ -309,7 +243,10 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
   }
 
   revalidatePath("/inscribir");
-  return { ok: true, resumen: armarResumen(alumno, curso.nombre, modalidad, 1, inicio, mueve, c.medio) };
+  return {
+    ok: true,
+    resumen: armarResumen(alumno, plan.nombre, inicio, porPlata, c.medio),
+  };
 }
 
 // ── Auxiliares ──────────────────────────────────────────────────────────
@@ -334,27 +271,12 @@ function medioGlosa(c: EntradaInscripcion["cobro"]): string | null {
 
 function armarResumen(
   alumno: { nombre: string; apellido: string },
-  curso: string,
-  modalidad: Modalidad,
-  meses: number,
+  plan: string,
   inicio: Date,
   mueve: number,
   medio: string | null
 ): string {
   const quien = `${alumno.nombre} ${alumno.apellido}`;
-  const detalle =
-    modalidad !== "mensual"
-      ? ` (${ETIQUETA_MODALIDAD_LOWER[modalidad]})`
-      : meses > 1
-      ? ` (${meses} meses adelantados)`
-      : "";
   const cobro = mueve > 0 ? `Cobrado ${gs(mueve)}${medio ? ` (${medio})` : ""}.` : "Sin cobro por ahora.";
-  return `Inscripción de ${quien} en ${curso}${detalle}, empieza el ${fechaLarga(inicio)}. ${cobro}`;
+  return `Membresía de ${quien} — ${plan}, empieza el ${fechaLarga(inicio)}. ${cobro}`;
 }
-
-const ETIQUETA_MODALIDAD_LOWER: Record<Modalidad, string> = {
-  mensual: "mensual",
-  clase: "una clase",
-  semana: "una semana",
-  medio_mes: "medio mes",
-};

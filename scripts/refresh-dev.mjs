@@ -163,6 +163,54 @@ async function reajustarSecuencia(dev, t) {
   );
 }
 
+/**
+ * Repone en DEV lo que depende de migraciones que quiza no esten en PROD (y por
+ * eso el copiado no trae): la etiqueta planes.modalidad y las tablas de 0013
+ * (plan_cursos, inscripcion_cursos). Todo idempotente y solo si existen en dev.
+ */
+async function postBackfill(dev) {
+  const existeCol = async (tabla, col) =>
+    (
+      await dev.query(
+        `select 1 from information_schema.columns
+          where table_schema='public' and table_name=$1 and column_name=$2`,
+        [tabla, col]
+      )
+    ).rows.length > 0;
+  const existeTabla = async (tabla) =>
+    (await dev.query(`select to_regclass($1) as t`, [`public.${tabla}`])).rows[0].t != null;
+
+  if (await existeCol("planes", "modalidad")) {
+    await dev.query(
+      `update public.planes set modalidad='mensual'
+        where modalidad is null and tipo_servicio='curso_regular' and nombre like 'Plan Regular %'`
+    );
+    await dev.query(
+      `update public.planes set modalidad='medio_mes'
+        where modalidad is null and nombre like 'Plan Medio Mes %'`
+    );
+  }
+  if (await existeTabla("plan_cursos")) {
+    await dev.query(
+      `insert into public.plan_cursos (plan_id, curso_id)
+         select p.id, p.curso_id from public.planes p
+          where p.curso_id is not null
+            and not exists (select 1 from public.plan_cursos pc
+                             where pc.plan_id=p.id and pc.curso_id=p.curso_id)`
+    );
+  }
+  if (await existeTabla("inscripcion_cursos")) {
+    await dev.query(
+      `insert into public.inscripcion_cursos (inscripcion_id, curso_id, dias)
+         select i.id, i.curso_id, coalesce(nullif(i.dias_elegidos, '{}'), c.dias_semana, '{}')
+           from public.inscripciones i join public.cursos c on c.id=i.curso_id
+          where i.plan_id is not null
+            and not exists (select 1 from public.inscripcion_cursos ic
+                             where ic.inscripcion_id=i.id and ic.curso_id=i.curso_id)`
+    );
+  }
+}
+
 async function main() {
   if (!process.argv.includes("--yes"))
     fatal("Falta --yes. Esto BORRA los datos de dev y los reemplaza con los de prod. Corré: node scripts/refresh-dev.mjs --yes");
@@ -199,6 +247,9 @@ async function main() {
 
     console.log("Reajustando secuencias...");
     for (const t of ORDEN) await reajustarSecuencia(dev, t);
+
+    console.log("Rellenando tablas/etiquetas de dev que no existen en prod...");
+    await postBackfill(dev);
 
     console.log("\nRefresh completo. DEV ahora tiene los datos de PROD (sin usuarios/config).");
     console.log("Login de dev: seguí usando tu usuario admin de dev (no se tocó).");
