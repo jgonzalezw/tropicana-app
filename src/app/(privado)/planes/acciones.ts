@@ -15,13 +15,30 @@ function admin() {
 
 function validar(d: DatosPlan): string | null {
   if (!d.nombre.trim()) return "El nombre del plan es obligatorio.";
-  if (!d.cursoIds || d.cursoIds.length === 0) return "Elegí al menos un curso.";
-  if (d.cantidad_clases == null || !(d.cantidad_clases > 0))
+  if (d.acceso_modo === "solo" && (!d.cursoIds || d.cursoIds.length === 0))
+    return "Elegí al menos un curso (o cambiá el acceso a Todas).";
+  if (!d.clases_ilimitadas && (d.cantidad_clases == null || !(d.cantidad_clases > 0)))
     return "La cantidad de clases (N) debe ser mayor a 0.";
+  if (d.clases_ilimitadas && (d.ciclo_dias == null || !(d.ciclo_dias > 0)))
+    return "La duración del ciclo (días) debe ser mayor a 0.";
   if (!(d.precio >= 0)) return "El precio no puede ser negativo.";
   if (!(d.criterio_liquidacion >= 1 && d.criterio_liquidacion <= 4))
     return "Criterio de liquidación inválido.";
   return null;
+}
+
+/** Cursos a guardar en plan_cursos según el modo de acceso. */
+function cursosParaGuardar(d: DatosPlan): number[] {
+  return d.acceso_modo === "todas" ? [] : d.cursoIds;
+}
+
+/** Campos del plan derivados del modo (N vs ilimitado). */
+function camposLimite(d: DatosPlan) {
+  return {
+    clases_ilimitadas: d.clases_ilimitadas,
+    cantidad_clases: d.clases_ilimitadas ? null : d.cantidad_clases,
+    ciclo_dias: d.clases_ilimitadas ? d.ciclo_dias : null,
+  };
 }
 
 /** Sincroniza plan_cursos con la lista de cursos elegida (agrega/borra). */
@@ -67,9 +84,10 @@ export async function crearPlan(d: DatosPlan): Promise<Resultado> {
       nombre: d.nombre.trim(),
       tipo_servicio: "curso_regular",
       // modalidad es una etiqueta heredada; los planes de esta pantalla la dejan
-      // en null (el motor usa plan_cursos para saber los cursos, no la modalidad).
-      curso_id: d.cursoIds[0], // curso principal (compat)
-      cantidad_clases: d.cantidad_clases,
+      // en null (el motor usa plan_cursos + acceso_modo, no la modalidad).
+      curso_id: d.cursoIds[0] ?? null, // curso principal (compat)
+      acceso_modo: d.acceso_modo,
+      ...camposLimite(d),
       precio: d.precio,
       criterio_liquidacion: d.criterio_liquidacion,
       tolerancia_faltas: d.tolerancia_faltas,
@@ -80,7 +98,7 @@ export async function crearPlan(d: DatosPlan): Promise<Resultado> {
     .single();
   if (error) return { error: error.message };
 
-  const errC = await guardarCursos(a, data.id as number, d.cursoIds);
+  const errC = await guardarCursos(a, data.id as number, cursosParaGuardar(d));
   if (errC) return { error: "El plan se creó, pero falló asociar los cursos: " + errC };
 
   revalidatePath("/planes");
@@ -97,8 +115,9 @@ export async function actualizarPlan(id: number, d: DatosPlan): Promise<Resultad
     .from("planes")
     .update({
       nombre: d.nombre.trim(),
-      curso_id: d.cursoIds[0],
-      cantidad_clases: d.cantidad_clases,
+      curso_id: d.cursoIds[0] ?? null,
+      acceso_modo: d.acceso_modo,
+      ...camposLimite(d),
       precio: d.precio,
       criterio_liquidacion: d.criterio_liquidacion,
       tolerancia_faltas: d.tolerancia_faltas,
@@ -107,7 +126,7 @@ export async function actualizarPlan(id: number, d: DatosPlan): Promise<Resultad
     .eq("id", id);
   if (error) return { error: error.message };
 
-  const errC = await guardarCursos(a, id, d.cursoIds);
+  const errC = await guardarCursos(a, id, cursosParaGuardar(d));
   if (errC) return { error: errC };
 
   revalidatePath("/planes");

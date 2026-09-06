@@ -2,18 +2,34 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import type { Curso, Plan, DatosPlan } from "@/lib/tipos";
+import type { AccesoModo, Curso, Plan, DatosPlan } from "@/lib/tipos";
 import { gs } from "@/lib/inscripcion";
+import { etiquetaDias } from "@/components/entidades/EntidadCurso";
+import Toggle from "@/components/Toggle";
 import { crearPlan, actualizarPlan, eliminarODesactivarPlan, activarPlan } from "./acciones";
 
 const VACIO: DatosPlan = {
   nombre: "",
   precio: 0,
+  acceso_modo: "solo",
+  clases_ilimitadas: false,
   cantidad_clases: null,
+  ciclo_dias: null,
   criterio_liquidacion: 1,
   tolerancia_faltas: null,
   cursoIds: [],
 };
+
+const ACCESO_LABEL: Record<AccesoModo, string> = {
+  solo: "Solo las seleccionadas",
+  todas: "Todas las clases",
+  excepto: "Todas excepto las seleccionadas",
+};
+
+function numOrNull(s: string): number | null {
+  const t = s.replace(/\D/g, "");
+  return t === "" ? null : Math.trunc(Number(t));
+}
 
 export default function ClientePlanes({
   planes,
@@ -31,10 +47,14 @@ export default function ClientePlanes({
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const nombreCurso = useMemo(
-    () => new Map(cursos.map((c) => [c.id, c.nombre])),
-    [cursos]
-  );
+  const nombreCurso = useMemo(() => new Map(cursos.map((c) => [c.id, c.nombre])), [cursos]);
+  const cursoById = useMemo(() => new Map(cursos.map((c) => [c.id, c])), [cursos]);
+  const cursoConDias = (id: number) => {
+    const c = cursoById.get(id);
+    if (!c) return `#${id}`;
+    const d = etiquetaDias(c.dias_semana);
+    return d ? `${c.nombre} (${d})` : c.nombre;
+  };
   const ordenado = [...planes].sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 
   function nuevo() {
@@ -47,7 +67,10 @@ export default function ClientePlanes({
     setForm({
       nombre: p.nombre,
       precio: Number(p.precio),
+      acceso_modo: p.acceso_modo,
+      clases_ilimitadas: p.clases_ilimitadas,
       cantidad_clases: p.cantidad_clases,
+      ciclo_dias: p.ciclo_dias,
       criterio_liquidacion: p.criterio_liquidacion,
       tolerancia_faltas: p.tolerancia_faltas,
       cursoIds: p.cursoIds ?? (p.curso_id != null ? [p.curso_id] : []),
@@ -88,6 +111,8 @@ export default function ClientePlanes({
     });
   }
 
+  const muestraCursos = form.acceso_modo !== "todas";
+
   return (
     <div className="space-y-6">
       {/* Formulario */}
@@ -112,22 +137,38 @@ export default function ClientePlanes({
             />
           </div>
 
+          {/* Límite de clases */}
+          <Toggle
+            checked={form.clases_ilimitadas}
+            onChange={(v) => setForm({ ...form, clases_ilimitadas: v })}
+            label="Clases ilimitadas"
+            descripcion="Sin tope de clases: el alumno toma libremente durante el ciclo."
+          />
+
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label className="text-sm text-[var(--texto-tenue)] block mb-1">Clases (N)</label>
-              <input
-                value={form.cantidad_clases ?? ""}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    cantidad_clases: e.target.value.trim() === "" ? null : Math.trunc(Number(e.target.value.replace(/\D/g, ""))) || null,
-                  })
-                }
-                inputMode="numeric"
-                placeholder="12"
-                className="entrada w-full"
-              />
-            </div>
+            {form.clases_ilimitadas ? (
+              <div>
+                <label className="text-sm text-[var(--texto-tenue)] block mb-1">Duración del ciclo (días)</label>
+                <input
+                  value={form.ciclo_dias ?? ""}
+                  onChange={(e) => setForm({ ...form, ciclo_dias: numOrNull(e.target.value) })}
+                  inputMode="numeric"
+                  placeholder="30"
+                  className="entrada w-full"
+                />
+              </div>
+            ) : (
+              <div>
+                <label className="text-sm text-[var(--texto-tenue)] block mb-1">Clases (N)</label>
+                <input
+                  value={form.cantidad_clases ?? ""}
+                  onChange={(e) => setForm({ ...form, cantidad_clases: numOrNull(e.target.value) })}
+                  inputMode="numeric"
+                  placeholder="12"
+                  className="entrada w-full"
+                />
+              </div>
+            )}
             <div>
               <label className="text-sm text-[var(--texto-tenue)] block mb-1">Precio (Bs.)</label>
               <input
@@ -142,12 +183,7 @@ export default function ClientePlanes({
               <label className="text-sm text-[var(--texto-tenue)] block mb-1">Tolerancia faltas</label>
               <input
                 value={form.tolerancia_faltas ?? ""}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    tolerancia_faltas: e.target.value.trim() === "" ? null : Math.trunc(Number(e.target.value.replace(/\D/g, ""))) || 0,
-                  })
-                }
+                onChange={(e) => setForm({ ...form, tolerancia_faltas: numOrNull(e.target.value) })}
                 inputMode="numeric"
                 placeholder="(sistema)"
                 className="entrada w-full"
@@ -155,36 +191,52 @@ export default function ClientePlanes({
             </div>
           </div>
 
-          <div>
-            <label className="text-sm text-[var(--texto-tenue)] block mb-1.5">
-              Cursos incluidos {form.cursoIds.length > 1 ? "(combo)" : ""}
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {cursos.map((c) => {
-                const on = form.cursoIds.includes(c.id);
-                return (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => toggleCurso(c.id)}
-                    className={`px-3 py-2 text-sm rounded-[var(--radio-control)] border ${
-                      on
-                        ? "bg-[var(--exito-fill)] text-[var(--exito-texto)] border-[var(--exito)] font-medium"
-                        : "bg-[var(--fondo-panel)] text-[var(--texto-tenue)] border-[var(--borde)] hover:border-[var(--primario)]"
-                    }`}
-                  >
-                    {on ? "✓ " : ""}
-                    {c.nombre}
-                  </button>
-                );
-              })}
-              {cursos.length === 0 && (
-                <span className="text-sm text-[var(--texto-tenue)]">
-                  No hay cursos activos. Cargá cursos primero en Gestión → Cursos.
-                </span>
-              )}
-            </div>
+          {/* Criterio de acceso a cursos */}
+          <div className="max-w-[320px]">
+            <label className="text-sm text-[var(--texto-tenue)] block mb-1">¿A qué clases accede el plan?</label>
+            <select
+              value={form.acceso_modo}
+              onChange={(e) => setForm({ ...form, acceso_modo: e.target.value as AccesoModo })}
+              className="entrada w-full"
+            >
+              <option value="solo">{ACCESO_LABEL.solo}</option>
+              <option value="todas">{ACCESO_LABEL.todas}</option>
+              <option value="excepto">{ACCESO_LABEL.excepto}</option>
+            </select>
           </div>
+
+          {muestraCursos && (
+            <div>
+              <label className="text-sm text-[var(--texto-tenue)] block mb-1.5">
+                {form.acceso_modo === "excepto" ? "Cursos excluidos" : "Cursos incluidos"}
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {cursos.map((c) => {
+                  const on = form.cursoIds.includes(c.id);
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => toggleCurso(c.id)}
+                      className={`px-3 py-2 text-sm rounded-[var(--radio-control)] border ${
+                        on
+                          ? "bg-[var(--exito-fill)] text-[var(--exito-texto)] border-[var(--exito)] font-medium"
+                          : "bg-[var(--fondo-panel)] text-[var(--texto-tenue)] border-[var(--borde)] hover:border-[var(--primario)]"
+                      }`}
+                    >
+                      {on ? "✓ " : ""}
+                      {c.nombre}
+                    </button>
+                  );
+                })}
+                {cursos.length === 0 && (
+                  <span className="text-sm text-[var(--texto-tenue)]">
+                    No hay cursos activos. Cargá cursos primero en Gestión → Cursos.
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="max-w-[220px]">
             <label className="text-sm text-[var(--texto-tenue)] block mb-1">Criterio de liquidación</label>
@@ -236,15 +288,25 @@ export default function ClientePlanes({
           <tbody>
             {ordenado.map((p) => {
               const historial = (deps[p.id] ?? 0) > 0;
-              const nombres = (p.cursoIds ?? []).map((id) => nombreCurso.get(id) ?? `#${id}`).join(" · ");
+              const nombres = (p.cursoIds ?? []).map((id) => cursoConDias(id)).join(" · ");
+              const soloNombres = (p.cursoIds ?? []).map((id) => nombreCurso.get(id) ?? `#${id}`).join(" · ");
+              const cursosTxt =
+                p.acceso_modo === "todas"
+                  ? "Todos los cursos"
+                  : p.acceso_modo === "excepto"
+                  ? `Todos excepto: ${soloNombres || "—"}`
+                  : nombres || "—";
+              const clasesTxt = p.clases_ilimitadas
+                ? `Ilimitado${p.ciclo_dias ? ` · ${p.ciclo_dias}d` : ""}`
+                : p.cantidad_clases ?? "—";
               return (
                 <tr key={p.id} className={`border-t border-[var(--borde)] ${p.activo ? "" : "opacity-50"}`}>
                   <td className="py-3 px-4">
                     <div className="font-medium">{p.nombre}</div>
                     <div className="text-sm text-[var(--texto-tenue)]">criterio {p.criterio_liquidacion}</div>
                   </td>
-                  <td className="py-3 px-4 text-sm text-[var(--texto-tenue)]">{nombres || "—"}</td>
-                  <td className="py-3 px-4 text-right">{p.cantidad_clases ?? "—"}</td>
+                  <td className="py-3 px-4 text-sm text-[var(--texto-tenue)]">{cursosTxt}</td>
+                  <td className="py-3 px-4 text-right">{clasesTxt}</td>
                   <td className="py-3 px-4 text-right">{gs(Number(p.precio))}</td>
                   <td className="py-3 px-4">
                     <div className="flex flex-wrap gap-2 justify-end">

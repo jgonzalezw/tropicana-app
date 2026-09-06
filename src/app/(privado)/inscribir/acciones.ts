@@ -90,33 +90,52 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
 
   const { data: plan } = await sb
     .from("planes")
-    .select("id, nombre, cantidad_clases, precio, activo")
+    .select("id, nombre, cantidad_clases, precio, activo, acceso_modo, clases_ilimitadas, ciclo_dias")
     .eq("id", e.planId)
     .maybeSingle();
   if (!plan) return { error: "El plan no existe." };
   if (!plan.activo) return { error: "El plan está desactivado." };
 
-  const clasesPlan = plan.cantidad_clases as number | null;
-  if (!clasesPlan || clasesPlan <= 0)
+  const ilimitado = plan.clases_ilimitadas as boolean;
+  const cicloDias = plan.ciclo_dias as number | null;
+  const clasesPlan = ilimitado ? null : (plan.cantidad_clases as number | null);
+  if (ilimitado) {
+    if (!cicloDias || cicloDias <= 0)
+      return { error: "El plan ilimitado no tiene duración de ciclo (días)." };
+  } else if (!clasesPlan || clasesPlan <= 0) {
     return { error: "El plan no tiene una cantidad de clases (N) cargada." };
+  }
   const precioUnit = Number(plan.precio);
   const referencia = Math.max(0, precioUnit);
 
-  // 2. Cursos del plan (con sus días válidos).
+  // 2. Cursos a los que da acceso el plan (segun acceso_modo), con sus días.
+  const acceso = (plan.acceso_modo as string) ?? "solo";
   const { data: pcRows } = await sb
     .from("plan_cursos")
     .select("curso_id")
     .eq("plan_id", e.planId);
-  const cursoIds = ((pcRows as { curso_id: number }[]) ?? []).map((r) => r.curso_id);
-  if (cursoIds.length === 0) return { error: "El plan no tiene cursos asociados." };
+  const seleccionados = new Set(((pcRows as { curso_id: number }[]) ?? []).map((r) => r.curso_id));
 
-  const { data: cursoRows } = await sb
-    .from("cursos")
-    .select("id, dias_semana")
-    .in("id", cursoIds);
   const diasValidos = new Map<number, number[]>();
-  for (const r of (cursoRows as { id: number; dias_semana: number[] }[]) ?? [])
-    diasValidos.set(r.id, r.dias_semana ?? []);
+  if (acceso === "todas" || acceso === "excepto") {
+    const { data: cursoRows } = await sb
+      .from("cursos")
+      .select("id, dias_semana")
+      .eq("activo", true);
+    for (const r of (cursoRows as { id: number; dias_semana: number[] }[]) ?? []) {
+      if (acceso === "excepto" && seleccionados.has(r.id)) continue;
+      diasValidos.set(r.id, r.dias_semana ?? []);
+    }
+  } else {
+    if (seleccionados.size === 0) return { error: "El plan no tiene cursos asociados." };
+    const { data: cursoRows } = await sb
+      .from("cursos")
+      .select("id, dias_semana")
+      .in("id", [...seleccionados]);
+    for (const r of (cursoRows as { id: number; dias_semana: number[] }[]) ?? [])
+      diasValidos.set(r.id, r.dias_semana ?? []);
+  }
+  if (diasValidos.size === 0) return { error: "El plan no tiene cursos disponibles." };
 
   // 3. Validar la selección de días y armar la lista con repetición.
   const seleccion = (e.diasPorCurso ?? []).filter((x) => x.dias.length > 0);
@@ -132,8 +151,15 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
   if (diasConteo.length === 0) return { error: "Elegí al menos un día de clase." };
 
   const cursoPrincipal = seleccion[0].cursoId;
-  const ultima = fechaClaseN(diasConteo, inicio, clasesPlan);
-  const fechaFin = ultima ? isoFecha(ultima) : null;
+  let fechaFin: string | null = null;
+  if (ilimitado && cicloDias) {
+    const f = new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate());
+    f.setDate(f.getDate() + cicloDias);
+    fechaFin = isoFecha(f);
+  } else if (clasesPlan) {
+    const ultima = fechaClaseN(diasConteo, inicio, clasesPlan);
+    fechaFin = ultima ? isoFecha(ultima) : null;
+  }
 
   // 4. No repetir una membresía activa del mismo plan para el alumno.
   const { data: dup } = await sb

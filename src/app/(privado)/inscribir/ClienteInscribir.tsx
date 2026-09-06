@@ -23,6 +23,8 @@ export type PlanVenta = {
   nombre: string;
   cantidadClases: number | null;
   precio: number;
+  ilimitado: boolean;
+  cicloDias: number | null;
   cursos: CursoPlan[];
 };
 
@@ -65,7 +67,8 @@ export default function ClienteInscribir({
     return d;
   }, [hoy, diasCompromiso]);
 
-  const N = plan?.cantidadClases ?? null;
+  const ilimitado = plan?.ilimitado ?? false;
+  const N = ilimitado ? null : plan?.cantidadClases ?? null;
   const total = plan?.precio ?? 0;
 
   // Lista con repetición: una entrada por (curso, día) elegido.
@@ -79,7 +82,15 @@ export default function ClienteInscribir({
   const unionDias = useMemo(() => Array.from(new Set(diasConteo)).sort(), [diasConteo]);
   const fechas = useMemo(() => (plan ? proximasClases(unionDias, 3, hoy) : []), [plan, unionDias, hoy]);
   const fechaSel = fechas[Math.min(fechaIdx, Math.max(0, fechas.length - 1))] ?? null;
-  const fechaFin = fechaSel && N ? fechaClaseN(diasConteo, fechaSel, N) : null;
+  const fechaFin = !fechaSel
+    ? null
+    : ilimitado
+    ? plan?.cicloDias
+      ? sumarDias(fechaSel, plan.cicloDias)
+      : null
+    : N
+    ? fechaClaseN(diasConteo, fechaSel, N)
+    : null;
 
   const mueve = cobro ? Math.max(0, cobro.total - cobro.saldo) : 0;
   const saldoActual = cobro ? cobro.saldo : total;
@@ -135,7 +146,11 @@ export default function ClienteInscribir({
     if (!alumno) return setError("Falta elegir o cargar el alumno.");
     if (!plan) return setError("Falta elegir el plan.");
     if (yaTiene) return setError("Este alumno ya tiene una membresía activa de este plan.");
-    if (!N || N <= 0) return setError("El plan no tiene una cantidad de clases (N) cargada. Cargala en Planes.");
+    if (ilimitado) {
+      if (!plan.cicloDias) return setError("El plan ilimitado no tiene duración de ciclo. Cargala en Planes.");
+    } else if (!N || N <= 0) {
+      return setError("El plan no tiene una cantidad de clases (N) cargada. Cargala en Planes.");
+    }
     if (diasConteo.length === 0) return setError("Elegí al menos un día de clase.");
     if (!fechaSel) return setError("No hay una fecha de inicio válida.");
     if (cobro && cobro.modo !== "sin" && mueve > 0 && !cobro.medio) return setError("Elegí el medio de pago.");
@@ -175,8 +190,9 @@ export default function ClienteInscribir({
     });
   }
 
+  const limiteOk = ilimitado ? !!plan?.cicloDias : !!N;
   const puedeConfirmar =
-    !!alumno && !!plan && !!fechaSel && !!N && diasConteo.length > 0 && !pendiente && !yaTiene;
+    !!alumno && !!plan && !!fechaSel && limiteOk && diasConteo.length > 0 && !pendiente && !yaTiene;
 
   return (
     <div className="p-6 sm:p-8 max-w-3xl mx-auto pb-28">
@@ -265,7 +281,7 @@ export default function ClienteInscribir({
                   <div className="text-base font-semibold">{p.nombre}</div>
                   <div className="text-sm text-[var(--texto-tenue)] mt-0.5">
                     {p.cursos.map((c) => c.nombre).join(" · ")}
-                    {p.cantidadClases ? ` · ${p.cantidadClases} clases` : ""}
+                    {p.ilimitado ? " · ilimitado" : p.cantidadClases ? ` · ${p.cantidadClases} clases` : ""}
                   </div>
                 </div>
                 <div className="text-base font-bold shrink-0">{gs(p.precio)}</div>
@@ -283,7 +299,7 @@ export default function ClienteInscribir({
               <div className="flex-1 min-w-0">
                 <div className="text-lg font-semibold">{plan.nombre}</div>
                 <div className="text-sm text-[var(--texto-tenue)] mt-0.5">
-                  {N ? `${N} clases · ` : ""}
+                  {ilimitado ? "Ilimitado · " : N ? `${N} clases · ` : ""}
                   {gs(plan.precio)}
                 </div>
               </div>
@@ -364,7 +380,9 @@ export default function ClienteInscribir({
                 )}
               </div>
               <div className="text-sm text-[var(--texto-tenue)] mt-2">
-                {N
+                {ilimitado
+                  ? `Membresía ilimitada.${fechaFin ? ` Termina el ${fechaLarga(fechaFin)}.` : ""}`
+                  : N
                   ? `Membresía de ${N} clases.${fechaFin ? ` Termina aprox. el ${fechaLarga(fechaFin)}.` : ""}`
                   : "El plan no tiene N de clases cargado."}
               </div>
@@ -382,7 +400,7 @@ export default function ClienteInscribir({
             <div className="flex items-baseline gap-2">
               <span className="text-base text-[var(--texto-tenue)]">
                 {plan.nombre}
-                {N ? ` · ${N} clases` : ""}
+                {ilimitado ? " · ilimitado" : N ? ` · ${N} clases` : ""}
               </span>
               <span className="ml-auto titulo text-2xl">{gs(total)}</span>
             </div>
@@ -449,6 +467,12 @@ export default function ClienteInscribir({
       </div>
     </div>
   );
+}
+
+function sumarDias(d: Date, n: number): Date {
+  const r = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  r.setDate(r.getDate() + n);
+  return r;
 }
 
 function esHoy(d: Date, hoy: Date): boolean {

@@ -159,6 +159,8 @@ export type DatosCurso = {
 };
 
 /** Plan vendible (motor). Puede dar acceso a uno o varios cursos (plan_cursos). */
+export type AccesoModo = "solo" | "todas" | "excepto";
+
 export type Plan = {
   id: number;
   nombre: string;
@@ -169,11 +171,15 @@ export type Plan = {
   criterio_liquidacion: number;
   tolerancia_faltas: number | null;
   modalidad: string | null;
+  acceso_modo: AccesoModo;
+  clases_ilimitadas: boolean;
+  ciclo_dias: number | null;
   renovable: boolean;
   activo: boolean;
   creado_en: string;
   actualizado_en: string;
-  /** Cursos incluidos en el plan (desde plan_cursos), poblado por la pantalla. */
+  /** Cursos seleccionados (desde plan_cursos): incluidos si acceso='solo',
+   *  excluidos si acceso='excepto'. Poblado por la pantalla. */
   cursoIds?: number[];
 };
 
@@ -181,9 +187,15 @@ export type Plan = {
 export type DatosPlan = {
   nombre: string;
   precio: number;
+  acceso_modo: AccesoModo;
+  clases_ilimitadas: boolean;
+  /** Requerido si NO es ilimitado. */
   cantidad_clases: number | null;
+  /** Requerido si es ilimitado (duración del ciclo en días). */
+  ciclo_dias: number | null;
   criterio_liquidacion: number;
   tolerancia_faltas: number | null;
+  /** Cursos seleccionados: incluidos ('solo') o excluidos ('excepto'). */
   cursoIds: number[];
 };
 

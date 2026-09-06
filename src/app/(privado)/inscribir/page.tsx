@@ -24,7 +24,7 @@ export default async function PaginaInscribir() {
     supabase.from("cursos").select("*").eq("activo", true).order("nombre"),
     supabase
       .from("planes")
-      .select("id, nombre, cantidad_clases, precio")
+      .select("id, nombre, cantidad_clases, precio, acceso_modo, clases_ilimitadas, ciclo_dias")
       .eq("tipo_servicio", "curso_regular")
       .eq("activo", true)
       .order("nombre"),
@@ -41,22 +41,38 @@ export default async function PaginaInscribir() {
   for (const r of (planCursos as { plan_id: number; curso_id: number }[]) ?? [])
     (cursosPorPlan[r.plan_id] ??= []).push(r.curso_id);
 
-  // Planes vendibles con sus cursos (solo cursos activos que existan).
+  // Cursos que da acceso un plan segun su modo (todas / excepto / solo).
+  const activos = (cursos as Curso[]) ?? [];
+  function cursosDelPlan(planId: number, modo: string): Curso[] {
+    const sel = cursosPorPlan[planId] ?? [];
+    if (modo === "todas") return activos;
+    if (modo === "excepto") return activos.filter((c) => !sel.includes(c.id));
+    return sel.map((cid) => cursosById.get(cid)).filter((c): c is Curso => !!c);
+  }
+
+  // Planes vendibles con sus cursos resueltos.
   const planesVenta: PlanVenta[] = ((planes as {
     id: number;
     nombre: string;
     cantidad_clases: number | null;
     precio: number;
+    acceso_modo: string;
+    clases_ilimitadas: boolean;
+    ciclo_dias: number | null;
   }[]) ?? [])
     .map((p) => ({
       id: p.id,
       nombre: p.nombre,
       cantidadClases: p.cantidad_clases,
       precio: Number(p.precio),
-      cursos: (cursosPorPlan[p.id] ?? [])
-        .map((cid) => cursosById.get(cid))
-        .filter((c): c is Curso => !!c)
-        .map((c) => ({ id: c.id, nombre: c.nombre, dias_semana: c.dias_semana, hora: c.hora })),
+      ilimitado: p.clases_ilimitadas,
+      cicloDias: p.ciclo_dias,
+      cursos: cursosDelPlan(p.id, p.acceso_modo).map((c) => ({
+        id: c.id,
+        nombre: c.nombre,
+        dias_semana: c.dias_semana,
+        hora: c.hora,
+      })),
     }))
     .filter((p) => p.cursos.length > 0);
 
