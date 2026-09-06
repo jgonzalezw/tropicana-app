@@ -417,6 +417,11 @@ export async function guardarAsistencia(
     registradoPor: perfil?.id ?? null,
   });
 
+  // Motor: recalcular contador/"completada" de las membresías tocadas.
+  const inscIds = [...new Set(e.marcas.map((m) => m.inscripcionId).filter((x): x is number => x != null))];
+  let completadas = 0;
+  for (const id of inscIds) if (await recalcularMembresia(a, id)) completadas++;
+
   const presentes = e.marcas.filter((m) => m.estado === "presente").length;
   const ausentes = e.marcas.filter((m) => m.estado === "ausente").length;
   const plu = (n: number, s: string, p: string) => `${n} ${n === 1 ? s : p}`;
@@ -424,6 +429,8 @@ export async function guardarAsistencia(
     reposiciones > 0
       ? ` Se corrió el fin de ciclo de ${plu(reposiciones, "alumno", "alumnos")} por falta con tolerancia.`
       : "";
+  const notaComp =
+    completadas > 0 ? ` ${plu(completadas, "membresía completada", "membresías completadas")}.` : "";
 
   revalidatePath("/asistencia");
   return {
@@ -432,7 +439,7 @@ export async function guardarAsistencia(
       ausentes,
       "ausente",
       "ausentes"
-    )}.${notaRepo}`,
+    )}.${notaRepo}${notaComp}`,
   };
 }
 
@@ -525,6 +532,75 @@ async function reconciliarFaltas(
     .eq("sesion_id", args.sesionId)
     .eq("tipo", "falta");
   return count ?? 0;
+}
+
+// ── Motor: contador de clases realizadas + "completada" ──────────────────
+
+/**
+ * Recalcula el contador de una membresía (plan) desde sus asistencias y marca
+ * `completada` cuando alcanza `clases_plan`. Una clase cuenta si su sesión fue
+ * DICTADA y no es una falta con licencia (esa no consume la clase; genera bono).
+ * Solo aplica a membresías de plan con N (no ilimitadas, no parciales). No toca
+ * las dadas de baja. Devuelve true si quedó completada.
+ */
+async function recalcularMembresia(a: Admin, inscripcionId: number): Promise<boolean> {
+  const { data: insc } = await a
+    .from("inscripciones")
+    .select("id, plan_id, clases_plan, estado")
+    .eq("id", inscripcionId)
+    .maybeSingle();
+  if (!insc || insc.plan_id == null || insc.clases_plan == null) return false;
+  if (insc.estado === "baja") return false;
+
+  const { data: asis } = await a
+    .from("asistencias")
+    .select("sesion_id, estado, con_licencia")
+    .eq("inscripcion_id", inscripcionId);
+  const rows = (asis as { sesion_id: number; estado: Estado; con_licencia: boolean }[]) ?? [];
+
+  let hechas = 0;
+  if (rows.length) {
+    const sesIds = [...new Set(rows.map((r) => r.sesion_id))];
+    const { data: ses } = await a.from("sesiones").select("id, estado").in("id", sesIds);
+    const dictadas = new Set(
+      ((ses as { id: number; estado: string }[]) ?? [])
+        .filter((s) => s.estado === "dictada")
+        .map((s) => s.id)
+    );
+    for (const r of rows) {
+      if (!dictadas.has(r.sesion_id)) continue;
+      if (r.estado === "ausente" && r.con_licencia) continue; // falta con licencia: no consume
+      hechas++;
+    }
+  }
+
+  const clasesPlan = insc.clases_plan as number;
+  const completada = hechas >= clasesPlan;
+  await a
+    .from("inscripciones")
+    .update({
+      clases_hechas: hechas,
+      estado: completada ? "completada" : "activa",
+      actualizado_en: new Date().toISOString(),
+    })
+    .eq("id", inscripcionId);
+  return completada;
+}
+
+/** Recalcula todas las membresías de plan (uso puntual / previo a liquidar). */
+export async function recalcularMembresiasPlan(): Promise<{ ok?: true; error?: string; total?: number }> {
+  if (!(await tienePermiso("asistencia", "editar"))) return { error: "Sin permiso." };
+  const a = admin();
+  const { data } = await a
+    .from("inscripciones")
+    .select("id")
+    .not("plan_id", "is", null)
+    .not("clases_plan", "is", null)
+    .neq("estado", "baja");
+  const ids = ((data as { id: number }[]) ?? []).map((r) => r.id);
+  for (const id of ids) await recalcularMembresia(a, id);
+  revalidatePath("/asistencia");
+  return { ok: true, total: ids.length };
 }
 
 // ── Suspender / reabrir una clase ────────────────────────────────────────
