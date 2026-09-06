@@ -38,6 +38,20 @@ que el de Danze, que hace un curso por día). Agregar:
   sobre el calendario (no es fija como el "31 días" de Danze). Decidir: mostrar
   **duración estimada** (calculada) o agregar **campo de duración** fijo.
 
+### Planes — feedback de Javier (2026-09-06, sobre la v1)
+1. **Tolerancia con toggle:** Desactivado = 0/sin tolerancia; Activado pide N.
+2. **Al cambiar el modo de acceso, desmarcar los cursos** ya seleccionados (evita errores).
+3. **"Todas excepto" debe guardar un snapshot** de los cursos que en ese momento
+   son "todas" (los cursos en oferta a esa fecha). Cursos nuevos futuros NO entran
+   automáticamente al conjunto "todas": van al "excepto". Necesario para **validar
+   asistencia** (si un alumno de plan ilimitado puede o no entrar a una clase).
+   → Cambia la resolución dinámica actual por un **conjunto explícito** guardado.
+4. **Lista de selección de cursos con más info:** días, hora, profesor, estilo
+   (no solo el nombre).
+5. **Listas con filtro + orden:** en Planes, filtrar por **Activos/Inactivos/Todos**
+   y por **tipo** (Cursos Regulares / Particulares / Talleres / Alquileres / Todos).
+   **Generalizar** este patrón de filtro/orden a **todas las listas** de la app.
+
 ### Profesores
 - **Lista** con datos útiles (documento, email, WhatsApp) — como Danze.
 - Campos nuevos: **tipo de documento** (lista) + **número**, **email**, **género**,
