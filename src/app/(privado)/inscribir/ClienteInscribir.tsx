@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { Alumno, DatosAlumno } from "@/lib/tipos";
 import EntidadAlumno from "@/components/entidades/EntidadAlumno";
 import Cobro, { type PayloadCobro } from "@/components/Cobro";
+import Toggle from "@/components/Toggle";
 import {
   DIAS_LARGOS,
   fechaClaseN,
@@ -55,6 +56,8 @@ export default function ClienteInscribir({
   const [plan, setPlan] = useState<PlanVenta | null>(null);
   const [diasPorCurso, setDiasPorCurso] = useState<Record<number, number[]>>({});
   const [fechaIdx, setFechaIdx] = useState(0);
+  const [retroActivo, setRetroActivo] = useState(false);
+  const [fechaRetro, setFechaRetro] = useState<string>("");
   const [cobro, setCobro] = useState<PayloadCobro | null>(null);
   const [fechaCompromiso, setFechaCompromiso] = useState<string>("");
   const [aviso, setAviso] = useState<string | null>(null);
@@ -81,7 +84,12 @@ export default function ClienteInscribir({
 
   const unionDias = useMemo(() => Array.from(new Set(diasConteo)).sort(), [diasConteo]);
   const fechas = useMemo(() => (plan ? proximasClases(unionDias, 3, hoy) : []), [plan, unionDias, hoy]);
-  const fechaSel = fechas[Math.min(fechaIdx, Math.max(0, fechas.length - 1))] ?? null;
+  const fechaProxima = fechas[Math.min(fechaIdx, Math.max(0, fechas.length - 1))] ?? null;
+  const fechaRetroDate = useMemo(
+    () => (retroActivo ? parseFechaLocal(fechaRetro) : null),
+    [retroActivo, fechaRetro]
+  );
+  const fechaSel = retroActivo ? fechaRetroDate : fechaProxima;
   const fechaFin = !fechaSel
     ? null
     : ilimitado
@@ -108,6 +116,8 @@ export default function ClienteInscribir({
     setPlan(null);
     setDiasPorCurso({});
     setFechaIdx(0);
+    setRetroActivo(false);
+    setFechaRetro("");
     setCobro(null);
     setFechaCompromiso("");
     setError(null);
@@ -119,6 +129,8 @@ export default function ClienteInscribir({
     for (const c of p.cursos) init[c.id] = [...c.dias_semana];
     setDiasPorCurso(init);
     setFechaIdx(0);
+    setRetroActivo(false);
+    setFechaRetro("");
     setCobro(null);
     setFechaCompromiso("");
     setError(null);
@@ -360,27 +372,61 @@ export default function ClienteInscribir({
             {/* Fecha de inicio */}
             <div>
               <div className="text-sm text-[var(--texto-tenue)] mb-1.5">Empieza a tomar clases</div>
-              <div className="flex flex-wrap gap-2">
-                {fechas.map((f, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setFechaIdx(i)}
-                    className={`px-4 py-2 text-sm rounded-[var(--radio-control)] border ${
-                      fechaIdx === i
-                        ? "bg-[var(--primario)] text-[var(--primario-texto)] border-[var(--primario)] font-semibold"
-                        : "border-[var(--borde)] hover:border-[var(--primario)]"
-                    }`}
-                  >
-                    {i === 0 && esHoy(f, hoy) ? "hoy " : ""}
-                    {fechaLarga(f)}
-                  </button>
-                ))}
-                {fechas.length === 0 && (
-                  <span className="text-sm text-[var(--texto-tenue)]">Elegí días para ver fechas de inicio.</span>
-                )}
+              {retroActivo ? (
+                <div>
+                  <input
+                    type="date"
+                    value={fechaRetro}
+                    max={isoFecha(hoy)}
+                    onChange={(e) => {
+                      setFechaRetro(e.target.value);
+                      setError(null);
+                    }}
+                    className="entrada max-w-[200px]"
+                  />
+                  <p className="text-sm text-[var(--texto-tenue)] mt-1.5">
+                    Fecha real en que empezó a tomar clases. Se usa para reconstruir un ciclo cuyo
+                    registro se omitió en su momento.
+                  </p>
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {fechas.map((f, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setFechaIdx(i)}
+                      className={`px-4 py-2 text-sm rounded-[var(--radio-control)] border ${
+                        fechaIdx === i
+                          ? "bg-[var(--primario)] text-[var(--primario-texto)] border-[var(--primario)] font-semibold"
+                          : "border-[var(--borde)] hover:border-[var(--primario)]"
+                      }`}
+                    >
+                      {i === 0 && esHoy(f, hoy) ? "hoy " : ""}
+                      {fechaLarga(f)}
+                    </button>
+                  ))}
+                  {fechas.length === 0 && (
+                    <span className="text-sm text-[var(--texto-tenue)]">Elegí días para ver fechas de inicio.</span>
+                  )}
+                </div>
+              )}
+
+              <div className="mt-3">
+                <Toggle
+                  checked={retroActivo}
+                  onChange={(v) => {
+                    setRetroActivo(v);
+                    setError(null);
+                  }}
+                  label="Fecha retroactiva"
+                  descripcion="Para registrar una inscripción pasada que se omitió, con su fecha real."
+                />
               </div>
+
               <div className="text-sm text-[var(--texto-tenue)] mt-2">
-                {ilimitado
+                {retroActivo && !fechaSel
+                  ? "Elegí la fecha real de inicio."
+                  : ilimitado
                   ? `Membresía ilimitada.${fechaFin ? ` Termina el ${fechaLarga(fechaFin)}.` : ""}`
                   : N
                   ? `Membresía de ${N} clases.${fechaFin ? ` Termina aprox. el ${fechaLarga(fechaFin)}.` : ""}`
@@ -473,6 +519,13 @@ function sumarDias(d: Date, n: number): Date {
   const r = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   r.setDate(r.getDate() + n);
   return r;
+}
+
+/** Parsea YYYY-MM-DD como fecha local (sin corrimiento de zona horaria). */
+function parseFechaLocal(iso: string): Date | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!m) return null;
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
 }
 
 function esHoy(d: Date, hoy: Date): boolean {
