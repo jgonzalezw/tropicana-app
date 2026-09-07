@@ -153,7 +153,6 @@ export default function ClienteLiquidaciones({
                         <div className="flex gap-2">
                           <Link
                             href={`/liquidaciones/${l.id}`}
-                            target="_blank"
                             className="px-4 py-1.5 text-sm rounded-[var(--radio-control)] border border-[var(--borde)] hover:border-[var(--primario)]"
                           >
                             Comprobante

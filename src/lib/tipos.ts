@@ -263,6 +263,8 @@ export type MarcaAsistencia = {
   alumnoId: number;
   inscripcionId: number | null;
   estado: "presente" | "ausente";
+  /** Falta justificada: no da bono de tolerancia si es false. */
+  conLicencia?: boolean;
 };
 
 /** Entrada de la server action que guarda la asistencia de una sesión. */

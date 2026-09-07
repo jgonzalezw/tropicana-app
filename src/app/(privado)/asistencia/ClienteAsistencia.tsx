@@ -54,6 +54,7 @@ export default function ClienteAsistencia({
   const [selectorAbierto, setSelectorAbierto] = useState(false);
   const [filas, setFilas] = useState<FilaAsistencia[]>([]);
   const [marcas, setMarcas] = useState<Record<number, Estado>>({});
+  const [licencias, setLicencias] = useState<Record<number, boolean>>({});
   const [cargando, setCargando] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -80,6 +81,7 @@ export default function ClienteAsistencia({
         if (id !== pedido.current) return;
         setFilas(r.filas);
         setMarcas(r.marcas);
+        setLicencias(r.licencias);
         setSuspendida(r.suspendida);
         setMotivoSusp(r.motivoSuspension);
         setCompletada(r.completada);
@@ -112,10 +114,21 @@ export default function ClienteAsistencia({
   function toggle(alumnoId: number) {
     if (!editable) return;
     setAviso(null);
-    setMarcas((prev) => ({ ...prev, [alumnoId]: prev[alumnoId] === "presente" ? "ausente" : "presente" }));
+    setMarcas((prev) => {
+      const siguiente = prev[alumnoId] === "presente" ? "ausente" : "presente";
+      // Al volver a presente, la licencia deja de aplicar.
+      if (siguiente === "presente") setLicencias((l) => ({ ...l, [alumnoId]: false }));
+      return { ...prev, [alumnoId]: siguiente };
+    });
+  }
+  function toggleLicencia(alumnoId: number) {
+    if (!editable) return;
+    setAviso(null);
+    setLicencias((prev) => ({ ...prev, [alumnoId]: !prev[alumnoId] }));
   }
   function todosPresentes() {
     setAviso(null);
+    setLicencias({});
     setMarcas(() => {
       const m: Record<number, Estado> = {};
       for (const f of filas) m[f.alumnoId] = "presente";
@@ -129,7 +142,12 @@ export default function ClienteAsistencia({
     const insc = new Map(filas.map((f) => [f.alumnoId, f.inscripcionId]));
     const payload: MarcaAsistencia[] = filas
       .filter((f) => marcas[f.alumnoId])
-      .map((f) => ({ alumnoId: f.alumnoId, inscripcionId: insc.get(f.alumnoId) ?? null, estado: marcas[f.alumnoId] }));
+      .map((f) => ({
+        alumnoId: f.alumnoId,
+        inscripcionId: insc.get(f.alumnoId) ?? null,
+        estado: marcas[f.alumnoId],
+        conLicencia: marcas[f.alumnoId] === "ausente" && !!licencias[f.alumnoId],
+      }));
     startTransition(async () => {
       const res = await guardarAsistencia({ cursoId, fecha, marcas: payload });
       if (res.error) setError(res.error);
@@ -332,10 +350,12 @@ export default function ClienteAsistencia({
                   key={f.alumnoId}
                   fila={f}
                   estado={marcas[f.alumnoId]}
+                  licencia={!!licencias[f.alumnoId]}
                   faltasToleradas={faltasToleradas}
                   mostrarDeuda={mostrarDeuda}
                   readOnly={!editable}
                   onToggle={() => toggle(f.alumnoId)}
+                  onToggleLicencia={() => toggleLicencia(f.alumnoId)}
                 />
               ))}
             </div>
@@ -440,17 +460,21 @@ export default function ClienteAsistencia({
 function FilaRow({
   fila,
   estado,
+  licencia,
   faltasToleradas,
   mostrarDeuda,
   readOnly,
   onToggle,
+  onToggleLicencia,
 }: {
   fila: FilaAsistencia;
   estado: Estado | undefined;
+  licencia: boolean;
   faltasToleradas: number;
   mostrarDeuda: boolean;
   readOnly: boolean;
   onToggle: () => void;
+  onToggleLicencia: () => void;
 }) {
   const cls =
     estado === "presente"
@@ -464,7 +488,7 @@ function FilaRow({
 
   let sub: string;
   if (estado === "presente") sub = "Presente";
-  else if (estado === "ausente") sub = "Ausente";
+  else if (estado === "ausente") sub = licencia ? "Ausente · con licencia (bono)" : "Ausente";
   else if (esParcial)
     sub = `${ETIQUETA_MODALIDAD[fila.modalidad]}${
       fila.restantes != null ? ` · quedan ${fila.restantes} ${fila.restantes === 1 ? "clase" : "clases"}` : ""
@@ -475,43 +499,68 @@ function FilaRow({
     !estado && !esParcial ? (restantesTol <= 0 ? "Sin tolerancia" : restantesTol === 1 ? "Última tolerada" : null) : null;
 
   return (
-    <button
-      onClick={onToggle}
-      disabled={readOnly}
-      className={`w-full flex items-center gap-3 text-left rounded-[var(--radio-panel)] border px-4 py-3 min-h-[72px] ${cls} ${
-        readOnly ? "cursor-default" : ""
-      }`}
-    >
-      <span
-        className={`shrink-0 w-9 h-9 rounded-full grid place-items-center text-base font-bold ${
-          estado === "presente"
-            ? "bg-[var(--exito)] text-[var(--fondo-panel)]"
-            : estado === "ausente"
-            ? "bg-[var(--peligro)] text-[var(--fondo-panel)]"
-            : "border-2 border-[var(--texto-tenue)]"
-        }`}
+    <div className={`rounded-[var(--radio-panel)] border ${cls}`}>
+      <button
+        onClick={onToggle}
+        disabled={readOnly}
+        className={`w-full flex items-center gap-3 text-left px-4 py-3 min-h-[72px] ${readOnly ? "cursor-default" : ""}`}
       >
-        {estado === "presente" ? "✓" : estado === "ausente" ? "✕" : ""}
-      </span>
-      <span className="flex-1 min-w-0">
-        <span className="block text-lg font-semibold truncate">
-          {fila.apellido}, {fila.nombre}
+        <span
+          className={`shrink-0 w-9 h-9 rounded-full grid place-items-center text-base font-bold ${
+            estado === "presente"
+              ? "bg-[var(--exito)] text-[var(--fondo-panel)]"
+              : estado === "ausente"
+              ? "bg-[var(--peligro)] text-[var(--fondo-panel)]"
+              : "border-2 border-[var(--texto-tenue)]"
+          }`}
+        >
+          {estado === "presente" ? "✓" : estado === "ausente" ? "✕" : ""}
         </span>
-        <span className="block text-sm opacity-80">{sub}</span>
-      </span>
-      {!estado && (pill || (mostrarDeuda && fila.deuda > 0)) && (
-        <span className="shrink-0 flex flex-col items-end gap-1">
-          {pill && (
-            <span className="whitespace-nowrap px-2.5 py-1 text-xs rounded-[var(--radio-control)] bg-[var(--peligro-fill)] text-[var(--peligro-texto)]">
-              {pill}
+        <span className="flex-1 min-w-0">
+          <span className="block text-lg font-semibold truncate">
+            {fila.apellido}, {fila.nombre}
+          </span>
+          <span className="block text-sm opacity-80">{sub}</span>
+        </span>
+        {!estado && (pill || (mostrarDeuda && fila.deuda > 0)) && (
+          <span className="shrink-0 flex flex-col items-end gap-1">
+            {pill && (
+              <span className="whitespace-nowrap px-2.5 py-1 text-xs rounded-[var(--radio-control)] bg-[var(--peligro-fill)] text-[var(--peligro-texto)]">
+                {pill}
+              </span>
+            )}
+            {mostrarDeuda && fila.deuda > 0 && (
+              <span className="whitespace-nowrap text-sm text-[var(--peligro)]">Debe {gs(fila.deuda)}</span>
+            )}
+          </span>
+        )}
+      </button>
+
+      {/* Falta justificada: activa la tolerancia (bono). Solo cuando está ausente. */}
+      {estado === "ausente" && (
+        <div className="px-4 pb-3 -mt-1">
+          <button
+            onClick={onToggleLicencia}
+            disabled={readOnly}
+            aria-pressed={licencia}
+            className={`flex items-center gap-2 text-sm rounded-[var(--radio-control)] px-3 py-1.5 border ${
+              licencia
+                ? "bg-[var(--exito)] text-[var(--fondo-panel)] border-[var(--exito)]"
+                : "bg-[var(--fondo-panel)] border-[var(--borde)]"
+            } ${readOnly ? "cursor-default" : ""}`}
+          >
+            <span
+              className={`inline-grid place-items-center w-4 h-4 rounded border text-[10px] ${
+                licencia ? "bg-[var(--fondo-panel)] text-[var(--exito)] border-[var(--fondo-panel)]" : "border-[var(--texto-tenue)]"
+              }`}
+            >
+              {licencia ? "✓" : ""}
             </span>
-          )}
-          {mostrarDeuda && fila.deuda > 0 && (
-            <span className="whitespace-nowrap text-sm text-[var(--peligro)]">Debe {gs(fila.deuda)}</span>
-          )}
-        </span>
+            Con licencia (justificada · genera bono)
+          </button>
+        </div>
       )}
-    </button>
+    </div>
   );
 }
 

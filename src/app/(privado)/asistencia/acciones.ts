@@ -141,6 +141,8 @@ export async function cargarPadron(
 ): Promise<{
   filas: FilaAsistencia[];
   marcas: Record<number, Estado>;
+  /** Faltas justificadas de la sesión: alumnoId -> true. */
+  licencias: Record<number, boolean>;
   suspendida: boolean;
   motivoSuspension: string | null;
   completada: boolean;
@@ -150,6 +152,7 @@ export async function cargarPadron(
   const vacio = {
     filas: [],
     marcas: {},
+    licencias: {},
     suspendida: false,
     motivoSuspension: null,
     completada: false,
@@ -243,6 +246,7 @@ export async function cargarPadron(
 
   // Sesión existente (marcas + estado suspendida).
   const marcas: Record<number, Estado> = {};
+  const licencias: Record<number, boolean> = {};
   const extras: FilaAsistencia[] = [];
   let suspendida = false;
   let motivoSuspension: string | null = null;
@@ -257,16 +261,18 @@ export async function cargarPadron(
     motivoSuspension = (sesion.motivo as string | null) ?? null;
     const { data } = await sb
       .from("asistencias")
-      .select("estado, inscripcion_id, alumno:alumnos(id, nombre, apellido)")
+      .select("estado, con_licencia, inscripcion_id, alumno:alumnos(id, nombre, apellido)")
       .eq("sesion_id", sesion.id);
     const idsBase = new Set(alumnoIds);
     for (const r of (data as unknown as {
       estado: Estado;
+      con_licencia: boolean;
       inscripcion_id: number | null;
       alumno: { id: number; nombre: string; apellido: string } | null;
     }[]) ?? []) {
       if (!r.alumno) continue;
       marcas[r.alumno.id] = r.estado;
+      if (r.estado === "ausente" && r.con_licencia) licencias[r.alumno.id] = true;
       if (!idsBase.has(r.alumno.id))
         extras.push({
           inscripcionId: r.inscripcion_id,
@@ -301,6 +307,7 @@ export async function cargarPadron(
   return {
     filas: [...filas, ...extras].sort(compararPorApellido),
     marcas,
+    licencias,
     suspendida,
     motivoSuspension,
     completada: estadosPorFecha[fecha] === "completada",
@@ -366,7 +373,6 @@ export async function guardarAsistencia(
     .eq("id", e.cursoId)
     .maybeSingle();
   if (!curso) return { error: "El curso no existe." };
-  const diasSemana = (curso.dias_semana as number[]) ?? [];
 
   const { data: asig } = await a
     .from("asignaciones")
@@ -402,33 +408,27 @@ export async function guardarAsistencia(
     alumno_id: m.alumnoId,
     inscripcion_id: m.inscripcionId,
     estado: m.estado,
+    con_licencia: m.estado === "ausente" ? !!m.conLicencia : false,
   }));
   const { error: errAsis } = await a.from("asistencias").upsert(filas, { onConflict: "sesion_id,alumno_id" });
   if (errAsis) return { error: errAsis.message };
 
-  // Disparador de falta individual tolerada: reconciliar corrimientos 'falta'
-  // de esta sesión con las marcas actuales (aplica/revierte según toque).
-  const reposiciones = await reconciliarFaltas(a, {
-    cursoId: e.cursoId,
-    sesionId,
-    fecha: e.fecha,
-    diasSemana,
-    marcas: e.marcas,
-    registradoPor: perfil?.id ?? null,
-  });
+  // El fin de ciclo no se corre por faltas individuales: la falta con licencia
+  // acredita un bono de tolerancia (se redime al renovar); la falta sin licencia
+  // no corre nada. Solo limpiamos corrimientos 'falta' heredados de la sesión.
+  await revertirCorrimientos(a, sesionId, "falta");
 
-  // Motor: recalcular contador/"completada" de las membresías tocadas.
+  // Motor: recalcular contador/"completada"/bono de las membresías tocadas.
   const inscIds = [...new Set(e.marcas.map((m) => m.inscripcionId).filter((x): x is number => x != null))];
   let completadas = 0;
   for (const id of inscIds) if (await recalcularMembresia(a, id)) completadas++;
 
   const presentes = e.marcas.filter((m) => m.estado === "presente").length;
   const ausentes = e.marcas.filter((m) => m.estado === "ausente").length;
+  const conLic = e.marcas.filter((m) => m.estado === "ausente" && m.conLicencia).length;
   const plu = (n: number, s: string, p: string) => `${n} ${n === 1 ? s : p}`;
-  const notaRepo =
-    reposiciones > 0
-      ? ` Se corrió el fin de ciclo de ${plu(reposiciones, "alumno", "alumnos")} por falta con tolerancia.`
-      : "";
+  const notaLic =
+    conLic > 0 ? ` ${plu(conLic, "falta con licencia", "faltas con licencia")} (bono de tolerancia).` : "";
   const notaComp =
     completadas > 0 ? ` ${plu(completadas, "membresía completada", "membresías completadas")}.` : "";
 
@@ -439,114 +439,26 @@ export async function guardarAsistencia(
       ausentes,
       "ausente",
       "ausentes"
-    )}.${notaRepo}${notaComp}`,
+    )}.${notaLic}${notaComp}`,
   };
-}
-
-/** Aplica/revierte el corrimiento por falta tolerada de cada alumno mensual
- *  según las marcas de la sesión. Devuelve cuántos corrimientos quedaron. */
-async function reconciliarFaltas(
-  a: Admin,
-  args: {
-    cursoId: number;
-    sesionId: number;
-    fecha: string;
-    diasSemana: number[];
-    marcas: EntradaAsistencia["marcas"];
-    registradoPor: string | null;
-  }
-): Promise<number> {
-  const faltasToleradas = Math.max(1, Number(await obtenerParametro("faltas_toleradas")) || 2);
-
-  // Modalidad por inscripción (solo mensuales corren fin de ciclo).
-  const { data: insc } = await a
-    .from("inscripciones")
-    .select("id, alumno_id, modalidad")
-    .eq("curso_id", args.cursoId)
-    .eq("estado", "activa")
-    .lte("fecha_inicio", args.fecha);
-  const mensual = new Map<number, number>(); // inscripcion_id -> alumno_id
-  for (const r of (insc as { id: number; alumno_id: number; modalidad: string }[]) ?? [])
-    if (r.modalidad === "mensual") mensual.set(r.id, r.alumno_id);
-
-  // Faltas del mes por alumno EXCLUYENDO esta sesión (para saber si hay tolerancia).
-  const [y, m] = args.fecha.split("-").map(Number);
-  const desde = `${y}-${String(m).padStart(2, "0")}-01`;
-  const hasta = fmt(new Date(y, m, 0));
-  const { data: sesMes } = await a
-    .from("sesiones")
-    .select("id")
-    .eq("curso_id", args.cursoId)
-    .gte("fecha", desde)
-    .lte("fecha", hasta);
-  const otrasSes = ((sesMes as { id: number }[]) ?? []).map((s) => s.id).filter((id) => id !== args.sesionId);
-  const faltasPrevias: Record<number, number> = {};
-  if (otrasSes.length) {
-    const { data } = await a
-      .from("asistencias")
-      .select("alumno_id")
-      .eq("estado", "ausente")
-      .in("sesion_id", otrasSes);
-    for (const x of (data as { alumno_id: number }[]) ?? [])
-      faltasPrevias[x.alumno_id] = (faltasPrevias[x.alumno_id] ?? 0) + 1;
-  }
-
-  const marcaPorInsc = new Map<number, Estado>();
-  for (const mk of args.marcas) if (mk.inscripcionId != null) marcaPorInsc.set(mk.inscripcionId, mk.estado);
-
-  for (const [inscripcionId, alumnoId] of mensual) {
-    const estado = marcaPorInsc.get(inscripcionId);
-    const conTolerancia = (faltasPrevias[alumnoId] ?? 0) < faltasToleradas;
-    const debeCorrer = estado === "ausente" && conTolerancia;
-    if (debeCorrer) {
-      await aplicarCorrimiento(a, {
-        inscripcionId,
-        alumnoId,
-        sesionId: args.sesionId,
-        tipo: "falta",
-        fechaClase: args.fecha,
-        motivo: null,
-        diasSemana: args.diasSemana,
-        registradoPor: args.registradoPor,
-      });
-    } else {
-      // Ya no corresponde (presente, o sin tolerancia): revertir si existía.
-      const { data: ex } = await a
-        .from("corrimientos_ciclo")
-        .select("id, cuota_id, vencimiento_anterior")
-        .eq("inscripcion_id", inscripcionId)
-        .eq("sesion_id", args.sesionId)
-        .eq("tipo", "falta")
-        .maybeSingle();
-      if (ex) {
-        if (ex.cuota_id != null)
-          await a.from("cuotas").update({ vencimiento: ex.vencimiento_anterior }).eq("id", ex.cuota_id);
-        await a.from("corrimientos_ciclo").delete().eq("id", ex.id);
-      }
-    }
-  }
-
-  const { count } = await a
-    .from("corrimientos_ciclo")
-    .select("id", { count: "exact", head: true })
-    .eq("sesion_id", args.sesionId)
-    .eq("tipo", "falta");
-  return count ?? 0;
 }
 
 // ── Motor: contador de clases realizadas + "completada" ──────────────────
 
 /**
- * Recalcula el contador de una membresía (plan) desde sus asistencias y marca
- * `completada` cuando alcanza `clases_plan`. Una clase cuenta si su sesión fue
- * DICTADA y no es una falta con licencia (esa no consume la clase; genera bono).
+ * Recalcula una membresía (plan) desde sus asistencias:
+ *  - El CICLO se completa cuando ocurrieron N (=`clases_plan`) sesiones DICTADAS
+ *    de la membresía (la falta, justificada o no, no lo alarga: la clase pasó).
+ *  - `clases_hechas` = clases a las que ASISTIÓ (presentes) -> se muestra "X/N".
+ *  - `bono_generado` = faltas CON licencia (tope `tolerancia_faltas` del plan);
+ *    es la clase de tolerancia que se redime al renovar (no la sin licencia).
  * Solo aplica a membresías de plan con N (no ilimitadas, no parciales). No toca
  * las dadas de baja. Devuelve true si quedó completada.
  */
 async function recalcularMembresia(a: Admin, inscripcionId: number): Promise<boolean> {
   const { data: insc } = await a
     .from("inscripciones")
-    .select("id, plan_id, clases_plan, estado")
+    .select("id, plan_id, clases_plan, estado, tolerancia_faltas")
     .eq("id", inscripcionId)
     .maybeSingle();
   if (!insc || insc.plan_id == null || insc.clases_plan == null) return false;
@@ -558,33 +470,48 @@ async function recalcularMembresia(a: Admin, inscripcionId: number): Promise<boo
     .eq("inscripcion_id", inscripcionId);
   const rows = (asis as { sesion_id: number; estado: Estado; con_licencia: boolean }[]) ?? [];
 
-  let hechas = 0;
+  let dictadas = 0; // sesiones de la membresía efectivamente dictadas
+  let presentes = 0; // asistió
+  let faltasConLic = 0; // faltas justificadas
   if (rows.length) {
     const sesIds = [...new Set(rows.map((r) => r.sesion_id))];
     const { data: ses } = await a.from("sesiones").select("id, estado").in("id", sesIds);
-    const dictadas = new Set(
+    const dictadasSet = new Set(
       ((ses as { id: number; estado: string }[]) ?? [])
         .filter((s) => s.estado === "dictada")
         .map((s) => s.id)
     );
     for (const r of rows) {
-      if (!dictadas.has(r.sesion_id)) continue;
-      if (r.estado === "ausente" && r.con_licencia) continue; // falta con licencia: no consume
-      hechas++;
+      if (!dictadasSet.has(r.sesion_id)) continue;
+      dictadas++;
+      if (r.estado === "presente") presentes++;
+      else if (r.estado === "ausente" && r.con_licencia) faltasConLic++;
     }
   }
 
   const clasesPlan = insc.clases_plan as number;
-  const completada = hechas >= clasesPlan;
+  const tolerancia = await toleranciaDe(a, insc.plan_id as number, insc.tolerancia_faltas as number | null);
+  const bono = Math.min(faltasConLic, Math.max(0, tolerancia));
+  const completada = dictadas >= clasesPlan;
   await a
     .from("inscripciones")
     .update({
-      clases_hechas: hechas,
+      clases_hechas: presentes,
+      bono_generado: bono,
       estado: completada ? "completada" : "activa",
       actualizado_en: new Date().toISOString(),
     })
     .eq("id", inscripcionId);
   return completada;
+}
+
+/** Tolerancia de faltas efectiva: snapshot de la membresía, si no el plan, si no el parámetro. */
+async function toleranciaDe(a: Admin, planId: number, snapshot: number | null): Promise<number> {
+  if (snapshot != null) return snapshot;
+  const { data: plan } = await a.from("planes").select("tolerancia_faltas").eq("id", planId).maybeSingle();
+  const t = (plan?.tolerancia_faltas as number | null) ?? null;
+  if (t != null) return t;
+  return Math.max(0, Number(await obtenerParametro("faltas_toleradas")) || 0);
 }
 
 /** Recalcula todas las membresías de plan (uso puntual / previo a liquidar). */

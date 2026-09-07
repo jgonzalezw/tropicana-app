@@ -32,7 +32,9 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
     number,
     { alumno_id: number; curso_id: number; fecha_inicio: string | null; fecha_fin: string | null; clases_plan: number | null; clases_hechas: number | null }
   >();
-  const corrPorInsc: Record<number, number> = {};
+  const corrSuspPorInsc: Record<number, number> = {};
+  const faltasConLicPorInsc: Record<number, number> = {};
+  const faltasSinLicPorInsc: Record<number, number> = {};
   const alNombre = new Map<number, string>();
   const cuNombre = new Map<number, string>();
   // Por membresía: valor total (precio), descuento, motivos, cobrado (plata).
@@ -42,18 +44,38 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
   const motivosPorInsc: Record<number, Set<string>> = {};
 
   if (membresiaIds.length) {
-    const [{ data: insc }, { data: corr }, { data: cuotas }] = await Promise.all([
+    const [{ data: insc }, { data: corr }, { data: cuotas }, { data: asis }] = await Promise.all([
       sb.from("inscripciones").select("id, alumno_id, curso_id, fecha_inicio, fecha_fin, clases_plan, clases_hechas").in("id", membresiaIds),
-      sb.from("corrimientos_ciclo").select("inscripcion_id").in("inscripcion_id", membresiaIds),
+      sb.from("corrimientos_ciclo").select("inscripcion_id, tipo").in("inscripcion_id", membresiaIds),
       sb.from("cuotas").select("id, inscripcion_id, monto_devengado, descuento_adelanto").in("inscripcion_id", membresiaIds),
+      sb.from("asistencias").select("inscripcion_id, sesion_id, estado, con_licencia").in("inscripcion_id", membresiaIds),
     ]);
     for (const r of (insc as {
       id: number; alumno_id: number; curso_id: number; fecha_inicio: string | null;
       fecha_fin: string | null; clases_plan: number | null; clases_hechas: number | null;
     }[]) ?? [])
       inscById.set(r.id, r);
-    for (const r of (corr as { inscripcion_id: number | null }[]) ?? [])
-      if (r.inscripcion_id != null) corrPorInsc[r.inscripcion_id] = (corrPorInsc[r.inscripcion_id] ?? 0) + 1;
+    // Corrimientos: en el comprobante solo cuentan los de SUSPENSION (la falta con
+    // licencia se muestra aparte como bono; la falta sin licencia no corre nada).
+    for (const r of (corr as { inscripcion_id: number | null; tipo: string | null }[]) ?? [])
+      if (r.inscripcion_id != null && r.tipo === "suspension")
+        corrSuspPorInsc[r.inscripcion_id] = (corrSuspPorInsc[r.inscripcion_id] ?? 0) + 1;
+
+    // Faltas del ciclo (solo sobre sesiones dictadas), separadas por licencia.
+    const asisRows =
+      (asis as { inscripcion_id: number | null; sesion_id: number; estado: string; con_licencia: boolean }[]) ?? [];
+    const sesAusIds = [...new Set(asisRows.filter((r) => r.estado === "ausente").map((r) => r.sesion_id))];
+    const dictadas = new Set<number>();
+    if (sesAusIds.length) {
+      const { data: ses } = await sb.from("sesiones").select("id, estado").in("id", sesAusIds);
+      for (const s of (ses as { id: number; estado: string }[]) ?? [])
+        if (s.estado === "dictada") dictadas.add(s.id);
+    }
+    for (const r of asisRows) {
+      if (r.inscripcion_id == null || r.estado !== "ausente" || !dictadas.has(r.sesion_id)) continue;
+      if (r.con_licencia) faltasConLicPorInsc[r.inscripcion_id] = (faltasConLicPorInsc[r.inscripcion_id] ?? 0) + 1;
+      else faltasSinLicPorInsc[r.inscripcion_id] = (faltasSinLicPorInsc[r.inscripcion_id] ?? 0) + 1;
+    }
 
     const cuotaRows = (cuotas as { id: number; inscripcion_id: number; monto_devengado: number; descuento_adelanto: number }[]) ?? [];
     const cuotaToInsc = new Map<number, number>();
@@ -109,7 +131,9 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
       cicloFin: i?.fecha_fin ?? null,
       clasesPlan: i?.clases_plan ?? null,
       clasesHechas: i?.clases_hechas ?? null,
-      corrimientos: mid != null ? corrPorInsc[mid] ?? 0 : 0,
+      faltasConLic: mid != null ? faltasConLicPorInsc[mid] ?? 0 : 0,
+      faltasSinLic: mid != null ? faltasSinLicPorInsc[mid] ?? 0 : 0,
+      corrSuspension: mid != null ? corrSuspPorInsc[mid] ?? 0 : 0,
       valorTotal: mid != null ? totalPorInsc[mid] ?? base : base,
       descuento: mid != null ? descPorInsc[mid] ?? 0 : 0,
       motivo: mid != null ? [...(motivosPorInsc[mid] ?? [])].join(", ") : "",
