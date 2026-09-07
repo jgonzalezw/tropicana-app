@@ -19,11 +19,105 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
     .maybeSingle();
   if (!liq) return <div className="p-8">La liquidación no existe.</div>;
 
-  const [{ data: prof }, { data: items }, { data: pagos }] = await Promise.all([
+  const [{ data: prof }, { data: comis }, { data: pagosLiq }] = await Promise.all([
     sb.from("profesores").select("nombre, apellido, whatsapp").eq("id", liq.profesor_id).maybeSingle(),
-    sb.from("liquidacion_items").select("descripcion, monto").eq("liquidacion_id", liquidacionId).order("id"),
-    sb.from("pagos").select("fecha, monto, medio").eq("tipo", "pago").eq("liquidacion_id", liquidacionId).order("fecha"),
+    sb.from("comisiones_devengadas").select("id, membresia_id, base, monto").eq("liquidacion_id", liquidacionId).order("id"),
+    sb.from("pagos").select("fecha, monto, medio, motivo").eq("tipo", "pago").eq("liquidacion_id", liquidacionId).order("fecha"),
   ]);
+
+  const comisiones = (comis as { id: number; membresia_id: number | null; base: number; monto: number }[]) ?? [];
+  const membresiaIds = [...new Set(comisiones.map((c) => c.membresia_id).filter((x): x is number => x != null))];
+
+  const inscById = new Map<
+    number,
+    { alumno_id: number; curso_id: number; fecha_inicio: string | null; fecha_fin: string | null; clases_plan: number | null; clases_hechas: number | null }
+  >();
+  const corrPorInsc: Record<number, number> = {};
+  const alNombre = new Map<number, string>();
+  const cuNombre = new Map<number, string>();
+  // Por membresía: valor total (precio), descuento, motivos, cobrado (plata).
+  const totalPorInsc: Record<number, number> = {};
+  const descPorInsc: Record<number, number> = {};
+  const cobradoPorInsc: Record<number, number> = {};
+  const motivosPorInsc: Record<number, Set<string>> = {};
+
+  if (membresiaIds.length) {
+    const [{ data: insc }, { data: corr }, { data: cuotas }] = await Promise.all([
+      sb.from("inscripciones").select("id, alumno_id, curso_id, fecha_inicio, fecha_fin, clases_plan, clases_hechas").in("id", membresiaIds),
+      sb.from("corrimientos_ciclo").select("inscripcion_id").in("inscripcion_id", membresiaIds),
+      sb.from("cuotas").select("id, inscripcion_id, monto_devengado, descuento_adelanto").in("inscripcion_id", membresiaIds),
+    ]);
+    for (const r of (insc as {
+      id: number; alumno_id: number; curso_id: number; fecha_inicio: string | null;
+      fecha_fin: string | null; clases_plan: number | null; clases_hechas: number | null;
+    }[]) ?? [])
+      inscById.set(r.id, r);
+    for (const r of (corr as { inscripcion_id: number | null }[]) ?? [])
+      if (r.inscripcion_id != null) corrPorInsc[r.inscripcion_id] = (corrPorInsc[r.inscripcion_id] ?? 0) + 1;
+
+    const cuotaRows = (cuotas as { id: number; inscripcion_id: number; monto_devengado: number; descuento_adelanto: number }[]) ?? [];
+    const cuotaToInsc = new Map<number, number>();
+    for (const c of cuotaRows) {
+      cuotaToInsc.set(c.id, c.inscripcion_id);
+      totalPorInsc[c.inscripcion_id] = (totalPorInsc[c.inscripcion_id] ?? 0) + Number(c.monto_devengado);
+      const da = Number(c.descuento_adelanto);
+      if (da > 0) {
+        descPorInsc[c.inscripcion_id] = (descPorInsc[c.inscripcion_id] ?? 0) + da;
+        (motivosPorInsc[c.inscripcion_id] ??= new Set()).add("adelanto");
+      }
+    }
+    const cuotaIds = cuotaRows.map((c) => c.id);
+    if (cuotaIds.length) {
+      const { data: pagosCobro } = await sb
+        .from("pagos")
+        .select("cuota_id, monto, descuento, descuento_motivo")
+        .eq("tipo", "cobro")
+        .in("cuota_id", cuotaIds);
+      for (const p of (pagosCobro as { cuota_id: number | null; monto: number; descuento: number; descuento_motivo: string | null }[]) ?? []) {
+        if (p.cuota_id == null) continue;
+        const insId = cuotaToInsc.get(p.cuota_id);
+        if (insId == null) continue;
+        cobradoPorInsc[insId] = (cobradoPorInsc[insId] ?? 0) + Number(p.monto);
+        const d = Number(p.descuento);
+        if (d > 0) {
+          descPorInsc[insId] = (descPorInsc[insId] ?? 0) + d;
+          if (p.descuento_motivo?.trim()) (motivosPorInsc[insId] ??= new Set()).add(p.descuento_motivo.trim());
+        }
+      }
+    }
+
+    const alIds = [...new Set([...inscById.values()].map((i) => i.alumno_id))];
+    const cuIds = [...new Set([...inscById.values()].map((i) => i.curso_id))];
+    const [{ data: al }, { data: cu }] = await Promise.all([
+      sb.from("alumnos").select("id, nombre, apellido").in("id", alIds),
+      sb.from("cursos").select("id, nombre").in("id", cuIds),
+    ]);
+    for (const a of (al as { id: number; nombre: string; apellido: string }[]) ?? [])
+      alNombre.set(a.id, `${a.apellido}, ${a.nombre}`);
+    for (const c of (cu as { id: number; nombre: string }[]) ?? []) cuNombre.set(c.id, c.nombre);
+  }
+
+  const items: DatosComprobante["items"] = comisiones.map((c) => {
+    const mid = c.membresia_id;
+    const i = mid != null ? inscById.get(mid) : undefined;
+    const base = Number(c.base);
+    const monto = Number(c.monto);
+    return {
+      alumno: i ? alNombre.get(i.alumno_id) ?? `#${i.alumno_id}` : "—",
+      curso: i ? cuNombre.get(i.curso_id) ?? `#${i.curso_id}` : "—",
+      cicloInicio: i?.fecha_inicio ?? null,
+      cicloFin: i?.fecha_fin ?? null,
+      clasesPlan: i?.clases_plan ?? null,
+      clasesHechas: i?.clases_hechas ?? null,
+      corrimientos: mid != null ? corrPorInsc[mid] ?? 0 : 0,
+      valorTotal: mid != null ? totalPorInsc[mid] ?? base : base,
+      descuento: mid != null ? descPorInsc[mid] ?? 0 : 0,
+      motivo: mid != null ? [...(motivosPorInsc[mid] ?? [])].join(", ") : "",
+      cobrado: mid != null ? cobradoPorInsc[mid] ?? base : base,
+      pct: base > 0 ? Math.round((monto / base) * 100) : 0,
+      monto,
+    };
+  });
 
   const datos: DatosComprobante = {
     id: liq.id as number,
@@ -36,14 +130,12 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
     totalPagado: Number(liq.total_pagado),
     neto: Number(liq.neto),
     creadoEn: liq.creado_en as string,
-    items: ((items as { descripcion: string | null; monto: number }[]) ?? []).map((i) => ({
-      descripcion: i.descripcion ?? "—",
-      monto: Number(i.monto),
-    })),
-    pagos: ((pagos as { fecha: string; monto: number; medio: string | null }[]) ?? []).map((p) => ({
+    items,
+    pagos: ((pagosLiq as { fecha: string; monto: number; medio: string | null; motivo: string | null }[]) ?? []).map((p) => ({
       fecha: p.fecha,
       monto: Number(p.monto),
       medio: p.medio ?? "—",
+      concepto: p.motivo === "liquidacion" ? "Pago de liquidación" : p.motivo ?? "Pago",
     })),
   };
 

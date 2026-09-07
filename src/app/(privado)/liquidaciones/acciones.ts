@@ -12,7 +12,9 @@ function admin() {
 }
 type Admin = ReturnType<typeof admin>;
 
-function primerDiaMesISO(d = new Date()): string {
+/** Primer día del MES VENCIDO (mes anterior): el período que se liquida. */
+function primerDiaMesVencidoISO(hoy = new Date()): string {
+  const d = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
 }
 
@@ -224,7 +226,7 @@ export async function generarLiquidacion(profesorId: number): Promise<{ ok?: tru
   if (pendientes.length === 0) return { error: "No hay devengos pendientes para este profesor." };
 
   const periodicidad = (await obtenerParametro("periodicidad_liquidacion")) || "mes";
-  const periodo = primerDiaMesISO();
+  const periodo = primerDiaMesVencidoISO();
 
   // Liquidación abierta del profesor en ese período, o nueva.
   const { data: existente } = await a
