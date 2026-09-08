@@ -58,15 +58,22 @@ total del período, dejando el devengo por membresía intacto — simple y addit
 (b) llevar el devengo a **granularidad por clase**. Recomendación: (a).
 
 ## 4. Fases de construcción
-- **1C-core (ahora):** devengo criterio 1 (membresías cobradas + completadas),
-  **pantalla "Profesores → Liquidaciones"** (devengado / pagos / neto por profesor
-  y período) y **pago al profesor**. Estructurado para admitir ítems de ajuste.
+- **1C-core ✅ construido (2026-09-07/08):** devengo criterio 1 (membresías cobradas
+  + completadas), **pantalla "Liquidaciones"** (devengado / pagos / neto por
+  profesor y período), **pago al profesor** y **comprobante** (mismo formato de
+  pantalla que el resto de la app; "Imprimir/Guardar PDF" abre un documento
+  autónomo aparte, sin app shell). Estructurado para admitir ítems de ajuste.
 - **1C-ausencias (después):** registrar ausencia del profesor (con/sin licencia),
   asignar reemplazo (alta rápida de profesor si falta) con su pago + descuento al
   titular, multa por sin-licencia (parámetro), y su reflejo como ítems de ajuste
   en la liquidación. Requiere también el reencuadre de suspensión→`fecha_fin` (1B.2b).
 
 ## 5. Prerrequisitos
-- **1B.2** contador/completada ✅ (hecho). Pendiente 1B.2b: licencia→bono (alumno),
-  suspensión corre `fecha_fin`.
+- **1B.2 ✅ cerrado (2026-09-08).** Contador/completada: el ciclo se completa a las
+  N sesiones **dictadas** (la falta no lo alarga). Licencia→bono (alumno): control
+  "Con licencia" en Asistencia, acredita `bono_generado` (tope `tolerancia_faltas`
+  del plan); se **redime** al reinscribir en el mismo plan (`0015_bono_redimido`,
+  suma clases al N del ciclo nuevo). Pendiente (no bloquea 1C): suspensión corre
+  hoy `cuotas.vencimiento`, no `inscripciones.fecha_fin` — reencuadre 1B.2b si hace
+  falta más adelante.
 - `asignaciones.pct_ingresos` (existe) para el monto del devengo.
