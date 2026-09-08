@@ -95,6 +95,21 @@ export default async function PaginaInscribir() {
     supabase.from("pagos").select("cuota_id, monto, descuento").eq("tipo", "cobro"),
   ]);
 
+  // Bonos de tolerancia pendientes de redimir, por alumno y plan.
+  const { data: bonos } = await supabase
+    .from("inscripciones")
+    .select("alumno_id, plan_id, bono_generado")
+    .eq("estado", "completada")
+    .eq("bono_redimido", false)
+    .gt("bono_generado", 0);
+  const bonoPorAlumnoPlan: Record<number, Record<number, number>> = {};
+  for (const b of (bonos as { alumno_id: number; plan_id: number | null; bono_generado: number }[]) ?? []) {
+    if (b.plan_id == null) continue;
+    (bonoPorAlumnoPlan[b.alumno_id] ??= {});
+    bonoPorAlumnoPlan[b.alumno_id][b.plan_id] =
+      (bonoPorAlumnoPlan[b.alumno_id][b.plan_id] ?? 0) + Math.max(0, Number(b.bono_generado));
+  }
+
   const inscById = new Map<number, { alumno_id: number }>();
   const cursosPorAlumno: Record<number, string[]> = {};
   const planesActivosPorAlumno: Record<number, number[]> = {};
@@ -147,6 +162,7 @@ export default async function PaginaInscribir() {
       cursosPorAlumno={cursosPorAlumno}
       deudaPorAlumno={deudaPorAlumno}
       planesActivosPorAlumno={planesActivosPorAlumno}
+      bonoPorAlumnoPlan={bonoPorAlumnoPlan}
     />
   );
 }

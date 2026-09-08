@@ -38,6 +38,7 @@ export default function ClienteInscribir({
   cursosPorAlumno,
   deudaPorAlumno,
   planesActivosPorAlumno,
+  bonoPorAlumnoPlan,
 }: {
   alumnos: Alumno[];
   planes: PlanVenta[];
@@ -47,6 +48,7 @@ export default function ClienteInscribir({
   cursosPorAlumno: Record<number, string[]>;
   deudaPorAlumno: Record<number, number>;
   planesActivosPorAlumno: Record<number, number[]>;
+  bonoPorAlumnoPlan: Record<number, Record<number, number>>;
 }) {
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
@@ -72,6 +74,9 @@ export default function ClienteInscribir({
 
   const ilimitado = plan?.ilimitado ?? false;
   const N = ilimitado ? null : plan?.cantidadClases ?? null;
+  // Bono de tolerancia pendiente del alumno para este plan (solo planes con N).
+  const bono = !ilimitado && alumno && plan ? bonoPorAlumnoPlan[alumno.id]?.[plan.id] ?? 0 : 0;
+  const Nefectivo = N != null ? N + bono : null;
   const total = plan?.precio ?? 0;
 
   // Lista con repetición: una entrada por (curso, día) elegido.
@@ -96,8 +101,8 @@ export default function ClienteInscribir({
     ? plan?.cicloDias
       ? sumarDias(fechaSel, plan.cicloDias)
       : null
-    : N
-    ? fechaClaseN(diasConteo, fechaSel, N)
+    : Nefectivo
+    ? fechaClaseN(diasConteo, fechaSel, Nefectivo)
     : null;
 
   const mueve = cobro ? Math.max(0, cobro.total - cobro.saldo) : 0;
@@ -423,13 +428,23 @@ export default function ClienteInscribir({
                 />
               </div>
 
+              {bono > 0 && (
+                <div className="mt-3 rounded-[var(--radio-panel)] border border-[var(--exito)] bg-[var(--exito-fill)] text-[var(--exito-texto)] px-4 py-2.5 text-sm">
+                  Se aplicará bono de tolerancia: <strong>+{bono} {bono === 1 ? "clase" : "clases"}</strong> por
+                  falta{bono === 1 ? "" : "s"} con licencia del ciclo anterior. El nuevo ciclo es de{" "}
+                  <strong>{Nefectivo} clases</strong> (incluye la clase de tolerancia).
+                </div>
+              )}
+
               <div className="text-sm text-[var(--texto-tenue)] mt-2">
                 {retroActivo && !fechaSel
                   ? "Elegí la fecha real de inicio."
                   : ilimitado
                   ? `Membresía ilimitada.${fechaFin ? ` Termina el ${fechaLarga(fechaFin)}.` : ""}`
-                  : N
-                  ? `Membresía de ${N} clases.${fechaFin ? ` Termina aprox. el ${fechaLarga(fechaFin)}.` : ""}`
+                  : Nefectivo
+                  ? `Membresía de ${Nefectivo} clases${bono > 0 ? ` (${N} + ${bono} bono)` : ""}.${
+                      fechaFin ? ` Termina aprox. el ${fechaLarga(fechaFin)}.` : ""
+                    }`
                   : "El plan no tiene N de clases cargado."}
               </div>
             </div>

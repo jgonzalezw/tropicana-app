@@ -98,13 +98,32 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
 
   const ilimitado = plan.clases_ilimitadas as boolean;
   const cicloDias = plan.ciclo_dias as number | null;
-  const clasesPlan = ilimitado ? null : (plan.cantidad_clases as number | null);
+  const clasesPlanBase = ilimitado ? null : (plan.cantidad_clases as number | null);
   if (ilimitado) {
     if (!cicloDias || cicloDias <= 0)
       return { error: "El plan ilimitado no tiene duración de ciclo (días)." };
-  } else if (!clasesPlan || clasesPlan <= 0) {
+  } else if (!clasesPlanBase || clasesPlanBase <= 0) {
     return { error: "El plan no tiene una cantidad de clases (N) cargada." };
   }
+
+  // Bono de tolerancia pendiente: faltas con licencia de ciclos completados del
+  // mismo plan aun no redimidas. Suma clases al nuevo ciclo (solo planes con N).
+  let bono = 0;
+  let bonoOrigenIds: number[] = [];
+  if (!ilimitado) {
+    const { data: previos } = await sb
+      .from("inscripciones")
+      .select("id, bono_generado")
+      .eq("alumno_id", e.alumnoId)
+      .eq("plan_id", e.planId)
+      .eq("estado", "completada")
+      .eq("bono_redimido", false)
+      .gt("bono_generado", 0);
+    const rows = (previos as { id: number; bono_generado: number }[]) ?? [];
+    bono = rows.reduce((s, r) => s + Math.max(0, Number(r.bono_generado)), 0);
+    bonoOrigenIds = rows.map((r) => r.id);
+  }
+  const clasesPlan = clasesPlanBase != null ? clasesPlanBase + bono : null;
   const precioUnit = Number(plan.precio);
   const referencia = Math.max(0, precioUnit);
 
@@ -218,6 +237,10 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
   if (errInsc) return { error: errInsc.message };
   const inscripcionId = insc.id as number;
 
+  // Marcar como redimidos los bonos que se aplicaron a este ciclo.
+  if (bono > 0 && bonoOrigenIds.length)
+    await a.from("inscripciones").update({ bono_redimido: true }).in("id", bonoOrigenIds);
+
   // 8. Días elegidos por curso (inscripcion_cursos).
   const icRows = seleccion.map((s) => ({
     inscripcion_id: inscripcionId,
@@ -271,7 +294,7 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
   revalidatePath("/inscribir");
   return {
     ok: true,
-    resumen: armarResumen(alumno, plan.nombre, inicio, porPlata, c.medio),
+    resumen: armarResumen(alumno, plan.nombre, inicio, porPlata, c.medio, bono),
   };
 }
 
@@ -300,9 +323,12 @@ function armarResumen(
   plan: string,
   inicio: Date,
   mueve: number,
-  medio: string | null
+  medio: string | null,
+  bono: number
 ): string {
   const quien = `${alumno.nombre} ${alumno.apellido}`;
   const cobro = mueve > 0 ? `Cobrado ${gs(mueve)}${medio ? ` (${medio})` : ""}.` : "Sin cobro por ahora.";
-  return `Membresía de ${quien} — ${plan}, empieza el ${fechaLarga(inicio)}. ${cobro}`;
+  const notaBono =
+    bono > 0 ? ` Se aplicó bono de tolerancia: +${bono} ${bono === 1 ? "clase" : "clases"}.` : "";
+  return `Membresía de ${quien} — ${plan}, empieza el ${fechaLarga(inicio)}. ${cobro}${notaBono}`;
 }

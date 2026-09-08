@@ -1492,3 +1492,13 @@ alter table public.planes
 -- FIN 0014
 -- =====================================================================
 
+-- ============================ 0015_bono_redimido.sql ============================
+-- Marca de bono de tolerancia ya redimido al reinscribir. Aditivo e idempotente.
+
+alter table public.inscripciones
+  add column if not exists bono_redimido boolean not null default false;
+
+-- =====================================================================
+-- FIN 0015
+-- =====================================================================
+
