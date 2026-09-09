@@ -5,6 +5,14 @@ import Comprobante, { type DatosComprobante } from "./Comprobante";
 
 export const dynamic = "force-dynamic";
 
+const ETIQUETA_TIPO_SERVICIO: Record<string, string> = {
+  curso_regular: "Curso regular",
+  taller: "Taller",
+  particular: "Particular",
+  alquiler: "Alquiler de sala",
+  prueba: "Clase de prueba",
+};
+
 export default async function PaginaComprobante({ params }: { params: Promise<{ id: string }> }) {
   if (!(await tienePermiso("comisiones", "ver"))) return <SinAcceso />;
   const { id } = await params;
@@ -30,13 +38,18 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
 
   const inscById = new Map<
     number,
-    { alumno_id: number; curso_id: number; fecha_inicio: string | null; fecha_fin: string | null; clases_plan: number | null; clases_hechas: number | null }
+    {
+      alumno_id: number; curso_id: number; plan_id: number | null; fecha_inicio: string | null;
+      fecha_fin: string | null; clases_plan: number | null; clases_hechas: number | null;
+    }
   >();
   const corrSuspPorInsc: Record<number, number> = {};
   const faltasConLicPorInsc: Record<number, number> = {};
   const faltasSinLicPorInsc: Record<number, number> = {};
   const alNombre = new Map<number, string>();
   const cuNombre = new Map<number, string>();
+  const planNombre = new Map<number, string>();
+  const planTipo = new Map<number, string>();
   // Por membresía: valor total (precio), descuento, motivos, cobrado (plata).
   const totalPorInsc: Record<number, number> = {};
   const descPorInsc: Record<number, number> = {};
@@ -45,13 +58,13 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
 
   if (membresiaIds.length) {
     const [{ data: insc }, { data: corr }, { data: cuotas }, { data: asis }] = await Promise.all([
-      sb.from("inscripciones").select("id, alumno_id, curso_id, fecha_inicio, fecha_fin, clases_plan, clases_hechas").in("id", membresiaIds),
+      sb.from("inscripciones").select("id, alumno_id, curso_id, plan_id, fecha_inicio, fecha_fin, clases_plan, clases_hechas").in("id", membresiaIds),
       sb.from("corrimientos_ciclo").select("inscripcion_id, tipo").in("inscripcion_id", membresiaIds),
       sb.from("cuotas").select("id, inscripcion_id, monto_devengado, descuento_adelanto").in("inscripcion_id", membresiaIds),
       sb.from("asistencias").select("inscripcion_id, sesion_id, estado, con_licencia").in("inscripcion_id", membresiaIds),
     ]);
     for (const r of (insc as {
-      id: number; alumno_id: number; curso_id: number; fecha_inicio: string | null;
+      id: number; alumno_id: number; curso_id: number; plan_id: number | null; fecha_inicio: string | null;
       fecha_fin: string | null; clases_plan: number | null; clases_hechas: number | null;
     }[]) ?? [])
       inscById.set(r.id, r);
@@ -110,13 +123,21 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
 
     const alIds = [...new Set([...inscById.values()].map((i) => i.alumno_id))];
     const cuIds = [...new Set([...inscById.values()].map((i) => i.curso_id))];
-    const [{ data: al }, { data: cu }] = await Promise.all([
+    const planIds = [...new Set([...inscById.values()].map((i) => i.plan_id).filter((x): x is number => x != null))];
+    const [{ data: al }, { data: cu }, { data: pl }] = await Promise.all([
       sb.from("alumnos").select("id, nombre, apellido").in("id", alIds),
       sb.from("cursos").select("id, nombre").in("id", cuIds),
+      planIds.length
+        ? sb.from("planes").select("id, nombre, tipo_servicio").in("id", planIds)
+        : Promise.resolve({ data: [] }),
     ]);
     for (const a of (al as { id: number; nombre: string; apellido: string }[]) ?? [])
       alNombre.set(a.id, `${a.apellido}, ${a.nombre}`);
     for (const c of (cu as { id: number; nombre: string }[]) ?? []) cuNombre.set(c.id, c.nombre);
+    for (const p of (pl as { id: number; nombre: string; tipo_servicio: string }[]) ?? []) {
+      planNombre.set(p.id, p.nombre);
+      planTipo.set(p.id, p.tipo_servicio);
+    }
   }
 
   const items: DatosComprobante["items"] = comisiones.map((c) => {
@@ -127,6 +148,8 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
     return {
       alumno: i ? alNombre.get(i.alumno_id) ?? `#${i.alumno_id}` : "—",
       curso: i ? cuNombre.get(i.curso_id) ?? `#${i.curso_id}` : "—",
+      plan: i?.plan_id != null ? planNombre.get(i.plan_id) ?? `#${i.plan_id}` : "—",
+      tipoServicio: ETIQUETA_TIPO_SERVICIO[i?.plan_id != null ? planTipo.get(i.plan_id) ?? "" : ""] ?? "—",
       cicloInicio: i?.fecha_inicio ?? null,
       cicloFin: i?.fecha_fin ?? null,
       clasesPlan: i?.clases_plan ?? null,

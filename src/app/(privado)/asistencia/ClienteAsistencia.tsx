@@ -12,14 +12,12 @@ type EstadoSesion = "completada" | "suspendida";
 export default function ClienteAsistencia({
   cursos,
   alumnosPorCurso,
-  faltasToleradas,
   mostrarDeuda,
   minRetroIso,
   puedeEditar,
 }: {
   cursos: Curso[];
   alumnosPorCurso: Record<number, number>;
-  faltasToleradas: number;
   mostrarDeuda: boolean;
   /** Fecha mínima (ISO) para carga: hoy − ventana (hoy si no hay permiso retro/edición). */
   minRetroIso: string;
@@ -351,7 +349,6 @@ export default function ClienteAsistencia({
                   fila={f}
                   estado={marcas[f.alumnoId]}
                   licencia={!!licencias[f.alumnoId]}
-                  faltasToleradas={faltasToleradas}
                   mostrarDeuda={mostrarDeuda}
                   readOnly={!editable}
                   onToggle={() => toggle(f.alumnoId)}
@@ -461,7 +458,6 @@ function FilaRow({
   fila,
   estado,
   licencia,
-  faltasToleradas,
   mostrarDeuda,
   readOnly,
   onToggle,
@@ -470,7 +466,6 @@ function FilaRow({
   fila: FilaAsistencia;
   estado: Estado | undefined;
   licencia: boolean;
-  faltasToleradas: number;
   mostrarDeuda: boolean;
   readOnly: boolean;
   onToggle: () => void;
@@ -483,7 +478,8 @@ function FilaRow({
       ? "bg-[var(--peligro-fill)] border-[var(--peligro)] text-[var(--peligro-texto)]"
       : "bg-[var(--fondo-elevado)] border-[var(--borde)]";
 
-  const restantesTol = faltasToleradas - fila.faltasMes;
+  const tol = fila.toleranciaRestante; // null = no aplica (sin plan de N clases).
+  const sinTolerancia = tol != null && tol <= 0;
   const esParcial = fila.modalidad !== "mensual";
 
   let sub: string;
@@ -496,7 +492,7 @@ function FilaRow({
   else sub = fila.faltasMes === 0 ? "Sin faltas este mes" : `${fila.faltasMes} ${fila.faltasMes === 1 ? "falta" : "faltas"} este mes`;
 
   const pill =
-    !estado && !esParcial ? (restantesTol <= 0 ? "Sin tolerancia" : restantesTol === 1 ? "Última tolerada" : null) : null;
+    !estado && tol != null ? (tol <= 0 ? "Sin tolerancia" : tol === 1 ? "Última tolerada" : null) : null;
 
   return (
     <div className={`rounded-[var(--radio-panel)] border ${cls}`}>
@@ -536,28 +532,35 @@ function FilaRow({
         )}
       </button>
 
-      {/* Falta justificada: activa la tolerancia (bono). Solo cuando está ausente. */}
-      {estado === "ausente" && (
+      {/* Falta justificada: activa la tolerancia (bono). Solo si el plan tiene
+          tolerancia disponible; si ya se agotó, no hay opción (se informa). */}
+      {estado === "ausente" && tol != null && (
         <div className="px-4 pb-3 -mt-1">
-          <button
-            onClick={onToggleLicencia}
-            disabled={readOnly}
-            aria-pressed={licencia}
-            className={`flex items-center gap-2 text-sm rounded-[var(--radio-control)] px-3 py-1.5 border ${
-              licencia
-                ? "bg-[var(--exito)] text-[var(--fondo-panel)] border-[var(--exito)]"
-                : "bg-[var(--fondo-panel)] border-[var(--borde)]"
-            } ${readOnly ? "cursor-default" : ""}`}
-          >
-            <span
-              className={`inline-grid place-items-center w-4 h-4 rounded border text-[10px] ${
-                licencia ? "bg-[var(--fondo-panel)] text-[var(--exito)] border-[var(--fondo-panel)]" : "border-[var(--texto-tenue)]"
-              }`}
-            >
-              {licencia ? "✓" : ""}
+          {sinTolerancia && !licencia ? (
+            <span className="inline-block text-sm px-3 py-1.5 rounded-[var(--radio-control)] bg-[var(--peligro-fill)] text-[var(--peligro-texto)]">
+              Sin tolerancia
             </span>
-            Con licencia (justificada · genera bono)
-          </button>
+          ) : (
+            <button
+              onClick={onToggleLicencia}
+              disabled={readOnly}
+              aria-pressed={licencia}
+              className={`flex items-center gap-2 text-sm rounded-[var(--radio-control)] px-3 py-1.5 border ${
+                licencia
+                  ? "bg-[var(--exito)] text-[var(--fondo-panel)] border-[var(--exito)]"
+                  : "bg-[var(--fondo-panel)] border-[var(--borde)]"
+              } ${readOnly ? "cursor-default" : ""}`}
+            >
+              <span
+                className={`inline-grid place-items-center w-4 h-4 rounded border text-[10px] ${
+                  licencia ? "bg-[var(--fondo-panel)] text-[var(--exito)] border-[var(--fondo-panel)]" : "border-[var(--texto-tenue)]"
+                }`}
+              >
+                {licencia ? "✓" : ""}
+              </span>
+              Con licencia (justificada · genera bono)
+            </button>
+          )}
         </div>
       )}
     </div>

@@ -14,7 +14,6 @@ export default async function PaginaAsistencia() {
   const [
     { data: cursos },
     { data: inscripciones },
-    faltasParam,
     deudaParam,
     semanasParam,
     puedeRetro,
@@ -24,7 +23,6 @@ export default async function PaginaAsistencia() {
       .from("inscripciones")
       .select("curso_id, alumno:alumnos(activo)")
       .eq("estado", "activa"),
-    obtenerParametro("faltas_toleradas"),
     obtenerParametro("mostrar_deuda"),
     obtenerParametro("asistencia_semanas_retro"),
     tienePermiso("asistencia", "editar"),
@@ -47,7 +45,6 @@ export default async function PaginaAsistencia() {
     <ClienteAsistencia
       cursos={(cursos as Curso[]) ?? []}
       alumnosPorCurso={alumnosPorCurso}
-      faltasToleradas={Math.max(1, Number(faltasParam) || 2)}
       mostrarDeuda={deudaParam !== "false"}
       minRetroIso={minRetroIso}
       puedeEditar={puedeRetro}

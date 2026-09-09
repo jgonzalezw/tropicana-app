@@ -190,7 +190,9 @@ export async function cargarPadron(
 
   const { data: insc } = await sb
     .from("inscripciones")
-    .select("id, alumno_id, modalidad, clases_total, alumno:alumnos(id, nombre, apellido, activo)")
+    .select(
+      "id, alumno_id, modalidad, clases_total, plan_id, clases_plan, fecha_fin, tolerancia_faltas, bono_generado, alumno:alumnos(id, nombre, apellido, activo)"
+    )
     .eq("curso_id", cursoId)
     .eq("estado", "activa")
     // Vigente a esa fecha: la inscripción ya había empezado (no aparece quien
@@ -202,11 +204,38 @@ export async function cargarPadron(
     alumno_id: number;
     modalidad: FilaAsistencia["modalidad"];
     clases_total: number | null;
+    plan_id: number | null;
+    clases_plan: number | null;
+    fecha_fin: string | null;
+    tolerancia_faltas: number | null;
+    bono_generado: number;
     alumno: { id: number; nombre: string; apellido: string; activo: boolean } | null;
   };
-  const inscripciones = ((insc as unknown as InscRow[]) ?? []).filter((r) => r.alumno?.activo);
+  const inscripciones = ((insc as unknown as InscRow[]) ?? [])
+    .filter((r) => r.alumno?.activo)
+    // Membresía ilimitada (plan con acceso por fecha, no por N de clases): una
+    // vez pasado su fecha_fin, el ciclo terminó; no debe tomarse más asistencia.
+    .filter((r) => !(r.plan_id != null && r.clases_plan == null && r.fecha_fin != null && r.fecha_fin < fecha));
   const inscIds = inscripciones.map((r) => r.id);
   const alumnoIds = [...new Set(inscripciones.map((r) => r.alumno_id))];
+
+  // Tolerancia de faltas con licencia restante, por inscripción (solo membresías
+  // de plan con N: donde la falta con licencia acredita un bono real). El resto
+  // (ilimitadas, parciales, legado sin plan) no tiene esta opción.
+  const planNRows = inscripciones.filter((r) => r.plan_id != null && r.clases_plan != null);
+  const planIds = [...new Set(planNRows.map((r) => r.plan_id as number))];
+  const toleranciaPorPlan = new Map<number, number | null>();
+  if (planIds.length) {
+    const { data: planesRows } = await sb.from("planes").select("id, tolerancia_faltas").in("id", planIds);
+    for (const p of (planesRows as { id: number; tolerancia_faltas: number | null }[]) ?? [])
+      toleranciaPorPlan.set(p.id, p.tolerancia_faltas);
+  }
+  const toleranciaParam = Math.max(0, Number(await obtenerParametro("faltas_toleradas")) || 0);
+  const toleranciaRestantePorInsc = new Map<number, number>();
+  for (const r of planNRows) {
+    const efectiva = r.tolerancia_faltas ?? toleranciaPorPlan.get(r.plan_id as number) ?? toleranciaParam;
+    toleranciaRestantePorInsc.set(r.id, Math.max(0, efectiva - (r.bono_generado ?? 0)));
+  }
 
   const consumidas: Record<number, number> = {};
   if (inscIds.length) {
@@ -283,6 +312,7 @@ export async function cargarPadron(
           restantes: null,
           faltasMes: faltasMes[r.alumno.id] ?? 0,
           deuda: deuda[r.alumno.id] ?? 0,
+          toleranciaRestante: null,
         });
     }
   }
@@ -300,6 +330,7 @@ export async function cargarPadron(
         restantes,
         faltasMes: faltasMes[r.alumno_id] ?? 0,
         deuda: deuda[r.alumno_id] ?? 0,
+        toleranciaRestante: toleranciaRestantePorInsc.has(r.id) ? toleranciaRestantePorInsc.get(r.id)! : null,
       };
     })
     .filter((f) => f.modalidad === "mensual" || f.restantes === null || f.restantes > 0 || marcas[f.alumnoId]);

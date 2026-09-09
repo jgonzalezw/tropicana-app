@@ -257,6 +257,12 @@ export type FilaAsistencia = {
   faltasMes: number;
   /** Deuda pendiente del alumno (0 si está al día). */
   deuda: number;
+  /**
+   * Faltas con licencia que aún puede acreditar en el ciclo antes de agotar la
+   * tolerancia del plan. `null` = no aplica (sin plan de N clases: ilimitado,
+   * parcial o legado sin plan) — en ese caso no hay opción de "con licencia".
+   */
+  toleranciaRestante: number | null;
 };
 
 export type MarcaAsistencia = {

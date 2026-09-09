@@ -205,4 +205,5 @@ export function listaFechas(ds: Date[]): string {
   return `${partes.slice(0, -1).join(", ")} y ${partes[partes.length - 1]}`;
 }
 
-export const gs = (n: number) => `Bs. ${Number(n || 0).toLocaleString("es-BO")}`;
+export const gs = (n: number) =>
+  `Bs. ${Number(n || 0).toLocaleString("es-BO", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;

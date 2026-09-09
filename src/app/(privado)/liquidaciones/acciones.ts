@@ -18,6 +18,13 @@ function primerDiaMesVencidoISO(hoy = new Date()): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
 }
 
+/** Último día del MES VENCIDO (mes anterior): tope de elegibilidad para liquidar.
+ *  Solo entran membresías completadas (fecha_fin) hasta esta fecha inclusive. */
+function finMesVencidoISO(hoy = new Date()): string {
+  const d = new Date(hoy.getFullYear(), hoy.getMonth(), 0); // día 0 del mes actual = último día del anterior
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 // ── Cálculo de devengos criterio 1 (membresías cobradas + completadas) ────
 // Base = plata efectivamente cobrada de la membresía; monto = pct_ingresos del
 // profesor asignado al curso x base. Solo membresías de 1 curso (v1).
@@ -34,14 +41,19 @@ export type DevengoPendiente = {
 };
 
 async function calcularPendientes(
-  sb: Awaited<ReturnType<typeof createClient>>
+  sb: Awaited<ReturnType<typeof createClient>>,
+  hastaISO: string
 ): Promise<DevengoPendiente[]> {
-  // 1. Membresías completadas (de plan, 1 curso).
+  // 1. Membresías completadas (de plan, 1 curso), cuyo ciclo terminó a más
+  //    tardar en `hastaISO` (mensual: último día del mes vencido). Una
+  //    membresía que se completó después no corresponde a este período.
   const { data: insc } = await sb
     .from("inscripciones")
     .select("id, alumno_id, curso_id, plan_id, estado")
     .eq("estado", "completada")
-    .not("plan_id", "is", null);
+    .not("plan_id", "is", null)
+    .not("fecha_fin", "is", null)
+    .lte("fecha_fin", hastaISO);
   const membresias = (insc as {
     id: number;
     alumno_id: number;
@@ -125,7 +137,7 @@ async function calcularPendientes(
     const a = asigPorCurso.get(m.curso_id);
     if (!a) continue; // sin profesor asignado
     const base = basePorInsc[m.id] ?? 0;
-    const monto = Math.round((base * a.pct) / 100);
+    const monto = Math.round(base * a.pct) / 100; // redondeo a centavos, no a boliviano entero
     out.push({
       membresiaId: m.id,
       profesorId: a.profesor_id,
@@ -166,7 +178,7 @@ export async function cargarLiquidaciones(): Promise<{
   if (!(await tienePermiso("comisiones", "ver"))) return { profesores: [], liquidaciones: [] };
   const sb = await createClient();
 
-  const pendientes = await calcularPendientes(sb);
+  const pendientes = await calcularPendientes(sb, finMesVencidoISO());
   const porProf = new Map<number, { monto: number; count: number }>();
   for (const p of pendientes) {
     const cur = porProf.get(p.profesorId) ?? { monto: 0, count: 0 };
@@ -222,11 +234,13 @@ export async function generarLiquidacion(profesorId: number): Promise<{ ok?: tru
   const a = admin();
   const sb = await createClient();
 
-  const pendientes = (await calcularPendientes(sb)).filter((p) => p.profesorId === profesorId);
-  if (pendientes.length === 0) return { error: "No hay devengos pendientes para este profesor." };
-
   const periodicidad = (await obtenerParametro("periodicidad_liquidacion")) || "mes";
   const periodo = primerDiaMesVencidoISO();
+
+  const pendientes = (await calcularPendientes(sb, finMesVencidoISO())).filter(
+    (p) => p.profesorId === profesorId
+  );
+  if (pendientes.length === 0) return { error: "No hay devengos pendientes para este profesor." };
 
   // Liquidación abierta del profesor en ese período, o nueva.
   const { data: existente } = await a
@@ -294,7 +308,7 @@ export async function registrarPagoLiquidacion(args: {
   const a = admin();
   const perfil = await obtenerPerfilActual();
 
-  const monto = Math.max(0, Math.round(Number(args.monto) || 0));
+  const monto = Math.max(0, Math.round((Number(args.monto) || 0) * 100) / 100);
   if (monto <= 0) return { error: "El monto debe ser mayor a 0." };
   if (!args.medio) return { error: "Elegí el medio de pago." };
 

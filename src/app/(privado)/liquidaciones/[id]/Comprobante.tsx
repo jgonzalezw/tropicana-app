@@ -6,6 +6,8 @@ import { gs } from "@/lib/inscripcion";
 export type ItemComprobante = {
   alumno: string;
   curso: string;
+  plan: string;
+  tipoServicio: string;
   cicloInicio: string | null;
   cicloFin: string | null;
   clasesPlan: number | null;
@@ -142,7 +144,10 @@ export default function Comprobante({ datos }: { datos: DatosComprobante }) {
               <div key={i} className="border border-[var(--borde)] rounded-[var(--radio-chico)] p-3">
                 <div className="flex items-baseline justify-between gap-2">
                   <div className="font-semibold">{it.alumno}</div>
-                  <div className="text-sm text-[var(--texto-tenue)]">{it.curso}</div>
+                  <div className="text-sm text-[var(--texto-tenue)]">{it.tipoServicio}</div>
+                </div>
+                <div className="text-xs text-[var(--texto-tenue)] mt-0.5">
+                  {it.plan} · {it.curso}
                 </div>
                 <div className="text-xs text-[var(--texto-tenue)] mt-0.5">
                   Ciclo {fechaCorta(it.cicloInicio)} → {fechaCorta(it.cicloFin)} ·{" "}
@@ -254,8 +259,9 @@ function construirHTMLImpresion(d: DatosComprobante): string {
         <div class="item">
           <div class="item-top">
             <span class="b">${esc(it.alumno)}</span>
-            <span class="muted">${esc(it.curso)}</span>
+            <span class="muted">${esc(it.tipoServicio)}</span>
           </div>
+          <div class="small muted">${esc(it.plan)} · ${esc(it.curso)}</div>
           <div class="small muted">
             Ciclo ${fechaCorta(it.cicloInicio)} &rarr; ${fechaCorta(it.cicloFin)} ·
             ${it.clasesHechas ?? "—"}/${it.clasesPlan ?? "—"} clases${faltas ? ` · ${esc(faltas)}` : ""}
