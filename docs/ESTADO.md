@@ -6,7 +6,10 @@
 > `docs/design/README.md` (fuente de verdad del **diseño**), `docs/CONTEXTO_AVANCE.md`
 > (bitácora larga de Etapa 0), `docs/DESIGN_SYNC.md` (cómo entran los handoffs).
 >
-> **Última actualización:** 2026-09-05 — Reencuadre a **Motor de Planes y Membresías** (paso 0) + metodología de release.
+> **Última actualización:** 2026-09-09 — 1B.2 y 1C-core cerrados (liquidación
+> criterio 1 de punta a punta); correcciones de la revisión de Javier
+> (asistencia/tolerancia/liquidación) aplicadas. Ver el bloque **PRIORIDAD:
+> LIQUIDACIÓN** más abajo para el detalle vigente.
 > **Rama de trabajo:** `claude/tropicana-app-context-d5zjt8` (lista para PR/merge a `main`).
 >
 > **REENCUADRE VIGENTE (2026-09-05):** el sistema se replantea al **Motor de
