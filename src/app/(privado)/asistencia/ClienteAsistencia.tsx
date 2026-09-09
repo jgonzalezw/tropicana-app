@@ -484,7 +484,11 @@ function FilaRow({
 
   let sub: string;
   if (estado === "presente") sub = "Presente";
-  else if (estado === "ausente") sub = licencia ? "Ausente · con licencia (bono)" : "Ausente";
+  else if (estado === "ausente")
+    // La licencia solo aplica donde hay tolerancia (planes con N). Un dato viejo
+    // marcado con_licencia en un plan sin tolerancia (p.ej. ilimitado) no debe
+    // leerse como "genera bono": ese plan nunca bonifica.
+    sub = licencia && tol != null ? "Ausente · con licencia (bono)" : "Ausente";
   else if (esParcial)
     sub = `${ETIQUETA_MODALIDAD[fila.modalidad]}${
       fila.restantes != null ? ` · quedan ${fila.restantes} ${fila.restantes === 1 ? "clase" : "clases"}` : ""

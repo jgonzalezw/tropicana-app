@@ -86,7 +86,12 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
     }
     for (const r of asisRows) {
       if (r.inscripcion_id == null || r.estado !== "ausente" || !dictadas.has(r.sesion_id)) continue;
-      if (r.con_licencia) faltasConLicPorInsc[r.inscripcion_id] = (faltasConLicPorInsc[r.inscripcion_id] ?? 0) + 1;
+      // La licencia (bono de tolerancia) solo existe en planes con N; un plan
+      // ilimitado nunca bonifica, aunque la fila tenga con_licencia=true (dato
+      // viejo de antes de ocultar esa opcion para ilimitados).
+      const esIlimitado = inscById.get(r.inscripcion_id)?.clases_plan == null;
+      if (r.con_licencia && !esIlimitado)
+        faltasConLicPorInsc[r.inscripcion_id] = (faltasConLicPorInsc[r.inscripcion_id] ?? 0) + 1;
       else faltasSinLicPorInsc[r.inscripcion_id] = (faltasSinLicPorInsc[r.inscripcion_id] ?? 0) + 1;
     }
 

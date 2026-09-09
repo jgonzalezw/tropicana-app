@@ -119,7 +119,10 @@ export default function Comprobante({ datos }: { datos: DatosComprobante }) {
             <h1 className="text-2xl titulo">Comprobante de liquidación</h1>
             <div className="text-sm text-[var(--texto-tenue)] mt-1">Tropicana · N° {datos.id}</div>
           </div>
-          <div className="text-right text-sm text-[var(--texto-tenue)]">Emitido: {fechaCorta(new Date().toISOString())}</div>
+          <div className="text-right text-sm text-[var(--texto-tenue)]">
+            <div>Liquidado: {fechaCorta(datos.creadoEn)}</div>
+            <div>Emitido: {fechaCorta(new Date().toISOString())}</div>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
@@ -329,7 +332,10 @@ function construirHTMLImpresion(d: DatosComprobante): string {
     <body><div class="doc">
       <div class="head">
         <div><h1>Comprobante de liquidación</h1><div class="muted small">Tropicana · N° ${d.id}</div></div>
-        <div class="muted small">Emitido: ${emitido}</div>
+        <div class="r muted small">
+          <div>Liquidado: ${fechaCorta(d.creadoEn)}</div>
+          <div>Emitido: ${emitido}</div>
+        </div>
       </div>
       <div class="meta">
         <div>
