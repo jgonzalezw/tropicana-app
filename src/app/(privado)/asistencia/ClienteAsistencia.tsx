@@ -7,7 +7,7 @@ import { ETIQUETA_MODALIDAD, diaIso, fechaLarga, gs, isoFecha } from "@/lib/insc
 import { cargarPadron, guardarAsistencia, suspenderClase, reabrirSesion } from "./acciones";
 
 type Estado = "presente" | "ausente";
-type EstadoSesion = "completada" | "suspendida";
+type EstadoSesion = "completada" | "incompleta" | "suspendida";
 
 export default function ClienteAsistencia({
   cursos,
@@ -59,6 +59,7 @@ export default function ClienteAsistencia({
   const [suspendida, setSuspendida] = useState(false);
   const [motivoSusp, setMotivoSusp] = useState<string | null>(null);
   const [completada, setCompletada] = useState(false);
+  const [incompleta, setIncompleta] = useState(false);
   const [estadosPorFecha, setEstadosPorFecha] = useState<Record<string, EstadoSesion>>({});
   const [editando, setEditando] = useState(false);
   const [formSusp, setFormSusp] = useState(false);
@@ -83,6 +84,7 @@ export default function ClienteAsistencia({
         setSuspendida(r.suspendida);
         setMotivoSusp(r.motivoSuspension);
         setCompletada(r.completada);
+        setIncompleta(r.incompleta);
         setEstadosPorFecha(r.estadosPorFecha);
         setEditando(false);
         setFormSusp(false);
@@ -190,6 +192,8 @@ export default function ClienteAsistencia({
 
   const chipEstado = suspendida
     ? { t: "Clase suspendida", c: "bg-[var(--peligro-fill)] text-[var(--peligro-texto)]" }
+    : incompleta
+    ? { t: "Asistencia incompleta", c: "bg-[var(--advertencia-fill)] text-[var(--advertencia-texto)]" }
     : completada
     ? { t: "Asistencia tomada", c: "bg-[var(--exito-fill)] text-[var(--exito-texto)]" }
     : { t: "Sin tomar", c: "bg-[var(--fondo-elevado)] text-[var(--texto-tenue)]" };
@@ -267,7 +271,8 @@ export default function ClienteAsistencia({
         >
           {fechas.map((f) => {
             const e = estadosPorFecha[f.iso];
-            const pre = e === "completada" ? "✓ " : e === "suspendida" ? "⊘ " : "";
+            const pre =
+              e === "completada" ? "✓ " : e === "suspendida" ? "⊘ " : e === "incompleta" ? "⚠ " : "";
             return (
               <option key={f.iso} value={f.iso}>
                 {pre}
@@ -283,11 +288,23 @@ export default function ClienteAsistencia({
       {cursoId != null && fechas.length > 0 && (
         <div className="flex items-center gap-2 mb-4 px-1">
           <span className={`px-3 py-1 text-sm rounded-[var(--radio-control)] ${chipEstado.c}`}>{chipEstado.t}</span>
-          {completada && !suspendida && (
+          {(completada || incompleta) && !suspendida && (
             <span className="text-sm text-[var(--texto-tenue)]">
               {presentes} presentes · {ausentes} ausentes
             </span>
           )}
+        </div>
+      )}
+
+      {/* Asistencia ya tomada a la que se le sumaron alumnos después (típico de
+          una inscripción con fecha retroactiva): hay que completarla. */}
+      {incompleta && !suspendida && !cargando && (
+        <div className="mb-3 rounded-[var(--radio-panel)] border border-[var(--advertencia)] bg-[var(--advertencia-fill)] text-[var(--advertencia-texto)] p-4">
+          <div className="font-semibold">Falta marcar a {sinMarcar} {sinMarcar === 1 ? "alumno" : "alumnos"}</div>
+          <p className="text-sm mt-1 leading-relaxed opacity-90">
+            Esta clase ya tenía la asistencia tomada, pero después se inscribió gente con fecha
+            retroactiva. Marcá a los que faltan y volvé a guardar.
+          </p>
         </div>
       )}
 
@@ -446,7 +463,7 @@ export default function ClienteAsistencia({
             disabled={marcados === 0 || pendiente}
             className="w-full px-5 py-3 text-lg font-semibold rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)] hover:bg-[var(--primario-hover)] disabled:opacity-40"
           >
-            {pendiente ? "Guardando…" : completada ? "Guardar cambios" : "Guardar asistencia"}
+            {pendiente ? "Guardando…" : completada || incompleta ? "Guardar cambios" : "Guardar asistencia"}
           </button>
         </div>
       )}
@@ -506,7 +523,15 @@ function FilaRow({
   else sub = meta;
 
   const pill =
-    !estado && tol != null ? (tol <= 0 ? "Sin tolerancia" : tol === 1 ? "Última tolerada" : null) : null;
+    !estado && tol != null
+      ? tol <= 0
+        ? fila.faltaSinLicenciaEnCiclo
+          ? "Sin bono"
+          : "Sin tolerancia"
+        : tol === 1
+        ? "Última tolerada"
+        : null
+      : null;
 
   return (
     <div className={`rounded-[var(--radio-panel)] border ${cls}`}>
@@ -563,7 +588,9 @@ function FilaRow({
             </span>
           ) : sinTolerancia && !licencia ? (
             <span className="inline-block text-sm px-3 py-1.5 rounded-[var(--radio-control)] bg-[var(--peligro-fill)] text-[var(--peligro-texto)]">
-              Sin tolerancia
+              {fila.faltaSinLicenciaEnCiclo
+                ? "Sin bono: ya tiene una falta sin licencia en el ciclo"
+                : "Sin tolerancia"}
             </span>
           ) : (
             <button

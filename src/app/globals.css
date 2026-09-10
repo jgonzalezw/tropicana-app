@@ -82,7 +82,9 @@
   --peligro:        #ffc0a0;  /* texto de error/deuda   (accent-700)   */
   --peligro-fill:   #6b3714;  /* relleno del chip       (accent-200)   */
   --peligro-texto:  #ffd3b5;  /* texto sobre el chip    (accent-800)   */
-  --advertencia:    #f6a06b;
+  --advertencia:        #f6a06b;
+  --advertencia-fill:   #5a3a18;  /* relleno del chip de aviso            */
+  --advertencia-texto:  #ffd9b8;  /* texto sobre el chip de aviso         */
 
   /* ── Pastilla crema para el logo (sobre fondo oscuro) ──────────── */
   --tropi-chip:     #f4ebdd;

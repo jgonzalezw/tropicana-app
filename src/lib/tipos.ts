@@ -265,6 +265,11 @@ export type FilaAsistencia = {
    * parcial o legado sin plan) — en ese caso no hay opción de "con licencia".
    */
   toleranciaRestante: number | null;
+  /**
+   * El ciclo ya tiene una falta SIN licencia (en otra sesión): por política no
+   * puede generar bono de tolerancia, aunque el plan tuviera cupo.
+   */
+  faltaSinLicenciaEnCiclo: boolean;
 };
 
 export type MarcaAsistencia = {
