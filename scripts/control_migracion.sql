@@ -58,6 +58,29 @@ select control, valor, case when ok then 'OK' else 'REVISAR' end as resultado fr
            when coalesce((select sum(p.monto + p.descuento) from pagos p
                            where p.cuota_id = cu.id and p.tipo = 'cobro'), 0) > 0 then 'parcial'
            else 'pendiente' end)
+  union all
+  -- Regla base del modelo: una membresia se cierra cuando el ciclo se agoto Y
+  -- esta cobrada. Agotada con saldo sigue 'activa'; sin agotar no puede estar
+  -- 'completada'. No aplica a las ilimitadas (cierran por fecha, no por conteo).
+  select 8, 'Membresias cuyo estado no sigue la regla (agotada + cobrada)',
+         count(*)::text, count(*) = 0
+    from (
+      select i.id, i.estado,
+             case when case when i.clases_plan is not null
+                            then (select count(*) from asistencias a join sesiones s on s.id = a.sesion_id
+                                   where a.inscripcion_id = i.id and s.estado = 'dictada') >= i.clases_plan
+                            else (select count(*) from asistencias a join sesiones s on s.id = a.sesion_id
+                                   where a.inscripcion_id = i.id and a.estado = 'presente'
+                                     and s.estado = 'dictada') >= i.clases_total end
+                       and coalesce((select sum(greatest(0, cu.monto_devengado - cu.descuento_adelanto
+                              - coalesce((select sum(p.monto + p.descuento) from pagos p
+                                           where p.cuota_id = cu.id and p.tipo = 'cobro'), 0)))
+                             from cuotas cu where cu.inscripcion_id = i.id), 0) <= 0
+                  then 'completada' else 'activa' end as objetivo
+        from inscripciones i
+       where i.estado <> 'baja'
+         and (i.clases_plan is not null or i.clases_total is not null)
+    ) r where r.estado <> r.objetivo
 ) t order by n;
 
 -- ---------------------------------------------------------------------

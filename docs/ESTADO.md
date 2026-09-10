@@ -126,12 +126,32 @@ lectura (fechas de fin, ciclos coherentes, contadores, bono contra faltas sin
 licencia, plata sin cuota, membresías sin cuota, estado de cuota vs. cobrado).
 Corre en cualquiera de las dos bases. Producción quedó 7/7 OK.
 
-**Cierre del paquete por clase: consumido Y pagado (Javier, 2026-09-10).** Una
-venta por clase se cierra cuando se cumplen las **dos** condiciones: consumió
-las clases compradas **y** no le queda saldo. Consumido pero con deuda, la venta
-sigue abierta. Solo la asistencia consume paquete (una falta no lo gasta, el
-alumno conserva su clase), y no genera bono: esa venta no tiene tolerancia. Las
-ilimitadas siguen cerrando por `fecha_fin`, no por contador.
+**Regla base del modelo — la membresía se cierra completada Y cobrada (Javier,
+2026-09-10: "ha sido siempre la base, el punto de partida").** Vale para
+**toda** membresía, no solo para los paquetes: `estado='completada'` exige las
+**dos** condiciones, ciclo agotado **y** sin saldo. Agotada con deuda sigue
+`activa`, porque la venta no terminó.
+
+*Agotado* según cómo se vendió: un **plan con N** se agota cuando ocurrieron sus
+N sesiones dictadas (la falta no lo alarga: la clase pasó); un **paquete por
+clase** cuando consumió las clases compradas (solo la asistencia consume; una
+falta no lo gasta, el alumno conserva su clase). Las **ilimitadas** no se
+cierran por contador: terminan por `fecha_fin`.
+
+**Separación importante que trajo esta regla:** *agotarse* y *cerrarse* dejaron
+de ser lo mismo. Antes el `estado` hacía las dos cosas, y el padrón de
+asistencia se apoyaba en él para dejar de listar a quien ya terminó su ciclo. Si
+el estado ahora depende también del pago, una membresía terminada pero impaga
+seguiría `activa` y el alumno seguiría tomando clases gratis, con el contador
+pasándose de N. Por eso el padrón ya **no** mira `estado` para eso: usa
+`cicloAgotado` (consumo real contra N o contra el paquete), y el estado queda
+solo para decir si la venta se cerró. Quien ya tiene marca en la sesión abierta
+igual se sigue mostrando, para poder corregirla.
+
+*Efecto sobre los datos:* ninguno hoy. Verificado en dev y en producción — cero
+membresías cuyo estado difiera de la regla —, así que no hizo falta migración:
+el cambio es de código, protege hacia adelante. Queda como **control 8** de
+`scripts/control_migracion.sql`.
 
 *Origen:* el motor solo cerraba las membresías **de plan**;
 `recalcularMembresia` se salteaba las que no tienen plan, así que los paquetes

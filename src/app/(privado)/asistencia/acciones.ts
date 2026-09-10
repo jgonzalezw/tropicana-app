@@ -224,17 +224,40 @@ export async function cargarPadron(
   const membresias = ((insc as unknown as InscRow[]) ?? []).filter((r) => r.alumno?.activo);
   const activas = membresias.filter((r) => r.estado === "activa");
 
-  // Presentes por membresía: consumo del paquete parcial y progreso "X/N".
+  // Historial de cada membresía sobre sesiones DICTADAS: clases consumidas
+  // (presentes) y clases del ciclo ya ocurridas (presentes + faltas).
   const consumidas: Record<number, number> = {};
+  const dictadasPorInsc: Record<number, number> = {};
   if (membresias.length) {
     const { data } = await sb
       .from("asistencias")
-      .select("inscripcion_id")
-      .eq("estado", "presente")
+      .select("inscripcion_id, sesion_id, estado")
       .in("inscripcion_id", membresias.map((r) => r.id));
-    for (const x of (data as { inscripcion_id: number | null }[]) ?? [])
-      if (x.inscripcion_id != null) consumidas[x.inscripcion_id] = (consumidas[x.inscripcion_id] ?? 0) + 1;
+    const filasAsis = (data as { inscripcion_id: number | null; sesion_id: number; estado: Estado }[]) ?? [];
+    const sesIds = [...new Set(filasAsis.map((f) => f.sesion_id))];
+    const dictadas = new Set<number>();
+    if (sesIds.length) {
+      const { data: ses } = await sb.from("sesiones").select("id, estado").in("id", sesIds);
+      for (const s of (ses as { id: number; estado: string }[]) ?? [])
+        if (s.estado === "dictada") dictadas.add(s.id);
+    }
+    for (const f of filasAsis) {
+      if (f.inscripcion_id == null || !dictadas.has(f.sesion_id)) continue;
+      dictadasPorInsc[f.inscripcion_id] = (dictadasPorInsc[f.inscripcion_id] ?? 0) + 1;
+      if (f.estado === "presente") consumidas[f.inscripcion_id] = (consumidas[f.inscripcion_id] ?? 0) + 1;
+    }
   }
+
+  /**
+   * El ciclo se AGOTÓ: ya ocurrieron sus N clases (plan) o consumió el paquete
+   * comprado (venta por clase). Es lo que decide si sigue tomando clases, y va
+   * aparte de `estado`: una membresía agotada pero impaga sigue `activa`
+   * (se cierra recién al cobrarse) y aun así no debe seguir en el padrón.
+   */
+  const cicloAgotado = (r: InscRow) =>
+    r.clases_plan != null
+      ? (dictadasPorInsc[r.id] ?? 0) >= r.clases_plan
+      : r.clases_total != null && (consumidas[r.id] ?? 0) >= r.clases_total;
 
   /** Ya había empezado a esa fecha y su ciclo no terminó (ilimitada vencida). */
   const enPeriodo = (r: InscRow, f: string) =>
@@ -265,8 +288,8 @@ export async function cargarPadron(
     estadosPorFecha[s.fecha] = faltan > 0 ? "incompleta" : "completada";
   }
 
-  // Padrón de la fecha elegida (los parciales agotados se filtran al final,
-  // salvo que ya tengan marca en esta sesión).
+  // Padrón de la fecha elegida (los ciclos agotados se filtran al final, salvo
+  // que ya tengan marca en esta sesión: hay que poder corregirla).
   const inscripciones = activas.filter((r) => enPeriodo(r, fecha));
   const inscIds = inscripciones.map((r) => r.id);
   const alumnoIds = [...new Set(inscripciones.map((r) => r.alumno_id))];
@@ -374,6 +397,9 @@ export async function cargarPadron(
     });
 
   const filas: FilaAsistencia[] = inscripciones
+    // Un ciclo agotado ya no toma clases, esté cobrado o no. Si tiene marca en
+    // esta sesión se queda, para poder corregirla.
+    .filter((r) => !cicloAgotado(r) || marcas[r.alumno!.id] != null)
     .map((r) => {
       const esMensual = r.modalidad === "mensual";
       const restantes = esMensual ? null : Math.max(0, (r.clases_total ?? 0) - (consumidas[r.id] ?? 0));
@@ -391,8 +417,7 @@ export async function cargarPadron(
         toleranciaRestante: toleranciaRestantePorInsc.has(r.id) ? toleranciaRestantePorInsc.get(r.id)! : null,
         faltaSinLicenciaEnCiclo: (faltasSinLicPrevias[r.id] ?? 0) > 0,
       };
-    })
-    .filter((f) => f.modalidad === "mensual" || f.restantes === null || f.restantes > 0 || marcas[f.alumnoId]);
+    });
 
   return {
     filas: [...filas, ...extras].sort(compararPorApellido),
@@ -537,23 +562,26 @@ export async function guardarAsistencia(
 // ── Motor: contador de clases realizadas + "completada" ──────────────────
 
 /**
- * Recalcula una membresía desde sus asistencias. Dos formas de cerrar el ciclo,
- * según cómo se vendió:
+ * Recalcula una membresía desde sus asistencias.
  *
- *  - **Plan con N clases:** el CICLO se completa cuando ocurrieron N
- *    (=`clases_plan`) sesiones DICTADAS de la membresía (la falta, justificada
- *    o no, no lo alarga: la clase pasó). `clases_hechas` = clases a las que
- *    ASISTIÓ (presentes) -> se muestra "X/N". `bono_generado` = faltas CON
- *    licencia (tope `tolerancia_faltas` del plan); es la clase de tolerancia
- *    que se redime al renovar. Una sola falta SIN licencia en el ciclo deja el
- *    bono en 0: la tolerancia premia al ciclo sin faltas injustificadas
- *    (política de Javier, 2026-09-10).
- *  - **Paquete por clase (sin plan, `clases_total`):** se cierra cuando se
- *    cumplen las DOS condiciones: consumió las clases compradas Y está
- *    íntegramente pagado (política de Javier, 2026-09-10). Consumido pero con
- *    saldo, la venta sigue abierta. Solo la asistencia consume paquete; una
- *    falta no lo gasta, así que el alumno conserva su clase. No genera bono:
- *    esa venta no tiene tolerancia.
+ * **Regla base del modelo:** una membresía se cierra (`completada`) cuando se
+ * cumplen las DOS condiciones — el ciclo se agotó Y está íntegramente cobrada.
+ * Agotada pero con saldo, sigue `activa`: la venta no terminó. Que ya no tome
+ * más clases es cosa aparte, y lo resuelve el padrón (`cicloAgotado` en
+ * `cargarPadron`), no el estado.
+ *
+ * Qué significa "agotado" según cómo se vendió:
+ *  - **Plan con N clases:** ocurrieron N (=`clases_plan`) sesiones DICTADAS de
+ *    la membresía. La falta, justificada o no, no lo alarga: la clase pasó.
+ *  - **Paquete por clase (sin plan, `clases_total`):** consumió las clases
+ *    compradas. Solo la asistencia consume paquete; una falta no lo gasta, así
+ *    que el alumno conserva su clase.
+ *
+ * Además, para los planes con N: `clases_hechas` = clases a las que ASISTIÓ
+ * (presentes) -> se muestra "X/N"; `bono_generado` = faltas CON licencia (tope
+ * `tolerancia_faltas` del plan), la clase de tolerancia que se redime al
+ * renovar. Una sola falta SIN licencia deja el bono en 0: la tolerancia premia
+ * al ciclo sin faltas injustificadas. Los paquetes por clase no generan bono.
  *
  * Las membresías ilimitadas (plan por fecha, sin N) no se cierran acá: su ciclo
  * termina por `fecha_fin`. No toca las dadas de baja. Devuelve true si quedó
@@ -615,7 +643,9 @@ async function recalcularMembresia(a: Admin, inscripcionId: number): Promise<boo
   const clasesPlan = insc.clases_plan as number;
   const tolerancia = await toleranciaDe(a, insc.plan_id as number, insc.tolerancia_faltas as number | null);
   const bono = faltasSinLic > 0 ? 0 : Math.min(faltasConLic, Math.max(0, tolerancia));
-  const completada = dictadas >= clasesPlan;
+  // Se cierra solo si además está cobrada; el saldo se consulta únicamente
+  // cuando el ciclo ya se agotó, que es cuando puede cambiar el estado.
+  const completada = dictadas >= clasesPlan && (await saldoDeMembresia(a, inscripcionId)) <= 0;
   await a
     .from("inscripciones")
     .update({
