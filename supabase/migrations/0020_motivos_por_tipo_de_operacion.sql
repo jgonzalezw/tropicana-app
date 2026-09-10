@@ -57,7 +57,26 @@ where c.clave = 'motivo_pago'
 on conflict (catalogo_id, valor) do update
   set etiqueta = excluded.etiqueta, orden = excluded.orden, activo = true;
 
--- 3. Lo ya asentado, al idioma nuevo. Todo lo que era un momento del cobro
+-- 3. Antes de renombrar nada, se guarda el motivo anterior de cada pago: es
+--    un dato de plata ya asentada y el remapeo de abajo no es reversible por
+--    si solo (inscripcion y cuota caen las dos en membresia).
+create table if not exists public.pagos_motivo_previo_0020 (
+  pago_id bigint primary key references public.pagos(id) on delete cascade,
+  motivo_anterior text,
+  guardado_en timestamptz not null default now()
+);
+
+insert into public.pagos_motivo_previo_0020 (pago_id, motivo_anterior)
+select id, motivo from public.pagos
+where motivo in ('inscripcion', 'mensualidad', 'cuota', 'venta_paquete',
+                 'alquiler_de_sala', 'particular')
+on conflict (pago_id) do nothing;
+
+-- Para revertir:
+--   update public.pagos p set motivo = b.motivo_anterior
+--   from public.pagos_motivo_previo_0020 b where b.pago_id = p.id;
+
+-- 4. Lo ya asentado, al idioma nuevo. Todo lo que era un momento del cobro
 --    de una membresia (inscripcion, mensualidad, cuota, paquete) es hoy,
 --    simplemente, una membresia.
 update public.pagos
