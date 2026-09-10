@@ -35,9 +35,12 @@ export default function ClientePlanes({
   planes,
   cursos,
   deps,
+  toleranciaAcademia,
 }: {
   planes: Plan[];
   cursos: Curso[];
+  /** Parámetro `tolerancia_faltas`: lo que aplica si el plan no define lo suyo. */
+  toleranciaAcademia: number;
   deps: Record<number, number>;
 }) {
   const router = useRouter();
@@ -179,16 +182,33 @@ export default function ClientePlanes({
                 className="entrada w-full"
               />
             </div>
-            <div>
-              <label className="text-sm text-[var(--texto-tenue)] block mb-1">Tolerancia faltas</label>
-              <input
-                value={form.tolerancia_faltas ?? ""}
-                onChange={(e) => setForm({ ...form, tolerancia_faltas: numOrNull(e.target.value) })}
-                inputMode="numeric"
-                placeholder="(sistema)"
-                className="entrada w-full"
-              />
-            </div>
+          </div>
+
+          {/* Tolerancia: por defecto manda la política de la academia. */}
+          <div className="space-y-2">
+            <Toggle
+              checked={form.tolerancia_faltas != null}
+              onChange={(v) =>
+                setForm({ ...form, tolerancia_faltas: v ? toleranciaAcademia : null })
+              }
+              label="Tolerancia de faltas propia de este plan"
+              descripcion={`Apagado, usa la política de la academia: ${toleranciaAcademia} ${
+                toleranciaAcademia === 1 ? "falta tolerada" : "faltas toleradas"
+              } por ciclo.`}
+            />
+            {form.tolerancia_faltas != null && (
+              <div className="max-w-[220px]">
+                <label className="text-sm text-[var(--texto-tenue)] block mb-1">
+                  Faltas toleradas en este plan
+                </label>
+                <input
+                  value={form.tolerancia_faltas ?? ""}
+                  onChange={(e) => setForm({ ...form, tolerancia_faltas: numOrNull(e.target.value) })}
+                  inputMode="numeric"
+                  className="entrada w-full"
+                />
+              </div>
+            )}
           </div>
 
           {/* Criterio de acceso a cursos */}

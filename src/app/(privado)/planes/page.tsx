@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { tienePermiso } from "@/lib/sesion";
+import { obtenerParametro, tienePermiso } from "@/lib/sesion";
 import EncabezadoPagina from "@/components/EncabezadoPagina";
 import SinAcceso from "@/components/SinAcceso";
 import ClientePlanes from "./ClientePlanes";
@@ -11,6 +11,8 @@ export default async function PaginaPlanes() {
   if (!(await tienePermiso("cursos", "ver"))) return <SinAcceso />;
 
   const supabase = await createClient();
+
+  const toleranciaAcademia = Math.max(0, Number(await obtenerParametro("tolerancia_faltas")) || 0);
 
   const [{ data: planes }, { data: cursos }, { data: planCursos }, { data: insc }] =
     await Promise.all([
@@ -45,6 +47,7 @@ export default async function PaginaPlanes() {
         planes={planesConCursos}
         cursos={(cursos as Curso[]) ?? []}
         deps={deps}
+        toleranciaAcademia={toleranciaAcademia}
       />
     </div>
   );
