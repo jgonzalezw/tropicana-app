@@ -217,6 +217,21 @@ resuelto desde la operación. Sin migración para lo base; **`0019`** sumó
 3. Sin pantalla de arqueo/apertura-cierre de caja ni de responsable de caja
    (quién rinde cuentas de cuál caja) — mencionado por Javier como parte del
    customer journey completo de cobros/pagos, no diseñado todavía.
+4. **"Por cobrar" de Caja, agrupado por vencida/vigente** (Javier, 2026-09-11):
+   primero las líneas con fecha vencida (falta `vencimiento`/`fecha_compromiso`
+   de la cuota comparado contra hoy), después las vigentes, con un título que
+   distinga los dos grupos. Hoy `lineasPorCobrar` las devuelve todas juntas,
+   ordenadas solo por nombre.
+5. **Hipervínculo directo al cobro/pago desde cada línea** de "Por cobrar" (y
+   el equivalente en pagos, cuando exista la lista de "Por pagar" del punto 2):
+   click en la línea → abre `MovimientoCaja` con el `ContextoMovimiento` ya
+   resuelto para esa deuda puntual (el mecanismo ya existe — `MovimientoCaja`
+   acepta `contexto` desde 2A — falta el link que lo dispare desde la lista).
+6. **Hipervínculo a "ver el recibo" desde "Últimos movimientos"**: hoy no
+   existe ninguna vista de recibo/comprobante para un cobro de Caja (sí existe
+   para liquidaciones, `/liquidaciones/[id]`, que puede servir de referencia de
+   patrón). Es pantalla nueva sin mockup — pasa por Design, salvo que se decida
+   reusar el patrón de comprobante existente adaptado.
 
 ### Pendientes de prueba de Javier en dev (consolidado, 2026-09-10)
 
