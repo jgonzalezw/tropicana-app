@@ -6,8 +6,10 @@
 > `docs/design/README.md` (fuente de verdad del **diseño**), `docs/CONTEXTO_AVANCE.md`
 > (bitácora larga de Etapa 0), `docs/DESIGN_SYNC.md` (cómo entran los handoffs).
 >
-> **Última actualización:** 2026-09-09 — **Motor de Planes y Membresías en
-> PRODUCCIÓN.** 1B.2 y 1C-core cerrados (liquidación criterio 1 de punta a
+> **Última actualización:** 2026-09-10 — Consolidación de estado a pedido de
+> Javier: ver **§0bis** (tabla de los 7 pasos) para la foto completa. **Motor
+> de Planes y Membresías en PRODUCCIÓN.** 1B.2 y 1C-core cerrados (liquidación
+> criterio 1 de punta a
 > punta); correcciones de la revisión de Javier (asistencia/tolerancia/
 > liquidación) aplicadas y validadas por Javier en dev. Migraciones `0012` a
 > `0015` aplicadas en producción (vía conector Supabase MCP) y `main`
@@ -35,11 +37,38 @@
 > **REENCUADRE VIGENTE (2026-09-05):** el sistema se replantea al **Motor de
 > Planes y Membresías** (doc "Diseño del Motor de Planes y Membresías" v1.3). El
 > plan de cierre de Etapa 1 bajo ese modelo está en
-> `docs/PLAN_CIERRE_ETAPA1_v2_MOTOR.md` (**supersede** a `docs/PLAN_ETAPA1_CIERRE.md`).
-> Secuencia: (1) liquidación con criterio configurable por plan · (2)
-> particulares/alquiler + confirmar sesión + renovación/estado de cuenta · (3)
-> App Shell + dashboard operativo · (4) costos fijos · (5) agenda de sala · (6)
-> alineación a estándares. **En espera del OK de Javier para construir el Paso 1.**
+> `docs/PLAN_CIERRE_ETAPA1_v2_MOTOR.md` (**supersede** a `docs/PLAN_ETAPA1_CIERRE.md`),
+> secuencia de **7 pasos (0 a 6)** — ver la tabla de estado consolidado justo
+> abajo. **Paso 1 completo y en producción; el Paso 2 no arranca sin OK
+> explícito de Javier** (regla de trabajo permanente, §7).
+
+---
+
+## 0bis. Estado consolidado — secuencia del Motor de Planes (7 pasos)
+
+Referencia: `docs/PLAN_CIERRE_ETAPA1_v2_MOTOR.md` §2. Actualizado 2026-09-10.
+
+| Paso | Qué es | Estado |
+| --- | --- | --- |
+| 0 | Reencuadre al Motor de Planes y Membresías | ✅ Hecho (2026-09-05) |
+| **1** | **Liquidación a profesores** (motor base Plan Regular: planes N/ilimitado, multi-curso, asistencia con contador/completada/tolerancia/bono, liquidación criterio 1 + comprobante) | ✅ **Hecho — EN PRODUCCIÓN** (desplegado y verificado 2026-09-09/10) |
+| 2 | Venta de particulares/alquiler + confirmar sesión (con horario) + renovación + estado de cuenta del alumno | ⏳ Pendiente — no iniciado |
+| 3 | App Shell (armazón + visual ya diseñado) + Dashboard operativo | ⏳ Pendiente — no iniciado |
+| 4 | Costos fijos | ⏳ Pendiente — no iniciado |
+| 5 | Agenda de sala (+ `duracion_min` en `cursos`) | ⏳ Pendiente — no iniciado |
+| 6 | Alineación a estándares del resto de pantallas (ver `docs/PLAN_UX_DANZE.md`) | 🟡 En curso, parcial — Toggle estándar adoptado y pantalla Planes ya alineada; Cursos/Profesores/Dashboard/navegación siguen en el backlog de `PLAN_UX_DANZE.md` |
+
+**Estamos parados al cierre del Paso 1**, ya desplegado y validado en vivo en
+producción (deployment `41942b9`, Ready, 0% error). El siguiente a construir
+es el **Paso 2**, y no arranca sin tu OK explícito.
+
+**Infraestructura construida como prerrequisito del Paso 1 (no es un paso
+numerado de la secuencia, pero fue condición para poder construirlo):**
+- ✅ Ambiente **`tropicana-dev`** (proyecto Supabase separado, `hyhijzuomqpylcmrzdvw`) — operativo desde 2026-09-05, para probar sin tocar producción.
+- ✅ Mecanismo de **refresh producción → dev** (`scripts/refresh-dev.mjs`, Node+`pg`) — copia datos de dominio de producción a dev (solo lectura sobre prod), anula referencias a usuarios, preserva ids/auto-referencias, reajusta secuencias, backfill post-refresh de `plan_cursos`/`inscripcion_cursos`/`planes.modalidad`. Documentado en `docs/SETUP_TROPICANA_DEV.md` §8.
+- ✅ Acceso directo a ambas bases (dev y producción, `pnvhpbxjbdmbktpwebtx`) vía conector **Supabase MCP** — confirmado 2026-09-09; permite aplicar migraciones y verificar esquema sin pegar SQL a mano en el editor de Supabase.
+- ✅ **Autorización permanente de Javier** (2026-09-09): una vez validado un cambio con el checklist de pruebas en dev, aplicar migraciones y mergear/pushear a `main` sin pedir confirmación cada vez. **No reemplaza** la regla de "un hito a la vez, cerrado con `ESTADO.md` actualizado" (§7) — solo agiliza el paso final (aplicar a producción) una vez ese cierre ya ocurrió.
+- ✅ Chip de entorno **DEV/PROD** + commit, visible en `/login` y en la barra lateral (`src/lib/version.ts`, `src/components/InfoRelease.tsx`) — 2026-09-10, para validar de un vistazo a qué base está conectada cualquier instancia corriendo.
 
 ---
 
