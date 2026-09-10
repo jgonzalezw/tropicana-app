@@ -178,26 +178,48 @@ Plan corto y visto bueno antes de construir algo grande · un hito a la vez (pro
 
 **Regla de sincronización de migraciones (permanente, pedida por Javier 2026-09-04):** cada vez que Javier confirme que aplicó una migración en Supabase, actualizar **en el acto** el estado de esa migración en este `ESTADO.md` marcándola **aplicada con la fecha**, y commitear. Nunca dejar el estado de migraciones desincronizado entre lo que Javier informa y lo que figura acá.
 
-## 7. Metodología de release y regla de trabajo (permanentes, pedidas por Javier 2026-09-05)
+## 7. Metodología de release y regla de trabajo (permanentes, pedidas por Javier 2026-09-05; **flujo de release actualizado 2026-09-09**)
 
-**Ambientes:** solo dos — **desarrollo local** (donde Code construye y Javier
-prueba) y **producción** (Vercel + Supabase, lo usa Natalia). No hay staging en
-la nube.
+**Ambientes vigentes hoy (evolucionaron desde el 2026-09-05 original de "solo
+dos ambientes"):**
+- **Sandbox de validación de Code (efímero):** Postgres 16 descartable, sin
+  datos reales, donde se corre la cadena **completa** de migraciones
+  (0001→N) antes de tocar cualquier base real — confirma idempotencia y
+  corre smoke tests. No lo usa Javier, se descarta al terminar.
+- **`tropicana-dev`** (proyecto Supabase real y separado, `hyhijzuomqpylcmrzdvw`)
+  — donde **Javier prueba de verdad** (con datos propios o refrescados de
+  producción). Operativo desde 2026-09-05.
+- **Producción** (Vercel + Supabase "Tropicana", `pnvhpbxjbdmbktpwebtx`) — la
+  usa Natalia.
+No hay staging en la nube más allá de estos dos proyectos Supabase.
 
 **Flujo de release (obligatorio):**
-1. Todo cambio se prueba primero en **local**; pasa a producción **solo con OK
-   explícito de Javier**. Nada va directo a producción sin su visto bueno.
-2. **Migraciones:** se aplican y prueban primero en la **base local**; solo
-   cuando funcionaron, Javier las aplica en **Supabase** (paso manual suyo,
-   separado). Nunca una migración en producción sin haberla probado en local.
-   (Sigue vigente la regla de sincronización de migraciones de §6.)
-3. **Refresh de datos prod→dev:** ✅ **implementado** (2026-09-05) en
-   `scripts/refresh-dev.mjs` (Node + `pg`). Copia los datos de dominio de
-   producción a `tropicana-dev` (solo lectura sobre prod; borra/reescribe dev).
-   No copia usuarios/config (perfiles, parámetros) y **anula** las referencias a
-   usuarios (`usuario_id`, `registrado_por`); preserva ids y auto-referencias
-   (tutor/referido/renovación) y reajusta secuencias. Decisión PII = copiar tal
-   cual (D5=a). Validado en sandbox con dos bases. Pasos: `docs/SETUP_TROPICANA_DEV.md` §8.
+1. Todo cambio (código y/o migración) se valida primero en el **sandbox de
+   Code**: migraciones por cadena completa e idempotencia; código con
+   `tsc`/`eslint`/`build`.
+2. Se aplica en **`tropicana-dev`** y **Javier lo prueba ahí** contra un
+   checklist de pruebas del cambio. Nada pasa a producción sin ese visto bueno.
+3. Con el checklist validado en dev, pasa a **producción**: migraciones vía
+   el conector **Supabase MCP** (acceso directo confirmado 2026-09-09 a los
+   dos proyectos — ya no hace falta que Javier pegue SQL a mano en el SQL
+   Editor) + merge/push de la rama de trabajo a `main` (Vercel despliega
+   solo, branch tracking activo). **Autorización permanente de Javier
+   (2026-09-09):** este paso 3 no requiere pedir confirmación cada vez —
+   corre automáticamente una vez que el checklist de dev quedó validado.
+   Antes del 2026-09-09 este paso era manual de Javier; ya no.
+4. Nunca una migración o código nuevo pasa a producción sin haber sido
+   validado primero en `tropicana-dev`.
+(Sigue vigente la regla de sincronización de migraciones de §6.)
+
+**Refresh de datos producción→dev:** ✅ **implementado** (2026-09-05) en
+`scripts/refresh-dev.mjs` (Node + `pg`). Copia los datos de dominio de
+producción a `tropicana-dev` (solo lectura sobre prod; borra/reescribe dev).
+No copia usuarios/config (perfiles, parámetros) y **anula** las referencias a
+usuarios (`usuario_id`, `registrado_por`); preserva ids y auto-referencias
+(tutor/referido/renovación) y reajusta secuencias. Decisión PII = copiar tal
+cual (D5=a). Validado en sandbox con dos bases. Pasos: `docs/SETUP_TROPICANA_DEV.md` §8.
+Se corre **ad-hoc, cuando Javier lo pide** (no es parte obligatoria del flujo
+de release en sí — sirve para poblar dev con datos realistas antes de probar).
 
 **Regla de trabajo (permanente):** ante cualquier pedido, primero **proponer el
 plan y esperar el OK** antes de construir; **un hito a la vez**, cerrado (probado
