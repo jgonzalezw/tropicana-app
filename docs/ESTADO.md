@@ -262,6 +262,26 @@ solicite el pase"). No requirió ninguna migración nueva.
    y `truncate` lo cortaba al ancho de la columna izquierda. Pasa a renglón
    propio, usando también el ancho debajo del monto. Igual en "Por cobrar".
 
+5. **Motivos reclasificados por tipo de operación** (migración 0020): el
+   catálogo mezclaba la operación con el momento del cobro. Queda Membresía,
+   Clase particular, Clase de prueba, Alquiler, Taller, Venta de producto, más
+   Ajuste y Otro (que no vienen de ninguna operación). Se remapearon los pagos
+   ya asentados; las claves viejas se siguen entendiendo. Aplicada **solo en
+   dev**.
+6. **Desglose del recibo**: el número destacado es la plata que se movió de
+   verdad ("Total cobrado"), igual que en la lista de movimientos — puede ser
+   0 si la deuda se cubrió solo con descuento, y el recibo lo dice. El saldo
+   pendiente baja a una línea menor debajo del total.
+
+### Mejora pendiente en Caja — el camino del cobro (pedida por Javier, 2026-09-10)
+
+Hoy el movimiento se navega dirección → motivo → titular. Javier observa que
+el motivo casi no cambia el comportamiento, y que el camino lógico sería el
+inverso: **elegir primero al deudor, ver sus deudas agrupadas por tipo de
+operación, y seleccionar la (o las) que se saldan** — un cobro podría cubrir
+varias líneas. Queda explícitamente fuera de 2A.1: "amerita más análisis del
+customer journey en caja". Entra al Paso 2 junto con el estado de cuenta (2B).
+
 **Límite conocido de verificación:** la sesión en la nube no puede validar
 visualmente estas pantallas. Tiene Chromium y puede levantar `next dev`, pero
 la política de egreso del contenedor bloquea `*.supabase.co` con 403, así que
