@@ -425,6 +425,50 @@ El punto 1 comparte motor con 2C (renovación): las dos necesitan recalcular
 un ciclo con las reglas de la venta sin volver a venderlo. Conviene hacerlas
 juntas.
 
+## 0octies. `docs/REGLAS.md` — las reglas invariables, cargadas siempre (2026-09-10)
+
+**Por qué existe.** Al revisar el caso de Yubinca (§0nonies) afirmé que el motor
+no corría el fin de ciclo al suspender una clase. Era falso: el mecanismo existe
+(`aplicarCorrimiento` + `corrimientos_ciclo`) y estaba documentado en este mismo
+archivo, línea 493. Fallé porque busqué `fecha_fin` por grep, no encontré nada
+que lo escribiera, y afirmé un negativo sin leer el flujo de suspensión — donde
+la regla vive bajo **otro nombre** (`cuotas.vencimiento`).
+
+Javier: *"es la política, no acepto que me digas que no tenés presente. Dime qué
+debo hacer para que eso tan fundamental no vuelvas a perderlo de vista."*
+
+**El diagnóstico honesto:** la política estaba escrita, pero `ESTADO.md` tiene
+~600 líneas y **no se carga solo**; se lee por partes, cuando se lo busca. Lo
+único que se carga en toda sesión es `CLAUDE.md` y lo que él importe. Empezar
+una sesión nueva no ayuda: arranca con menos contexto, no más. Lo único que
+sobrevive entre sesiones es lo que está en el repo **y se carga solo**.
+
+**La solución:** `docs/REGLAS.md`, importado desde `CLAUDE.md` (junto a
+`AGENTS.md`). Corto a propósito, para que se lea entero cada vez. Contiene:
+
+1. Un **glosario** — un concepto, un nombre. Encabeza la lista la distinción
+   que causó el bug: `inscripciones.fecha_fin` (fin de ciclo por consumo, lo
+   calcula la venta) vs. `cuotas.vencimiento` (plazo, lo corre la suspensión).
+2. Las **reglas de negocio** invariables (cierre de membresía, agotarse ≠
+   cerrarse, qué agota cada venta, corrimiento por suspensión, bono de
+   tolerancia, toda venta con su cuota, base de comisión, snapshot, sin
+   hardcode, orden por apellido).
+3. Las **reglas de proceso** (OK explícito para producción, dev hasta que se
+   pida el pase, aviso antes de construir pantalla sin mockup, piezas
+   reutilizables, respaldo antes de tocar datos de producción, nunca pegar
+   credenciales).
+4. Una instrucción explícita: **antes de afirmar que algo no está
+   implementado, leer el flujo completo** — un grep por un nombre de campo no
+   es prueba.
+
+`ESTADO.md` sigue siendo el detalle, la historia y el estado de cada hito.
+`REGLAS.md` es lo que no se puede perder de vista nunca.
+
+**Capa que falta:** convertir en controles de `scripts/control_migracion.sql`
+las reglas que se puedan chequear — una regla en prosa se pierde, una que rompe
+un control no. Primer candidato: coherencia entre `fecha_fin` y los
+corrimientos de la membresía.
+
 ## 1. Estado por hito (validado con evidencia en el repo)
 
 | Hito | Estado | Evidencia |
