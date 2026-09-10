@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Cobro, { type PayloadCobro } from "@/components/Cobro";
+import Toggle from "@/components/Toggle";
 import { gs, isoFecha } from "@/lib/inscripcion";
 import {
   bucketDeMotivo,
@@ -59,6 +60,9 @@ export default function MovimientoCaja({
   const [glosaTocada, setGlosaTocada] = useState(false);
   const [pago, setPago] = useState<PayloadCobro | null>(null);
   const [fechaCompromiso, setFechaCompromiso] = useState("");
+  // Registro atrasado: la fecha solo cuenta si el toggle esta encendido, mismo
+  // criterio que la inscripcion retroactiva de /inscribir (Toggle + fecha).
+  const [retroActivo, setRetroActivo] = useState(false);
   const [fechaEfectiva, setFechaEfectiva] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
@@ -155,7 +159,9 @@ export default function MovimientoCaja({
       return setError("Revisá el monto, el medio de pago o el motivo del descuento.");
     if (pideCompromiso && !fechaCompromisoEfectiva)
       return setError("Cargá la fecha de compromiso de pago del saldo.");
-    if (fechaEfectiva && fechaEfectiva > isoFecha(hoy))
+    if (retroActivo && !fechaEfectiva)
+      return setError("Cargá la fecha en que ocurrió el movimiento, o apagá el interruptor.");
+    if (retroActivo && fechaEfectiva > isoFecha(hoy))
       return setError("La fecha en que ocurrió el movimiento no puede ser futura.");
 
     setGuardando(true);
@@ -170,13 +176,14 @@ export default function MovimientoCaja({
       descuento,
       descuentoMotivo: pago?.ajusteMotivo ?? "",
       fechaCompromiso: pideCompromiso ? fechaCompromisoEfectiva : null,
-      fechaEfectiva: fechaEfectiva || null,
+      fechaEfectiva: retroActivo ? fechaEfectiva : null,
     });
     setGuardando(false);
     if (res.error) return setError(res.error);
     setAviso(res.resumen ?? "Movimiento registrado.");
     setGlosa("");
     setGlosaTocada(false);
+    setRetroActivo(false);
     setFechaEfectiva("");
     setPago(null);
     setFechaCompromiso("");
@@ -279,23 +286,33 @@ export default function MovimientoCaja({
         />
       </label>
 
-      <label className="block max-w-[220px]">
-        <span className="block text-base font-medium mb-1.5">¿Cuándo ocurrió?</span>
-        <input
-          type="date"
-          value={fechaEfectiva}
-          max={isoFecha(hoy)}
-          onChange={(e) => {
-            setFechaEfectiva(e.target.value);
+      <div className="space-y-2">
+        <Toggle
+          checked={retroActivo}
+          onChange={(v) => {
+            setRetroActivo(v);
+            if (!v) setFechaEfectiva("");
             setError(null);
           }}
-          className="entrada"
+          label="Ocurrió en fecha pasada"
+          descripcion="Se registra igual como movimiento de hoy (para el arqueo); la fecha es para saber cuándo pasó de verdad."
         />
-        <p className="text-sm text-[var(--texto-tenue)] mt-1.5">
-          Dejalo vacío si es de hoy. Se registra siempre como movimiento de hoy (para el arqueo de
-          caja); esta fecha es solo para saber cuándo pasó de verdad.
-        </p>
-      </label>
+        {retroActivo && (
+          <label className="block max-w-[220px]">
+            <span className="block text-base font-medium mb-1.5">¿Cuándo ocurrió?</span>
+            <input
+              type="date"
+              value={fechaEfectiva}
+              max={isoFecha(hoy)}
+              onChange={(e) => {
+                setFechaEfectiva(e.target.value);
+                setError(null);
+              }}
+              className="entrada"
+            />
+          </label>
+        )}
+      </div>
 
       <div className="rounded-[var(--radio-panel)] border border-[var(--borde)] bg-[var(--fondo-panel)] p-4">
         <Cobro

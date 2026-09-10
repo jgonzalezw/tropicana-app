@@ -119,12 +119,14 @@ export default function ClienteCaja({
           ) : (
             <ul className="divide-y divide-[var(--borde)]">
               {lineas.map((l) => (
-                <li key={l.clave} className="py-2.5 flex items-baseline justify-between gap-3">
-                  <span className="min-w-0">
-                    <span className="block text-base font-medium truncate">{l.sujeto}</span>
-                    <span className="block text-sm text-[var(--texto-tenue)] truncate">{l.detalle}</span>
-                  </span>
-                  <span className="shrink-0 text-base tabular-nums text-[var(--peligro)]">{gs(l.saldo)}</span>
+                <li key={l.clave} className="py-2.5">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="min-w-0 text-base font-medium truncate">{l.sujeto}</span>
+                    <span className="shrink-0 text-base tabular-nums text-[var(--peligro)]">
+                      {gs(l.saldo)}
+                    </span>
+                  </div>
+                  <p className="text-sm text-[var(--texto-tenue)] mt-0.5">{l.detalle}</p>
                 </li>
               ))}
             </ul>
@@ -149,34 +151,34 @@ export default function ClienteCaja({
                   ? new Date(m.fechaEfectiva! + "T00:00:00").toLocaleDateString("es-BO")
                   : new Date(m.fecha).toLocaleDateString("es-BO");
                 return (
-                  <li key={m.id} className="py-2.5 flex items-baseline justify-between gap-3">
-                    <span className="min-w-0">
-                      <span className="block text-base font-medium truncate">
+                  <li key={m.id} className="py-2.5">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="min-w-0 text-base font-medium truncate">
                         {m.sujeto ?? etiquetaMotivo(m.motivo ?? "otro")}
                       </span>
-                      <span className="block text-sm text-[var(--texto-tenue)] truncate">
-                        {[
-                          m.sujeto ? etiquetaMotivo(m.motivo ?? "otro") : null,
-                          m.detalle,
-                          m.glosa,
-                          m.medio,
-                        ]
-                          .filter(Boolean)
-                          .join(" · ")}
-                        {" · "}
-                        {fechaMostrada}
-                        {huboRetroactivo
-                          ? ` (registrado el ${new Date(m.fecha).toLocaleDateString("es-BO")})`
-                          : ""}
+                      <span
+                        className={`shrink-0 text-base tabular-nums ${
+                          entra ? "text-[var(--exito)]" : "text-[var(--peligro)]"
+                        }`}
+                      >
+                        {entra ? "+" : "−"} {gs(m.monto)}
                       </span>
-                    </span>
-                    <span
-                      className={`shrink-0 text-base tabular-nums ${
-                        entra ? "text-[var(--exito)]" : "text-[var(--peligro)]"
-                      }`}
-                    >
-                      {entra ? "+" : "−"} {gs(m.monto)}
-                    </span>
+                    </div>
+                    <p className="text-sm text-[var(--texto-tenue)] mt-0.5">
+                      {[
+                        m.sujeto ? etiquetaMotivo(m.motivo ?? "otro") : null,
+                        m.detalle,
+                        m.glosa,
+                        m.medio,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                      {" · "}
+                      {fechaMostrada}
+                      {huboRetroactivo
+                        ? ` (registrado el ${new Date(m.fecha).toLocaleDateString("es-BO")})`
+                        : ""}
+                    </p>
                   </li>
                 );
               })}
