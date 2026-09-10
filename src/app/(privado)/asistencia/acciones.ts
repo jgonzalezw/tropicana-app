@@ -194,20 +194,23 @@ export async function cargarPadron(
     }
   }
 
-  // Membresías activas del curso, de TODAS las fechas: hacen falta para saber
-  // quién debía figurar en el padrón de cada fecha de la ventana, no solo en la
-  // fecha elegida (una inscripción retroactiva cambia padrones ya tomados).
+  // Membresías del curso (todas menos las dadas de baja), de TODAS las fechas:
+  // hacen falta para saber quién debía figurar en el padrón de cada fecha de la
+  // ventana, no solo en la fecha elegida (una inscripción retroactiva cambia
+  // padrones ya tomados, y un ciclo ya completado igual tenía que estar
+  // marcado en las clases que cayeron dentro de su período).
   const { data: insc } = await sb
     .from("inscripciones")
     .select(
-      "id, alumno_id, modalidad, fecha_inicio, clases_total, plan_id, clases_plan, fecha_fin, tolerancia_faltas, bono_generado, alumno:alumnos(id, nombre, apellido, activo)"
+      "id, alumno_id, estado, modalidad, fecha_inicio, clases_total, plan_id, clases_plan, fecha_fin, tolerancia_faltas, bono_generado, alumno:alumnos(id, nombre, apellido, activo)"
     )
     .eq("curso_id", cursoId)
-    .eq("estado", "activa");
+    .neq("estado", "baja");
 
   type InscRow = {
     id: number;
     alumno_id: number;
+    estado: string;
     modalidad: FilaAsistencia["modalidad"];
     fecha_inicio: string;
     clases_total: number | null;
@@ -218,16 +221,17 @@ export async function cargarPadron(
     bono_generado: number;
     alumno: { id: number; nombre: string; apellido: string; activo: boolean } | null;
   };
-  const activas = ((insc as unknown as InscRow[]) ?? []).filter((r) => r.alumno?.activo);
+  const membresias = ((insc as unknown as InscRow[]) ?? []).filter((r) => r.alumno?.activo);
+  const activas = membresias.filter((r) => r.estado === "activa");
 
   // Presentes por membresía: consumo del paquete parcial y progreso "X/N".
   const consumidas: Record<number, number> = {};
-  if (activas.length) {
+  if (membresias.length) {
     const { data } = await sb
       .from("asistencias")
       .select("inscripcion_id")
       .eq("estado", "presente")
-      .in("inscripcion_id", activas.map((r) => r.id));
+      .in("inscripcion_id", membresias.map((r) => r.id));
     for (const x of (data as { inscripcion_id: number | null }[]) ?? [])
       if (x.inscripcion_id != null) consumidas[x.inscripcion_id] = (consumidas[x.inscripcion_id] ?? 0) + 1;
   }
@@ -236,9 +240,14 @@ export async function cargarPadron(
   const enPeriodo = (r: InscRow, f: string) =>
     r.fecha_inicio <= f &&
     !(r.plan_id != null && r.clases_plan == null && r.fecha_fin != null && r.fecha_fin < f);
-  /** Además, un paquete por clase agotado ya no ocupa lugar en la lista. */
-  const vigenteEn = (r: InscRow, f: string) =>
-    enPeriodo(r, f) &&
+  /**
+   * ¿Esa clase caía dentro del período de esta membresía? Para el conteo de
+   * "faltan por marcar" se mira el período real (incluido el de un ciclo ya
+   * completado) y se descartan los paquetes por clase ya agotados.
+   */
+  const cubriaLaClase = (r: InscRow, f: string) =>
+    r.fecha_inicio <= f &&
+    !(r.fecha_fin != null && r.fecha_fin < f) &&
     (r.modalidad === "mensual" || Math.max(0, (r.clases_total ?? 0) - (consumidas[r.id] ?? 0)) > 0);
 
   // Estado de cada fecha para el selector. "incompleta" = la asistencia ya se
@@ -252,7 +261,7 @@ export async function cargarPadron(
     }
     const marcados = marcadosPorSesion.get(s.id);
     if (!marcados?.size) continue; // sesión sin asistencia tomada
-    const faltan = activas.filter((r) => vigenteEn(r, s.fecha) && !marcados.has(r.alumno_id)).length;
+    const faltan = membresias.filter((r) => cubriaLaClase(r, s.fecha) && !marcados.has(r.alumno_id)).length;
     estadosPorFecha[s.fecha] = faltan > 0 ? "incompleta" : "completada";
   }
 
