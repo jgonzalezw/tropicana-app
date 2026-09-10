@@ -44,6 +44,7 @@ export async function registrarMovimiento(
         fechaCompromiso: e.fechaCompromiso,
         fechaEfectiva: e.fechaEfectiva,
         glosa: e.glosa,
+        motivo: e.motivo,
       },
       perfil?.id ?? null
     );

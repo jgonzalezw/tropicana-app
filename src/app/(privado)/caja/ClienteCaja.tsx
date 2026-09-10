@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import MovimientoCaja from "@/components/MovimientoCaja";
@@ -66,6 +66,16 @@ export default function ClienteCaja({
 }) {
   const router = useRouter();
   const [abierto, setAbierto] = useState(false);
+  // Deuda elegida desde "Por cobrar": el panel arranca apuntando a ella.
+  const [lineaElegida, setLineaElegida] = useState<LineaPendiente | null>(null);
+  const panel = useRef<HTMLDivElement>(null);
+
+  function cobrarLinea(l: LineaPendiente) {
+    setLineaElegida(l);
+    setAbierto(true);
+    // El panel está arriba de la lista: sin esto el click no parece hacer nada.
+    requestAnimationFrame(() => panel.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
 
   const porCobrar = lineas.reduce((t, l) => t + l.saldo, 0);
   // Las deudas ya llegan ordenadas por antigüedad (`lineasPorCobrar`): acá solo
@@ -79,7 +89,10 @@ export default function ClienteCaja({
 
   async function guardar(m: EntradaMovimiento) {
     const res = await registrarMovimiento(m);
-    if (res.ok) router.refresh();
+    if (res.ok) {
+      setLineaElegida(null);
+      router.refresh();
+    }
     return res;
   }
 
@@ -119,15 +132,21 @@ export default function ClienteCaja({
       </div>
 
       {abierto && (
-        <div className="mb-4">
+        <div className="mb-4" ref={panel}>
           <MovimientoCaja
+            // Remonta al elegir otra deuda: el panel arranca sus campos una vez.
+            key={lineaElegida?.clave ?? "suelto"}
+            lineaInicial={lineaElegida ?? undefined}
             motivosIngreso={motivosIngreso}
             motivosEgreso={motivosEgreso}
             lineas={lineas}
             medios={medios}
             diasCompromiso={diasCompromiso}
             onGuardar={guardar}
-            onCancelar={() => setAbierto(false)}
+            onCancelar={() => {
+              setAbierto(false);
+              setLineaElegida(null);
+            }}
           />
         </div>
       )}
@@ -152,6 +171,7 @@ export default function ClienteCaja({
                 lineas={vencidas}
                 total={totalVencidas}
                 hoy={hoy}
+                onCobrar={puedeRegistrar ? cobrarLinea : undefined}
                 alerta
               />
               <GrupoDeuda
@@ -160,6 +180,7 @@ export default function ClienteCaja({
                 lineas={alDia}
                 total={totalAlDia}
                 hoy={hoy}
+                onCobrar={puedeRegistrar ? cobrarLinea : undefined}
               />
             </div>
           )}
@@ -234,6 +255,7 @@ function GrupoDeuda({
   lineas,
   total,
   hoy,
+  onCobrar,
   alerta,
 }: {
   titulo: string;
@@ -241,6 +263,8 @@ function GrupoDeuda({
   lineas: LineaPendiente[];
   total: number;
   hoy: string;
+  /** Si viene, cada línea es el enlace que abre el cobro de esa deuda. */
+  onCobrar?: (l: LineaPendiente) => void;
   alerta?: boolean;
 }) {
   if (lineas.length === 0) return null;
@@ -261,7 +285,8 @@ function GrupoDeuda({
         {lineas.map((l) => {
           const atraso = l.fechaLimite ? diasDeAtraso(l.fechaLimite, hoy) : 0;
           return (
-            <li key={l.clave} className="py-2.5">
+            <li key={l.clave}>
+              <Fila onCobrar={onCobrar} linea={l}>
               <div className="flex items-baseline justify-between gap-3">
                 <span className="min-w-0 text-base font-medium truncate">{l.sujeto}</span>
                 <span className="shrink-0 text-base tabular-nums text-[var(--peligro)]">
@@ -285,10 +310,37 @@ function GrupoDeuda({
                   <span className="text-[var(--texto-tenue)]">Sin fecha pactada</span>
                 )}
               </p>
+              </Fila>
             </li>
           );
         })}
       </ul>
     </div>
+  );
+}
+
+/**
+ * La envoltura de una línea de "Por cobrar". Con permiso de cobro es un botón
+ * que lleva derecho al cobro de esa deuda; sin permiso, texto y nada más.
+ */
+function Fila({
+  linea,
+  onCobrar,
+  children,
+}: {
+  linea: LineaPendiente;
+  onCobrar?: (l: LineaPendiente) => void;
+  children: React.ReactNode;
+}) {
+  if (!onCobrar) return <div className="py-2.5">{children}</div>;
+  return (
+    <button
+      type="button"
+      onClick={() => onCobrar(linea)}
+      title={`Cobrar a ${linea.sujeto}`}
+      className="w-full text-left py-2.5 px-2 -mx-2 rounded-[var(--radio-control)] hover:bg-[var(--fondo-elevado)]"
+    >
+      {children}
+    </button>
   );
 }

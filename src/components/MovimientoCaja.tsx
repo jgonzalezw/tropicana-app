@@ -36,6 +36,7 @@ export default function MovimientoCaja({
   medios,
   diasCompromiso,
   contexto,
+  lineaInicial,
   onGuardar,
   onCancelar,
 }: {
@@ -47,15 +48,33 @@ export default function MovimientoCaja({
   diasCompromiso: number;
   /** Si viene, el movimiento arranca resuelto y no se navega. */
   contexto?: ContextoMovimiento;
+  /**
+   * Deuda elegida de antemano (click en una línea de "Por cobrar"): arranca
+   * apuntando a esa línea, pero a diferencia de `contexto` la navegación sigue
+   * visible — el motivo se puede corregir antes de guardar.
+   */
+  lineaInicial?: LineaPendiente;
   onGuardar: (m: EntradaMovimiento) => Promise<{ ok?: true; error?: string; resumen?: string }>;
   onCancelar?: () => void;
 }) {
   const fijo = contexto != null;
   const [direccion, setDireccion] = useState<Direccion>(contexto?.direccion ?? "ingreso");
   const [motivo, setMotivo] = useState<string>(
-    contexto?.motivo ?? motivosIngreso[0] ?? "otro"
+    contexto?.motivo ??
+      // Con una deuda ya elegida, el motivo arranca en el primero que salda esa
+      // clase de deuda; queda editable porque el catálogo tiene varios por
+      // bucket (inscripción y mensualidad saldan las dos una cuota).
+      (lineaInicial
+        ? [lineaInicial.motivoSugerido, ...motivosIngreso].find(
+            (m) => m != null && motivosIngreso.includes(m) && bucketDeMotivo(m) === lineaInicial.bucket
+          ) ?? undefined
+        : undefined) ??
+      motivosIngreso[0] ??
+      "otro"
   );
-  const [claveLinea, setClaveLinea] = useState<string>(contexto?.linea.clave ?? "");
+  const [claveLinea, setClaveLinea] = useState<string>(
+    contexto?.linea.clave ?? lineaInicial?.clave ?? ""
+  );
   const [glosa, setGlosa] = useState("");
   const [glosaTocada, setGlosaTocada] = useState(false);
   const [pago, setPago] = useState<PayloadCobro | null>(null);

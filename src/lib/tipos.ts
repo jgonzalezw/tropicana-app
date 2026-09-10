@@ -313,6 +313,12 @@ export type EntradaCobro = {
   fechaEfectiva: string | null;
   /** Descripción del movimiento. Si falta, se usa la nota del medio de pago. */
   glosa?: string;
+  /**
+   * Por qué se cobra (clave del catálogo `motivo_cobro`): inscripción,
+   * mensualidad, venta de paquete… Si falta, se asienta como `cuota`, que es
+   * lo que hace la venta desde /inscribir.
+   */
+  motivo?: string;
 };
 
 /** Fila del padrón de una sesión de asistencia (un alumno inscripto). */

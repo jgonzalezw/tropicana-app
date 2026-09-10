@@ -107,6 +107,13 @@ export type LineaPendiente = {
    * Es lo que separa las vencidas de las que están al día.
    */
   fechaLimite: string | null;
+  /**
+   * Con qué motivo conviene asentar el cobro de esta línea, cuando se llega
+   * por el atajo de "Por cobrar" y nadie eligió uno. Es una sugerencia
+   * editable, no una verdad: la primera cuota de una membresía se asienta como
+   * inscripción y las siguientes como mensualidad.
+   */
+  motivoSugerido: string | null;
 };
 
 /**
