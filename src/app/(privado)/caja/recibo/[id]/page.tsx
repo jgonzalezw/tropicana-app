@@ -23,19 +23,35 @@ export default async function PaginaRecibo({ params }: { params: Promise<{ id: s
   if (!Number.isFinite(pagoId)) notFound();
 
   const sb = await createClient();
-  const { data } = await sb
+  // La cuota va en su propia consulta: un embed de más es un modo de falla de
+  // más, y este documento tiene que poder abrirse aunque la cuota no cargue.
+  const { data, error } = await sb
     .from("pagos")
     .select(
       "id, tipo, motivo, monto, descuento, descuento_motivo, medio, glosa, fecha, fecha_efectiva, " +
         "cuota_id, registrado_por, " +
         "alumno:alumnos(nombre, apellido, whatsapp), " +
         "profesor:profesores(nombre, apellido, whatsapp), " +
-        "cuota:cuotas(id, periodo, vencimiento, fecha_compromiso, monto_devengado, descuento_adelanto, estado), " +
         "inscripcion:inscripciones(plan:planes(nombre), curso:cursos(nombre))"
     )
     .eq("id", pagoId)
     .maybeSingle();
 
+  // Un error de consulta no es "no existe": decirlo, en vez de mostrar un 404
+  // que no explica nada y manda a buscar el problema donde no está.
+  if (error) {
+    return (
+      <div className="p-6 sm:p-10 max-w-2xl mx-auto">
+        <h1 className="text-2xl titulo mb-2">No se pudo abrir el recibo</h1>
+        <p className="text-base text-[var(--texto-tenue)] mb-4">
+          El movimiento N° {pagoId} existe, pero la consulta falló.
+        </p>
+        <pre className="text-sm bg-[var(--fondo-panel)] border border-[var(--borde)] rounded-[var(--radio-panel)] p-4 whitespace-pre-wrap">
+          {error.message}
+        </pre>
+      </div>
+    );
+  }
   if (!data) notFound();
 
   const p = data as unknown as {
@@ -53,15 +69,6 @@ export default async function PaginaRecibo({ params }: { params: Promise<{ id: s
     registrado_por: string | null;
     alumno: { nombre: string; apellido: string; whatsapp: string | null } | null;
     profesor: { nombre: string; apellido: string; whatsapp: string | null } | null;
-    cuota: {
-      id: number;
-      periodo: string;
-      vencimiento: string | null;
-      fecha_compromiso: string | null;
-      monto_devengado: number;
-      descuento_adelanto: number;
-      estado: string;
-    } | null;
     inscripcion: { plan: { nombre: string } | null; curso: { nombre: string } | null } | null;
   };
 
@@ -69,20 +76,37 @@ export default async function PaginaRecibo({ params }: { params: Promise<{ id: s
   // inclusive (por orden de asiento), no el saldo de hoy: un recibo tiene que
   // seguir diciendo lo mismo dentro de un año, aunque después se haya cobrado
   // más contra la misma cuota.
+  type CuotaRecibo = {
+    id: number;
+    periodo: string;
+    fecha_compromiso: string | null;
+    monto_devengado: number;
+    descuento_adelanto: number;
+  };
+  let cuota: CuotaRecibo | null = null;
+  if (p.cuota_id != null) {
+    const { data: c } = await sb
+      .from("cuotas")
+      .select("id, periodo, fecha_compromiso, monto_devengado, descuento_adelanto")
+      .eq("id", p.cuota_id)
+      .maybeSingle();
+    cuota = (c as CuotaRecibo | null) ?? null;
+  }
+
   let saldoAnterior: number | null = null;
   let saldoResultante: number | null = null;
-  if (p.cuota) {
+  if (cuota) {
     const { data: previos } = await sb
       .from("pagos")
       .select("monto, descuento")
-      .eq("cuota_id", p.cuota.id)
+      .eq("cuota_id", cuota.id)
       .eq("tipo", "cobro")
       .lte("id", p.id);
     const cubierto = ((previos as { monto: number; descuento: number }[]) ?? []).reduce(
       (t, x) => t + num(x.monto) + num(x.descuento),
       0
     );
-    const referencia = Math.max(0, num(p.cuota.monto_devengado) - num(p.cuota.descuento_adelanto));
+    const referencia = Math.max(0, num(cuota.monto_devengado) - num(cuota.descuento_adelanto));
     saldoResultante = Math.max(0, referencia - cubierto);
     saldoAnterior = saldoResultante + num(p.monto) + num(p.descuento);
   }
@@ -108,7 +132,7 @@ export default async function PaginaRecibo({ params }: { params: Promise<{ id: s
     whatsapp: persona?.whatsapp ?? null,
     servicio: p.inscripcion?.plan?.nombre ?? null,
     curso: p.inscripcion?.curso?.nombre ?? null,
-    periodo: p.cuota?.periodo ?? null,
+    periodo: cuota?.periodo ?? null,
     monto: num(p.monto),
     descuento: num(p.descuento),
     descuentoMotivo: p.descuento_motivo,
@@ -118,7 +142,7 @@ export default async function PaginaRecibo({ params }: { params: Promise<{ id: s
     fechaEfectiva: p.fecha_efectiva,
     saldoAnterior,
     saldoResultante,
-    fechaCompromiso: p.cuota?.fecha_compromiso ?? null,
+    fechaCompromiso: cuota?.fecha_compromiso ?? null,
     registradoPor,
   };
 
