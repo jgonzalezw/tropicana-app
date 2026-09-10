@@ -307,6 +307,8 @@ export type EntradaCobro = {
   notaMedio?: string;
   descuento: number;
   descuentoMotivo: string;
+  /** Obligatoria si el cobro deja saldo: mismo criterio que la venta. */
+  fechaCompromiso: string | null;
 };
 
 /** Fila del padrón de una sesión de asistencia (un alumno inscripto). */

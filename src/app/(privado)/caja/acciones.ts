@@ -39,6 +39,7 @@ export async function registrarMovimiento(
         notaMedio: e.notaMedio,
         descuento,
         descuentoMotivo: e.descuentoMotivo,
+        fechaCompromiso: e.fechaCompromiso,
       },
       perfil?.id ?? null
     );

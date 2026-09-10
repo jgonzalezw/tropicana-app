@@ -127,4 +127,6 @@ export type EntradaMovimiento = {
   notaMedio: string;
   descuento: number;
   descuentoMotivo: string;
+  /** Obligatoria si el cobro deja saldo: mismo criterio que la venta. */
+  fechaCompromiso: string | null;
 };

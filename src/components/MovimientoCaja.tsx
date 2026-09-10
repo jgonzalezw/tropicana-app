@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Cobro, { type PayloadCobro } from "@/components/Cobro";
-import { gs } from "@/lib/inscripcion";
+import { gs, isoFecha } from "@/lib/inscripcion";
 import {
   bucketDeMotivo,
   etiquetaMotivo,
@@ -33,6 +33,7 @@ export default function MovimientoCaja({
   motivosEgreso,
   lineas,
   medios,
+  diasCompromiso,
   contexto,
   onGuardar,
   onCancelar,
@@ -41,6 +42,8 @@ export default function MovimientoCaja({
   motivosEgreso: string[];
   lineas: LineaPendiente[];
   medios: string[];
+  /** Parámetro `dias_compromiso_pago`: tope de días para la fecha de compromiso. */
+  diasCompromiso: number;
   /** Si viene, el movimiento arranca resuelto y no se navega. */
   contexto?: ContextoMovimiento;
   onGuardar: (m: EntradaMovimiento) => Promise<{ ok?: true; error?: string; resumen?: string }>;
@@ -54,9 +57,20 @@ export default function MovimientoCaja({
   const [claveLinea, setClaveLinea] = useState<string>(contexto?.linea.clave ?? "");
   const [glosa, setGlosa] = useState("");
   const [pago, setPago] = useState<PayloadCobro | null>(null);
+  const [fechaCompromiso, setFechaCompromiso] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
+
+  // Misma regla que la venta (/inscribir): si el cobro deja saldo en la cuota,
+  // hace falta la fecha de compromiso de pago, con el mismo tope de días.
+  const hoy = useMemo(() => new Date(), []);
+  const maxCompromiso = useMemo(() => {
+    const d = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+    d.setDate(d.getDate() + Math.max(1, diasCompromiso));
+    return d;
+  }, [hoy, diasCompromiso]);
+  const fechaCompromisoEfectiva = fechaCompromiso || isoFecha(maxCompromiso);
 
   const motivos = direccion === "ingreso" ? motivosIngreso : motivosEgreso;
   const bucket = bucketDeMotivo(motivo);
@@ -70,15 +84,27 @@ export default function MovimientoCaja({
     ? contexto!.linea
     : candidatas.find((l) => l.clave === claveLinea) ?? null;
 
+  // pago.saldo ya es lo que queda en la cuota tras este movimiento (Cobro.tsx
+  // calcula total = referencia − descuento, saldo = total − mueve): solo se
+  // pide fecha de compromiso cuando hay una cuota real de por medio.
+  const pideCompromiso = linea?.cuotaId != null && pago != null && pago.saldo > 0;
+
   function cambiarDireccion(d: Direccion) {
     setDireccion(d);
     setMotivo((d === "ingreso" ? motivosIngreso : motivosEgreso)[0] ?? "otro");
     setClaveLinea("");
+    setFechaCompromiso("");
     setError(null);
   }
   function cambiarMotivo(m: string) {
     setMotivo(m);
     setClaveLinea("");
+    setFechaCompromiso("");
+    setError(null);
+  }
+  function cambiarLinea(clave: string) {
+    setClaveLinea(clave);
+    setFechaCompromiso("");
     setError(null);
   }
 
@@ -110,6 +136,8 @@ export default function MovimientoCaja({
       );
     if (pago && !pago.valido)
       return setError("Revisá el monto, el medio de pago o el motivo del descuento.");
+    if (pideCompromiso && !fechaCompromisoEfectiva)
+      return setError("Cargá la fecha de compromiso de pago del saldo.");
 
     setGuardando(true);
     const res = await onGuardar({
@@ -122,12 +150,14 @@ export default function MovimientoCaja({
       notaMedio: pago?.notaMedio ?? "",
       descuento,
       descuentoMotivo: pago?.ajusteMotivo ?? "",
+      fechaCompromiso: pideCompromiso ? fechaCompromisoEfectiva : null,
     });
     setGuardando(false);
     if (res.error) return setError(res.error);
     setAviso(res.resumen ?? "Movimiento registrado.");
     setGlosa("");
     setPago(null);
+    setFechaCompromiso("");
     if (!fijo) setClaveLinea("");
   }
 
@@ -197,10 +227,7 @@ export default function MovimientoCaja({
               <span className="block text-base font-medium mb-1.5">{etiquetaSujeto}</span>
               <select
                 value={claveLinea}
-                onChange={(e) => {
-                  setClaveLinea(e.target.value);
-                  setError(null);
-                }}
+                onChange={(e) => cambiarLinea(e.target.value)}
                 className="entrada"
               >
                 <option value="">
@@ -240,6 +267,29 @@ export default function MovimientoCaja({
           cuentaId={linea?.clave ?? `suelto:${direccion}:${motivo}`}
           onChange={setPago}
         />
+
+        {pideCompromiso && (
+          <div className="pt-3 mt-3 border-t border-[var(--borde)]">
+            <label className="text-sm text-[var(--texto-tenue)] block mb-1.5">
+              Fecha de compromiso de pago del saldo
+            </label>
+            <input
+              type="date"
+              value={fechaCompromisoEfectiva}
+              min={isoFecha(hoy)}
+              max={isoFecha(maxCompromiso)}
+              onChange={(e) => {
+                setFechaCompromiso(e.target.value);
+                setError(null);
+              }}
+              className="entrada max-w-[200px]"
+            />
+            <p className="text-sm text-[var(--texto-tenue)] mt-1.5">
+              Queda saldo pendiente. Debe pagarse a más tardar esta fecha (máx. {diasCompromiso} días
+              desde hoy).
+            </p>
+          </div>
+        )}
       </div>
 
       <p className="text-sm text-[var(--primario-hover)]">{efecto}</p>

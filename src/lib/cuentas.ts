@@ -1,7 +1,21 @@
 import type { createClient } from "@/lib/supabase/server";
 import { recalcularMembresia, type ClienteAdmin } from "@/lib/membresias";
+import { obtenerParametro } from "@/lib/sesion";
 import type { CuotaCuenta, EntradaCobro, EstadoCuenta, MembresiaCuenta, PagoCuenta } from "@/lib/tipos";
 import type { LineaPendiente } from "@/lib/caja";
+
+function hoyLocal(): Date {
+  const d = new Date();
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+function parseFechaISO(s: string): Date | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+  const [y, m, d] = s.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+function isoFecha(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
 /**
  * La cuenta del alumno: qué compró, qué consumió, qué debe y qué pagó.
@@ -327,6 +341,22 @@ export async function registrarCobro(
   if (descuento > 0 && !e.descuentoMotivo.trim())
     return { error: "El descuento necesita un motivo." };
 
+  // Fecha de compromiso de pago del saldo: misma regla que la venta (§ /inscribir)
+  // — obligatoria si queda saldo, entre hoy y el tope del parámetro.
+  const saldoRestanteAntes = saldo - plata - descuento;
+  let fechaCompromiso: string | null = null;
+  if (saldoRestanteAntes > 0) {
+    const diasMax = Math.max(1, Number(await obtenerParametro("dias_compromiso_pago")) || 30);
+    const fc = parseFechaISO(e.fechaCompromiso ?? "");
+    if (!fc) return { error: "Cargá la fecha de compromiso de pago del saldo." };
+    const hoy0 = hoyLocal();
+    const maxF = new Date(hoy0);
+    maxF.setDate(maxF.getDate() + diasMax);
+    if (fc < hoy0) return { error: "La fecha de compromiso no puede ser anterior a hoy." };
+    if (fc > maxF) return { error: `La fecha de compromiso no puede superar ${diasMax} días desde hoy.` };
+    fechaCompromiso = isoFecha(fc);
+  }
+
   const { error: errPago } = await a.from("pagos").insert({
     tipo: "cobro",
     motivo: "cuota",
@@ -345,7 +375,12 @@ export async function registrarCobro(
   const cubierto = cubiertoPrevio + plata + descuento;
   await a
     .from("cuotas")
-    .update({ estado: estadoQueCorresponde(num(cuota.monto_devengado), num(cuota.descuento_adelanto), cubierto) })
+    .update({
+      estado: estadoQueCorresponde(num(cuota.monto_devengado), num(cuota.descuento_adelanto), cubierto),
+      // Saldada: no hay nada que prometer, se limpia. Con saldo: la fecha nueva
+      // reemplaza cualquier compromiso anterior (se está renegociando).
+      fecha_compromiso: fechaCompromiso,
+    })
     .eq("id", cuota.id);
 
   // Cobrar puede cerrar la membresía: es la segunda condición de la regla base.

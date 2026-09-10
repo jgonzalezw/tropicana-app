@@ -28,17 +28,27 @@ export default async function PaginaCaja() {
   if (!(await tienePermiso("caja", "ver"))) return <SinAcceso />;
 
   const sb = await createClient();
-  const [lineas, motivosIngreso, motivosEgreso, mediosParam, puedeRegistrar] = await Promise.all([
-    lineasPorCobrar(sb),
-    motivosDe(sb, "motivo_cobro"),
-    motivosDe(sb, "motivo_pago"),
-    obtenerParametro("medios_pago"),
-    tienePermiso("caja", "crear"),
-  ]);
+  const [lineas, motivosIngreso, motivosEgreso, mediosParam, diasCompromisoParam, puedeRegistrar] =
+    await Promise.all([
+      lineasPorCobrar(sb),
+      motivosDe(sb, "motivo_cobro"),
+      motivosDe(sb, "motivo_pago"),
+      obtenerParametro("medios_pago"),
+      obtenerParametro("dias_compromiso_pago"),
+      tienePermiso("caja", "crear"),
+    ]);
 
+  // Con quién y por qué: para que "Últimos movimientos" se pueda validar,
+  // no solo la plata. Un pago siempre trae su sujeto (alumno o profesor) y,
+  // si viene de una membresía, el plan/curso que le dio origen.
   const { data: movRows } = await sb
     .from("pagos")
-    .select("id, tipo, motivo, monto, descuento, medio, glosa, fecha")
+    .select(
+      "id, tipo, motivo, monto, descuento, medio, glosa, fecha, " +
+        "alumno:alumnos(nombre, apellido), " +
+        "profesor:profesores(nombre, apellido), " +
+        "inscripcion:inscripciones(plan:planes(nombre), curso:cursos(nombre))"
+    )
     .order("fecha", { ascending: false })
     .limit(12);
 
@@ -57,10 +67,11 @@ export default async function PaginaCaja() {
       motivosIngreso={motivosIngreso}
       motivosEgreso={motivosEgreso}
       medios={(mediosParam ?? "Efectivo,QR / transf.,Otro").split(",").map((m) => m.trim())}
+      diasCompromiso={Math.max(1, Number(diasCompromisoParam) || 30)}
       puedeRegistrar={puedeRegistrar}
       saldo={saldo}
       movimientos={
-        ((movRows as {
+        ((movRows as unknown as {
           id: number;
           tipo: string;
           motivo: string | null;
@@ -69,6 +80,9 @@ export default async function PaginaCaja() {
           medio: string | null;
           glosa: string | null;
           fecha: string;
+          alumno: { nombre: string; apellido: string } | null;
+          profesor: { nombre: string; apellido: string } | null;
+          inscripcion: { plan: { nombre: string } | null; curso: { nombre: string } | null } | null;
         }[]) ?? []).map((m) => ({
           id: m.id,
           tipo: m.tipo,
@@ -78,6 +92,12 @@ export default async function PaginaCaja() {
           medio: m.medio,
           glosa: m.glosa,
           fecha: m.fecha,
+          sujeto: m.alumno
+            ? `${m.alumno.apellido}, ${m.alumno.nombre}`
+            : m.profesor
+            ? `${m.profesor.apellido}, ${m.profesor.nombre}`
+            : null,
+          detalle: m.inscripcion?.plan?.nombre ?? m.inscripcion?.curso?.nombre ?? null,
         }))
       }
     />

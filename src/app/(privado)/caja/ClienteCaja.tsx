@@ -16,6 +16,10 @@ type Movimiento = {
   medio: string | null;
   glosa: string | null;
   fecha: string;
+  /** A quién le corresponde: alumno o profesor del pago. */
+  sujeto: string | null;
+  /** Qué lo originó: el plan o curso de la membresía, si vino de una. */
+  detalle: string | null;
 };
 
 export default function ClienteCaja({
@@ -23,6 +27,7 @@ export default function ClienteCaja({
   motivosIngreso,
   motivosEgreso,
   medios,
+  diasCompromiso,
   puedeRegistrar,
   saldo,
   movimientos,
@@ -31,6 +36,7 @@ export default function ClienteCaja({
   motivosIngreso: string[];
   motivosEgreso: string[];
   medios: string[];
+  diasCompromiso: number;
   puedeRegistrar: boolean;
   saldo: { efectivo: number; banco: number };
   movimientos: Movimiento[];
@@ -89,6 +95,7 @@ export default function ClienteCaja({
             motivosEgreso={motivosEgreso}
             lineas={lineas}
             medios={medios}
+            diasCompromiso={diasCompromiso}
             onGuardar={guardar}
             onCancelar={() => setAbierto(false)}
           />
@@ -134,12 +141,18 @@ export default function ClienteCaja({
                 return (
                   <li key={m.id} className="py-2.5 flex items-baseline justify-between gap-3">
                     <span className="min-w-0">
-                      <span className="block text-base truncate">
-                        {m.glosa || etiquetaMotivo(m.motivo ?? "otro")}
+                      <span className="block text-base font-medium truncate">
+                        {m.sujeto ?? etiquetaMotivo(m.motivo ?? "otro")}
                       </span>
                       <span className="block text-sm text-[var(--texto-tenue)] truncate">
-                        {etiquetaMotivo(m.motivo ?? "otro")}
-                        {m.medio ? ` · ${m.medio}` : ""}
+                        {[
+                          m.sujeto ? etiquetaMotivo(m.motivo ?? "otro") : null,
+                          m.detalle,
+                          m.glosa,
+                          m.medio,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
                         {" · "}
                         {new Date(m.fecha).toLocaleDateString("es-BO")}
                       </span>
