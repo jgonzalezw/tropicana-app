@@ -537,25 +537,35 @@ export async function guardarAsistencia(
 // ── Motor: contador de clases realizadas + "completada" ──────────────────
 
 /**
- * Recalcula una membresía (plan) desde sus asistencias:
- *  - El CICLO se completa cuando ocurrieron N (=`clases_plan`) sesiones DICTADAS
- *    de la membresía (la falta, justificada o no, no lo alarga: la clase pasó).
- *  - `clases_hechas` = clases a las que ASISTIÓ (presentes) -> se muestra "X/N".
- *  - `bono_generado` = faltas CON licencia (tope `tolerancia_faltas` del plan);
- *    es la clase de tolerancia que se redime al renovar (no la sin licencia).
- *    Una sola falta SIN licencia en el ciclo deja el bono en 0: la tolerancia
- *    premia al ciclo sin faltas injustificadas (política de Javier, 2026-09-10).
- * Solo aplica a membresías de plan con N (no ilimitadas, no parciales). No toca
- * las dadas de baja. Devuelve true si quedó completada.
+ * Recalcula una membresía desde sus asistencias. Dos formas de cerrar el ciclo,
+ * según cómo se vendió:
+ *
+ *  - **Plan con N clases:** el CICLO se completa cuando ocurrieron N
+ *    (=`clases_plan`) sesiones DICTADAS de la membresía (la falta, justificada
+ *    o no, no lo alarga: la clase pasó). `clases_hechas` = clases a las que
+ *    ASISTIÓ (presentes) -> se muestra "X/N". `bono_generado` = faltas CON
+ *    licencia (tope `tolerancia_faltas` del plan); es la clase de tolerancia
+ *    que se redime al renovar. Una sola falta SIN licencia en el ciclo deja el
+ *    bono en 0: la tolerancia premia al ciclo sin faltas injustificadas
+ *    (política de Javier, 2026-09-10).
+ *  - **Paquete por clase (sin plan, `clases_total`):** se completa cuando se
+ *    consumieron las clases compradas. Solo la asistencia consume paquete; una
+ *    falta no lo gasta, así que el alumno conserva su clase. No genera bono:
+ *    esa venta no tiene tolerancia.
+ *
+ * Las membresías ilimitadas (plan por fecha, sin N) no se cierran acá: su ciclo
+ * termina por `fecha_fin`. No toca las dadas de baja. Devuelve true si quedó
+ * completada.
  */
 async function recalcularMembresia(a: Admin, inscripcionId: number): Promise<boolean> {
   const { data: insc } = await a
     .from("inscripciones")
-    .select("id, plan_id, clases_plan, estado, tolerancia_faltas")
+    .select("id, plan_id, clases_plan, clases_total, estado, tolerancia_faltas")
     .eq("id", inscripcionId)
     .maybeSingle();
-  if (!insc || insc.plan_id == null || insc.clases_plan == null) return false;
-  if (insc.estado === "baja") return false;
+  if (!insc || insc.estado === "baja") return false;
+  const esPlanConN = insc.plan_id != null && insc.clases_plan != null;
+  if (!esPlanConN && insc.clases_total == null) return false;
 
   const { data: asis } = await a
     .from("asistencias")
@@ -584,6 +594,20 @@ async function recalcularMembresia(a: Admin, inscripcionId: number): Promise<boo
     }
   }
 
+  if (!esPlanConN) {
+    const compradas = insc.clases_total as number;
+    const agotado = presentes >= compradas;
+    await a
+      .from("inscripciones")
+      .update({
+        clases_hechas: presentes,
+        estado: agotado ? "completada" : "activa",
+        actualizado_en: new Date().toISOString(),
+      })
+      .eq("id", inscripcionId);
+    return agotado;
+  }
+
   const clasesPlan = insc.clases_plan as number;
   const tolerancia = await toleranciaDe(a, insc.plan_id as number, insc.tolerancia_faltas as number | null);
   const bono = faltasSinLic > 0 ? 0 : Math.min(faltasConLic, Math.max(0, tolerancia));
@@ -609,15 +633,16 @@ async function toleranciaDe(a: Admin, planId: number, snapshot: number | null): 
   return Math.max(0, Number(await obtenerParametro("faltas_toleradas")) || 0);
 }
 
-/** Recalcula todas las membresías de plan (uso puntual / previo a liquidar). */
+/** Recalcula todas las membresías cerrables (uso puntual / previo a liquidar). */
 export async function recalcularMembresiasPlan(): Promise<{ ok?: true; error?: string; total?: number }> {
   if (!(await tienePermiso("asistencia", "editar"))) return { error: "Sin permiso." };
   const a = admin();
+  // Planes con N y paquetes por clase: los dos se cierran por consumo. Las
+  // ilimitadas no entran (su ciclo termina por fecha, no por contador).
   const { data } = await a
     .from("inscripciones")
     .select("id")
-    .not("plan_id", "is", null)
-    .not("clases_plan", "is", null)
+    .or("clases_plan.not.is.null,clases_total.not.is.null")
     .neq("estado", "baja");
   const ids = ((data as { id: number }[]) ?? []).map((r) => r.id);
   for (const id of ids) await recalcularMembresia(a, id);
