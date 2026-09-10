@@ -309,6 +309,10 @@ export type EntradaCobro = {
   descuentoMotivo: string;
   /** Obligatoria si el cobro deja saldo: mismo criterio que la venta. */
   fechaCompromiso: string | null;
+  /** Cuándo ocurrió de verdad, si no fue hoy. `null` = coincide con el registro. */
+  fechaEfectiva: string | null;
+  /** Descripción del movimiento. Si falta, se usa la nota del medio de pago. */
+  glosa?: string;
 };
 
 /** Fila del padrón de una sesión de asistencia (un alumno inscripto). */

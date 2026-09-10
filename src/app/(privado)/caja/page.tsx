@@ -44,7 +44,7 @@ export default async function PaginaCaja() {
   const { data: movRows } = await sb
     .from("pagos")
     .select(
-      "id, tipo, motivo, monto, descuento, medio, glosa, fecha, " +
+      "id, tipo, motivo, monto, descuento, medio, glosa, fecha, fecha_efectiva, " +
         "alumno:alumnos(nombre, apellido), " +
         "profesor:profesores(nombre, apellido), " +
         "inscripcion:inscripciones(plan:planes(nombre), curso:cursos(nombre))"
@@ -80,6 +80,7 @@ export default async function PaginaCaja() {
           medio: string | null;
           glosa: string | null;
           fecha: string;
+          fecha_efectiva: string | null;
           alumno: { nombre: string; apellido: string } | null;
           profesor: { nombre: string; apellido: string } | null;
           inscripcion: { plan: { nombre: string } | null; curso: { nombre: string } | null } | null;
@@ -92,6 +93,7 @@ export default async function PaginaCaja() {
           medio: m.medio,
           glosa: m.glosa,
           fecha: m.fecha,
+          fechaEfectiva: m.fecha_efectiva,
           sujeto: m.alumno
             ? `${m.alumno.apellido}, ${m.alumno.nombre}`
             : m.profesor

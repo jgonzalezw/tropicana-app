@@ -56,8 +56,10 @@ export default function MovimientoCaja({
   );
   const [claveLinea, setClaveLinea] = useState<string>(contexto?.linea.clave ?? "");
   const [glosa, setGlosa] = useState("");
+  const [glosaTocada, setGlosaTocada] = useState(false);
   const [pago, setPago] = useState<PayloadCobro | null>(null);
   const [fechaCompromiso, setFechaCompromiso] = useState("");
+  const [fechaEfectiva, setFechaEfectiva] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
@@ -94,17 +96,20 @@ export default function MovimientoCaja({
     setMotivo((d === "ingreso" ? motivosIngreso : motivosEgreso)[0] ?? "otro");
     setClaveLinea("");
     setFechaCompromiso("");
+    setGlosaTocada(false);
     setError(null);
   }
   function cambiarMotivo(m: string) {
     setMotivo(m);
     setClaveLinea("");
     setFechaCompromiso("");
+    setGlosaTocada(false);
     setError(null);
   }
   function cambiarLinea(clave: string) {
     setClaveLinea(clave);
     setFechaCompromiso("");
+    setGlosaTocada(false);
     setError(null);
   }
 
@@ -123,6 +128,18 @@ export default function MovimientoCaja({
     }${desc}.`;
   })();
 
+  // La glosa se sugiere sola con el mismo texto explicativo de arriba —
+  // mientras el usuario no la toque a mano — porque el contexto ya deja claro
+  // de qué se trata (Javier, 2026-09-10). Solo cuando hay una línea resuelta:
+  // los mensajes "elegí el sujeto"/"no hay saldos" no son una glosa útil.
+  // Patrón de "ajustar estado en render" (mismo que usa Cobro.tsx), sin efecto.
+  const claveSugerencia = linea ? `${linea.clave}|${pago?.total ?? 0}|${pago?.saldo ?? 0}|${pago?.ajuste ?? 0}` : "";
+  const [claveSugerenciaPrevia, setClaveSugerenciaPrevia] = useState(claveSugerencia);
+  if (claveSugerenciaPrevia !== claveSugerencia) {
+    setClaveSugerenciaPrevia(claveSugerencia);
+    if (!glosaTocada && linea) setGlosa(efecto);
+  }
+
   async function guardar() {
     setError(null);
     const mueve = pago ? pago.total - pago.saldo : 0;
@@ -138,6 +155,8 @@ export default function MovimientoCaja({
       return setError("Revisá el monto, el medio de pago o el motivo del descuento.");
     if (pideCompromiso && !fechaCompromisoEfectiva)
       return setError("Cargá la fecha de compromiso de pago del saldo.");
+    if (fechaEfectiva && fechaEfectiva > isoFecha(hoy))
+      return setError("La fecha en que ocurrió el movimiento no puede ser futura.");
 
     setGuardando(true);
     const res = await onGuardar({
@@ -151,11 +170,14 @@ export default function MovimientoCaja({
       descuento,
       descuentoMotivo: pago?.ajusteMotivo ?? "",
       fechaCompromiso: pideCompromiso ? fechaCompromisoEfectiva : null,
+      fechaEfectiva: fechaEfectiva || null,
     });
     setGuardando(false);
     if (res.error) return setError(res.error);
     setAviso(res.resumen ?? "Movimiento registrado.");
     setGlosa("");
+    setGlosaTocada(false);
+    setFechaEfectiva("");
     setPago(null);
     setFechaCompromiso("");
     if (!fijo) setClaveLinea("");
@@ -248,10 +270,31 @@ export default function MovimientoCaja({
         <span className="block text-base font-medium mb-1.5">Glosa (detalle)</span>
         <input
           value={glosa}
-          onChange={(e) => setGlosa(e.target.value)}
+          onChange={(e) => {
+            setGlosa(e.target.value);
+            setGlosaTocada(true);
+          }}
           placeholder="ej. cuota de agosto de Virginia Martínez"
           className="entrada"
         />
+      </label>
+
+      <label className="block max-w-[220px]">
+        <span className="block text-base font-medium mb-1.5">¿Cuándo ocurrió?</span>
+        <input
+          type="date"
+          value={fechaEfectiva}
+          max={isoFecha(hoy)}
+          onChange={(e) => {
+            setFechaEfectiva(e.target.value);
+            setError(null);
+          }}
+          className="entrada"
+        />
+        <p className="text-sm text-[var(--texto-tenue)] mt-1.5">
+          Dejalo vacío si es de hoy. Se registra siempre como movimiento de hoy (para el arqueo de
+          caja); esta fecha es solo para saber cuándo pasó de verdad.
+        </p>
       </label>
 
       <div className="rounded-[var(--radio-panel)] border border-[var(--borde)] bg-[var(--fondo-panel)] p-4">

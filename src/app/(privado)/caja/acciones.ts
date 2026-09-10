@@ -26,6 +26,8 @@ export async function registrarMovimiento(
   const descuento = Math.max(0, Math.round(Number(e.descuento) || 0));
   if (monto + descuento <= 0) return { error: "Escribí el monto del movimiento." };
   if (!e.glosa.trim()) return { error: "Poné una glosa corta, para saber después de qué fue." };
+  if (e.fechaEfectiva && e.fechaEfectiva > new Date().toISOString().slice(0, 10))
+    return { error: "La fecha en que ocurrió el movimiento no puede ser futura." };
 
   // Contra una deuda concreta: lo resuelve la pieza compartida, que además
   // recalcula la membresía (cobrar puede ser lo que cierre el ciclo).
@@ -40,6 +42,8 @@ export async function registrarMovimiento(
         descuento,
         descuentoMotivo: e.descuentoMotivo,
         fechaCompromiso: e.fechaCompromiso,
+        fechaEfectiva: e.fechaEfectiva,
+        glosa: e.glosa,
       },
       perfil?.id ?? null
     );
@@ -69,6 +73,7 @@ export async function registrarMovimiento(
     descuento,
     descuento_motivo: descuento > 0 ? e.descuentoMotivo.trim() || null : null,
     glosa: e.glosa.trim(),
+    fecha_efectiva: e.fechaEfectiva,
     registrado_por: perfil?.id ?? null,
   });
   if (errPago) return { error: "No se pudo registrar el movimiento: " + errPago.message };

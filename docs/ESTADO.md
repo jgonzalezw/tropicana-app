@@ -172,6 +172,52 @@ el Paso 2** (estado de cuenta del alumno); cuando se construya esa pantalla,
 tiene que llamar a `recalcularMembresia` al registrar el cobro, o el cierre no
 se dispara.
 
+## 0quater. Caja (2A) y notas para el Paso 2 (2026-09-10)
+
+**Caja — primera rebanada construida.** Fiel al handoff `Caja y resumen.dc.html`
+(§Screen 3 del README de diseño): registrar un movimiento inline, con el paso
+`Cobro` compartido montado sobre el saldo real de una deuda. Se llega navegando
+desde Caja (dirección → motivo → titular con su saldo) o con el contexto ya
+resuelto desde la operación. Sin migración para lo base; **`0019`** sumó
+`pagos.fecha_efectiva` para lo de abajo. Ronda de pruebas de Javier en dev,
+2026-09-10, tres hallazgos — los tres corregidos en la misma ronda:
+- La glosa que el usuario tipeaba en Caja **no se guardaba** cuando el cobro
+  iba contra una cuota (`registrarCobro` no la recibía; solo se usaba la nota
+  del medio de pago). Corregido: ahora se persiste siempre.
+- La glosa se sugiere sola con el mismo texto explicativo que ya se mostraba
+  arriba del botón Guardar (sujeto · detalle · saldo → queda), editable —
+  antes había que escribirla a mano con el contexto ya resuelto en pantalla.
+- Un cobro parcial en Caja no pedía la **fecha de compromiso de pago** del
+  saldo, rompiendo la consistencia con `/inscribir` (que sí la pide). Ahora
+  `registrarCobro` aplica la misma regla exacta (mismo tope por el parámetro
+  `dias_compromiso_pago`, misma copy) y la persiste en `cuotas.fecha_compromiso`.
+- **Fecha efectiva del movimiento** (`0019_pagos_fecha_efectiva`, `pagos.fecha_efectiva
+  date null`): un cobro puede cargarse hoy pero haber ocurrido antes. Se
+  registra siempre como transacción de **hoy** (`pagos.fecha`, para que el
+  arqueo cuadre); la fecha efectiva es aparte, opcional, no futura, y es la
+  que se muestra en "Últimos movimientos" cuando difiere (con nota de cuándo
+  se registró). El saldo de caja sigue sumando por `fecha`, nunca por esta.
+
+**Para el Paso 2 — anotado, no urgente:**
+
+1. **Clases de prueba (inscripciones 17/18/19, Zumba, sin plan) no van a
+   entrar nunca a la liquidación por el mecanismo actual**, aunque tengan
+   `fecha_fin`. No es solo la fecha: `calcularPendientes` exige `plan_id` no
+   nulo, y estas son ventas sueltas previas al motor (`plan_id` null). El
+   profesor que dio esas clases de prueba no cobra comisión por ellas bajo
+   criterio 1 tal como está hoy. Confirmado leyendo el código (`liquidaciones/acciones.ts`).
+   A tratar como **complemento de la venta de membresías regulares** —
+   probablemente necesitan su propio tipo de plan/venta (clase de prueba con
+   comisión propia), no forzar el criterio 1 existente.
+2. **Egresos de Caja** (pagar la comisión a un profesor, o a un proveedor)
+   todavía no tienen su lado de "cuentas por pagar": `lineasPorCobrar` solo
+   arma el bucket `cuotas`. Particulares, alquiler, pruebas, productos y
+   pagos a profesores/proveedores quedan para cuando existan esas ventas y
+   ese estado de cuenta.
+3. Sin pantalla de arqueo/apertura-cierre de caja ni de responsable de caja
+   (quién rinde cuentas de cuál caja) — mencionado por Javier como parte del
+   customer journey completo de cobros/pagos, no diseñado todavía.
+
 ### Pendientes de prueba de Javier en dev (consolidado, 2026-09-10)
 
 Todo lo de abajo ya está construido, validado por Code (tsc/eslint/build) y

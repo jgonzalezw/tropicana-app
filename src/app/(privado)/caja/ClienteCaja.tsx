@@ -16,6 +16,8 @@ type Movimiento = {
   medio: string | null;
   glosa: string | null;
   fecha: string;
+  /** Cuándo ocurrió de verdad, si no coincide con `fecha` (el registro). */
+  fechaEfectiva: string | null;
   /** A quién le corresponde: alumno o profesor del pago. */
   sujeto: string | null;
   /** Qué lo originó: el plan o curso de la membresía, si vino de una. */
@@ -138,6 +140,14 @@ export default function ClienteCaja({
             <ul className="divide-y divide-[var(--borde)]">
               {movimientos.map((m) => {
                 const entra = m.tipo === "cobro";
+                const fechaRegistro = m.fecha.slice(0, 10);
+                // Si se cargó una fecha efectiva distinta del día de registro,
+                // esa es la que importa mostrar (más el registro, entre paréntesis,
+                // para poder cuadrar contra el arqueo).
+                const huboRetroactivo = !!m.fechaEfectiva && m.fechaEfectiva !== fechaRegistro;
+                const fechaMostrada = huboRetroactivo
+                  ? new Date(m.fechaEfectiva! + "T00:00:00").toLocaleDateString("es-BO")
+                  : new Date(m.fecha).toLocaleDateString("es-BO");
                 return (
                   <li key={m.id} className="py-2.5 flex items-baseline justify-between gap-3">
                     <span className="min-w-0">
@@ -154,7 +164,10 @@ export default function ClienteCaja({
                           .filter(Boolean)
                           .join(" · ")}
                         {" · "}
-                        {new Date(m.fecha).toLocaleDateString("es-BO")}
+                        {fechaMostrada}
+                        {huboRetroactivo
+                          ? ` (registrado el ${new Date(m.fecha).toLocaleDateString("es-BO")})`
+                          : ""}
                       </span>
                     </span>
                     <span

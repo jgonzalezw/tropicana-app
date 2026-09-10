@@ -341,6 +341,14 @@ export async function registrarCobro(
   if (descuento > 0 && !e.descuentoMotivo.trim())
     return { error: "El descuento necesita un motivo." };
 
+  // Fecha en que ocurrió de verdad, si no fue hoy: no puede ser futura (no se
+  // registra por adelantado un cobro que todavía no pasó).
+  if (e.fechaEfectiva) {
+    const fe = parseFechaISO(e.fechaEfectiva);
+    if (!fe) return { error: "La fecha en que ocurrió el movimiento no es válida." };
+    if (fe > hoyLocal()) return { error: "La fecha en que ocurrió el movimiento no puede ser futura." };
+  }
+
   // Fecha de compromiso de pago del saldo: misma regla que la venta (§ /inscribir)
   // — obligatoria si queda saldo, entre hoy y el tope del parámetro.
   const saldoRestanteAntes = saldo - plata - descuento;
@@ -367,7 +375,8 @@ export async function registrarCobro(
     medio: plata > 0 ? e.medio : null,
     descuento,
     descuento_motivo: descuento > 0 ? e.descuentoMotivo.trim() : null,
-    glosa: e.notaMedio?.trim() || null,
+    glosa: e.glosa?.trim() || e.notaMedio?.trim() || null,
+    fecha_efectiva: e.fechaEfectiva,
     registrado_por: registradoPor,
   });
   if (errPago) return { error: "No se pudo registrar el cobro: " + errPago.message };

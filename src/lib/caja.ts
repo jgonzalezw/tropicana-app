@@ -129,4 +129,6 @@ export type EntradaMovimiento = {
   descuentoMotivo: string;
   /** Obligatoria si el cobro deja saldo: mismo criterio que la venta. */
   fechaCompromiso: string | null;
+  /** Cuándo ocurrió de verdad, si no fue hoy. `null` = coincide con el registro. */
+  fechaEfectiva: string | null;
 };
