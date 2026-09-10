@@ -244,6 +244,71 @@ export type EntradaInscripcion = {
   cobro: CobroInscripcion;
 };
 
+// ── Cuenta del alumno (estado de cuenta + cobro) ────────────────────────
+
+/** Una cuota vista desde la cuenta del alumno, con lo cobrado y lo que falta. */
+export type CuotaCuenta = {
+  id: number;
+  periodo: string;
+  vencimiento: string | null;
+  fechaCompromiso: string | null;
+  devengado: number;
+  descuentoAdelanto: number;
+  /** Plata efectivamente cobrada (sin contar descuentos). */
+  cobrado: number;
+  /** Plata + descuentos: lo que dejó de deberse. */
+  cubierto: number;
+  saldo: number;
+  estado: string;
+};
+
+/** Una membresía del alumno con su consumo, su plata y su deuda. */
+export type MembresiaCuenta = {
+  id: number;
+  plan: string | null;
+  curso: string | null;
+  estado: string;
+  fechaInicio: string;
+  fechaFin: string | null;
+  /** Plan con N: cuántas clases asistió de las N del ciclo. */
+  progreso: { hechas: number; total: number } | null;
+  /** Paquete por clase: cuántas le quedan. */
+  restantes: number | null;
+  faltasConLicencia: number;
+  faltasSinLicencia: number;
+  /** Bono de tolerancia pendiente de redimir (0 si ya se usó). */
+  bono: number;
+  cuotas: CuotaCuenta[];
+  saldo: number;
+};
+
+export type PagoCuenta = {
+  id: number;
+  fecha: string;
+  monto: number;
+  descuento: number;
+  descuentoMotivo: string | null;
+  medio: string | null;
+  concepto: string | null;
+};
+
+export type EstadoCuenta = {
+  alumno: { id: number; nombre: string; apellido: string };
+  membresias: MembresiaCuenta[];
+  pagos: PagoCuenta[];
+  deuda: number;
+};
+
+/** Lo que hace falta para asentar un cobro contra una cuota existente. */
+export type EntradaCobro = {
+  cuotaId: number;
+  monto: number;
+  medio: string | null;
+  notaMedio?: string;
+  descuento: number;
+  descuentoMotivo: string;
+};
+
 /** Fila del padrón de una sesión de asistencia (un alumno inscripto). */
 export type FilaAsistencia = {
   inscripcionId: number | null;

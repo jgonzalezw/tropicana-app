@@ -1,9 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { gs } from "@/lib/inscripcion";
 
 export type Politica = "descuento" | "ajuste" | "simple";
-export type Direccion = "cobro" | "pago";
+/**
+ * De qué movimiento se trata. `cobro` es la venta (se cobra lo que se acaba de
+ * vender), `deuda` es cobrar algo vendido antes, y `pago` es plata que sale
+ * (al profesor). Solo cambia cómo se nombran las cosas.
+ */
+export type Direccion = "cobro" | "deuda" | "pago";
 export type ModoCobro = "entero" | "parcial" | "sin";
 
 export type PayloadCobro = {
@@ -116,14 +122,16 @@ export default function Cobro({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cuentaId, modo, monto, medio, notaMedio, ajuste, ajusteMotivo, referencia]);
 
-  const etiquetasModo: Record<ModoCobro, string> =
-    direccion === "cobro"
-      ? { entero: "Cuota entera", parcial: "Otro monto", sin: "No cobra hoy" }
-      : { entero: "Pago total", parcial: "Pago a cuenta", sin: "No paga hoy" };
-  const labelMueve = direccion === "cobro" ? "Cobra hoy" : "Paga hoy";
+  const etiquetasPorDireccion: Record<Direccion, Record<ModoCobro, string>> = {
+    cobro: { entero: "Cuota entera", parcial: "Otro monto", sin: "No cobra hoy" },
+    deuda: { entero: "Saldar todo", parcial: "Otro monto", sin: "No cobra hoy" },
+    pago: { entero: "Pago total", parcial: "Pago a cuenta", sin: "No paga hoy" },
+  };
+  const etiquetasModo = etiquetasPorDireccion[direccion];
+  const labelMueve = direccion === "pago" ? "Paga hoy" : "Cobra hoy";
   const labelAjuste = politica === "ajuste" ? "Registrar un ajuste" : "Aplicar un descuento";
 
-  const fmt = (n: number) => `Bs. ${n}`;
+  const fmt = gs;
 
   return (
     <div className="space-y-4">
