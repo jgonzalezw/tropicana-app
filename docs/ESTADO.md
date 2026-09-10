@@ -20,6 +20,18 @@
 > cambio con el checklist de pruebas en dev, aplicar migraciones y mergear/
 > pushear a `main` sin pedir confirmación cada vez.
 >
+> **Chip de entorno/versión (2026-09-10).** Login y barra lateral muestran un
+> chip **DEV** (rojo) / **PROD** (verde) + commit corto, para validar de un
+> vistazo a qué base está conectada la instancia. `src/lib/version.ts`
+> decide el entorno por `NEXT_PUBLIC_SUPABASE_URL` (contiene el ref de
+> producción `pnvhpbxjbdmbktpwebtx` → PROD; cualquier otra cosa, incluido
+> `tropicana-dev` o nada configurado → DEV) y toma el commit de
+> `VERCEL_GIT_COMMIT_SHA` (vacío en local). `src/components/InfoRelease.tsx`
+> es el chip compartido; `/login` pasó a ser server component (el form
+> interactivo se movió a `LoginForm.tsx`). Probado localmente con ambas URLs
+> (dev y prod) vía `next build && next start`: renderiza DEV/PROD y el sha
+> correctamente. Validado tsc/eslint/build.
+>
 > **REENCUADRE VIGENTE (2026-09-05):** el sistema se replantea al **Motor de
 > Planes y Membresías** (doc "Diseño del Motor de Planes y Membresías" v1.3). El
 > plan de cierre de Etapa 1 bajo ese modelo está en

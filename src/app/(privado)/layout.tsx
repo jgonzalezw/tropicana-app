@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { obtenerPerfilActual, tienePermiso } from "@/lib/sesion";
 import { obtenerTemas, TEMA_DEFECTO } from "@/lib/temas";
 import { puedeIniciarSesion } from "@/lib/acceso";
+import { obtenerInfoRelease } from "@/lib/version";
 import BarraLateral from "@/components/BarraLateral";
 
 export default async function LayoutPrivado({
@@ -79,6 +80,7 @@ export default async function LayoutPrivado({
         puedeComisiones={puedeComisiones}
         temas={temas.map((t) => ({ clave: t.clave, nombre: t.nombre }))}
         temaActual={perfil.tema ?? TEMA_DEFECTO}
+        infoRelease={obtenerInfoRelease()}
       />
       <main className="flex-1 overflow-x-auto">{children}</main>
     </div>

@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { PerfilConRol } from "@/lib/tipos";
+import type { InfoRelease } from "@/lib/version";
 import SelectorTema from "@/components/SelectorTema";
+import InfoReleaseChip from "@/components/InfoRelease";
 
 type ItemNav = { href: string; etiqueta: string; mostrar: boolean };
 type OpcionTema = { clave: string; nombre: string };
@@ -20,6 +22,7 @@ export default function BarraLateral({
   puedeComisiones,
   temas,
   temaActual,
+  infoRelease,
 }: {
   perfil: PerfilConRol;
   puedeUsuarios: boolean;
@@ -32,6 +35,7 @@ export default function BarraLateral({
   puedeComisiones: boolean;
   temas: OpcionTema[];
   temaActual: string;
+  infoRelease: InfoRelease;
 }) {
   const pathname = usePathname();
 
@@ -113,7 +117,10 @@ export default function BarraLateral({
   return (
     <aside className="w-64 shrink-0 bg-[var(--fondo-panel)] border-r border-[var(--borde)] flex flex-col">
       <div className="p-6 border-b border-[var(--borde)]">
-        <div className="titulo text-2xl text-[var(--primario)]">Tropicana</div>
+        <div className="flex items-center justify-between gap-2">
+          <div className="titulo text-2xl text-[var(--primario)]">Tropicana</div>
+          <InfoReleaseChip info={infoRelease} />
+        </div>
         <div className="text-sm text-[var(--texto-tenue)] mt-1">Gestión</div>
       </div>
 
