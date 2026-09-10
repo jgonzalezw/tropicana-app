@@ -17,6 +17,16 @@
 > (branch tracking activo en `main`), deployment `1d59e42` en estado
 > **Ready**, error rate 0%. Ver el bloque **PRIORIDAD: LIQUIDACIÓN** más abajo
 > para el detalle vigente.
+>
+> **2026-09-10 (tarde) — segundo pase a producción, con OK explícito de Javier.**
+> Migraciones **`0016`** (reparación de las membresías migradas: `fecha_fin`,
+> contadores, bono y restricción de fechas coherentes) y **`0017`** (cuota para
+> toda venta, nada de plata colgada) aplicadas en producción y verificadas con
+> `scripts/control_migracion.sql` (7/7 OK, antes 4 en rojo). `main` actualizado
+> (`900f9ca..1687b47`, fast-forward). Tres decisiones de política registradas en
+> §0ter. **Hallazgo abierto:** las membresías 17-19 (Zumba, clases sueltas)
+> pasaron de `activa` a `completada` en producción el 2026-09-10 08:43 UTC por
+> una sentencia externa a este trabajo — ver §0ter.
 > **Rama de trabajo:** `claude/tropicana-app-context-d5zjt8` (mergeada a `main`; se sigue usando para nuevo desarrollo).
 > **Pase a producción — vuelve a requerir OK explícito (revocado 2026-09-10).**
 > La autorización permanente del 2026-09-09 (aplicar migraciones y mergear/
@@ -73,6 +83,60 @@ numerado de la secuencia, pero fue condición para poder construirlo):**
 - 🔁 **Autorización de pase a producción — histórico:** el 2026-09-09 Javier dio autorización permanente para aplicar migraciones y mergear/pushear a `main` sin confirmar cada vez, una vez validado el checklist en dev; **el 2026-09-10 la revocó**: vuelve a requerir su **OK explícito** antes de ese último paso (validar en dev no dispara producción sola). Sigue vigente la regla de "un hito a la vez, cerrado con `ESTADO.md` actualizado" (§7).
 - ✅ Chip de entorno **DEV/PROD** + commit, visible en `/login` y en la barra lateral (`src/lib/version.ts`, `src/components/InfoRelease.tsx`) — 2026-09-10, para validar de un vistazo a qué base está conectada cualquier instancia corriendo.
 
+## 0ter. Decisiones de política y reparación de la migración (2026-09-10)
+
+**Tolerancia y bono — regla vigente (Javier, 2026-09-10).** El bono de
+tolerancia premia al ciclo **sin faltas injustificadas**: se acredita solo si
+hay una falta **con licencia** y **ninguna sin licencia** en el ciclo. Basta una
+falta sin licencia para que el ciclo quede sin bono, aunque el plan tuviera
+cupo. En Asistencia, el check "Con licencia" deja de ofrecerse en ese caso y se
+explica el motivo en la fila ("Sin bono: ya tiene una falta sin licencia en el
+ciclo"). Implementado en la lectura del padrón (`toleranciaRestante` = 0 y
+`faltaSinLicenciaEnCiclo`) y en `recalcularMembresia` (`bono = 0` si hay faltas
+sin licencia). *Sustituye a la regla anterior, que solo miraba el cupo del plan.*
+
+**Toda venta tiene su cuota (Javier, 2026-09-10).** Lo que se vende se cobra, y
+el mecanismo es la **cuota**: ninguna venta puede quedar con plata colgada fuera
+de una cuota. Antes del motor, los paquetes por clase y el medio mes cobraban
+sin crear cuota (`pagos.cuota_id` vacío): esa plata no aparecía en el estado de
+cuenta ni entraba en la base de comisión (liquidaban Bs 0). La venta actual ya
+crea siempre la cuota del ciclo; `0017` cerró el pasado. **Regla para el Paso 2
+(particulares/alquiler): toda venta nueva crea su cuota.**
+
+**Base de comisión (Javier, 2026-09-10, ratifica lo de 2026-09-07).** Siempre
+sobre **lo efectivamente cobrado** (el descuento no suma), con el **criterio 1**
+de liquidación. Sin cambios en el código: ya funcionaba así.
+
+**Reparación de las membresías migradas — `0016`.** La `0011` convirtió las
+inscripciones en membresías pero **no calculó `fecha_fin`**, y ningún proceso
+posterior la completa (`recalcularMembresia` toca contadores y estado, nunca la
+fecha). Medido en producción el 2026-09-10: **13 de 13** membresías de plan sin
+`fecha_fin` — con lo cual **ninguna podía liquidarse jamás**, porque
+`calcularPendientes` exige `fecha_fin` no nula y dentro del mes vencido — y
+**13 de 13** con `clases_hechas = 0` pese a tener asistencia tomada. La `0016`
+completa `fecha_fin` con la misma regla que la venta (fecha de la clase N por
+calendario sobre los días de la membresía; ilimitados: inicio + `ciclo_dias`),
+recalcula contadores/bono/estado desde las asistencias de sesiones dictadas, y
+agrega la restricción `inscripciones_fechas_coherentes` que rechaza un ciclo que
+termine antes de empezar. Idempotente (dos corridas, misma huella) y verificada
+en dev y en producción.
+
+**Control permanente:** `scripts/control_migracion.sql` — 7 controles de solo
+lectura (fechas de fin, ciclos coherentes, contadores, bono contra faltas sin
+licencia, plata sin cuota, membresías sin cuota, estado de cuota vs. cobrado).
+Corre en cualquiera de las dos bases. Producción quedó 7/7 OK.
+
+**Hallazgo abierto (sin resolver).** Las membresías **17, 18 y 19** (Zumba,
+clases sueltas del 08/09, sin plan) pasaron de `activa` a `completada` en
+producción el **2026-09-10 08:43 UTC**, las tres con el mismo `actualizado_en`
+al microsegundo: fue **una sola sentencia SQL**, no la app. No fue `0016` (que
+excluye por construcción las filas sin plan: `join planes` + `clases_plan is not
+null`) ni `0017` (solo toca `cuotas` y `pagos`), y el único punto del código que
+escribe `estado='completada'` (`recalcularMembresia`) descarta las membresías
+sin plan. No hay triggers en esas tablas. **Sin impacto detectado** (siguen fuera
+de la liquidación por no tener plan, y su paquete de 1 clase ya estaba
+consumido), pero queda registrado: falta identificar quién la corrió.
+
 ### Pendientes de prueba de Javier en dev (consolidado, 2026-09-10)
 
 Todo lo de abajo ya está construido, validado por Code (tsc/eslint/build) y
@@ -83,6 +147,10 @@ documento; queda junto acá de ahora en más.
 **Asistencia / tolerancia / bono:**
 - [ ] Marcar una falta **"Con licencia"** en un plan con N clases y tolerancia disponible → acredita bono; guardar y reabrir la sesión mantiene el estado.
 - [ ] Un alumno que ya agotó la tolerancia, al marcarlo ausente de nuevo, ve **"Sin tolerancia"** (no el checkbox).
+- [ ] Un alumno con una falta **sin licencia** en el ciclo, al marcarlo ausente de nuevo, ve **"Sin bono: ya tiene una falta sin licencia en el ciclo"** y no el checkbox (regla de §0ter). En dev: *Rubin, Jessica* en Contemporáneo.
+- [ ] Una falta **ya guardada** se muestra como texto fijo ("Con licencia" / "Sin licencia"), no como checkbox: para corregirla hay que reabrir la asistencia.
+- [ ] Las faltas se cuentan **por ciclo** (no por mes calendario) y el progreso **"X/N clases"**, la deuda y las faltas siguen visibles al pasar por presente → ausente → presente.
+- [ ] Inscribir a alguien con **fecha retroactiva** sobre una clase ya tomada: esa fecha pasa de ✓ a **⚠** en el selector, avisa cuántos faltan marcar y queda editable directo.
 - [ ] Un plan **ilimitado**: nunca ofrece el checkbox de licencia, y ninguna falta ahí muestra "(bono)" — ni en Asistencia ni en el comprobante de liquidación.
 - [ ] Reinscribir a un alumno con un ciclo `completada` y bono no redimido, en el mismo plan → aparece el aviso "+X clases por bono de tolerancia" y el ciclo nuevo incluye esa clase extra; queda marcado como redimido (no se puede usar dos veces).
 - [ ] Un plan **ilimitado vencido** (pasado su `fecha_fin`) ya no aparece en el padrón de asistencia de clases posteriores.
@@ -139,7 +207,7 @@ Pantallas/componentes: **Login, App Shell, Inscribir y cobrar, Tomar asistencia,
 
 ## 4. Migraciones
 
-`0001` Etapa 0 · `0002` módulo usuarios · `0003` temas · `0004` seguridad de usuarios (todas **aplicadas**). `0005_etapa1_entidades` — **aplicada en Supabase** (confirmado por Javier). `0006_etapa1_inscripcion` — ✅ **aplicada en Supabase** (validada antes localmente en Postgres 16: cadena 0001→0006 limpia e idempotente; smoke test de inscripción + cuotas + pagos con estados pagada/parcial/pendiente y deuda por alumno): tablas `inscripciones` (modalidad mensual/clase/semana/medio_mes, snapshot `precio_aplicado`, `dias_elegidos`), `cuotas` (devengado mensual, `descuento_adelanto`, estado pendiente/parcial/pagada) y `pagos` (libro de cobros/pagos que persiste el paso Cobro; sujeto alumno/profesor/costo_fijo, referencia inscripción/cuota, medio, descuento+motivo, ajuste+motivo, glosa, registrado_por); parámetro `medios_pago`. `0007_etapa1_asistencia` (`sesiones`/`asistencias` + params `faltas_toleradas`, `mostrar_deuda`), `0008_asistencia_ventana_retro` (param `asistencia_semanas_retro`) y `0009_etapa1_suspension` (`sesiones.estado`/`motivo` + `corrimientos_ciclo`) — ✅ **aplicadas en Supabase** (confirmado por Javier, 2026-09-04). **0001→0011 aplicadas en Supabase (producción).** `0010_motor_planes_liquidacion` — ✅ **construida y validada en local** (Postgres 16: cadena 0001→0010 limpia; 0010 idempotente al re-correr; smoke test end-to-end plan→membresía→cuota con `fecha_compromiso`→comisión devengada→liquidación+item→pago al profesor; check de `estado` rechaza valores fuera de `activa/completada/baja`; RLS y FK verificadas; el nuevo check de `estado` es superconjunto del anterior (`activa/baja` → `activa/completada/baja`), sin riesgo sobre filas existentes). ✅ **aplicada en Supabase (producción) el 2026-09-05** (confirmado por Javier, sin errores). Validada antes en Postgres 16 en el sandbox de Code (no en una base local en la máquina de Javier: hoy dev y producción comparten el **mismo** Supabase). Contenido: tabla `planes` (config del Plan Regular), generalización de `inscripciones` como membresía (`plan_id`, `clases_plan`, `bono_arrastrado`, `tolerancia_faltas`, `ciclo_numero`, `membresia_anterior_id`, `fecha_fin`, estado `+completada`), `cuotas.fecha_compromiso`, `cursos.cupo`, `comisiones_devengadas`/`liquidaciones`/`liquidacion_items`, `pagos.liquidacion_id` y parámetro `periodicidad_liquidacion` (default `mes`). Diseño en `docs/PLAN_PASO1_MOTOR_REGULAR.md` (sub-hito 1A). `0011_datos_plan_regular` — ✅ **construida y validada en el sandbox de Code** (cadena 0001→0011 limpia; datos de ejemplo → planes por curso con N correcto, backfill de membresías, idempotente al re-correr). ✅ **aplicada en Supabase (producción) el 2026-09-05** (confirmado por Javier; N = días × 4 confirmado; chequeo posterior OK; 12 inscripciones mensuales convertidas a membresías). Migración de datos: crea un "Plan Regular - <curso>" por cada curso (`cantidad_clases = días_semana × 4`, `precio = precio_mensual`, `tolerancia_faltas = null` → usa el parámetro del sistema, `criterio_liquidacion = 1`) y convierte las inscripciones `modalidad='mensual'` en membresías de ese plan (`plan_id`, `clases_plan`, `ciclo_numero=1`). Cursos sin `días_semana` quedan con `cantidad_clases = NULL` (a fijar a mano). `fecha_fin` no se calcula aquí (la mantiene la lógica de asistencia en 1B). **Aclaración registrada:** el parámetro que vale 1 es `faltas_toleradas` (tolerancia), NO el N; el N deriva de los días del curso. `0012_motor_venta_asistencia` — ✅ **construida y validada en el sandbox de Code** (cadena 0001→0012 limpia; backfill de `planes.modalidad` OK; idempotente). Aditiva: `planes.modalidad` (etiqueta comercial, backfill Plan Regular→`mensual`, Plan Medio Mes→`medio_mes`), `inscripciones.clases_hechas` y `inscripciones.bono_generado` (contador y bono, se usan en 1B.2), `asistencias.con_licencia` (falta con licencia, 1B.2), y parámetro `dias_compromiso_pago` (default 30, tope de días para la fecha de compromiso). **`0012`, `0013` (`plan_cursos`/`inscripcion_cursos`), `0014` (`acceso_modo`/`clases_ilimitadas`/`ciclo_dias`) y `0015` (`bono_redimido`) — ✅ APLICADAS en producción el 2026-09-09**, vía el conector Supabase MCP (acceso directo confirmado a ambos proyectos: `tropicana-dev`=`hyhijzuomqpylcmrzdvw`, producción "Tropicana"=`pnvhpbxjbdmbktpwebtx`); esquema verificado columna por columna después de cada una, sin advisories de seguridad nuevos. `main` actualizado en el mismo paso (`ef6a517..1d59e42`, fast-forward sin conflictos) y desplegado solo por Vercel (branch tracking activo en `main`; deployment `1d59e42` en estado Ready, error rate 0%).
+`0001` Etapa 0 · `0002` módulo usuarios · `0003` temas · `0004` seguridad de usuarios (todas **aplicadas**). `0005_etapa1_entidades` — **aplicada en Supabase** (confirmado por Javier). `0006_etapa1_inscripcion` — ✅ **aplicada en Supabase** (validada antes localmente en Postgres 16: cadena 0001→0006 limpia e idempotente; smoke test de inscripción + cuotas + pagos con estados pagada/parcial/pendiente y deuda por alumno): tablas `inscripciones` (modalidad mensual/clase/semana/medio_mes, snapshot `precio_aplicado`, `dias_elegidos`), `cuotas` (devengado mensual, `descuento_adelanto`, estado pendiente/parcial/pagada) y `pagos` (libro de cobros/pagos que persiste el paso Cobro; sujeto alumno/profesor/costo_fijo, referencia inscripción/cuota, medio, descuento+motivo, ajuste+motivo, glosa, registrado_por); parámetro `medios_pago`. `0007_etapa1_asistencia` (`sesiones`/`asistencias` + params `faltas_toleradas`, `mostrar_deuda`), `0008_asistencia_ventana_retro` (param `asistencia_semanas_retro`) y `0009_etapa1_suspension` (`sesiones.estado`/`motivo` + `corrimientos_ciclo`) — ✅ **aplicadas en Supabase** (confirmado por Javier, 2026-09-04). **0001→0011 aplicadas en Supabase (producción).** `0010_motor_planes_liquidacion` — ✅ **construida y validada en local** (Postgres 16: cadena 0001→0010 limpia; 0010 idempotente al re-correr; smoke test end-to-end plan→membresía→cuota con `fecha_compromiso`→comisión devengada→liquidación+item→pago al profesor; check de `estado` rechaza valores fuera de `activa/completada/baja`; RLS y FK verificadas; el nuevo check de `estado` es superconjunto del anterior (`activa/baja` → `activa/completada/baja`), sin riesgo sobre filas existentes). ✅ **aplicada en Supabase (producción) el 2026-09-05** (confirmado por Javier, sin errores). Validada antes en Postgres 16 en el sandbox de Code (no en una base local en la máquina de Javier: hoy dev y producción comparten el **mismo** Supabase). Contenido: tabla `planes` (config del Plan Regular), generalización de `inscripciones` como membresía (`plan_id`, `clases_plan`, `bono_arrastrado`, `tolerancia_faltas`, `ciclo_numero`, `membresia_anterior_id`, `fecha_fin`, estado `+completada`), `cuotas.fecha_compromiso`, `cursos.cupo`, `comisiones_devengadas`/`liquidaciones`/`liquidacion_items`, `pagos.liquidacion_id` y parámetro `periodicidad_liquidacion` (default `mes`). Diseño en `docs/PLAN_PASO1_MOTOR_REGULAR.md` (sub-hito 1A). `0011_datos_plan_regular` — ✅ **construida y validada en el sandbox de Code** (cadena 0001→0011 limpia; datos de ejemplo → planes por curso con N correcto, backfill de membresías, idempotente al re-correr). ✅ **aplicada en Supabase (producción) el 2026-09-05** (confirmado por Javier; N = días × 4 confirmado; chequeo posterior OK; 12 inscripciones mensuales convertidas a membresías). Migración de datos: crea un "Plan Regular - <curso>" por cada curso (`cantidad_clases = días_semana × 4`, `precio = precio_mensual`, `tolerancia_faltas = null` → usa el parámetro del sistema, `criterio_liquidacion = 1`) y convierte las inscripciones `modalidad='mensual'` en membresías de ese plan (`plan_id`, `clases_plan`, `ciclo_numero=1`). Cursos sin `días_semana` quedan con `cantidad_clases = NULL` (a fijar a mano). `fecha_fin` no se calcula aquí (la mantiene la lógica de asistencia en 1B). **Aclaración registrada:** el parámetro que vale 1 es `faltas_toleradas` (tolerancia), NO el N; el N deriva de los días del curso. `0012_motor_venta_asistencia` — ✅ **construida y validada en el sandbox de Code** (cadena 0001→0012 limpia; backfill de `planes.modalidad` OK; idempotente). Aditiva: `planes.modalidad` (etiqueta comercial, backfill Plan Regular→`mensual`, Plan Medio Mes→`medio_mes`), `inscripciones.clases_hechas` y `inscripciones.bono_generado` (contador y bono, se usan en 1B.2), `asistencias.con_licencia` (falta con licencia, 1B.2), y parámetro `dias_compromiso_pago` (default 30, tope de días para la fecha de compromiso). **`0012`, `0013` (`plan_cursos`/`inscripcion_cursos`), `0014` (`acceso_modo`/`clases_ilimitadas`/`ciclo_dias`) y `0015` (`bono_redimido`) — ✅ APLICADAS en producción el 2026-09-09**, vía el conector Supabase MCP (acceso directo confirmado a ambos proyectos: `tropicana-dev`=`hyhijzuomqpylcmrzdvw`, producción "Tropicana"=`pnvhpbxjbdmbktpwebtx`); esquema verificado columna por columna después de cada una, sin advisories de seguridad nuevos. `main` actualizado en el mismo paso (`ef6a517..1d59e42`, fast-forward sin conflictos) y desplegado solo por Vercel (branch tracking activo en `main`; deployment `1d59e42` en estado Ready, error rate 0%). **`0016_reparar_membresias_migradas` y `0017_cuotas_para_ventas_sin_cuota` — ✅ APLICADAS en dev y en producción el 2026-09-10**, con OK explícito de Javier para el pase. Ambas son de **datos** (la 0016 agrega además una restricción): `0016` completa `fecha_fin` de las membresías que la 0011 dejó vacía, recalcula `clases_hechas`/`bono_generado`/`estado` desde las asistencias de sesiones dictadas y agrega el check `inscripciones_fechas_coherentes`; `0017` crea la cuota faltante de cada membresía, engancha los cobros sueltos (`pagos.cuota_id` vacío) y recalcula el estado de la cuota según lo cobrado. Las dos son idempotentes (verificado por huella md5 antes/después de una segunda corrida) y quedaron con los 7 controles de `scripts/control_migracion.sql` en OK, en ambas bases. Detalle y motivo en **§0ter**.
 
 ## 5. Pendientes y decisiones abiertas
 
