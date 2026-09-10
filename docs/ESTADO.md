@@ -469,6 +469,58 @@ las reglas que se puedan chequear — una regla en prosa se pierde, una que romp
 un control no. Primer candidato: coherencia entre `fecha_fin` y los
 corrimientos de la membresía.
 
+## 0nonies. El fin de ciclo pasa a calcularse (2026-09-10) — HECHO EN DEV
+
+**Los dos defectos, medidos.** Javier reporta que el ciclo de Yubinca (insc. 22)
+termina el 03/09 cuando debería ser el 08/09, y que los tres Vivancos (25/26/27)
+no recibieron el corrimiento de la clase suspendida del 09/09.
+
+Crucé en producción las 13 membresías cuyo período contiene una clase
+suspendida: **el corrimiento falta si y solo si la inscripción se creó después
+de la suspensión** (3 de 3 sin traza fueron retroactivas; 10 de 10 con traza no
+lo fueron). Correlación perfecta — la hipótesis de Javier, confirmada. Causa:
+`suspenderClase` solo alcanza a las membresías que existen en ese momento, y
+`venderPlan` nunca miraba las suspensiones.
+
+Y un segundo defecto independiente: aun cuando el corrimiento sí corría,
+`inscripciones.fecha_fin` **nunca se actualizaba**. El corrimiento movía
+`cuotas.vencimiento`, herencia de la `0009` (etapa 1, cuando el ciclo era el mes
+pago). Javier zanja la definición: **el corrimiento hace al fin de ciclo de la
+membresía y a la renovación bonificada; la cuota queda afuera.**
+
+**La solución: calcular, no guardar paso a paso.** `finDeCicloReal`
+(`src/lib/membresias.ts`) cuenta las clases que realmente ocurren, salteando las
+suspendidas. Al derivarse de los hechos, **deja de depender del orden**: da lo
+mismo si la suspensión fue antes o después de la venta retroactiva, o si la
+asistencia se tomó antes o después. `corrimientos_ciclo` pasa de fuente de
+verdad a **traza que audita y explica**.
+
+Cambios:
+- `finDeCicloReal`, `renovacionBonificada`, `recalcularFinDeCiclo` y
+  `registrarCorrimientosPendientes` en el motor compartido.
+- `recalcularMembresia` mantiene la fecha al día junto con los contadores.
+- `venderPlan` recalcula y deja la traza de las suspensiones que cubre — el
+  agujero de la venta retroactiva.
+- `aplicarCorrimiento` deja de tocar la cuota: recalcula y anota antes/después.
+  `revertirCorrimientos` recalcula en vez de restaurar una fecha guardada.
+- La cuenta del alumno muestra hasta cuándo puede renovar sin perder el bono.
+- **`0021`** (aditiva): `fin_ciclo_anterior`/`fin_ciclo_nuevo`. Las columnas
+  viejas se conservan con su dato — son el registro de lo que se hizo bajo la
+  política anterior. No se revierte ningún `cuotas.vencimiento` ya corrido:
+  esas fechas se le comunicaron a alumnos reales.
+- **Controles 9 y 10** en `scripts/control_migracion.sql`: fin de ciclo
+  coherente con las suspensiones, y suspensiones sin traza. Son los que habrían
+  detectado esto antes que Javier.
+
+**Reparación de datos en dev:** 9 membresías con el fin de ciclo corregido
+(Yubinca 03/09→**08/09**; Vivancos 16/09→**21/09**; Delgadillo, Aguilar y Rubin
+24/09→01/10; Escalante 15/09→17/09; Salek 10/09→17/09), 3 corrimientos
+rellenados y 10 trazas viejas completadas. Controles 9 y 10 en OK. Ninguna de
+las tocadas tenía comisión devengada — la guarda lo verifica igual.
+
+**Pendiente:** validación de Javier en dev, y después el pase a producción con
+su OK explícito, que incluye la `0021` y la misma reparación de datos.
+
 ## 1. Estado por hito (validado con evidencia en el repo)
 
 | Hito | Estado | Evidencia |

@@ -84,6 +84,55 @@ select control, valor, case when ok then 'OK' else 'REVISAR' end as resultado fr
 ) t order by n;
 
 -- ---------------------------------------------------------------------
+-- 9. FIN DE CICLO COHERENTE CON LAS SUSPENSIONES
+--    El fin de ciclo es la fecha de la clase N contando solo las clases que
+--    de verdad ocurren: una sesion suspendida no consume ciclo, lo corre.
+--    Este control es el que habria detectado el caso Yubinka/Vivancos: una
+--    membresia vendida con fecha retroactiva sobre una clase ya suspendida
+--    se quedaba con el fin de ciclo proyectado por calendario.
+-- ---------------------------------------------------------------------
+with base as (
+  select i.id, i.fecha_inicio, i.clases_plan, i.fecha_fin
+    from inscripciones i
+   where i.estado <> 'baja' and i.clases_plan is not null and i.fecha_inicio is not null
+),
+clases as (
+  select b.id as inscripcion_id, d::date as fecha,
+         row_number() over (partition by b.id order by d, ic.curso_id) as k
+    from base b
+    join inscripcion_cursos ic on ic.inscripcion_id = b.id
+    join lateral generate_series(b.fecha_inicio, b.fecha_inicio + 400, interval '1 day') d on true
+   where extract(isodow from d)::int = any(ic.dias)
+     and not exists (select 1 from sesiones s
+                      where s.curso_id = ic.curso_id and s.fecha = d::date
+                        and s.estado = 'suspendida')
+)
+select '9. fin de ciclo vs suspensiones' as control,
+       count(*) as n,
+       case when count(*) = 0 then 'OK' else 'REVISAR' end as estado
+  from base b
+  join clases c on c.inscripcion_id = b.id and c.k = b.clases_plan
+ where b.fecha_fin is distinct from c.fecha;
+
+-- ---------------------------------------------------------------------
+-- 10. SUSPENSIONES SIN TRAZA DE CORRIMIENTO
+--     Toda clase suspendida dentro del periodo de una membresia con plan
+--     tiene que haber dejado su fila en corrimientos_ciclo. Si falta, la
+--     membresia se vendio despues de la suspension (venta retroactiva) y
+--     nadie relleno la traza.
+-- ---------------------------------------------------------------------
+select '10. suspensiones sin corrimiento' as control,
+       count(*) as n,
+       case when count(*) = 0 then 'OK' else 'REVISAR' end as estado
+  from inscripciones i
+  join inscripcion_cursos ic on ic.inscripcion_id = i.id
+  join sesiones s on s.curso_id = ic.curso_id and s.estado = 'suspendida'
+       and s.fecha >= i.fecha_inicio and (i.fecha_fin is null or s.fecha <= i.fecha_fin)
+ where i.estado <> 'baja' and i.clases_plan is not null
+   and not exists (select 1 from corrimientos_ciclo cc
+                    where cc.inscripcion_id = i.id and cc.sesion_id = s.id);
+
+-- ---------------------------------------------------------------------
 -- Detalle, por si algun control da REVISAR:
 -- ---------------------------------------------------------------------
 -- select id, alumno_id, curso_id, estado, fecha_inicio, fecha_fin,

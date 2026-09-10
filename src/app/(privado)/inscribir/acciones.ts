@@ -14,6 +14,7 @@ import {
   primerDiaDelMes,
   sumarMeses,
 } from "@/lib/inscripcion";
+import { recalcularFinDeCiclo, registrarCorrimientosPendientes } from "@/lib/membresias";
 
 function admin() {
   const a = createAdminClient();
@@ -249,6 +250,13 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
   }));
   const { error: errIC } = await a.from("inscripcion_cursos").insert(icRows);
   if (errIC) return { error: "Se creó la membresía, pero falló guardar los días: " + errIC.message };
+
+  // El fin de ciclo se calcula recién ahora, con los días ya guardados: la
+  // proyección de arriba no sabe de clases suspendidas, y una venta con fecha
+  // retroactiva puede cubrir clases que ya se suspendieron. Se recalcula y se
+  // deja la traza de esos corrimientos, que antes nunca se registraban.
+  await recalcularFinDeCiclo(a, inscripcionId);
+  await registrarCorrimientosPendientes(a, inscripcionId, perfil?.id ?? null);
 
   // 9. Una sola cuota por el ciclo.
   const { data: cuota, error: errCuota } = await a

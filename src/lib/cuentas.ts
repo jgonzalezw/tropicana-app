@@ -1,5 +1,10 @@
 import type { createClient } from "@/lib/supabase/server";
-import { recalcularMembresia, type ClienteAdmin } from "@/lib/membresias";
+import {
+  caminarClases,
+  recalcularMembresia,
+  sumarDiasISO,
+  type ClienteAdmin,
+} from "@/lib/membresias";
 import { obtenerParametro } from "@/lib/sesion";
 import type { CuotaCuenta, EntradaCobro, EstadoCuenta, MembresiaCuenta, PagoCuenta } from "@/lib/tipos";
 import type { LineaPendiente } from "@/lib/caja";
@@ -172,6 +177,37 @@ export async function estadoDeCuenta(sb: ClienteLectura, alumnoId: number): Prom
     cuotasPorInsc.set(c.inscripcion_id, lista);
   }
 
+  // Renovación bonificada: la siguiente clase después del fin de ciclo. Solo
+  // interesa donde hay bono por redimir, así que se calcula para esas.
+  const conBono = inscripciones.filter((r) => !r.bono_redimido && num(r.bono_generado) > 0 && r.fecha_fin);
+  const renovacion: Record<number, string | null> = {};
+  if (conBono.length) {
+    const { data: icRows } = await sb
+      .from("inscripcion_cursos")
+      .select("inscripcion_id, curso_id, dias")
+      .in("inscripcion_id", conBono.map((r) => r.id));
+    const porInsc = new Map<number, { curso_id: number; dias: number[] }[]>();
+    for (const ic of (icRows as { inscripcion_id: number; curso_id: number; dias: number[] }[]) ?? []) {
+      if (!ic.dias?.length) continue;
+      const l = porInsc.get(ic.inscripcion_id) ?? [];
+      l.push({ curso_id: ic.curso_id, dias: ic.dias });
+      porInsc.set(ic.inscripcion_id, l);
+    }
+    const cursoIds = [...new Set([...porInsc.values()].flat().map((c) => c.curso_id))];
+    const { data: susRows } = cursoIds.length
+      ? await sb.from("sesiones").select("curso_id, fecha").eq("estado", "suspendida").in("curso_id", cursoIds)
+      : { data: [] };
+    const suspendidas = new Set(
+      ((susRows as { curso_id: number; fecha: string }[]) ?? []).map((x) => `${x.curso_id}|${x.fecha}`)
+    );
+    for (const r of conBono) {
+      const cursos = porInsc.get(r.id);
+      renovacion[r.id] = cursos?.length
+        ? caminarClases(sumarDiasISO(r.fecha_fin as string, 1), cursos, suspendidas, 1)
+        : null;
+    }
+  }
+
   const membresias: MembresiaCuenta[] = inscripciones.map((r) => {
     const propias = cuotasPorInsc.get(r.id) ?? [];
     const hechas = presentes[r.id] ?? 0;
@@ -187,6 +223,7 @@ export async function estadoDeCuenta(sb: ClienteLectura, alumnoId: number): Prom
       faltasConLicencia: conLic[r.id] ?? 0,
       faltasSinLicencia: sinLic[r.id] ?? 0,
       bono: r.bono_redimido ? 0 : num(r.bono_generado),
+      renovacionBonificada: renovacion[r.id] ?? null,
       cuotas: propias,
       saldo: propias.reduce((t, c) => t + c.saldo, 0),
     };

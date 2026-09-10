@@ -21,9 +21,10 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
 
 | Concepto | Dónde vive | Qué significa |
 | --- | --- | --- |
-| **Fin de ciclo (consumo)** | `inscripciones.fecha_fin` | Fecha de la última clase del ciclo. La calcula **la venta** proyectando los días del curso. La leen el comprobante de liquidación y el estado de cuenta. |
-| **Fin de ciclo (plazo)** | `cuotas.vencimiento` | Hasta cuándo hay tiempo de pagar/renovar. Es el que **corre** cuando se suspende una clase. |
-| **Corrimiento** | `corrimientos_ciclo` + `aplicarCorrimiento` | La traza de cada corrida del plazo, idempotente por (inscripción, sesión). `revertirCorrimientos` la deshace. |
+| **Fin de ciclo** | `inscripciones.fecha_fin` | Fecha de la última clase del ciclo. **Se calcula** desde las clases que realmente ocurren (`finDeCicloReal`): una sesión suspendida no consume ciclo, lo corre. |
+| **Renovación bonificada** | derivada (`renovacionBonificada`) | Hasta cuándo puede renovar sin perder el bono: la **siguiente clase después del fin de ciclo**. |
+| **Corrimiento** | `corrimientos_ciclo` | La traza de qué suspensión corrió el ciclo de quién, con el antes/después. Idempotente por (inscripción, sesión). **Audita y explica; no es la fuente de verdad** — la fecha se recalcula. |
+| **Plazo de pago** | `cuotas.vencimiento` | Hasta cuándo hay tiempo de pagar. **No es el fin de ciclo** y el corrimiento no lo toca (eso era la etapa 1, antes del motor de planes). |
 | **Agotarse** | `cicloAgotado` (padrón), contadores | El ciclo se consumió. **No** es lo mismo que cerrarse. |
 | **Cerrarse** | `inscripciones.estado = 'completada'` | La **venta** terminó: agotado **y** cobrado. |
 | **Bono de tolerancia** | `inscripciones.bono_generado` / `bono_redimido` | Clases que se suman al ciclo siguiente por faltas con licencia. |
@@ -43,22 +44,27 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
    **dictadas** (la falta no alarga el ciclo, la clase pasó). Paquete por
    clase: consumió las clases compradas (solo la asistencia consume; una falta
    no gasta el paquete). Ilimitadas: terminan por fecha, no por contador.
-4. **Suspender una clase corre el fin de ciclo** de todos los alumnos
-   mensuales del curso, sin gastar la tolerancia personal de nadie. Reabrir la
-   sesión lo revierte. Hoy corre `cuotas.vencimiento`; ver el glosario.
-5. **Bono de tolerancia = ciclo sin faltas injustificadas.** Se acredita solo
+4. **Una clase suspendida no consume ciclo: lo corre.** El fin de ciclo es la
+   fecha de la clase N contando solo las que ocurren de verdad. Como se
+   **calcula** y no se guarda paso a paso, da igual el orden de los hechos: una
+   venta con fecha retroactiva sobre una clase ya suspendida queda bien sola.
+   Una falta, con o sin licencia, **no** corre nada — la clase pasó.
+5. **Una membresía ya devengada no cambia sus fechas en silencio.** Si el
+   recálculo la tocaría, se reporta en vez de hacerse: la fecha define en qué
+   período entró la comisión. Tampoco se reabre una membresía liquidada.
+6. **Bono de tolerancia = ciclo sin faltas injustificadas.** Se acredita solo
    si hubo falta **con licencia** y **ninguna sin licencia** en el ciclo. Una
    sola falta sin licencia deja el bono en 0, aunque el plan tuviera cupo.
-6. **Todo lo que se vende se cobra, y el mecanismo es la cuota.** Ninguna venta
+7. **Todo lo que se vende se cobra, y el mecanismo es la cuota.** Ninguna venta
    puede quedar con plata fuera de una cuota. Toda venta nueva crea la suya.
-7. **La comisión se calcula sobre lo efectivamente cobrado** (el descuento no
+8. **La comisión se calcula sobre lo efectivamente cobrado** (el descuento no
    suma), criterio 1, a mes vencido.
-8. **Snapshot de precios y porcentajes.** Editar un precio o un % no reescribe
+9. **Snapshot de precios y porcentajes.** Editar un precio o un % no reescribe
    lo ya vendido ni lo ya devengado.
-9. **Sin hardcode.** Tarifas, tolerancias, umbrales, motivos, categorías, roles
+10. **Sin hardcode.** Tarifas, tolerancias, umbrales, motivos, categorías, roles
    y permisos van a catálogo o parámetro.
-10. **Diferenciación por rol/permiso, nunca por persona.**
-11. **Toda lista de personas para localizar a alguien se ordena por apellido**
+11. **Diferenciación por rol/permiso, nunca por persona.**
+12. **Toda lista de personas para localizar a alguien se ordena por apellido**
     (helper `compararPorApellido`), en cualquier entidad.
 
 ## 3. Reglas de proceso

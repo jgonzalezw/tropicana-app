@@ -278,6 +278,11 @@ export type MembresiaCuenta = {
   faltasSinLicencia: number;
   /** Bono de tolerancia pendiente de redimir (0 si ya se usó). */
   bono: number;
+  /**
+   * Hasta cuándo puede renovar sin perder el bono: la siguiente clase después
+   * del fin de ciclo. `null` si no hay bono o no aplica.
+   */
+  renovacionBonificada: string | null;
   cuotas: CuotaCuenta[];
   saldo: number;
 };

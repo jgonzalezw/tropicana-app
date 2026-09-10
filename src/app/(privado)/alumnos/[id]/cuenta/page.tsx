@@ -158,6 +158,12 @@ function Membresia({ m, puedeCobrar }: { m: MembresiaCuenta; puedeCobrar: boolea
         {faltas.length > 0 ? ` · faltas: ${faltas.join(", ")}` : ""}
         {m.bono > 0 ? ` · ${m.bono} de bono de tolerancia por usar` : ""}
       </div>
+      {m.bono > 0 && m.renovacionBonificada && (
+        <p className="text-sm text-[var(--primario-hover)] mt-1">
+          Para no perder el bono, tiene que renovar a más tardar el{" "}
+          {fechaCorta(m.renovacionBonificada)} (la siguiente clase después del fin de ciclo).
+        </p>
+      )}
 
       <ul className="divide-y divide-[var(--borde)] mt-3 border-t border-[var(--borde)]">
         {m.cuotas.map((c) => (

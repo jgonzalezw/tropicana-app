@@ -5,9 +5,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { tienePermiso, obtenerParametro, obtenerPerfilActual } from "@/lib/sesion";
 import { compararPorApellido } from "@/lib/texto";
-import { diaIso } from "@/lib/inscripcion";
 import type { EntradaAsistencia, FilaAsistencia } from "@/lib/tipos";
-import { recalcularMembresia } from "@/lib/membresias";
+import { recalcularFinDeCiclo, recalcularMembresia } from "@/lib/membresias";
 
 function admin() {
   const a = createAdminClient();
@@ -38,16 +37,6 @@ function restarDias(iso: string, dias: number): string {
   return fmt(d);
 }
 /** Próxima fecha (ISO) del patrón semanal del curso, estrictamente posterior a `baseIso`. */
-function proximaClaseISO(dias: number[], baseIso: string): string {
-  const validos = dias?.length ? dias : [1, 2, 3, 4, 5, 6, 7];
-  const d = parseISO(baseIso);
-  for (let i = 0; i < 400; i++) {
-    d.setDate(d.getDate() + 1);
-    if (validos.includes(diaIso(d))) return fmt(d);
-  }
-  return fmt(d);
-}
-
 /** Valida la fecha para operar asistencia: nunca futuro; pasado solo con
  *  permiso de edición y dentro de la ventana en semanas. */
 async function validarFecha(fecha: string): Promise<string | null> {
@@ -66,9 +55,20 @@ async function validarFecha(fecha: string): Promise<string | null> {
 
 // ── Mecanismo compartido: correr / revertir el fin de ciclo ──────────────
 
-/** Corre el fin de ciclo (vencimiento de la cuota vigente) de una inscripción
- *  a la próxima fecha de clase, y deja traza. Idempotente por (inscripción,
- *  sesión). Los parciales (sin cuota) se saltan: se difieren por no consumir. */
+/**
+ * Deja constancia de que una clase suspendida corrió el fin de ciclo de una
+ * membresía, y actualiza ese fin de ciclo.
+ *
+ * **Desde 0021 el fin de ciclo se CALCULA** (`recalcularFinDeCiclo`, que cuenta
+ * las clases que realmente ocurrieron y saltea las suspendidas): esta función
+ * ya no decide la fecha, la recalcula y anota el antes/después. La diferencia
+ * importa — antes la fecha dependía de que el evento se disparara en el momento
+ * justo, y una venta retroactiva sobre una clase ya suspendida se quedaba sin
+ * su corrimiento para siempre.
+ *
+ * La cuota quedó afuera: su vencimiento es el plazo de pago, no el fin de ciclo.
+ * Idempotente por (inscripción, sesión).
+ */
 async function aplicarCorrimiento(
   a: Admin,
   args: {
@@ -78,10 +78,9 @@ async function aplicarCorrimiento(
     tipo: "falta" | "suspension";
     fechaClase: string;
     motivo: string | null;
-    diasSemana: number[];
     registradoPor: string | null;
   }
-): Promise<"aplicado" | "ya" | "sin_cuota"> {
+): Promise<"aplicado" | "ya" | "sin_efecto" | "bloqueado_devengada"> {
   const { data: existe } = await a
     .from("corrimientos_ciclo")
     .select("id")
@@ -90,49 +89,38 @@ async function aplicarCorrimiento(
     .maybeSingle();
   if (existe) return "ya";
 
-  const { data: cuota } = await a
-    .from("cuotas")
-    .select("id, vencimiento, periodo")
-    .eq("inscripcion_id", args.inscripcionId)
-    .order("periodo", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (!cuota) return "sin_cuota";
+  const r = await recalcularFinDeCiclo(a, args.inscripcionId);
+  if (r.estado === "no_aplica") return "sin_efecto";
+  if (r.estado === "bloqueado_devengada") return "bloqueado_devengada";
 
-  const base = (cuota.vencimiento as string | null) ?? args.fechaClase;
-  const nuevo = proximaClaseISO(args.diasSemana, base);
-
-  await a.from("cuotas").update({ vencimiento: nuevo }).eq("id", cuota.id);
   await a.from("corrimientos_ciclo").insert({
     inscripcion_id: args.inscripcionId,
     alumno_id: args.alumnoId,
-    cuota_id: cuota.id,
     sesion_id: args.sesionId,
     tipo: args.tipo,
     fecha_clase: args.fechaClase,
-    vencimiento_anterior: cuota.vencimiento,
-    vencimiento_nuevo: nuevo,
+    fin_ciclo_anterior: r.antes,
+    fin_ciclo_nuevo: r.despues,
     motivo: args.motivo,
     registrado_por: args.registradoPor,
   });
   return "aplicado";
 }
 
-/** Revierte los corrimientos de una sesión (restaura vencimientos y borra
- *  traza). Opcionalmente filtra por tipo. Devuelve cuántos revirtió. */
+/**
+ * Borra la traza de los corrimientos de una sesión y recalcula el fin de ciclo
+ * de las membresías que tocaba. No "restaura" una fecha guardada: la vuelve a
+ * calcular, que es lo único que no puede quedar desincronizado.
+ */
 async function revertirCorrimientos(a: Admin, sesionId: number, tipo?: "falta" | "suspension"): Promise<number> {
-  let q = a
-    .from("corrimientos_ciclo")
-    .select("id, cuota_id, vencimiento_anterior")
-    .eq("sesion_id", sesionId);
+  let q = a.from("corrimientos_ciclo").select("id, inscripcion_id").eq("sesion_id", sesionId);
   if (tipo) q = q.eq("tipo", tipo);
   const { data } = await q;
-  const filas = (data as { id: number; cuota_id: number | null; vencimiento_anterior: string | null }[]) ?? [];
-  for (const f of filas) {
-    if (f.cuota_id != null)
-      await a.from("cuotas").update({ vencimiento: f.vencimiento_anterior }).eq("id", f.cuota_id);
-    await a.from("corrimientos_ciclo").delete().eq("id", f.id);
-  }
+  const filas = (data as { id: number; inscripcion_id: number }[]) ?? [];
+  if (!filas.length) return 0;
+  await a.from("corrimientos_ciclo").delete().in("id", filas.map((f) => f.id));
+  for (const insc of [...new Set(filas.map((f) => f.inscripcion_id))])
+    await recalcularFinDeCiclo(a, insc);
   return filas.length;
 }
 
@@ -597,11 +585,10 @@ export async function suspenderClase(args: {
 
   const { data: curso } = await a
     .from("cursos")
-    .select("id, dias_semana")
+    .select("id")
     .eq("id", args.cursoId)
     .maybeSingle();
   if (!curso) return { error: "El curso no existe." };
-  const diasSemana = (curso.dias_semana as number[]) ?? [];
 
   const { data: asig } = await a
     .from("asignaciones")
@@ -651,7 +638,6 @@ export async function suspenderClase(args: {
       tipo: "suspension",
       fechaClase: args.fecha,
       motivo: args.motivo.trim() || null,
-      diasSemana,
       registradoPor: perfil?.id ?? null,
     });
     if (res === "aplicado") corridos++;

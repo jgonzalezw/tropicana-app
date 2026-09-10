@@ -75,6 +75,8 @@ function resumenMembresia(m: MembresiaCuenta): string {
   if (m.faltasSinLicencia > 0) partes.push(`${m.faltasSinLicencia} falta(s) sin licencia`);
   if (m.faltasConLicencia > 0) partes.push(`${m.faltasConLicencia} falta(s) con licencia`);
   if (m.bono > 0) partes.push(`${m.bono} de bono de tolerancia por usar`);
+  if (m.bono > 0 && m.renovacionBonificada)
+    partes.push(`renovar hasta el ${fechaCorta(m.renovacionBonificada)} para no perderlo`);
   return partes.join(" · ");
 }
 
