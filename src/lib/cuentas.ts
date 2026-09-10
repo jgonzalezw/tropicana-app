@@ -228,7 +228,7 @@ export async function lineasPorCobrar(
   const { data } = await sb
     .from("cuotas")
     .select(
-      "id, inscripcion_id, monto_devengado, descuento_adelanto, vencimiento, " +
+      "id, inscripcion_id, monto_devengado, descuento_adelanto, vencimiento, fecha_compromiso, " +
         "inscripcion:inscripciones(id, alumno_id, alumno:alumnos(id, nombre, apellido), " +
         "plan:planes(nombre), curso:cursos(nombre))"
     )
@@ -240,6 +240,7 @@ export async function lineasPorCobrar(
     monto_devengado: number;
     descuento_adelanto: number;
     vencimiento: string | null;
+    fecha_compromiso: string | null;
     inscripcion: {
       id: number;
       alumno_id: number;
@@ -276,10 +277,22 @@ export async function lineasPorCobrar(
         sujeto: `${al.apellido}, ${al.nombre}`,
         detalle: servicio,
         saldo: saldoCuota(num(f.monto_devengado), num(f.descuento_adelanto), cubierto[f.id] ?? 0),
+        // Si se pactó una fecha de compromiso, esa manda sobre el vencimiento
+        // original: es la que la escuela acordó con el alumno.
+        fechaLimite: f.fecha_compromiso ?? f.vencimiento,
       };
     })
     .filter((l) => l.saldo > 0)
-    .sort((a, b) => a.sujeto.localeCompare(b.sujeto, "es") || a.detalle.localeCompare(b.detalle, "es"));
+    // Primero la deuda más vieja: es la que hay que perseguir. Las que no
+    // tienen fecha pactada van al final, ahí sí por apellido.
+    .sort((a, b) => {
+      if (a.fechaLimite !== b.fechaLimite) {
+        if (!a.fechaLimite) return 1;
+        if (!b.fechaLimite) return -1;
+        return a.fechaLimite < b.fechaLimite ? -1 : 1;
+      }
+      return a.sujeto.localeCompare(b.sujeto, "es") || a.detalle.localeCompare(b.detalle, "es");
+    });
 }
 
 // ── Escritura: registrar un cobro contra una cuota ──────────────────────

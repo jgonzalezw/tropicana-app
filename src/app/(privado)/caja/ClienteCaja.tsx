@@ -24,6 +24,26 @@ type Movimiento = {
   detalle: string | null;
 };
 
+function hoyISO(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function fechaCorta(iso: string): string {
+  return new Date(iso + "T00:00:00").toLocaleDateString("es-BO", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
+
+/** Cuántos días pasaron desde la fecha límite. Se compara en fecha local. */
+function diasDeAtraso(iso: string, hoy: string): number {
+  const a = new Date(iso + "T00:00:00").getTime();
+  const b = new Date(hoy + "T00:00:00").getTime();
+  return Math.round((b - a) / 86400000);
+}
+
 export default function ClienteCaja({
   lineas,
   motivosIngreso,
@@ -47,6 +67,13 @@ export default function ClienteCaja({
   const [abierto, setAbierto] = useState(false);
 
   const porCobrar = lineas.reduce((t, l) => t + l.saldo, 0);
+  // Las deudas ya llegan ordenadas por antigüedad (`lineasPorCobrar`): acá solo
+  // se parten en dos grupos, conservando ese orden dentro de cada uno.
+  const hoy = hoyISO();
+  const vencidas = lineas.filter((l) => l.fechaLimite != null && l.fechaLimite < hoy);
+  const alDia = lineas.filter((l) => !(l.fechaLimite != null && l.fechaLimite < hoy));
+  const totalVencidas = vencidas.reduce((t, l) => t + l.saldo, 0);
+  const totalAlDia = alDia.reduce((t, l) => t + l.saldo, 0);
   const total = saldo.efectivo + saldo.banco;
 
   async function guardar(m: EntradaMovimiento) {
@@ -117,19 +144,23 @@ export default function ClienteCaja({
           {lineas.length === 0 ? (
             <p className="text-base text-[var(--texto-tenue)]">No hay deudas abiertas.</p>
           ) : (
-            <ul className="divide-y divide-[var(--borde)]">
-              {lineas.map((l) => (
-                <li key={l.clave} className="py-2.5">
-                  <div className="flex items-baseline justify-between gap-3">
-                    <span className="min-w-0 text-base font-medium truncate">{l.sujeto}</span>
-                    <span className="shrink-0 text-base tabular-nums text-[var(--peligro)]">
-                      {gs(l.saldo)}
-                    </span>
-                  </div>
-                  <p className="text-sm text-[var(--texto-tenue)] mt-0.5">{l.detalle}</p>
-                </li>
-              ))}
-            </ul>
+            <div className="space-y-4">
+              <GrupoDeuda
+                titulo="Vencidas"
+                nota="Pasó la fecha en que se comprometieron a pagar."
+                lineas={vencidas}
+                total={totalVencidas}
+                hoy={hoy}
+                alerta
+              />
+              <GrupoDeuda
+                titulo="En fecha"
+                nota="Todavía dentro del plazo acordado."
+                lineas={alDia}
+                total={totalAlDia}
+                hoy={hoy}
+              />
+            </div>
           )}
         </section>
 
@@ -186,6 +217,72 @@ export default function ClienteCaja({
           )}
         </section>
       </div>
+    </div>
+  );
+}
+
+/** Un grupo de "Por cobrar": vencidas o en fecha, con su subtotal. */
+function GrupoDeuda({
+  titulo,
+  nota,
+  lineas,
+  total,
+  hoy,
+  alerta,
+}: {
+  titulo: string;
+  nota: string;
+  lineas: LineaPendiente[];
+  total: number;
+  hoy: string;
+  alerta?: boolean;
+}) {
+  if (lineas.length === 0) return null;
+  return (
+    <div>
+      <div className="flex items-baseline justify-between gap-3">
+        <h3
+          className={`text-sm uppercase tracking-wider font-semibold ${
+            alerta ? "text-[var(--peligro)]" : "text-[var(--texto-tenue)]"
+          }`}
+        >
+          {titulo} ({lineas.length})
+        </h3>
+        <span className="text-sm tabular-nums text-[var(--texto-tenue)]">{gs(total)}</span>
+      </div>
+      <p className="text-sm text-[var(--texto-tenue)] mb-1">{nota}</p>
+      <ul className="divide-y divide-[var(--borde)]">
+        {lineas.map((l) => {
+          const atraso = l.fechaLimite ? diasDeAtraso(l.fechaLimite, hoy) : 0;
+          return (
+            <li key={l.clave} className="py-2.5">
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="min-w-0 text-base font-medium truncate">{l.sujeto}</span>
+                <span className="shrink-0 text-base tabular-nums text-[var(--peligro)]">
+                  {gs(l.saldo)}
+                </span>
+              </div>
+              <p className="text-sm text-[var(--texto-tenue)] mt-0.5">{l.detalle}</p>
+              <p className="text-sm mt-0.5">
+                {l.fechaLimite ? (
+                  alerta ? (
+                    <span className="text-[var(--peligro)]">
+                      Venció el {fechaCorta(l.fechaLimite)} · {atraso}{" "}
+                      {atraso === 1 ? "día" : "días"} de atraso
+                    </span>
+                  ) : (
+                    <span className="text-[var(--texto-tenue)]">
+                      Vence el {fechaCorta(l.fechaLimite)}
+                    </span>
+                  )
+                ) : (
+                  <span className="text-[var(--texto-tenue)]">Sin fecha pactada</span>
+                )}
+              </p>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }

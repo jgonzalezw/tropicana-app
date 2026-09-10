@@ -101,6 +101,12 @@ export type LineaPendiente = {
   sujeto: string;
   detalle: string;
   saldo: number;
+  /**
+   * Cuándo tenía que estar pagada: la fecha de compromiso si se pactó una, si
+   * no el vencimiento de la cuota. `null` = la deuda no tiene fecha pactada.
+   * Es lo que separa las vencidas de las que están al día.
+   */
+  fechaLimite: string | null;
 };
 
 /**
