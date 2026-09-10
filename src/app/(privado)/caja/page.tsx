@@ -24,9 +24,16 @@ async function motivosDe(
   return [...valores.filter((v) => v !== "otro"), ...(valores.includes("otro") ? ["otro"] : [])];
 }
 
-export default async function PaginaCaja() {
+export default async function PaginaCaja({
+  searchParams,
+}: {
+  // `?linea=cuota:13`: se llega desde el estado de cuenta de un alumno con la
+  // deuda ya elegida, para no volver a buscarla en la lista de Caja.
+  searchParams: Promise<{ linea?: string }>;
+}) {
   if (!(await tienePermiso("caja", "ver"))) return <SinAcceso />;
 
+  const { linea: claveInicial } = await searchParams;
   const sb = await createClient();
   const [lineas, motivosIngreso, motivosEgreso, mediosParam, diasCompromisoParam, puedeRegistrar] =
     await Promise.all([
@@ -69,6 +76,7 @@ export default async function PaginaCaja() {
       medios={(mediosParam ?? "Efectivo,QR / transf.,Otro").split(",").map((m) => m.trim())}
       diasCompromiso={Math.max(1, Number(diasCompromisoParam) || 30)}
       puedeRegistrar={puedeRegistrar}
+      claveInicial={claveInicial ?? null}
       saldo={saldo}
       movimientos={
         ((movRows as unknown as {

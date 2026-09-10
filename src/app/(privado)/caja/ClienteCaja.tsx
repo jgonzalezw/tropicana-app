@@ -52,6 +52,7 @@ export default function ClienteCaja({
   medios,
   diasCompromiso,
   puedeRegistrar,
+  claveInicial,
   saldo,
   movimientos,
 }: {
@@ -61,13 +62,21 @@ export default function ClienteCaja({
   medios: string[];
   diasCompromiso: number;
   puedeRegistrar: boolean;
+  /** `?linea=cuota:13`: deuda con la que abrir, llegando desde otra pantalla. */
+  claveInicial: string | null;
   saldo: { efectivo: number; banco: number };
   movimientos: Movimiento[];
 }) {
   const router = useRouter();
-  const [abierto, setAbierto] = useState(false);
+  // Si se llega con una deuda en la URL (desde el estado de cuenta del alumno),
+  // la pantalla abre ya apuntando a ella. Si esa deuda ya no existe — la
+  // cobraron mientras tanto — se abre normal, sin error: no hay nada roto.
+  const deLaUrl = claveInicial ? lineas.find((l) => l.clave === claveInicial) ?? null : null;
+  const [abierto, setAbierto] = useState(deLaUrl != null && puedeRegistrar);
   // Deuda elegida desde "Por cobrar": el panel arranca apuntando a ella.
-  const [lineaElegida, setLineaElegida] = useState<LineaPendiente | null>(null);
+  const [lineaElegida, setLineaElegida] = useState<LineaPendiente | null>(
+    puedeRegistrar ? deLaUrl : null
+  );
   const panel = useRef<HTMLDivElement>(null);
 
   function cobrarLinea(l: LineaPendiente) {

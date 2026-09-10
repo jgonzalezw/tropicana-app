@@ -339,7 +339,7 @@ producción no quedara colgada.
 | --- | --- | --- |
 | 2A | **Cobro posterior a la venta (Caja)** — movimiento inline, paso `Cobro` compartido sobre el saldo real, navegación dirección → motivo → titular, o contexto ya resuelto desde la operación | ✅ En producción |
 | 2A.1 | **Ajustes de Caja** — toggle "Ocurrió en fecha pasada"; "Por cobrar" agrupada vencidas/en fecha y ordenada por antigüedad; recibo imprimible por movimiento; glosa a ancho completo; hipervínculos desde ambas listas; motivos reclasificados por operación (`0020`) | ✅ En producción |
-| 2B | **Estado de cuenta del alumno** — la pieza de datos ya existe (`estadoDeCuenta()` en `src/lib/cuentas.ts`), pero **ninguna pantalla la usa**. Falta la pantalla y su decisión de diseño | ⏳ No iniciado |
+| 2B | **Estado de cuenta del alumno** (`/alumnos/[id]/cuenta`) — deuda total, membresías con su consumo y faltas, cuotas con saldo, y pagos. Se llega con la acción **Cuenta** desde la lista de alumnos. Cada cuota con saldo enlaza a Caja ya apuntada a esa deuda (`/caja?linea=cuota:N`) y cada pago a su recibo | 🟡 Hecho en dev, pendiente de validación de Javier |
 | 2C | **Renovación de membresía** — qué pasa cuando un ciclo se cierra y el alumno sigue: renovar sin volver a vender desde cero | ⏳ No iniciado |
 | 2D | **Venta de particulares, alquiler, talleres y clases de prueba** — hoy no existe ninguna de estas ventas. Los motivos de caja ya las contemplan, pero no tienen de dónde venir. Incluye el problema de las clases de prueba migradas (punto 1 de arriba) | ⏳ No iniciado |
 | 2E | **Confirmar sesión (con horario)** | ⏳ No iniciado |
@@ -352,6 +352,37 @@ caja con 2A, así que conviene hacerlos juntos o seguidos. 2D es prerrequisito
 real de 2F para todos los buckets que no sean `cuotas` (no hay nada que cobrar
 ni pagar hasta que esas ventas existan). 2B y 2H se tocan: las dos responden
 "¿qué debe esta persona?" desde lados distintos.
+
+## 0sexies. Mejora transversal — abrir la ficha de cualquier entidad (2026-09-10)
+
+**Pedido de Javier.** Quiere poder abrir la vista de cualquier entidad sobre la
+que se esté trabajando, desde cualquier lista, con un mecanismo **único y
+consistente** en todo el producto — un hipervínculo, o un botón tipo "ojo".
+"Ayuda mucho para contexto del usuario." De acá en adelante se va aplicando a
+lo que se avance; unificar lo ya construido queda como pasada aparte.
+
+**Estado:** ⏳ anotado, sin decidir la forma. Hoy conviven dos gramáticas:
+- **Acción en texto dentro de una celda** — `Editar` / `Eliminar` / `Desactivar`
+  en Alumnos, Profesores y Cursos. Es lo que el handoff aprobó (README de
+  diseño, Screen 9), y es donde se sumó `Cuenta` en la lista de alumnos (2B).
+- **Fila entera clickeable** — "Por cobrar" y "Últimos movimientos" en Caja, y
+  los pagos del estado de cuenta. Nació en 2A.1, sin pasar por Design.
+
+Las dos son defendibles; tenerlas mezcladas no. La decisión de cuál gana —y si
+aparece un ícono de ojo— es de Design, no de Code.
+
+**Cuándo involucrar a Design (recomendación).** No ahora: el patrón se decide
+mejor con varios casos reales a la vista que con uno hipotético. Lo que más
+urge es cerrar el Paso 2 hasta 2G, y cada rebanada que se construya va a
+sumar otra lista y otra ficha (estado de cuenta, cuentas por pagar, arqueo).
+El momento indicado es **al terminar 2G**: ahí existen todas las listas y
+fichas del ciclo de caja, y Design decide una sola vez, sobre material real,
+en vez de decidir dos veces. Mientras tanto, cada pantalla nueva sigue la
+gramática del handoff (acción en texto) y se anota acá si se aparta.
+
+Esto además calza con el Paso 6 de la secuencia (alineación a estándares del
+resto de pantallas), que ya existe como hito y es donde naturalmente cae una
+pasada de consistencia sobre lo ya construido.
 
 ## 1. Estado por hito (validado con evidencia en el repo)
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Alumno, DatosAlumno } from "@/lib/tipos";
 import { compararPorApellido } from "@/lib/texto";
@@ -110,6 +111,12 @@ export default function ClienteAlumnos({
                   <td className="py-3 px-4 text-[var(--texto-tenue)]">{etiquetaCanal(a.canal_captacion)}</td>
                   <td className="py-3 px-4">
                     <div className="flex flex-wrap gap-2 justify-end">
+                      <Link
+                        href={`/alumnos/${a.id}/cuenta`}
+                        className="px-4 py-1.5 text-sm rounded-[var(--radio-control)] border border-[var(--borde)] hover:border-[var(--primario)]"
+                      >
+                        Cuenta
+                      </Link>
                       <button
                         onClick={() => {
                           setEditSel(a);
