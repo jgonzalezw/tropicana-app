@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import MovimientoCaja from "@/components/MovimientoCaja";
 import { etiquetaMotivo, type EntradaMovimiento, type LineaPendiente } from "@/lib/caja";
@@ -182,7 +183,11 @@ export default function ClienteCaja({
                   ? new Date(m.fechaEfectiva! + "T00:00:00").toLocaleDateString("es-BO")
                   : new Date(m.fecha).toLocaleDateString("es-BO");
                 return (
-                  <li key={m.id} className="py-2.5">
+                  <li key={m.id}>
+                    <Link
+                      href={`/caja/recibo/${m.id}`}
+                      className="block py-2.5 rounded-[var(--radio-control)] hover:bg-[var(--fondo-elevado)] px-2 -mx-2"
+                    >
                     <div className="flex items-baseline justify-between gap-3">
                       <span className="min-w-0 text-base font-medium truncate">
                         {m.sujeto ?? etiquetaMotivo(m.motivo ?? "otro")}
@@ -210,6 +215,7 @@ export default function ClienteCaja({
                         ? ` (registrado el ${new Date(m.fecha).toLocaleDateString("es-BO")})`
                         : ""}
                     </p>
+                    </Link>
                   </li>
                 );
               })}

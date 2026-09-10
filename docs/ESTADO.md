@@ -233,6 +233,41 @@ resuelto desde la operación. Sin migración para lo base; **`0019`** sumó
    patrón). Es pantalla nueva sin mockup — pasa por Design, salvo que se decida
    reusar el patrón de comprobante existente adaptado.
 
+### 2A.1 — resuelto en dev (2026-09-10), pendiente de validación de Javier
+
+Todo en la rama `claude/tropicana-app-context-d5zjt8`, **sin pasar a
+producción** (Javier: "desde acá volvemos a trabajar solo en dev hasta que te
+solicite el pase"). No requirió ninguna migración nueva.
+
+1. **Toggle "Ocurrió en fecha pasada"** (`MovimientoCaja.tsx`): la fecha
+   efectiva ya no es un campo suelto siempre visible. La gobierna un `Toggle`
+   apagado por defecto, mismo criterio que la inscripción retroactiva de
+   `/inscribir`. Apagado no viaja fecha; encendido sin fecha es error.
+2. **"Por cobrar" agrupada y ordenada** (`lineasPorCobrar` + `ClienteCaja`):
+   `LineaPendiente` suma `fechaLimite` (= `fecha_compromiso` pactada, o el
+   `vencimiento` de la cuota). La lista se ordena por esa fecha ascendente —
+   la deuda más vieja primero, las sin fecha al final — y la pantalla la parte
+   en "Vencidas" (con días de atraso) y "En fecha", cada grupo con subtotal.
+   La comparación es en fecha local, no UTC.
+3. **Recibo del movimiento** (`/caja/recibo/[id]`): mismo camino que
+   `/liquidaciones/[id]` — página propia + documento imprimible autónomo por
+   `window.open`. Contenido: quién/por qué/cuánto/cuánto queda — titular y
+   whatsapp, concepto (motivo · plan · curso) y período, deuda previa, monto,
+   descuento con motivo, medio, saldo resultante y su fecha de compromiso,
+   glosa, quién lo registró, y línea de "Recibí conforme". Cada ítem de
+   "Últimos movimientos" es ahora el hipervínculo que lo abre (cierra el
+   punto 6 de arriba). **Pantalla nueva sin mockup: Code v1, Design refina
+   después** — acordado con Javier.
+4. **Glosa cortada** (`ClienteCaja`): el detalle compartía renglón con el monto
+   y `truncate` lo cortaba al ancho de la columna izquierda. Pasa a renglón
+   propio, usando también el ancho debajo del monto. Igual en "Por cobrar".
+
+**Límite conocido de verificación:** la sesión en la nube no puede validar
+visualmente estas pantallas. Tiene Chromium y puede levantar `next dev`, pero
+la política de egreso del contenedor bloquea `*.supabase.co` con 403, así que
+la app no llega a la base y no se puede pasar el login. La validación visual
+la hace Javier en su dev.
+
 ### Pendientes de prueba de Javier en dev (consolidado, 2026-09-10)
 
 Todo lo de abajo ya está construido, validado por Code (tsc/eslint/build) y
