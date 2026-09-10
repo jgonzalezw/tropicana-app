@@ -66,6 +66,10 @@ create table if not exists public.pagos_motivo_previo_0020 (
   guardado_en timestamptz not null default now()
 );
 
+-- Es una tabla de respaldo, no un dato de la aplicacion: nadie la lee por la
+-- API. RLS activo y sin policies = solo la llave service_role llega.
+alter table public.pagos_motivo_previo_0020 enable row level security;
+
 insert into public.pagos_motivo_previo_0020 (pago_id, motivo_anterior)
 select id, motivo from public.pagos
 where motivo in ('inscripcion', 'mensualidad', 'cuota', 'venta_paquete',
