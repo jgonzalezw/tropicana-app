@@ -5,6 +5,7 @@ import { tienePermiso } from "@/lib/sesion";
 import { estadoDeCuenta } from "@/lib/cuentas";
 import { gs } from "@/lib/inscripcion";
 import SinAcceso from "@/components/SinAcceso";
+import ImprimirCuenta from "./ImprimirCuenta";
 import type { CuotaCuenta, MembresiaCuenta } from "@/lib/tipos";
 
 export const dynamic = "force-dynamic";
@@ -34,16 +35,19 @@ export default async function PaginaCuenta({ params }: { params: Promise<{ id: s
 
   return (
     <div className="p-6 sm:p-8 max-w-4xl mx-auto pb-20">
-      <div className="mb-5">
-        <Link href="/alumnos" className="text-[var(--primario)] text-base">
-          ← Volver a Alumnos
-        </Link>
-        <h1 className="text-3xl mt-2">
-          {alumno.apellido}, {alumno.nombre}
-        </h1>
-        <p className="text-base text-[var(--texto-tenue)] mt-1">
-          Estado de cuenta: qué compró, qué consumió y qué debe.
-        </p>
+      <div className="mb-5 flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <Link href="/alumnos" className="text-[var(--primario)] text-base">
+            ← Volver a Alumnos
+          </Link>
+          <h1 className="text-3xl mt-2">
+            {alumno.apellido}, {alumno.nombre}
+          </h1>
+          <p className="text-base text-[var(--texto-tenue)] mt-1">
+            Estado de cuenta: qué compró, qué consumió y qué debe.
+          </p>
+        </div>
+        <ImprimirCuenta datos={cuenta} />
       </div>
 
       {/* Lo primero que se busca al abrir esta pantalla. */}
