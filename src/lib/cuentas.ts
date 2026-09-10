@@ -1,6 +1,7 @@
 import type { createClient } from "@/lib/supabase/server";
 import { recalcularMembresia, type ClienteAdmin } from "@/lib/membresias";
 import type { CuotaCuenta, EntradaCobro, EstadoCuenta, MembresiaCuenta, PagoCuenta } from "@/lib/tipos";
+import type { LineaPendiente } from "@/lib/caja";
 
 /**
  * La cuenta del alumno: qué compró, qué consumió, qué debe y qué pagó.
@@ -193,6 +194,78 @@ export async function estadoDeCuenta(sb: ClienteLectura, alumnoId: number): Prom
     pagos,
     deuda: membresias.reduce((t, m) => t + m.saldo, 0),
   };
+}
+
+// ── Cuentas por cobrar ──────────────────────────────────────────────────
+
+/**
+ * Las deudas abiertas contra las que se puede imputar un cobro: una línea por
+ * cuota con saldo, con el nombre de quien debe y contra qué. Es la lista que
+ * Caja usa para navegar ("¿a quién se le cobra?") y la misma que alimenta el
+ * atajo desde la operación. Una línea saldada desaparece.
+ *
+ * Hoy solo produce el bucket `cuotas`: particulares, alquiler, pruebas y
+ * productos van a entrar cuando existan esas ventas.
+ */
+export async function lineasPorCobrar(
+  sb: ClienteLectura,
+  filtro?: { alumnoId?: number }
+): Promise<LineaPendiente[]> {
+  const { data } = await sb
+    .from("cuotas")
+    .select(
+      "id, inscripcion_id, monto_devengado, descuento_adelanto, vencimiento, " +
+        "inscripcion:inscripciones(id, alumno_id, alumno:alumnos(id, nombre, apellido), " +
+        "plan:planes(nombre), curso:cursos(nombre))"
+    )
+    .neq("estado", "pagada");
+
+  type Fila = {
+    id: number;
+    inscripcion_id: number;
+    monto_devengado: number;
+    descuento_adelanto: number;
+    vencimiento: string | null;
+    inscripcion: {
+      id: number;
+      alumno_id: number;
+      alumno: { id: number; nombre: string; apellido: string } | null;
+      plan: { nombre: string } | null;
+      curso: { nombre: string } | null;
+    } | null;
+  };
+  let filas = ((data as unknown as Fila[]) ?? []).filter((f) => f.inscripcion?.alumno);
+  if (filtro?.alumnoId != null)
+    filas = filas.filter((f) => f.inscripcion!.alumno_id === filtro.alumnoId);
+  if (!filas.length) return [];
+
+  // Lo ya cubierto de cada cuota (plata + descuentos).
+  const cubierto: Record<number, number> = {};
+  const { data: pagos } = await sb
+    .from("pagos")
+    .select("cuota_id, monto, descuento")
+    .eq("tipo", "cobro")
+    .in("cuota_id", filas.map((f) => f.id));
+  for (const p of (pagos as { cuota_id: number | null; monto: number; descuento: number }[]) ?? [])
+    if (p.cuota_id != null) cubierto[p.cuota_id] = (cubierto[p.cuota_id] ?? 0) + num(p.monto) + num(p.descuento);
+
+  return filas
+    .map((f) => {
+      const al = f.inscripcion!.alumno!;
+      const servicio = f.inscripcion!.plan?.nombre ?? f.inscripcion!.curso?.nombre ?? "Membresía";
+      return {
+        clave: `cuota:${f.id}`,
+        bucket: "cuotas" as const,
+        cuotaId: f.id,
+        sujetoTipo: "alumno" as const,
+        sujetoId: al.id,
+        sujeto: `${al.apellido}, ${al.nombre}`,
+        detalle: servicio,
+        saldo: saldoCuota(num(f.monto_devengado), num(f.descuento_adelanto), cubierto[f.id] ?? 0),
+      };
+    })
+    .filter((l) => l.saldo > 0)
+    .sort((a, b) => a.sujeto.localeCompare(b.sujeto, "es") || a.detalle.localeCompare(b.detalle, "es"));
 }
 
 // ── Escritura: registrar un cobro contra una cuota ──────────────────────

@@ -20,6 +20,7 @@ export default function BarraLateral({
   puedeInscribir,
   puedeAsistencia,
   puedeComisiones,
+  puedeCaja,
   temas,
   temaActual,
   infoRelease,
@@ -33,6 +34,7 @@ export default function BarraLateral({
   puedeInscribir: boolean;
   puedeAsistencia: boolean;
   puedeComisiones: boolean;
+  puedeCaja: boolean;
   temas: OpcionTema[];
   temaActual: string;
   infoRelease: InfoRelease;
@@ -84,6 +86,11 @@ export default function BarraLateral({
           href: "/liquidaciones",
           etiqueta: "Liquidaciones",
           mostrar: puedeComisiones,
+        },
+        {
+          href: "/caja",
+          etiqueta: "Caja",
+          mostrar: puedeCaja,
         },
       ],
     },
