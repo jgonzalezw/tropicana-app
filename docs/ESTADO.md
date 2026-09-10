@@ -384,6 +384,47 @@ Esto además calza con el Paso 6 de la secuencia (alineación a estándares del
 resto de pantallas), que ya existe como hito y es donde naturalmente cae una
 pasada de consistencia sobre lo ya construido.
 
+## 0septies. Corregir una membresía ya vendida (2026-09-10)
+
+**Qué pasó.** Natalia inscribió a Lucas Campero (alumno 29, inscripción 20)
+dejando la fecha por defecto —la próxima clase, 14/09— cuando correspondía la
+retroactiva, lunes 07/09. **No hay forma de corregirlo desde la aplicación**:
+la venta escribe la membresía y no existe pantalla que la edite. Javier avisa
+que "es algo que puede ocurrir con frecuencia".
+
+Se reparó a mano en producción, replicando lo que habría calculado la venta
+con inicio 07/09 (ver la migración/consulta en el historial de la sesión):
+
+| Registro | Antes | Después |
+| --- | --- | --- |
+| `inscripciones.20.fecha_inicio` | 2026-09-14 | 2026-09-07 |
+| `inscripciones.20.fecha_fin` | 2026-10-07 | 2026-09-30 |
+| `cuotas.20.vencimiento` | 2026-10-14 | 2026-10-07 |
+
+`periodo` no cambió (mismo mes) y la cuota sigue pagada. La membresía no tenía
+ninguna asistencia registrada, que es lo que hizo la corrección segura.
+
+**Pendiente de decidir (Javier):** con el inicio en 07/09, las sesiones ya
+dictadas del 07/09 y del 09/09 caen dentro del ciclo de Lucas y él no está
+marcado en ninguna. Van a aparecer como "incompleta" en Asistencia hasta que
+se resuelva si asistió.
+
+### Mejora — editar una membresía vendida
+
+⏳ **No construido.** Hoy la única corrección posible es SQL a mano, y eso no
+escala a la operación diaria. Lo que hace falta, en orden de urgencia:
+
+1. **Corregir la fecha de inicio** de una membresía, recalculando `fecha_fin`,
+   `periodo` y `vencimiento` con las mismas reglas que la venta — no a ojo.
+   Debe bloquearse (o avisar fuerte) si el cambio deja fuera del ciclo
+   asistencias ya registradas.
+2. **Anular una venta** hecha por error, con su cuota y su cobro.
+3. Registro de quién corrigió qué y cuándo: es plata y comisiones.
+
+El punto 1 comparte motor con 2C (renovación): las dos necesitan recalcular
+un ciclo con las reglas de la venta sin volver a venderlo. Conviene hacerlas
+juntas.
+
 ## 1. Estado por hito (validado con evidencia en el repo)
 
 | Hito | Estado | Evidencia |
