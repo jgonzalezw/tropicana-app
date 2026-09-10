@@ -482,18 +482,28 @@ function FilaRow({
   const sinTolerancia = tol != null && tol <= 0;
   const esParcial = fila.modalidad !== "mensual";
 
+  // Info persistente (progreso, faltas del ciclo, o clases restantes de un
+  // paquete parcial): se muestra siempre, sin importar el estado marcado, para
+  // no perderla al pasar por presente → ausente → presente.
+  const meta = esParcial
+    ? `${ETIQUETA_MODALIDAD[fila.modalidad]}${
+        fila.restantes != null ? ` · quedan ${fila.restantes} ${fila.restantes === 1 ? "clase" : "clases"}` : ""
+      }`
+    : [
+        fila.progreso ? `${fila.progreso.hechas}/${fila.progreso.total} clases` : null,
+        fila.faltasCiclo === 0 ? "Sin faltas en el ciclo" : `${fila.faltasCiclo} ${fila.faltasCiclo === 1 ? "falta" : "faltas"} en el ciclo`,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+
   let sub: string;
-  if (estado === "presente") sub = "Presente";
+  if (estado === "presente") sub = `Presente · ${meta}`;
   else if (estado === "ausente")
     // La licencia solo aplica donde hay tolerancia (planes con N). Un dato viejo
     // marcado con_licencia en un plan sin tolerancia (p.ej. ilimitado) no debe
     // leerse como "genera bono": ese plan nunca bonifica.
-    sub = licencia && tol != null ? "Ausente · con licencia (bono)" : "Ausente";
-  else if (esParcial)
-    sub = `${ETIQUETA_MODALIDAD[fila.modalidad]}${
-      fila.restantes != null ? ` · quedan ${fila.restantes} ${fila.restantes === 1 ? "clase" : "clases"}` : ""
-    }`;
-  else sub = fila.faltasMes === 0 ? "Sin faltas este mes" : `${fila.faltasMes} ${fila.faltasMes === 1 ? "falta" : "faltas"} este mes`;
+    sub = `Ausente${licencia && tol != null ? " · con licencia (bono)" : ""} · ${meta}`;
+  else sub = meta;
 
   const pill =
     !estado && tol != null ? (tol <= 0 ? "Sin tolerancia" : tol === 1 ? "Última tolerada" : null) : null;
@@ -522,7 +532,7 @@ function FilaRow({
           </span>
           <span className="block text-sm opacity-80">{sub}</span>
         </span>
-        {!estado && (pill || (mostrarDeuda && fila.deuda > 0)) && (
+        {(pill || (mostrarDeuda && fila.deuda > 0)) && (
           <span className="shrink-0 flex flex-col items-end gap-1">
             {pill && (
               <span className="whitespace-nowrap px-2.5 py-1 text-xs rounded-[var(--radio-control)] bg-[var(--peligro-fill)] text-[var(--peligro-texto)]">
@@ -537,23 +547,33 @@ function FilaRow({
       </button>
 
       {/* Falta justificada: activa la tolerancia (bono). Solo si el plan tiene
-          tolerancia disponible; si ya se agotó, no hay opción (se informa). */}
+          tolerancia disponible. Ya guardada (solo lectura): texto fijo, sin
+          checkbox — para corregirla hay que reabrir la sesión primero. */}
       {estado === "ausente" && tol != null && (
         <div className="px-4 pb-3 -mt-1">
-          {sinTolerancia && !licencia ? (
+          {readOnly ? (
+            <span
+              className={`inline-block text-sm px-3 py-1.5 rounded-[var(--radio-control)] ${
+                licencia
+                  ? "bg-[var(--exito-fill)] text-[var(--exito-texto)]"
+                  : "bg-[var(--fondo-elevado)] text-[var(--texto-tenue)]"
+              }`}
+            >
+              {licencia ? "Con licencia (justificada · genera bono)" : "Sin licencia"}
+            </span>
+          ) : sinTolerancia && !licencia ? (
             <span className="inline-block text-sm px-3 py-1.5 rounded-[var(--radio-control)] bg-[var(--peligro-fill)] text-[var(--peligro-texto)]">
               Sin tolerancia
             </span>
           ) : (
             <button
               onClick={onToggleLicencia}
-              disabled={readOnly}
               aria-pressed={licencia}
               className={`flex items-center gap-2 text-sm rounded-[var(--radio-control)] px-3 py-1.5 border ${
                 licencia
                   ? "bg-[var(--exito)] text-[var(--fondo-panel)] border-[var(--exito)]"
                   : "bg-[var(--fondo-panel)] border-[var(--borde)]"
-              } ${readOnly ? "cursor-default" : ""}`}
+              }`}
             >
               <span
                 className={`inline-grid place-items-center w-4 h-4 rounded border text-[10px] ${

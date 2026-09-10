@@ -248,29 +248,6 @@ export async function cargarPadron(
       if (x.inscripcion_id != null) consumidas[x.inscripcion_id] = (consumidas[x.inscripcion_id] ?? 0) + 1;
   }
 
-  const [y, m] = fecha.split("-").map(Number);
-  const desde = `${y}-${String(m).padStart(2, "0")}-01`;
-  const finMes = new Date(y, m, 0);
-  const hasta = fmt(finMes);
-  const faltasMes: Record<number, number> = {};
-  const { data: sesMes } = await sb
-    .from("sesiones")
-    .select("id")
-    .eq("curso_id", cursoId)
-    .gte("fecha", desde)
-    .lte("fecha", hasta);
-  const sesMesIds = ((sesMes as { id: number }[]) ?? []).map((s) => s.id);
-  if (sesMesIds.length && alumnoIds.length) {
-    const { data } = await sb
-      .from("asistencias")
-      .select("alumno_id")
-      .eq("estado", "ausente")
-      .in("sesion_id", sesMesIds)
-      .in("alumno_id", alumnoIds);
-    for (const x of (data as { alumno_id: number }[]) ?? [])
-      faltasMes[x.alumno_id] = (faltasMes[x.alumno_id] ?? 0) + 1;
-  }
-
   const deuda = await deudaPorAlumno(sb, alumnoIds);
 
   // Sesión existente (marcas + estado suspendida).
@@ -285,6 +262,7 @@ export async function cargarPadron(
     .eq("curso_id", cursoId)
     .eq("fecha", fecha)
     .maybeSingle();
+  const extrasCrudos: { inscripcionId: number | null; alumnoId: number; apellido: string; nombre: string }[] = [];
   if (sesion) {
     suspendida = sesion.estado === "suspendida";
     motivoSuspension = (sesion.motivo as string | null) ?? null;
@@ -303,24 +281,51 @@ export async function cargarPadron(
       marcas[r.alumno.id] = r.estado;
       if (r.estado === "ausente" && r.con_licencia) licencias[r.alumno.id] = true;
       if (!idsBase.has(r.alumno.id))
-        extras.push({
+        extrasCrudos.push({
           inscripcionId: r.inscripcion_id,
           alumnoId: r.alumno.id,
           apellido: r.alumno.apellido,
           nombre: r.alumno.nombre,
-          modalidad: "mensual",
-          restantes: null,
-          faltasMes: faltasMes[r.alumno.id] ?? 0,
-          deuda: deuda[r.alumno.id] ?? 0,
-          toleranciaRestante: null,
         });
     }
   }
+
+  // Faltas del CICLO actual de cada membresía (desde que empezó esta fila de
+  // inscripción, no por mes calendario: cada renovación es una fila nueva).
+  const faltasCicloPorInsc: Record<number, number> = {};
+  const todosInscIds = [
+    ...new Set([...inscIds, ...extrasCrudos.map((e) => e.inscripcionId).filter((x): x is number => x != null)]),
+  ];
+  if (todosInscIds.length) {
+    const { data } = await sb
+      .from("asistencias")
+      .select("inscripcion_id")
+      .eq("estado", "ausente")
+      .in("inscripcion_id", todosInscIds);
+    for (const x of (data as { inscripcion_id: number | null }[]) ?? [])
+      if (x.inscripcion_id != null)
+        faltasCicloPorInsc[x.inscripcion_id] = (faltasCicloPorInsc[x.inscripcion_id] ?? 0) + 1;
+  }
+
+  for (const e of extrasCrudos)
+    extras.push({
+      inscripcionId: e.inscripcionId,
+      alumnoId: e.alumnoId,
+      apellido: e.apellido,
+      nombre: e.nombre,
+      modalidad: "mensual",
+      restantes: null,
+      faltasCiclo: e.inscripcionId != null ? faltasCicloPorInsc[e.inscripcionId] ?? 0 : 0,
+      progreso: null,
+      deuda: deuda[e.alumnoId] ?? 0,
+      toleranciaRestante: null,
+    });
 
   const filas: FilaAsistencia[] = inscripciones
     .map((r) => {
       const esMensual = r.modalidad === "mensual";
       const restantes = esMensual ? null : Math.max(0, (r.clases_total ?? 0) - (consumidas[r.id] ?? 0));
+      const progreso = r.clases_plan != null ? { hechas: consumidas[r.id] ?? 0, total: r.clases_plan } : null;
       return {
         inscripcionId: r.id,
         alumnoId: r.alumno!.id,
@@ -328,7 +333,8 @@ export async function cargarPadron(
         nombre: r.alumno!.nombre,
         modalidad: r.modalidad,
         restantes,
-        faltasMes: faltasMes[r.alumno_id] ?? 0,
+        faltasCiclo: faltasCicloPorInsc[r.id] ?? 0,
+        progreso,
         deuda: deuda[r.alumno_id] ?? 0,
         toleranciaRestante: toleranciaRestantePorInsc.has(r.id) ? toleranciaRestantePorInsc.get(r.id)! : null,
       };

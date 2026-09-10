@@ -253,8 +253,10 @@ export type FilaAsistencia = {
   modalidad: "mensual" | "clase" | "semana" | "medio_mes";
   /** Parciales: clases que quedan en el paquete; mensual: null. */
   restantes: number | null;
-  /** Faltas del alumno en este curso, en el mes de la fecha elegida. */
-  faltasMes: number;
+  /** Faltas (con o sin licencia) de esta membresía, en su ciclo actual (desde que empezó, no por mes calendario). */
+  faltasCiclo: number;
+  /** Progreso de clases dictadas de la membresía (plan con N): cuántas de las `total`. `null` = no aplica (ilimitado, parcial). */
+  progreso: { hechas: number; total: number } | null;
   /** Deuda pendiente del alumno (0 si está al día). */
   deuda: number;
   /**
