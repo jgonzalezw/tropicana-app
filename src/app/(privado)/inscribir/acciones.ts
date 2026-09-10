@@ -277,7 +277,7 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
   if (porPlata > 0 || porDesc > 0) {
     const { error: errPago } = await a.from("pagos").insert({
       tipo: "cobro",
-      motivo: "cuota",
+      motivo: "membresia",
       alumno_id: e.alumnoId,
       inscripcion_id: inscripcionId,
       cuota_id: cuota.id,

@@ -225,8 +225,11 @@ export default function ClienteCaja({
                       {[
                         m.sujeto ? etiquetaMotivo(m.motivo ?? "otro") : null,
                         m.detalle,
+                        // El monto de arriba es la plata que se movió de verdad;
+                        // el descuento se dice aparte para que un 0 se entienda.
+                        m.descuento > 0 ? `${gs(m.descuento)} de descuento` : null,
+                        m.monto > 0 ? m.medio : null,
                         m.glosa,
-                        m.medio,
                       ]
                         .filter(Boolean)
                         .join(" · ")}

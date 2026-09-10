@@ -17,6 +17,7 @@ export type Bucket =
   | "particulares"
   | "alquiler"
   | "pruebas"
+  | "talleres"
   | "productos"
   | "profesores"
   | "proveedores"
@@ -26,20 +27,30 @@ export type Direccion = "ingreso" | "egreso";
 
 /** Motivo (clave del catálogo) -> qué deuda salda. `null` = solo mueve caja. */
 export const BUCKET_POR_MOTIVO: Record<string, Bucket | null> = {
-  // Ingresos (catálogo `motivo_cobro`)
-  inscripcion: "cuotas",
-  mensualidad: "cuotas",
-  venta_paquete: "cuotas",
+  // Ingresos (catálogo `motivo_cobro`). El motivo nombra la OPERACION de la
+  // que viene la plata, no el momento en que se cobra: para la caja da igual
+  // si es la primera cuota o la quinta, lo que importa es que es una membresía.
+  membresia: "cuotas",
   clase_particular: "particulares",
-  alquiler_de_sala: "alquiler",
+  clase_prueba: "pruebas",
+  alquiler: "alquiler",
+  taller: "talleres",
   venta_producto: "productos",
   // Egresos (catálogo `motivo_pago`)
   comision_profesor: "profesores",
   otro_pago_profesor: "profesores",
   gasto_costo_fijo: "gastos",
   pago_proveedor: "proveedores",
-  // Los dos "otro" (uno por catálogo) no saldan nada.
+  // Ajuste y "otro" no vienen de ninguna operación: solo mueven la caja.
+  ajuste: null,
   otro: null,
+  // Claves de antes de la migración 0020, por si queda algún pago viejo sin
+  // remapear: no se ofrecen en el selector, pero se siguen entendiendo.
+  inscripcion: "cuotas",
+  mensualidad: "cuotas",
+  cuota: "cuotas",
+  venta_paquete: "cuotas",
+  alquiler_de_sala: "alquiler",
 };
 
 /**
@@ -51,6 +62,7 @@ export const POLITICA_POR_BUCKET: Record<Bucket, Politica> = {
   particulares: "descuento",
   alquiler: "descuento",
   pruebas: "descuento",
+  talleres: "descuento",
   productos: "descuento",
   profesores: "ajuste",
   proveedores: "ajuste",
@@ -73,14 +85,43 @@ export const NOMBRE_BUCKET: Record<Bucket, string> = {
   particulares: "clases particulares",
   alquiler: "alquiler de sala",
   pruebas: "clases de prueba",
+  talleres: "talleres",
   productos: "venta de productos",
   profesores: "pagos a profesores",
   proveedores: "pagos a proveedores",
   gastos: "gastos fijos",
 };
 
-/** Etiqueta legible de un motivo del catálogo (`venta_paquete` -> "Venta paquete"). */
+/**
+ * Cómo se llama cada motivo en pantalla. Está acá y no solo en el catálogo
+ * porque las listas muestran motivos ya asentados, incluidos los viejos que
+ * el selector ya no ofrece.
+ */
+const ETIQUETA_MOTIVO: Record<string, string> = {
+  membresia: "Membresía",
+  clase_particular: "Clase particular",
+  clase_prueba: "Clase de prueba",
+  alquiler: "Alquiler de sala",
+  taller: "Taller",
+  venta_producto: "Venta de producto",
+  ajuste: "Ajuste de caja",
+  otro: "Otro",
+  comision_profesor: "Comisión a profesor",
+  otro_pago_profesor: "Otros pagos a profesor",
+  gasto_costo_fijo: "Gasto o costo fijo",
+  pago_proveedor: "Pago a proveedor",
+  // Anteriores a 0020.
+  inscripcion: "Inscripción",
+  mensualidad: "Mensualidad",
+  cuota: "Cuota",
+  venta_paquete: "Venta de paquete",
+  alquiler_de_sala: "Alquiler de sala",
+};
+
+/** Etiqueta legible de un motivo. Si es desconocido, se arma desde la clave. */
 export function etiquetaMotivo(clave: string): string {
+  const conocida = ETIQUETA_MOTIVO[clave];
+  if (conocida) return conocida;
   const texto = clave.replace(/_/g, " ");
   return texto.charAt(0).toUpperCase() + texto.slice(1);
 }
@@ -108,10 +149,9 @@ export type LineaPendiente = {
    */
   fechaLimite: string | null;
   /**
-   * Con qué motivo conviene asentar el cobro de esta línea, cuando se llega
-   * por el atajo de "Por cobrar" y nadie eligió uno. Es una sugerencia
-   * editable, no una verdad: la primera cuota de una membresía se asienta como
-   * inscripción y las siguientes como mensualidad.
+   * Con qué motivo conviene asentar el cobro de esta línea cuando se llega por
+   * el atajo de "Por cobrar". Hoy toda deuda de cuota viene de una membresía;
+   * queda editable porque otras operaciones van a producir líneas también.
    */
   motivoSugerido: string | null;
 };

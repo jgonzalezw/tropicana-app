@@ -122,37 +122,51 @@ export default function Recibo({ datos }: { datos: DatosRecibo }) {
           )}
         </div>
 
+        {/* El desglose de cómo se cubrió la deuda: chico, es el detalle. */}
         <div className="border-t border-[var(--borde)] pt-3 space-y-1">
           {datos.saldoAnterior != null && (
             <Fila etiqueta="Deuda antes de este movimiento" valor={gs(datos.saldoAnterior)} />
           )}
-          <Fila etiqueta={entra ? "Monto cobrado" : "Monto pagado"} valor={gs(datos.monto)} />
           {datos.descuento > 0 && (
-            <Fila
-              etiqueta={`Descuento${datos.descuentoMotivo ? ` (${datos.descuentoMotivo})` : ""}`}
-              valor={`− ${gs(datos.descuento)}`}
-            />
+            <>
+              <Fila
+                etiqueta={`Descuento${datos.descuentoMotivo ? ` (${datos.descuentoMotivo})` : ""}`}
+                valor={`− ${gs(datos.descuento)}`}
+              />
+              <Fila etiqueta="Cubierto por este movimiento" valor={gs(total)} />
+            </>
           )}
-          {datos.descuento > 0 && <Fila etiqueta="Total aplicado a la deuda" valor={gs(total)} />}
-          {datos.medio && <Fila etiqueta="Medio de pago" valor={datos.medio} />}
+          {datos.medio && datos.monto > 0 && <Fila etiqueta="Medio de pago" valor={datos.medio} />}
         </div>
 
-        {datos.saldoResultante != null && (
-          <div className="flex justify-between items-baseline border-t-2 border-[var(--borde)] mt-3 pt-3">
-            <span className="titulo text-lg">
-              {datos.saldoResultante > 0 ? "Saldo pendiente" : "Saldo"}
-            </span>
-            <span className="titulo text-2xl">{gs(datos.saldoResultante)}</span>
-          </div>
-        )}
-
-        {datos.saldoResultante != null && datos.saldoResultante > 0 && datos.fechaCompromiso && (
-          <p className="text-sm text-[var(--texto-tenue)] mt-2">
-            Comprometido para el {fechaCorta(datos.fechaCompromiso)}.
+        {/* Lo destacado es la plata que se movió de verdad. Puede ser 0: un
+            movimiento que se saldó solo con descuento no entra a la caja. */}
+        <div className="flex justify-between items-baseline border-t-2 border-[var(--borde)] mt-3 pt-3">
+          <span className="titulo text-lg">{entra ? "Total cobrado" : "Total pagado"}</span>
+          <span className="titulo text-3xl tabular-nums">{gs(datos.monto)}</span>
+        </div>
+        {datos.monto === 0 && (
+          <p className="text-sm text-[var(--texto-tenue)] mt-1">
+            No entró dinero a la caja: la deuda se cubrió con el descuento.
           </p>
         )}
-        {datos.saldoResultante === 0 && (
-          <p className="text-sm text-[var(--exito-texto)] mt-2">Cuenta saldada.</p>
+
+        {datos.saldoResultante != null && (
+          <p className="text-base mt-3">
+            {datos.saldoResultante > 0 ? (
+              <span className="text-[var(--texto-tenue)]">
+                Saldo pendiente{" "}
+                <span className="tabular-nums font-semibold text-[var(--peligro)]">
+                  {gs(datos.saldoResultante)}
+                </span>
+                {datos.fechaCompromiso
+                  ? `, comprometido para el ${fechaCorta(datos.fechaCompromiso)}.`
+                  : "."}
+              </span>
+            ) : (
+              <span className="text-[var(--exito-texto)]">Cuenta saldada.</span>
+            )}
+          </p>
         )}
 
         {datos.glosa && (
@@ -203,24 +217,30 @@ function construirHTMLImpresion(d: DatosRecibo): string {
 
   const cuenta = [
     d.saldoAnterior != null ? fila("Deuda antes de este movimiento", gs(d.saldoAnterior)) : "",
-    fila(entra ? "Monto cobrado" : "Monto pagado", gs(d.monto)),
     d.descuento > 0
       ? fila(`Descuento${d.descuentoMotivo ? ` (${d.descuentoMotivo})` : ""}`, `- ${gs(d.descuento)}`)
       : "",
-    d.descuento > 0 ? fila("Total aplicado a la deuda", gs(total)) : "",
-    d.medio ? fila("Medio de pago", d.medio) : "",
+    d.descuento > 0 ? fila("Cubierto por este movimiento", gs(total)) : "",
+    d.medio && d.monto > 0 ? fila("Medio de pago", d.medio) : "",
   ].join("");
 
+  // Lo destacado es la plata que se movió de verdad, aunque sea 0.
+  const totalCaja =
+    `<div class="saldo"><span class="b">${
+      entra ? "Total cobrado" : "Total pagado"
+    }</span><span class="big">${gs(d.monto)}</span></div>` +
+    (d.monto === 0
+      ? `<div class="muted small">No entr&oacute; dinero a la caja: la deuda se cubri&oacute; con el descuento.</div>`
+      : "");
+
   const saldo =
-    d.saldoResultante != null
-      ? `<div class="saldo"><span class="b">${
-          d.saldoResultante > 0 ? "Saldo pendiente" : "Saldo"
-        }</span><span class="big">${gs(d.saldoResultante)}</span></div>` +
-        (d.saldoResultante > 0 && d.fechaCompromiso
-          ? `<div class="muted small">Comprometido para el ${fechaCorta(d.fechaCompromiso)}.</div>`
-          : "") +
-        (d.saldoResultante === 0 ? `<div class="muted small">Cuenta saldada.</div>` : "")
-      : "";
+    d.saldoResultante == null
+      ? ""
+      : d.saldoResultante > 0
+      ? `<div class="pendiente">Saldo pendiente <span class="b">${gs(d.saldoResultante)}</span>${
+          d.fechaCompromiso ? `, comprometido para el ${fechaCorta(d.fechaCompromiso)}.` : "."
+        }</div>`
+      : `<div class="pendiente">Cuenta saldada.</div>`;
 
   return `<!doctype html><html lang="es"><head><meta charset="utf-8">
     <title>${titulo} N° ${d.id}</title>
@@ -241,7 +261,8 @@ function construirHTMLImpresion(d: DatosRecibo): string {
       .cuenta { border-top: 1px solid #ddd; padding-top: 8px; }
       .saldo { display: flex; justify-content: space-between; align-items: baseline;
                border-top: 2px solid #ccc; margin-top: 10px; padding-top: 10px; }
-      .saldo .big { font-size: 22px; font-weight: 700; }
+      .saldo .big { font-size: 24px; font-weight: 700; }
+      .pendiente { margin-top: 8px; font-size: 12px; color: #444; }
       .pie { display: flex; justify-content: space-between; align-items: flex-end;
              gap: 40px; margin-top: 48px; color: #666; }
       .firma { border-top: 1px solid #999; padding-top: 6px; text-align: center; min-width: 200px; }
@@ -265,6 +286,7 @@ function construirHTMLImpresion(d: DatosRecibo): string {
         ${d.periodo ? `<div class="muted small">Per&iacute;odo ${periodoLargo(d.periodo)}</div>` : ""}
       </div>
       <div class="cuenta">${cuenta}</div>
+      ${totalCaja}
       ${saldo}
       ${d.glosa ? `<div class="bloque" style="margin-top:16px"><div class="muted small">Detalle</div><div class="small">${esc(d.glosa)}</div></div>` : ""}
       <div class="pie">

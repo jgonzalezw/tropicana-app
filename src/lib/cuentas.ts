@@ -254,18 +254,6 @@ export async function lineasPorCobrar(
     filas = filas.filter((f) => f.inscripcion!.alumno_id === filtro.alumnoId);
   if (!filas.length) return [];
 
-  // La primera cuota de una membresía es la venta; las siguientes, renovación.
-  // Sirve para sugerir el motivo cuando se cobra desde el atajo de Caja.
-  const primeraCuota: Record<number, number> = {};
-  const { data: todasCuotas } = await sb
-    .from("cuotas")
-    .select("id, inscripcion_id")
-    .in("inscripcion_id", [...new Set(filas.map((f) => f.inscripcion_id))]);
-  for (const c of (todasCuotas as { id: number; inscripcion_id: number }[]) ?? []) {
-    const previa = primeraCuota[c.inscripcion_id];
-    if (previa == null || c.id < previa) primeraCuota[c.inscripcion_id] = c.id;
-  }
-
   // Lo ya cubierto de cada cuota (plata + descuentos).
   const cubierto: Record<number, number> = {};
   const { data: pagos } = await sb
@@ -292,8 +280,7 @@ export async function lineasPorCobrar(
         // Si se pactó una fecha de compromiso, esa manda sobre el vencimiento
         // original: es la que la escuela acordó con el alumno.
         fechaLimite: f.fecha_compromiso ?? f.vencimiento,
-        motivoSugerido:
-          primeraCuota[f.inscripcion_id] === f.id ? "inscripcion" : "mensualidad",
+        motivoSugerido: "membresia",
       };
     })
     .filter((l) => l.saldo > 0)
@@ -395,8 +382,8 @@ export async function registrarCobro(
   const { error: errPago } = await a.from("pagos").insert({
     tipo: "cobro",
     // El motivo elegido manda: antes se asentaba siempre "cuota" y en Caja se
-    // perdia la diferencia entre cobrar una inscripcion y una mensualidad.
-    motivo: e.motivo?.trim() || "cuota",
+    // descartaba lo que elegia el operador.
+    motivo: e.motivo?.trim() || "membresia",
     alumno_id: insc.alumno_id,
     inscripcion_id: insc.id,
     cuota_id: cuota.id,
