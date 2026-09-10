@@ -24,9 +24,9 @@
 > toda venta, nada de plata colgada) aplicadas en producción y verificadas con
 > `scripts/control_migracion.sql` (7/7 OK, antes 4 en rojo). `main` actualizado
 > (`900f9ca..1687b47`, fast-forward). Tres decisiones de política registradas en
-> §0ter. **Hallazgo abierto:** las membresías 17-19 (Zumba, clases sueltas)
-> pasaron de `activa` a `completada` en producción el 2026-09-10 08:43 UTC por
-> una sentencia externa a este trabajo — ver §0ter.
+> §0ter. Después se sumó una cuarta decisión (el paquete por clase se cierra
+> cuando está **consumido y pagado**) con su migración `0018`, aplicada en dev
+> y **pendiente del OK para producción** junto con el código que la acompaña.
 > **Rama de trabajo:** `claude/tropicana-app-context-d5zjt8` (mergeada a `main`; se sigue usando para nuevo desarrollo).
 > **Pase a producción — vuelve a requerir OK explícito (revocado 2026-09-10).**
 > La autorización permanente del 2026-09-09 (aplicar migraciones y mergear/
@@ -126,16 +126,31 @@ lectura (fechas de fin, ciclos coherentes, contadores, bono contra faltas sin
 licencia, plata sin cuota, membresías sin cuota, estado de cuota vs. cobrado).
 Corre en cualquiera de las dos bases. Producción quedó 7/7 OK.
 
-**Hallazgo abierto (sin resolver).** Las membresías **17, 18 y 19** (Zumba,
-clases sueltas del 08/09, sin plan) pasaron de `activa` a `completada` en
-producción el **2026-09-10 08:43 UTC**, las tres con el mismo `actualizado_en`
-al microsegundo: fue **una sola sentencia SQL**, no la app. No fue `0016` (que
-excluye por construcción las filas sin plan: `join planes` + `clases_plan is not
-null`) ni `0017` (solo toca `cuotas` y `pagos`), y el único punto del código que
-escribe `estado='completada'` (`recalcularMembresia`) descarta las membresías
-sin plan. No hay triggers en esas tablas. **Sin impacto detectado** (siguen fuera
-de la liquidación por no tener plan, y su paquete de 1 clase ya estaba
-consumido), pero queda registrado: falta identificar quién la corrió.
+**Cierre del paquete por clase: consumido Y pagado (Javier, 2026-09-10).** Una
+venta por clase se cierra cuando se cumplen las **dos** condiciones: consumió
+las clases compradas **y** no le queda saldo. Consumido pero con deuda, la venta
+sigue abierta. Solo la asistencia consume paquete (una falta no lo gasta, el
+alumno conserva su clase), y no genera bono: esa venta no tiene tolerancia. Las
+ilimitadas siguen cerrando por `fecha_fin`, no por contador.
+
+*Origen:* el motor solo cerraba las membresías **de plan**;
+`recalcularMembresia` se salteaba las que no tienen plan, así que los paquetes
+por clase quedaban `activa` para siempre. Eso explica el hallazgo que estuvo
+abierto unas horas: las membresías **17, 18 y 19** (Zumba, clases sueltas del
+08/09) pasaron de `activa` a `completada` en producción el 2026-09-10 08:43 UTC
+por una sola sentencia SQL manual —alguien las cerró a mano porque el sistema no
+lo hacía—, y dev quedó desalineado (seguían `activa`). Resuelto: la lógica ahora
+las cierra sola al guardar asistencia, y `0018_cerrar_paquetes_consumidos`
+pone al día lo existente en las dos bases.
+
+**Límite conocido de esta regla.** No hay pantalla para registrar un **cobro
+posterior**: hoy solo se cobra en el momento de la venta (`/inscribir`), no
+existe forma de saldar una deuda después (por eso los Bs 340 de Ayoroa, Carola
+no se pueden cobrar desde la app). Mientras eso no exista, un paquete consumido
+con saldo queda abierto sin manera de cerrarlo desde la interfaz. **Lo resuelve
+el Paso 2** (estado de cuenta del alumno); cuando se construya esa pantalla,
+tiene que llamar a `recalcularMembresia` al registrar el cobro, o el cierre no
+se dispara.
 
 ### Pendientes de prueba de Javier en dev (consolidado, 2026-09-10)
 

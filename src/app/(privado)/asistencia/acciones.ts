@@ -548,8 +548,10 @@ export async function guardarAsistencia(
  *    que se redime al renovar. Una sola falta SIN licencia en el ciclo deja el
  *    bono en 0: la tolerancia premia al ciclo sin faltas injustificadas
  *    (política de Javier, 2026-09-10).
- *  - **Paquete por clase (sin plan, `clases_total`):** se completa cuando se
- *    consumieron las clases compradas. Solo la asistencia consume paquete; una
+ *  - **Paquete por clase (sin plan, `clases_total`):** se cierra cuando se
+ *    cumplen las DOS condiciones: consumió las clases compradas Y está
+ *    íntegramente pagado (política de Javier, 2026-09-10). Consumido pero con
+ *    saldo, la venta sigue abierta. Solo la asistencia consume paquete; una
  *    falta no lo gasta, así que el alumno conserva su clase. No genera bono:
  *    esa venta no tiene tolerancia.
  *
@@ -595,17 +597,19 @@ async function recalcularMembresia(a: Admin, inscripcionId: number): Promise<boo
   }
 
   if (!esPlanConN) {
-    const compradas = insc.clases_total as number;
-    const agotado = presentes >= compradas;
+    const consumido = presentes >= (insc.clases_total as number);
+    // El saldo solo se consulta si ya se consumió: es la única situación en la
+    // que puede cambiar el estado, y así no se pega a la base al pedo.
+    const cerrado = consumido && (await saldoDeMembresia(a, inscripcionId)) <= 0;
     await a
       .from("inscripciones")
       .update({
         clases_hechas: presentes,
-        estado: agotado ? "completada" : "activa",
+        estado: cerrado ? "completada" : "activa",
         actualizado_en: new Date().toISOString(),
       })
       .eq("id", inscripcionId);
-    return agotado;
+    return cerrado;
   }
 
   const clasesPlan = insc.clases_plan as number;
@@ -622,6 +626,34 @@ async function recalcularMembresia(a: Admin, inscripcionId: number): Promise<boo
     })
     .eq("id", inscripcionId);
   return completada;
+}
+
+/**
+ * Saldo pendiente de una membresía: lo devengado en sus cuotas menos lo
+ * cubierto (pago + descuento). Sin cuotas devuelve 0: no hay nada que cobrar.
+ */
+async function saldoDeMembresia(a: Admin, inscripcionId: number): Promise<number> {
+  const { data: cuotas } = await a
+    .from("cuotas")
+    .select("id, monto_devengado, descuento_adelanto")
+    .eq("inscripcion_id", inscripcionId);
+  const filas = (cuotas as { id: number; monto_devengado: number; descuento_adelanto: number }[]) ?? [];
+  if (!filas.length) return 0;
+
+  const { data: pagos } = await a
+    .from("pagos")
+    .select("cuota_id, monto, descuento")
+    .eq("tipo", "cobro")
+    .in("cuota_id", filas.map((c) => c.id));
+  const cubierto: Record<number, number> = {};
+  for (const p of (pagos as { cuota_id: number | null; monto: number; descuento: number }[]) ?? [])
+    if (p.cuota_id != null)
+      cubierto[p.cuota_id] = (cubierto[p.cuota_id] ?? 0) + Number(p.monto) + Number(p.descuento);
+
+  let saldo = 0;
+  for (const c of filas)
+    saldo += Math.max(0, Number(c.monto_devengado) - Number(c.descuento_adelanto) - (cubierto[c.id] ?? 0));
+  return saldo;
 }
 
 /** Tolerancia de faltas efectiva: snapshot de la membresía, si no el plan, si no el parámetro. */

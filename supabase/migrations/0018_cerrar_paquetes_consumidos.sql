@@ -22,8 +22,10 @@
 -- --------
 -- Para cada membresia SIN plan que tenga `clases_total` (paquete por clase) y
 -- no este de baja: pone `clases_hechas` = presencias en sesiones DICTADAS, y
--- marca 'completada' si ya consumio las clases compradas. Solo la asistencia
--- consume paquete: una falta no lo gasta, el alumno conserva su clase.
+-- la marca 'completada' cuando se cumplen las DOS condiciones (criterio de
+-- Javier): consumio las clases compradas Y no le queda saldo. Consumido pero
+-- con deuda, la venta sigue abierta. Solo la asistencia consume paquete: una
+-- falta no lo gasta, el alumno conserva su clase.
 --
 -- El codigo hace lo mismo de ahora en mas al guardar asistencia
 -- (`recalcularMembresia`), asi que esto no vuelve a acumularse.
@@ -40,15 +42,32 @@ with presencias as (
      and i.estado <> 'baja'
      and (a.id is null or s.id is not null)
    group by i.id
+),
+saldos as (
+  select i.id,
+         coalesce(sum(greatest(0, cu.monto_devengado - cu.descuento_adelanto
+                    - coalesce((select sum(p.monto + p.descuento) from public.pagos p
+                                 where p.cuota_id = cu.id and p.tipo = 'cobro'), 0))), 0) as saldo
+    from public.inscripciones i
+    left join public.cuotas cu on cu.inscripcion_id = i.id
+   where i.plan_id is null and i.clases_total is not null and i.estado <> 'baja'
+   group by i.id
+),
+objetivo as (
+  select p.id, p.presentes,
+         case when p.presentes >= i.clases_total and s.saldo <= 0
+              then 'completada' else 'activa' end as estado
+    from presencias p
+    join public.inscripciones i on i.id = p.id
+    join saldos s on s.id = p.id
 )
 update public.inscripciones i
-   set clases_hechas = p.presentes,
-       estado = case when p.presentes >= i.clases_total then 'completada' else 'activa' end,
+   set clases_hechas = o.presentes,
+       estado = o.estado,
        actualizado_en = now()
-  from presencias p
- where i.id = p.id
-   and (i.clases_hechas is distinct from p.presentes
-     or i.estado is distinct from (case when p.presentes >= i.clases_total then 'completada' else 'activa' end));
+  from objetivo o
+ where i.id = o.id
+   and (i.clases_hechas is distinct from o.presentes or i.estado is distinct from o.estado);
 
 -- ── Control posterior ────────────────────────────────────────────────
 do $$
@@ -58,10 +77,15 @@ begin
   select count(*) into v_mal
     from public.inscripciones i
    where i.plan_id is null and i.clases_total is not null and i.estado <> 'baja'
-     and i.estado <> (case when (select count(*) from public.asistencias a
-                                  join public.sesiones s on s.id = a.sesion_id
-                                 where a.inscripcion_id = i.id and a.estado = 'presente'
-                                   and s.estado = 'dictada') >= i.clases_total
-                           then 'completada' else 'activa' end);
+     and i.estado <> (
+       case when (select count(*) from public.asistencias a
+                    join public.sesiones s on s.id = a.sesion_id
+                   where a.inscripcion_id = i.id and a.estado = 'presente'
+                     and s.estado = 'dictada') >= i.clases_total
+                 and coalesce((select sum(greatest(0, cu.monto_devengado - cu.descuento_adelanto
+                        - coalesce((select sum(p.monto + p.descuento) from public.pagos p
+                                     where p.cuota_id = cu.id and p.tipo = 'cobro'), 0)))
+                       from public.cuotas cu where cu.inscripcion_id = i.id), 0) <= 0
+            then 'completada' else 'activa' end);
   raise notice 'Paquetes por clase con estado incorrecto: % (deberia ser 0)', v_mal;
 end $$;
