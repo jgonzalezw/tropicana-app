@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# reportes generados con datos reales de produccion (nombres, pagos): se
+# entregan a mano, no se versionan
+/validacion_*.xlsx
