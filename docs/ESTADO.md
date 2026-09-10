@@ -282,6 +282,17 @@ operación, y seleccionar la (o las) que se saldan** — un cobro podría cubrir
 varias líneas. Queda explícitamente fuera de 2A.1: "amerita más análisis del
 customer journey en caja". Entra al Paso 2 junto con el estado de cuenta (2B).
 
+### Cuenta de verificación en dev (`claude@tropicana.dev`)
+
+Cuenta de administrador creada **solo en `tropicana-dev`** (2026-09-10) para que
+Claude pueda entrar a la app y validar pantallas cuando eso sea posible. No
+existe en producción y no debe crearse ahí. Javier decidió conservarla ("tenela
+para cuando realmente sea necesario"). Se borra con
+`delete from auth.users where email = 'claude@tropicana.dev';`.
+
+Ojo: hoy no alcanza para verificar nada desde una sesión en la nube — ver el
+límite de abajo. Sirve cuando la app corre en un entorno con salida a Supabase.
+
 **Límite conocido de verificación:** la sesión en la nube no puede validar
 visualmente estas pantallas. Tiene Chromium y puede levantar `next dev`, pero
 la política de egreso del contenedor bloquea `*.supabase.co` con 403, así que
