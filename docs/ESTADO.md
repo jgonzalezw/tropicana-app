@@ -233,11 +233,11 @@ resuelto desde la operación. Sin migración para lo base; **`0019`** sumó
    patrón). Es pantalla nueva sin mockup — pasa por Design, salvo que se decida
    reusar el patrón de comprobante existente adaptado.
 
-### 2A.1 — resuelto en dev (2026-09-10), pendiente de validación de Javier
+### 2A.1 — ✅ EN PRODUCCIÓN (2026-09-10)
 
-Todo en la rama `claude/tropicana-app-context-d5zjt8`, **sin pasar a
-producción** (Javier: "desde acá volvemos a trabajar solo en dev hasta que te
-solicite el pase"). No requirió ninguna migración nueva.
+Validado por Javier en dev y pasado a producción con su OK explícito (`main`
+en `5bcfa70`). Cierra los puntos 4, 5 y 6 de la lista de arriba. Migración
+`0020` aplicada en dev y en producción.
 
 1. **Toggle "Ocurrió en fecha pasada"** (`MovimientoCaja.tsx`): la fecha
    efectiva ya no es un campo suelto siempre visible. La gobierna un `Toggle`
@@ -327,6 +327,31 @@ documento; queda junto acá de ahora en más.
 **Al terminar esta ronda:** avisar a Code con el resultado (OK o qué falló) — recién ahí se pide el OK explícito para pasar a producción (ver el punto revocado arriba).
 
 ---
+
+## 0quinquies. Paso 2 — mapa completo y estados (2026-09-10)
+
+El Paso 2 se definió como "venta de particulares/alquiler + confirmar sesión +
+renovación + estado de cuenta del alumno". En el camino se le sumó Caja, porque
+cobrar después de la venta era condición para que la operación migrada desde
+producción no quedara colgada.
+
+| # | Rebanada | Estado |
+| --- | --- | --- |
+| 2A | **Cobro posterior a la venta (Caja)** — movimiento inline, paso `Cobro` compartido sobre el saldo real, navegación dirección → motivo → titular, o contexto ya resuelto desde la operación | ✅ En producción |
+| 2A.1 | **Ajustes de Caja** — toggle "Ocurrió en fecha pasada"; "Por cobrar" agrupada vencidas/en fecha y ordenada por antigüedad; recibo imprimible por movimiento; glosa a ancho completo; hipervínculos desde ambas listas; motivos reclasificados por operación (`0020`) | ✅ En producción |
+| 2B | **Estado de cuenta del alumno** — la pieza de datos ya existe (`estadoDeCuenta()` en `src/lib/cuentas.ts`), pero **ninguna pantalla la usa**. Falta la pantalla y su decisión de diseño | ⏳ No iniciado |
+| 2C | **Renovación de membresía** — qué pasa cuando un ciclo se cierra y el alumno sigue: renovar sin volver a vender desde cero | ⏳ No iniciado |
+| 2D | **Venta de particulares, alquiler, talleres y clases de prueba** — hoy no existe ninguna de estas ventas. Los motivos de caja ya las contemplan, pero no tienen de dónde venir. Incluye el problema de las clases de prueba migradas (punto 1 de arriba) | ⏳ No iniciado |
+| 2E | **Confirmar sesión (con horario)** | ⏳ No iniciado |
+| 2F | **Egresos de Caja / cuentas por pagar** — `lineasPorCobrar` solo arma el bucket `cuotas`; pagar una comisión o un proveedor no tiene su lista de "Por pagar" (punto 2 de arriba) | ⏳ No iniciado |
+| 2G | **Arqueo, apertura/cierre y responsable de caja** — quién rinde cuentas de cuál caja (punto 3 de arriba) | ⏳ No iniciado, sin diseño |
+| 2H | **Camino inverso del cobro en Caja** — elegir primero al deudor, ver sus deudas agrupadas por tipo de operación, y saldar una o varias de una vez. Javier: "amerita más análisis del customer journey en caja" | ⏳ Anotado, requiere análisis previo |
+
+**Dependencias que conviene tener presentes:** 2F y 2G comparten el modelo de
+caja con 2A, así que conviene hacerlos juntos o seguidos. 2D es prerrequisito
+real de 2F para todos los buckets que no sean `cuotas` (no hay nada que cobrar
+ni pagar hasta que esas ventas existan). 2B y 2H se tocan: las dos responden
+"¿qué debe esta persona?" desde lados distintos.
 
 ## 1. Estado por hito (validado con evidencia en el repo)
 
