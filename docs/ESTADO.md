@@ -518,8 +518,21 @@ Cambios:
 rellenados y 10 trazas viejas completadas. Controles 9 y 10 en OK. Ninguna de
 las tocadas tenía comisión devengada — la guarda lo verifica igual.
 
-**Pendiente:** validación de Javier en dev, y después el pase a producción con
-su OK explícito, que incluye la `0021` y la misma reparación de datos.
+**✅ EN PRODUCCIÓN (2026-09-10)**, con OK explícito de Javier. Orden del pase:
+migración **primero** (el código nuevo escribe columnas que aún no existían),
+después el código (`main` en `47640ea`), después los datos.
+
+- `0021` (columnas) y **`0022`** (reparación de datos) aplicadas en producción.
+- 9 membresías con el fin de ciclo corregido — las mismas que en dev, ninguna
+  con comisión devengada: Yubinca 03/09→**08/09**, Vivancos 16/09→**21/09**,
+  Delgadillo/Aguilar/Rubin 24/09→01/10, Escalante 15/09→17/09, Salek
+  10/09→17/09. Valor anterior respaldado en `fin_ciclo_previo_0022` (regla 5),
+  con la sentencia de reversión escrita en la migración.
+- 3 corrimientos rellenados (los Vivancos) y 10 trazas viejas completadas.
+- **Controles 9 y 10 en OK** en producción. Advisor sin errores nuevos: los dos
+  INFO son las tablas de respaldo, con RLS y sin policies a propósito.
+- `fin_ciclo_previo_0022` creada también en dev, para que las dos bases tengan
+  el mismo esquema.
 
 ## 1. Estado por hito (validado con evidencia en el repo)
 
