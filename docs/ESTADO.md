@@ -209,6 +209,8 @@ resuelto desde la operación. Sin migración para lo base; **`0019`** sumó
    A tratar como **complemento de la venta de membresías regulares** —
    probablemente necesitan su propio tipo de plan/venta (clase de prueba con
    comisión propia), no forzar el criterio 1 existente.
+   **Estado exacto de las tres, levantado de producción: `docs/CASO_CLASES_DE_PRUEBA.md`.**
+   Congelado por decisión de Javier (2026-09-11) hasta tener el modelo cerrado.
 2. **Egresos de Caja** (pagar la comisión a un profesor, o a un proveedor)
    todavía no tienen su lado de "cuentas por pagar": `lineasPorCobrar` solo
    arma el bucket `cuotas`. Particulares, alquiler, pruebas, productos y
