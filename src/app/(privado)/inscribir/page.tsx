@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { tienePermiso, obtenerParametro } from "@/lib/sesion";
 import SinAcceso from "@/components/SinAcceso";
+import { exigir } from "@/lib/datos";
 import ClienteVentas from "./ClienteVentas";
 import type { PlanVenta } from "./ClienteInscribir";
 import type { Alumno, Curso } from "@/lib/tipos";
@@ -41,10 +42,13 @@ export default async function PaginaInscribir() {
   const cursosById = new Map<number, Curso>(((cursos as Curso[]) ?? []).map((c) => [c.id, c]));
 
   // Precio de prueba por curso: sin él, ese curso no se puede ofrecer a prueba.
-  const { data: tarifasPrueba } = await supabase
-    .from("curso_tarifas")
-    .select("curso_id, precio")
-    .eq("modalidad", "prueba");
+  // Se exige: si esta lectura falla, la pantalla no puede decir "no hay
+  // precios de prueba" — diría una mentira y nos manda a buscar el problema
+  // donde no está (ya pasó).
+  const tarifasPrueba = exigir(
+    await supabase.from("curso_tarifas").select("curso_id, precio").eq("modalidad", "prueba"),
+    "los precios de clase de prueba"
+  );
   const precioPruebaPorCurso = new Map<number, number>(
     ((tarifasPrueba as { curso_id: number; precio: number }[]) ?? []).map((t) => [
       t.curso_id,

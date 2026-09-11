@@ -125,6 +125,14 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
 3. **Antes de dar por hecho un diagnóstico, mirar el dato.** Las dos veces que
    se perdió tiempo fue por afirmar una causa sin medirla. Medir es barato:
    una consulta de lectura contra la base responde en segundos.
+4. **Una capacidad que no está disponible se explica; no desaparece.** Es la
+   regla 1 aplicada a la pantalla. Si una pestaña, un botón o una opción se
+   ocultan cuando falta su configuración, "todavía no lo configuré" y "algo se
+   rompió" se ven idénticos: no está. Se muestra igual, deshabilitada o con un
+   panel que diga **qué falta y dónde cargarlo**.
+   *Costó la pestaña "Clase de prueba": se ocultaba sola y no había forma de
+   saber desde la pantalla si faltaba el precio del curso o si la consulta
+   había fallado.*
 
 ## 5. Controles
 
