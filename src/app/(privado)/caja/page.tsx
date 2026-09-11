@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { obtenerParametro, tienePermiso } from "@/lib/sesion";
 import { lineasPorCobrar } from "@/lib/cuentas";
+import { exigir } from "@/lib/datos";
 import SinAcceso from "@/components/SinAcceso";
 import ClienteCaja from "./ClienteCaja";
 
@@ -48,7 +49,8 @@ export default async function PaginaCaja({
   // Con quién y por qué: para que "Últimos movimientos" se pueda validar,
   // no solo la plata. Un pago siempre trae su sujeto (alumno o profesor) y,
   // si viene de una membresía, el plan/curso que le dio origen.
-  const { data: movRows } = await sb
+  const movRows = exigir(
+    await sb
     .from("pagos")
     .select(
       "id, tipo, motivo, monto, descuento, medio, glosa, fecha, fecha_efectiva, " +
@@ -56,10 +58,15 @@ export default async function PaginaCaja({
         "profesor:profesores(nombre, apellido), " +
         "inscripcion:inscripciones(plan:planes(nombre), curso:cursos(nombre))"
     )
-    .order("fecha", { ascending: false })
-    .limit(12);
+      .order("fecha", { ascending: false })
+      .limit(12),
+    "los movimientos de caja"
+  );
 
-  const { data: saldoRows } = await sb.from("pagos").select("tipo, monto, medio");
+  const saldoRows = exigir(
+    await sb.from("pagos").select("tipo, monto, medio"),
+    "el saldo de caja"
+  );
   const saldo = { efectivo: 0, banco: 0 };
   for (const p of (saldoRows as { tipo: string; monto: number; medio: string | null }[]) ?? []) {
     const signo = p.tipo === "cobro" ? 1 : -1;

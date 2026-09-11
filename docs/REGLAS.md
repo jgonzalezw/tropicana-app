@@ -106,7 +106,27 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
 6. **Nunca pegar cadenas de conexión ni contraseñas** en el chat ni en el repo.
 7. **`docs/ESTADO.md` se actualiza con cada hito cerrado.**
 
-## 4. Controles
+## 4. Calidad del código
+
+1. **Un fallo nunca se disfraza de ausencia.** Si el dato es necesario para que
+   la pantalla haga su trabajo, un error de lectura **se muestra**; nunca se
+   convierte en "no hay nada". El patrón cómodo de Supabase
+   —`const { data } = await sb.from(...)`— tira el error, y después `data ?? []`
+   hace que la pantalla mienta: dice "no hay planes" cuando la consulta se
+   rompió. Usar **`exigir()`** de `@/lib/datos`; el `error.tsx` de `(privado)`
+   lo muestra con su mensaje. Si vacío es un resultado legítimo (contar
+   dependencias, un dato opcional), no hace falta.
+   *Costó dos veces: el recibo que daba 404 sobre un pago que existía, y la
+   venta que se quedaba sin planes. Las dos veces se fue el tiempo buscando el
+   problema donde no estaba.*
+2. **Agregar una columna al `select` rompe la consulta entera** si la API
+   todavía no conoce la columna. Después de una migración que agrega columnas y
+   se empiezan a leer, correr `notify pgrst, 'reload schema';`.
+3. **Antes de dar por hecho un diagnóstico, mirar el dato.** Las dos veces que
+   se perdió tiempo fue por afirmar una causa sin medirla. Medir es barato:
+   una consulta de lectura contra la base responde en segundos.
+
+## 5. Controles
 
 `scripts/control_migracion.sql` — controles de solo lectura que verifican
 varias de estas reglas contra cualquiera de las dos bases. Cuando una regla se

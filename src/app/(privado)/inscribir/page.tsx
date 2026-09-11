@@ -35,24 +35,8 @@ export default async function PaginaInscribir() {
     obtenerParametro("dias_compromiso_pago"),
   ]);
 
-  // Si la consulta de planes falla, `data` viene null y la pantalla se quedaría
-  // sin planes sin decir por qué — hasta parecería que no hay ninguno cargado.
-  // Pasó con la 0023: una columna nueva que la API todavía no conocía tumbaba
-  // toda la consulta. Que lo diga, en vez de mostrar una pantalla vacía.
-  if (errPlanes) {
-    return (
-      <div className="p-6 sm:p-8 max-w-2xl">
-        <h1 className="text-2xl titulo mb-2">No se pudieron cargar los planes</h1>
-        <p className="text-base text-[var(--texto-tenue)] mb-4">
-          La pantalla no puede vender sin ellos. Esto es un error de la consulta, no una falta de
-          datos.
-        </p>
-        <pre className="text-sm bg-[var(--fondo-panel)] border border-[var(--borde)] rounded-[var(--radio-panel)] p-4 whitespace-pre-wrap">
-          {errPlanes.message}
-        </pre>
-      </div>
-    );
-  }
+  // Sin planes no hay venta: un fallo acá no puede pasar por "no hay ninguno".
+  if (errPlanes) throw new Error(`No se pudieron cargar los planes: ${errPlanes.message}`);
 
   const cursosById = new Map<number, Curso>(((cursos as Curso[]) ?? []).map((c) => [c.id, c]));
 

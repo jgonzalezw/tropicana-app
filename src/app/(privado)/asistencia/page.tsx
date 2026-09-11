@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { tienePermiso, obtenerParametro } from "@/lib/sesion";
 import SinAcceso from "@/components/SinAcceso";
+import { exigir } from "@/lib/datos";
 import ClienteAsistencia from "./ClienteAsistencia";
 import type { Curso } from "@/lib/tipos";
 
@@ -62,11 +63,14 @@ export default async function PaginaAsistencia() {
   const inscParcialIds = inscVigentes.filter((r) => r.modalidad !== "mensual").map((r) => r.id);
   const consumidasParcial: Record<number, number> = {};
   if (inscParcialIds.length) {
-    const { data } = await supabase
+    const data = exigir(
+      await supabase
       .from("asistencias")
       .select("inscripcion_id")
-      .eq("estado", "presente")
-      .in("inscripcion_id", inscParcialIds);
+        .eq("estado", "presente")
+        .in("inscripcion_id", inscParcialIds),
+      "las asistencias de los paquetes"
+    );
     for (const x of (data as { inscripcion_id: number | null }[]) ?? [])
       if (x.inscripcion_id != null) consumidasParcial[x.inscripcion_id] = (consumidasParcial[x.inscripcion_id] ?? 0) + 1;
   }
