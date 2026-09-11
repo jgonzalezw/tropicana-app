@@ -340,6 +340,46 @@ select '18. partes devengadas que no suman lo cobrado' as control,
    );
 
 -- ---------------------------------------------------------------------
+-- 19. COMISION DEVENGADA CON CLASES DEL CICLO SIN REGISTRAR
+--     Regla de negocio 17. Desde que las clases se cuentan por calendario
+--     menos suspendidas (regla 10), una clase sin sesion —ni asistencia ni
+--     suspension— pesa igual que una dictada. Si ademas se devengo y se
+--     pago, el periodo quedo cerrado (regla 16) y ya no hay forma de
+--     registrarla: la comision quedo congelada sobre una clase que quiza
+--     nunca ocurrio.
+--     La pantalla lo impide; este control verifica que no haya quedado
+--     ninguna de antes del bloqueo.
+-- ---------------------------------------------------------------------
+with dias_de_clase as (
+  -- Membresia regular: los dias del calendario que el alumno eligio.
+  select ic.inscripcion_id, ic.curso_id, d::date as fecha
+    from public.inscripcion_cursos ic
+    join public.inscripciones i on i.id = ic.inscripcion_id
+    join public.cursos c on c.id = ic.curso_id
+    cross join lateral generate_series(i.fecha_inicio::date,
+                                       i.fecha_fin::date,
+                                       interval '1 day') as d
+   where ic.fecha is null
+     and i.fecha_fin is not null
+     and extract(isodow from d)::int = any (
+           case when coalesce(array_length(ic.dias, 1), 0) > 0
+                then ic.dias else c.dias_semana end)
+  union all
+  -- Prueba: una sola clase, en su fecha exacta (0024).
+  select ic.inscripcion_id, ic.curso_id, ic.fecha
+    from public.inscripcion_cursos ic
+   where ic.fecha is not null
+)
+select '19. membresias devengadas con clases sin registrar' as control,
+       count(distinct dc.inscripcion_id) as n,
+       case when count(*) = 0 then 'OK' else 'REVISAR' end as estado
+  from dias_de_clase dc
+ where not exists (select 1 from public.sesiones s
+                    where s.curso_id = dc.curso_id and s.fecha = dc.fecha)
+   and exists (select 1 from public.comisiones_devengadas cd
+                where cd.membresia_id = dc.inscripcion_id);
+
+-- ---------------------------------------------------------------------
 -- 15. UN CONCEPTO, UN NOMBRE: llaves a `inscripciones` con nombres distintos
 --     La misma llave foranea se llama `inscripcion_id` en unas tablas y
 --     `membresia_id` en otras. Es deuda conocida (D1 en docs/DECISIONES.md),

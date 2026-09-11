@@ -36,6 +36,9 @@ export type RolPermiso = {
   permitido: boolean;
 };
 
+/** Una alternativa admitida por un parámetro: el valor guardado y cómo se lee. */
+export type OpcionParametro = { valor: string; etiqueta: string };
+
 export type Parametro = {
   clave: string;
   valor: string;
@@ -43,6 +46,13 @@ export type Parametro = {
   nombre: string;
   descripcion: string | null;
   grupo: string;
+  /**
+   * Lista cerrada de valores admitidos (0028). Cuando está cargada, el
+   * parámetro se **elige** de un desplegable y no se escribe: un valor a mano
+   * que no existe no falla, cae al default, y la aplicación se comporta
+   * distinto sin decir por qué. `null` = no tiene alternativas.
+   */
+  opciones: OpcionParametro[] | null;
   actualizado_en: string;
 };
 

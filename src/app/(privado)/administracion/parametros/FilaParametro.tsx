@@ -37,7 +37,28 @@ export default function FilaParametro({ parametro }: { parametro: Parametro }) {
         )}
       </div>
       <div className="sm:w-1/2 flex items-center gap-2">
-        {parametro.tipo === "booleano" ? (
+        {/* Un parámetro con alternativas se ELIGE, no se escribe: escribirlo a
+            mano deja pasar "compactoo", que no falla — cae al default y la
+            aplicación se comporta distinto sin decir por qué. */}
+        {parametro.opciones?.length ? (
+          <select
+            value={valor}
+            onChange={(e) => setValor(e.target.value)}
+            className="entrada"
+          >
+            {/* Un valor viejo fuera de la lista se muestra igual, marcado: si
+                desapareciera, el desplegable diría algo distinto de lo que está
+                guardado y nadie lo notaría. */}
+            {!parametro.opciones.some((o) => o.valor === valor) && (
+              <option value={valor}>{valor} (valor fuera de la lista)</option>
+            )}
+            {parametro.opciones.map((o) => (
+              <option key={o.valor} value={o.valor}>
+                {o.etiqueta}
+              </option>
+            ))}
+          </select>
+        ) : parametro.tipo === "booleano" ? (
           <select
             value={valor}
             onChange={(e) => setValor(e.target.value)}

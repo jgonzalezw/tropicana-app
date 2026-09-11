@@ -41,6 +41,15 @@ export type ItemComprobante = {
   clasesCurso: number | null;
 };
 
+/**
+ * Qué se cuenta como "clase" del ciclo. Va escrito en el comprobante porque es
+ * la pregunta que se hace el profesor al mirar el número, y la respuesta no se
+ * deduce de la tabla: son las del calendario, menos las suspendidas (regla de
+ * negocio 10). Una falta no descuenta — la clase ocurrió.
+ */
+const LEYENDA_CLASES =
+  "Clases = las del calendario del ciclo, menos las suspendidas.";
+
 /** El reparto, para el papel. Mismo criterio que en pantalla, otro formato. */
 function repartoHTML(it: ItemComprobante, modo: "completo" | "compacto"): string {
   const esc2 = (t: string) => t.replace(/[&<>]/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[m]!);
@@ -50,27 +59,35 @@ function repartoHTML(it: ItemComprobante, modo: "completo" | "compacto"): string
       .join(" · ");
     return `<div class="small muted">Reparto: ${linea} (suman ${gs(it.cobrado)})</div>`;
   }
+  const encabezado = `<tr class="muted">
+      <th style="text-align:left">Curso</th>
+      <th style="text-align:right">Clases</th>
+      <th style="text-align:right">Valor de 1 clase</th>
+      <th style="text-align:right">Le toca</th>
+      <th style="text-align:right">%</th>
+      <th></th></tr>`;
   const filas = it.reparto
     .map((r) => {
       const esEste = r.peso === it.pesoCurso && r.clases === it.clasesCurso;
-      const detalle =
-        r.clases === 0
-          ? "no dictó"
-          : `${r.clases} ${r.clases === 1 ? "clase" : "clases"} &times; ${gs(r.precioClase)}`;
       const pct = it.pesoTotal > 0 ? Math.round((r.peso / it.pesoTotal) * 100) : 0;
       return `<tr${esEste ? ' class="b"' : ' class="muted"'}>
-        <td>${esc2(r.curso)}</td><td>${detalle}</td>
+        <td>${esc2(r.curso)}</td>
+        <td style="text-align:right">${r.clases === 0 ? "ninguna" : r.clases}</td>
+        <td style="text-align:right">${gs(r.precioClase)}</td>
         <td style="text-align:right">${gs(parteDe(it, r))}</td>
         <td style="text-align:right">${pct}%</td>
-        <td style="text-align:right">${esEste ? "&larr;" : ""}</td></tr>`;
+        <td style="text-align:right">${esEste ? "este curso" : ""}</td></tr>`;
     })
     .join("") +
-    `<tr><td colspan="2" style="border-top:1px solid #ddd">Suma de las partes</td>
+    `<tr><td colspan="3" style="border-top:1px solid #ddd">Suma de las partes = lo cobrado</td>
       <td class="b" style="text-align:right;border-top:1px solid #ddd">${gs(it.cobrado)}</td>
       <td style="text-align:right;border-top:1px solid #ddd">100%</td><td style="border-top:1px solid #ddd"></td></tr>`;
   return `<div class="small" style="margin-top:6px;border-top:1px solid #ddd;padding-top:4px">
-      <div class="k">Reparto entre los cursos del plan</div>
-      <table style="width:100%;font-size:11px">${filas}</table>
+      <div class="k">Como se reparte lo cobrado entre los cursos del plan</div>
+      <div class="muted">De los ${gs(it.cobrado)} cobrados, cada curso se lleva
+        lo proporcional a <b>sus clases &times; el valor de una clase suya</b>.
+        ${esc2(LEYENDA_CLASES)}</div>
+      <table style="width:100%;font-size:11px">${encabezado}${filas}</table>
     </div>`;
 }
 
@@ -119,30 +136,49 @@ function Reparto({ it, modo }: { it: ItemComprobante; modo: "completo" | "compac
   }
   return (
     <div className="mt-2 border-t border-[var(--borde)] pt-2">
-      <div className="text-xs text-[var(--texto-tenue)] mb-1">Reparto entre los cursos del plan</div>
+      <div className="text-xs text-[var(--texto-tenue)] mb-1">
+        Cómo se reparte lo cobrado entre los cursos del plan
+      </div>
+      {/* La cuenta dicha en palabras, arriba de la tabla. Sin esto hay que
+          adivinar qué relaciona las columnas, y un número que no se puede
+          seguir no se puede discutir — que es para lo que existe el papel. */}
+      <p className="text-xs text-[var(--texto-tenue)] mb-1.5">
+        De los <span className="font-semibold">{gs(it.cobrado)}</span> cobrados, cada curso se
+        lleva lo proporcional a <span className="font-semibold">sus clases × el valor de una
+        clase suya</span>. {LEYENDA_CLASES}
+      </p>
       <table className="w-full text-xs">
+        <thead>
+          <tr className="text-[var(--texto-tenue)]">
+            <th className="py-0.5 text-left font-normal">Curso</th>
+            <th className="py-0.5 text-right font-normal">Clases</th>
+            <th className="py-0.5 text-right font-normal">Valor de 1 clase</th>
+            <th className="py-0.5 text-right font-normal">Le toca</th>
+            <th className="py-0.5 text-right font-normal w-12">%</th>
+            <th />
+          </tr>
+        </thead>
         <tbody>
           {it.reparto.map((r) => {
             const esEste = r === suEl;
             return (
               <tr key={r.cursoId} className={esEste ? "font-semibold" : "text-[var(--texto-tenue)]"}>
                 <td className="py-0.5">{r.curso}</td>
-                <td className="py-0.5">
-                  {r.clases === 0
-                    ? "no dictó"
-                    : `${r.clases} ${r.clases === 1 ? "clase" : "clases"} × ${gs(r.precioClase)}`}
+                <td className="py-0.5 text-right tabular-nums">
+                  {r.clases === 0 ? "ninguna" : r.clases}
                 </td>
+                <td className="py-0.5 text-right tabular-nums">{gs(r.precioClase)}</td>
                 <td className="py-0.5 text-right tabular-nums">{gs(parteDe(it, r))}</td>
                 <td className="py-0.5 text-right tabular-nums w-12">
                   {it.pesoTotal > 0 ? Math.round((r.peso / it.pesoTotal) * 100) : 0}%
                 </td>
-                <td className="py-0.5 w-6 text-right">{esEste ? "←" : ""}</td>
+                <td className="py-0.5 text-right whitespace-nowrap">{esEste ? "este curso" : ""}</td>
               </tr>
             );
           })}
           <tr className="border-t border-[var(--borde)]">
-            <td className="py-0.5" colSpan={2}>
-              Suma de las partes
+            <td className="py-0.5" colSpan={3}>
+              Suma de las partes = lo cobrado
             </td>
             <td className="py-0.5 text-right tabular-nums font-semibold">{gs(it.cobrado)}</td>
             <td className="py-0.5 text-right">100%</td>

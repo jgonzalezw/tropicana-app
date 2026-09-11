@@ -74,9 +74,16 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
    comprar**, por la cantidad de personas.
 10. **La comisión de un plan multi-curso se reparte a prorrata.** Cada
     profesor cobra sobre **su parte de lo efectivamente cobrado**, con peso =
-    precio de su curso × clases que ese curso realmente dictó (× personas, en
-    las pruebas). Un curso que no dictó nada no cobra nada. La prueba no es un
+    precio de su curso × clases que ese curso puso en el ciclo (× personas, en
+    las pruebas). Un curso que no puso ninguna no cobra nada. La prueba no es un
     caso especial: es el caso general con 1 clase por curso.
+    **Las clases se cuentan por calendario menos suspendidas**, igual que el fin
+    de ciclo (regla 4): las del calendario del curso que el alumno eligió, entre
+    el inicio y el fin del ciclo, descontando las suspendidas. Una falta no
+    descuenta —la clase ocurrió—; una asistencia sin cargar tampoco, porque es
+    un trámite pendiente y no algo que haya pasado en la sala. Su contrapeso es
+    la regla 17. *(Javier, 2026-09-11: "Vamos por el criterio calendario menos
+    suspendidas".)*
     **El "precio de su curso" es el valor de UNA clase del curso —su tarifa de
     clase suelta—, no el valor por tramo.** El tramo es para *proponer* un
     precio (regla 9): ahí la pregunta es cuánto costaría comprar eso por
@@ -121,6 +128,17 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
     *Importa desde la regla 10: la comisión depende de cuántas clases dictó
     cada curso, así que tocar una clase vieja mueve plata ya pagada.*
     *(Decisión de Javier, 2026-09-11, opción a.)*
+17. **Registrar las sesiones es imperativo para liquidar.** Si alguna clase del
+    período tiene **ni asistencia cargada ni suspensión**, esa membresía no se
+    liquida: la pantalla la muestra con el curso y las fechas que faltan, y no
+    deja generar ni pagar hasta que se completen.
+    *Es el contrapeso de la regla 10: como las clases se cuentan por calendario,
+    una clase sin registrar pesa igual que una dictada. Y no se puede arreglar
+    después, porque el primer pago cierra el período (regla 16): la clase que
+    falta ya no se podría registrar ni esa comisión llegar a cobrarse. El
+    bloqueo alcanza al período entero del profesor, no solo a la membresía
+    trabada — pagar la mitad ahora es cerrarle la puerta a la otra mitad.*
+    *(Javier, 2026-09-11, junto con el criterio de la regla 10.)*
 
 ## 3. Reglas de proceso
 
@@ -195,6 +213,18 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
    *Costó la pestaña "Clase de prueba": se ocultaba sola y no había forma de
    saber desde la pantalla si faltaba el precio del curso o si la consulta
    había fallado.*
+6. **Un valor con alternativas se elige de una lista; nunca se escribe a mano.**
+   Vale para parámetros, catálogos y cualquier campo con un conjunto cerrado de
+   valores. Escribirlo a mano deja pasar `compactoo`, que no falla: cae al
+   default y la aplicación se comporta distinto sin decir por qué — la regla 1
+   otra vez. La lista la sirve el dato (`parametros.opciones`), no el código
+   (regla de negocio 13), y **el que valida es el servidor**: el desplegable
+   ayuda, no decide. Dejar unos campos con lista y otros a mano es peor que
+   ninguna: enseña que la lista no significa nada.
+   *Pedido de Javier, 2026-09-11: "SIEMPRE que se tengan valores alternativos a
+   elegir, debes poner un control que permita hacerlo desde una lista de
+   opciones… el que dejes algunos para escritura manual es baja calidad de
+   desarrollo e inconsistente."*
 
 ## 5. Controles
 
