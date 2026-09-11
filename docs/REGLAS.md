@@ -61,12 +61,16 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
    puede quedar con plata fuera de una cuota. Toda venta nueva crea la suya.
 8. **La comisión se calcula sobre lo efectivamente cobrado** (el descuento no
    suma), criterio 1, a mes vencido.
-9. **Precio del plan: el sistema propone, la persona decide.** Al elegir los
-   cursos de un plan, el sistema suma sus precios y lo ofrece como
-   **referencia**; el precio final lo fija quien crea el plan, y es **único**
-   para el plan (limitado, ilimitado o múltiple). La excepción es la prueba:
-   ahí el monto es la **suma de los cursos que el alumno elige al comprar**,
-   por la cantidad de personas.
+9. **Precio del plan: el sistema propone, la persona decide.** La
+   **referencia** es lo que costaría comprar por separado lo que el plan
+   ofrece junto: se estima el **valor de una clase** del curso y se multiplica
+   por las clases que el plan ofrece. El valor de una clase sale de la tarifa
+   del **tramo** que corresponde a esa cantidad (clase suelta → semana → medio
+   mes → mes), porque comprar suelto sale más caro por clase que comprar el
+   mes. Un ilimitado escala el mensual a la duración del ciclo. El precio final
+   lo fija quien crea el plan, y es **único** para el plan. La excepción es la
+   prueba: ahí el monto es la **suma de los cursos que el alumno elige al
+   comprar**, por la cantidad de personas.
 10. **La comisión de un plan multi-curso se reparte a prorrata.** Cada
     profesor cobra sobre **su parte de lo efectivamente cobrado**, con peso =
     precio de su curso × clases que ese curso realmente dictó (× personas, en

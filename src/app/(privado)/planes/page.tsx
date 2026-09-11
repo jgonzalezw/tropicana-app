@@ -4,6 +4,7 @@ import EncabezadoPagina from "@/components/EncabezadoPagina";
 import SinAcceso from "@/components/SinAcceso";
 import ClientePlanes from "./ClientePlanes";
 import type { Curso, Plan } from "@/lib/tipos";
+import type { TarifasDeCurso } from "@/lib/precios";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,7 @@ export default async function PaginaPlanes() {
 
   const toleranciaAcademia = Math.max(0, Number(await obtenerParametro("tolerancia_faltas")) || 0);
   const plazoAcademia = Math.max(0, Number(await obtenerParametro("prueba_plazo_dias")) || 7);
+  const factorMedioMes = Math.max(1, Number(await obtenerParametro("medio_mes_factor")) || 2);
 
   const [{ data: planes }, { data: cursos }, { data: planCursos }, { data: insc }] =
     await Promise.all([
@@ -22,6 +24,17 @@ export default async function PaginaPlanes() {
       supabase.from("plan_cursos").select("plan_id, curso_id"),
       supabase.from("inscripciones").select("plan_id"),
     ]);
+
+  // Tarifas parciales por curso: la referencia de precio estima el valor de
+  // una clase desde el tramo que corresponde a la cantidad que se vende.
+  const { data: tarifaRows } = await supabase
+    .from("curso_tarifas")
+    .select("curso_id, modalidad, precio");
+  const tarifas: Record<number, TarifasDeCurso> = {};
+  for (const t of (tarifaRows as { curso_id: number; modalidad: string; precio: number }[]) ?? []) {
+    if (t.modalidad !== "clase" && t.modalidad !== "semana" && t.modalidad !== "medio_mes") continue;
+    (tarifas[t.curso_id] ??= {})[t.modalidad] = Number(t.precio);
+  }
 
   // Cursos por plan.
   const cursosPorPlan: Record<number, number[]> = {};
@@ -50,6 +63,8 @@ export default async function PaginaPlanes() {
         deps={deps}
         toleranciaAcademia={toleranciaAcademia}
         plazoAcademia={plazoAcademia}
+        tarifas={tarifas}
+        factorMedioMes={factorMedioMes}
       />
     </div>
   );

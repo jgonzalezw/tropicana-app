@@ -6,6 +6,11 @@ import type { AccesoModo, Curso, Plan, DatosPlan } from "@/lib/tipos";
 import { gs } from "@/lib/inscripcion";
 import { etiquetaDias } from "@/components/entidades/EntidadCurso";
 import Toggle from "@/components/Toggle";
+import {
+  referenciaPorClases,
+  referenciaPorPeriodo,
+  type TarifasDeCurso,
+} from "@/lib/precios";
 import { crearPlan, actualizarPlan, eliminarODesactivarPlan, activarPlan } from "./acciones";
 
 const VACIO: DatosPlan = {
@@ -41,6 +46,8 @@ export default function ClientePlanes({
   deps,
   toleranciaAcademia,
   plazoAcademia,
+  tarifas,
+  factorMedioMes,
 }: {
   planes: Plan[];
   cursos: Curso[];
@@ -48,6 +55,10 @@ export default function ClientePlanes({
   toleranciaAcademia: number;
   /** Parámetro `prueba_plazo_dias`: el plazo por defecto para convertir. */
   plazoAcademia: number;
+  /** Tarifas parciales por curso, para estimar el valor de una clase. */
+  tarifas: Record<number, TarifasDeCurso>;
+  /** Parámetro `medio_mes_factor`: cuántas semanas entran en "medio mes". */
+  factorMedioMes: number;
   deps: Record<number, number>;
 }) {
   const router = useRouter();
@@ -139,15 +150,29 @@ export default function ClientePlanes({
   }, [cursos, form.acceso_modo, form.cursoIds]);
 
   /**
-   * Valor de referencia: lo que costaría comprar cada curso por separado. Es
-   * una sugerencia, no el precio — quien arma el plan decide qué cobra. Se
-   * vuelve importante en los planes múltiples, donde la cuenta no es obvia.
+   * Valor de referencia: lo que costaría comprar por separado lo que el plan
+   * ofrece junto. Sugiere, no impone. Con N clases se estima el valor de una
+   * clase desde el tramo de tarifa que corresponde a esa cantidad; con un
+   * ilimitado se escala el mensual a la duración del ciclo.
    */
-  const referencia = useMemo(
-    () => cursosDelPlan.reduce((t, c) => t + Number(c.precio_mensual ?? 0), 0),
-    [cursosDelPlan]
-  );
-  const difPrecio = form.precio > 0 ? form.precio - referencia : 0;
+  const referencia = useMemo(() => {
+    if (!cursosDelPlan.length) return null;
+    if (form.clases_ilimitadas)
+      return form.ciclo_dias && form.ciclo_dias > 0
+        ? referenciaPorPeriodo(cursosDelPlan, form.ciclo_dias)
+        : null;
+    return form.cantidad_clases && form.cantidad_clases > 0
+      ? referenciaPorClases(cursosDelPlan, tarifas, form.cantidad_clases, factorMedioMes)
+      : null;
+  }, [
+    cursosDelPlan,
+    form.clases_ilimitadas,
+    form.ciclo_dias,
+    form.cantidad_clases,
+    tarifas,
+    factorMedioMes,
+  ]);
+  const difPrecio = referencia && form.precio > 0 ? form.precio - referencia.total : 0;
 
   return (
     <div className="space-y-6">
@@ -217,34 +242,58 @@ export default function ClientePlanes({
             </div>
           </div>
 
-          {/* Referencia de precio: la suma de los cursos que el plan incluye. */}
-          {cursosDelPlan.length > 0 && referencia > 0 && (
+          {/* Referencia de precio: lo mismo, comprado por separado. */}
+          {referencia && referencia.total > 0 && (
             <div className="rounded-[var(--radio-panel)] border border-[var(--borde)] bg-[var(--fondo-elevado)] p-3">
               <div className="flex items-baseline justify-between gap-3 flex-wrap">
                 <span className="text-base">
-                  Comprados por separado:{" "}
-                  <span className="tabular-nums font-semibold">{gs(referencia)}</span>
+                  Comprado por separado:{" "}
+                  <span className="tabular-nums font-semibold">{gs(referencia.total)}</span>
                 </span>
-                {form.precio !== referencia && (
+                {Math.round(form.precio) !== Math.round(referencia.total) && (
                   <button
                     type="button"
-                    onClick={() => setForm({ ...form, precio: referencia })}
+                    onClick={() => setForm({ ...form, precio: Math.round(referencia.total) })}
                     className="text-sm text-[var(--primario)]"
                   >
                     Usar este precio
                   </button>
                 )}
               </div>
-              <p className="text-sm text-[var(--texto-tenue)] mt-1">
-                {cursosDelPlan
-                  .map((c) => `${c.nombre} ${gs(Number(c.precio_mensual ?? 0))}`)
-                  .join(" + ")}
-              </p>
-              {form.precio > 0 && difPrecio !== 0 && (
+              <ul className="text-sm text-[var(--texto-tenue)] mt-1 space-y-0.5">
+                {referencia.lineas.map((l) => (
+                  <li key={l.curso.id}>
+                    {form.clases_ilimitadas ? (
+                      <>
+                        {l.curso.nombre}: {gs(l.valorClase)} el mes × {form.ciclo_dias} días ={" "}
+                        {gs(l.subtotal)}
+                      </>
+                    ) : (
+                      <>
+                        {l.curso.nombre}: {gs(l.valorClase)} por clase (tarifa de {l.tramo}) ×{" "}
+                        {form.cantidad_clases} = {gs(l.subtotal)}
+                      </>
+                    )}
+                  </li>
+                ))}
+              </ul>
+              {!form.clases_ilimitadas && referencia.lineas.length > 1 && (
+                <p className="text-sm text-[var(--texto-tenue)] mt-1">
+                  Con varios cursos no se sabe cómo va a repartir sus {form.cantidad_clases} clases,
+                  así que se promedia el valor por clase.
+                </p>
+              )}
+              {referencia.sinTarifa.length > 0 && (
+                <p className="text-sm text-[var(--peligro)] mt-1">
+                  Sin tarifa cargada: {referencia.sinTarifa.map((c) => c.nombre).join(", ")}. No
+                  entran en la referencia.
+                </p>
+              )}
+              {form.precio > 0 && Math.abs(difPrecio) >= 1 && (
                 <p className="text-sm mt-1 text-[var(--primario-hover)]">
                   {difPrecio < 0
                     ? `El alumno ahorra ${gs(-difPrecio)} comprando el plan.`
-                    : `El plan sale ${gs(difPrecio)} más que comprarlos por separado.`}
+                    : `El plan sale ${gs(difPrecio)} más que comprarlo por separado.`}
                 </p>
               )}
             </div>
