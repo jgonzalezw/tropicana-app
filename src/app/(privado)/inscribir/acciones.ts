@@ -508,7 +508,13 @@ export async function venderPrueba(
     .eq("id", inscripcionId)
     .maybeSingle();
   const cuando = (guardada as { fecha_fin: string | null } | null)?.fecha_fin;
-  const asiste = cuando ? ` Asiste el ${fechaLarga(new Date(cuando + "T00:00:00"))}.` : "";
+  // Una prueba cargada con fecha retroactiva ya ocurrió: decir "asiste" sobre
+  // una fecha pasada hace dudar de si el sistema entendió bien la fecha.
+  const asiste = cuando
+    ? ` ${cuando < isoFecha(hoyLocal()) ? "Asistió" : "Asiste"} el ${fechaLarga(
+        new Date(cuando + "T00:00:00")
+      )}.`
+    : "";
 
   return {
     ok: true,
