@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { gs } from "@/lib/inscripcion";
 
@@ -205,6 +206,18 @@ function detalleFaltas(it: ItemComprobante): string {
 }
 
 export default function Comprobante({ datos }: { datos: DatosComprobante }) {
+  /**
+   * Ver el reparto completo o comprimido. Arranca en lo que dice el parámetro
+   * y se puede cambiar para mirar — **lo impreso siempre sale como dice el
+   * parámetro**, porque el papel es el documento y no debe depender de cómo
+   * quedó una pantalla.
+   *
+   * Es un control segmentado de dos opciones, el mismo gesto que las pestañas
+   * de Inscripción / Clase de prueba: dos estados nombrados se leen mejor que
+   * un interruptor que hay que adivinar qué prende.
+   */
+  const [vista, setVista] = useState<"completo" | "compacto">(datos.repartoPantalla);
+  const hayAlgunReparto = datos.items.some(hayReparto);
   const neto = Math.max(0, datos.totalDevengado - datos.totalPagado);
 
   // Imprime SOLO el recibo: abre una ventana nueva con un documento limpio
@@ -272,7 +285,33 @@ export default function Comprobante({ datos }: { datos: DatosComprobante }) {
         </div>
 
         {/* Detalle por membresía */}
-        <div className="text-sm text-[var(--texto-tenue)] mb-2">Detalle de comisiones</div>
+        <div className="flex items-center justify-between gap-3 mb-2">
+          <div className="text-sm text-[var(--texto-tenue)]">Detalle de comisiones</div>
+          {hayAlgunReparto && (
+            <div className="flex gap-1 print:hidden" role="group" aria-label="Ver el reparto">
+              {(
+                [
+                  ["completo", "Reparto completo"],
+                  ["compacto", "Reparto compacto"],
+                ] as ["completo" | "compacto", string][]
+              ).map(([v, etiqueta]) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setVista(v)}
+                  aria-pressed={vista === v}
+                  className={`px-3 py-1 text-sm rounded-[var(--radio-control)] border ${
+                    vista === v
+                      ? "bg-[var(--primario)] text-[var(--primario-texto)] border-[var(--primario)] font-semibold"
+                      : "border-[var(--borde)] hover:border-[var(--primario)]"
+                  }`}
+                >
+                  {etiqueta}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         <div className="space-y-3 mb-4">
           {datos.items.map((it, i) => {
             const faltas = detalleFaltas(it);
@@ -312,7 +351,7 @@ export default function Comprobante({ datos }: { datos: DatosComprobante }) {
                   )}
                   <Cifra etiqueta={`Comisión (${it.pct}%)`} valor={gs(it.monto)} fuerte />
                 </div>
-                {hayReparto(it) && <Reparto it={it} modo={datos.repartoPantalla} />}
+                {hayReparto(it) && <Reparto it={it} modo={vista} />}
               </div>
             );
           })}

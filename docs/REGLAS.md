@@ -99,7 +99,7 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
     titular solo presta sus datos para simplificar el registro — no tiene por
     qué llevarse el crédito de los demás. La parte del resto queda disponible
     hasta la misma fecha de vencimiento; hoy **no hay forma de reclamarla**
-    porque los acompañantes no tienen nombre (D11, marcada crítica).
+    porque los acompañantes no tienen nombre (D11).
     *(Javier, 2026-09-11, opción b.)*
 12. **Snapshot de precios y porcentajes.** Editar un precio o un % no reescribe
     lo ya vendido ni lo ya devengado.

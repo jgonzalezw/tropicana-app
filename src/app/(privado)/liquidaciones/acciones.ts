@@ -584,6 +584,42 @@ export async function generarLiquidacion(profesorId: number): Promise<{ ok?: tru
   return { ok: true, liquidacionId };
 }
 
+/**
+ * Borra una liquidación que quedó **sin comisiones y sin pagos**.
+ *
+ * Pasa cuando se corrige una clase del período: el devengo se revierte (regla
+ * de negocio 16) y la liquidación queda en cero. Sin esto se queda ahí para
+ * siempre, con totales 0 y sin ninguna acción posible — ruido que después
+ * nadie sabe si se puede tocar.
+ *
+ * Nunca borra una con plata: si tiene ítems o algún pago, se niega.
+ */
+export async function eliminarLiquidacionVacia(
+  liquidacionId: number
+): Promise<{ ok?: true; error?: string }> {
+  if (!(await tienePermiso("comisiones", "crear"))) return { error: "Sin permiso." };
+  const a = admin();
+
+  const { data: items } = await a
+    .from("liquidacion_items")
+    .select("id")
+    .eq("liquidacion_id", liquidacionId)
+    .limit(1);
+  if ((items as unknown[])?.length) return { error: "Tiene comisiones: no se puede eliminar." };
+
+  const { data: pagos } = await a
+    .from("pagos")
+    .select("id")
+    .eq("liquidacion_id", liquidacionId)
+    .limit(1);
+  if ((pagos as unknown[])?.length) return { error: "Tiene pagos registrados: no se puede eliminar." };
+
+  const { error } = await a.from("liquidaciones").delete().eq("id", liquidacionId);
+  if (error) return { error: error.message };
+  revalidatePath("/liquidaciones");
+  return { ok: true };
+}
+
 /** Registra un pago al profesor contra su liquidación. */
 export async function registrarPagoLiquidacion(args: {
   liquidacionId: number;

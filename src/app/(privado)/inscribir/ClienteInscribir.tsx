@@ -168,9 +168,14 @@ export default function ClienteInscribir({
   const fechaCompromisoEfectiva = fechaCompromiso || isoFecha(maxCompromiso);
 
   const yaTiene = !!alumno && !!plan && (planesActivosPorAlumno[alumno.id] ?? []).includes(plan.id);
+  // El alumno entra en la clave: `Cobro` tiene estado propio (monto, medio,
+  // descuento) y se reinicia cuando cambia la clave. Sin el alumno acá, pasar
+  // de una persona a otra dejaba cargado el cobro del intento anterior.
   const cuentaId = plan
-    ? `${plan.id}·${fechaIdx}·${plan.cursos.map((c) => (diasPorCurso[c.id] ?? []).join("")).join("-")}`
-    : "";
+    ? `${alumno?.id ?? 0}·${plan.id}·${fechaIdx}·${plan.cursos
+        .map((c) => (diasPorCurso[c.id] ?? []).join(""))
+        .join("-")}`
+    : `${alumno?.id ?? 0}`;
 
   function resetTodo() {
     setAlumno(null);

@@ -4,7 +4,13 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { gs } from "@/lib/inscripcion";
-import { generarLiquidacion, registrarPagoLiquidacion, type FilaProfesor, type FilaLiquidacion } from "./acciones";
+import {
+  eliminarLiquidacionVacia,
+  generarLiquidacion,
+  registrarPagoLiquidacion,
+  type FilaProfesor,
+  type FilaLiquidacion,
+} from "./acciones";
 
 const ESTADO_LABEL: Record<string, string> = {
   abierta: "Abierta",
@@ -30,6 +36,10 @@ export default function ClienteLiquidaciones({
 
   // Estado del pago inline por liquidación.
   const [pagoDe, setPagoDe] = useState<number | null>(null);
+  // El error del pago se muestra EN el panel: el aviso de arriba de la tabla
+  // queda lejos de la fila y Javier no lo vio — parecia que el pago se habia
+  // deshecho solo.
+  const [errorPago, setErrorPago] = useState<string | null>(null);
   const [monto, setMonto] = useState("");
   const [medio, setMedio] = useState<string | null>(null);
 
@@ -46,11 +56,25 @@ export default function ClienteLiquidaciones({
     });
   }
 
+  function borrarVacia(id: number) {
+    setMsg(null);
+    setError(null);
+    startTransition(async () => {
+      const r = await eliminarLiquidacionVacia(id);
+      if (r?.error) setError(r.error);
+      else {
+        setMsg("Liquidación vacía eliminada.");
+        router.refresh();
+      }
+    });
+  }
+
   function abrirPago(l: FilaLiquidacion) {
     setPagoDe(l.id);
     setMonto(String(Math.max(0, l.totalDevengado - l.totalPagado)));
     setMedio(null);
     setError(null);
+    setErrorPago(null);
   }
 
   function confirmarPago(l: FilaLiquidacion) {
@@ -61,10 +85,11 @@ export default function ClienteLiquidaciones({
         monto: Number(monto.replace(/[^\d.]/g, "")) || 0,
         medio,
       });
-      if (r?.error) setError(r.error);
+      if (r?.error) setErrorPago(r.error);
       else {
         setMsg("Pago registrado.");
         setPagoDe(null);
+        setErrorPago(null);
         router.refresh();
       }
     });
@@ -143,6 +168,9 @@ export default function ClienteLiquidaciones({
                 // clase del período (regla de negocio 16). Hay que regenerarla,
                 // y tiene que verse — si no, se paga de menos sin que nadie lo note.
                 const desactualizada = l.pendienteCount > 0;
+                // Quedó sin comisiones y sin pagos: típicamente porque se
+                // corrigió una clase del período y el devengo se revirtió.
+                const vacia = l.totalDevengado === 0 && l.totalPagado === 0;
                 return (
                   <tr
                     key={l.id}
@@ -155,6 +183,11 @@ export default function ClienteLiquidaciones({
                       {desactualizada && (
                         <span className="block text-sm font-normal text-[var(--peligro-texto)]">
                           Cambió: quedan {gs(l.pendienteMonto)} sin incluir
+                        </span>
+                      )}
+                      {vacia && !desactualizada && (
+                        <span className="block text-sm font-normal text-[var(--texto-tenue)]">
+                          Quedó sin comisiones: se corrigió una clase del período
                         </span>
                       )}
                     </td>
@@ -183,12 +216,21 @@ export default function ClienteLiquidaciones({
                               Regenerar
                             </button>
                           )}
+                          {puedeCrear && vacia && (
+                            <button
+                              onClick={() => borrarVacia(l.id)}
+                              disabled={pendiente}
+                              className="px-4 py-1.5 text-sm rounded-[var(--radio-control)] border border-[var(--borde)] disabled:opacity-40"
+                            >
+                              Eliminar
+                            </button>
+                          )}
                           {puedeCrear && restante > 0 && (
                             <button
                               onClick={() => (pagoDe === l.id ? setPagoDe(null) : abrirPago(l))}
                               className="px-4 py-1.5 text-sm rounded-[var(--radio-control)] border border-[var(--exito)] text-[var(--exito)]"
                             >
-                              Pagar
+                              {pagoDe === l.id ? "Cancelar" : "Pagar"}
                             </button>
                           )}
                         </div>
@@ -218,8 +260,16 @@ export default function ClienteLiquidaciones({
                               onClick={() => confirmarPago(l)}
                               className="px-4 py-1.5 text-sm rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)] disabled:opacity-40"
                             >
-                              Confirmar pago
+                              {pendiente ? "Registrando…" : "Confirmar pago"}
                             </button>
+                            {errorPago && (
+                              <div
+                                role="alert"
+                                className="w-full text-sm text-[var(--peligro-texto)] text-right"
+                              >
+                                {errorPago}
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
