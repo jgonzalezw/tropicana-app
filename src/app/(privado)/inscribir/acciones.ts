@@ -345,7 +345,11 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
       monto: 0,
       medio: null,
       descuento: credito,
-      descuento_motivo: `Crédito de clase de prueba (membresía #${conversion.pruebaId})`,
+      descuento_motivo:
+        `Crédito de clase de prueba (membresía #${conversion.pruebaId})` +
+        (conversion.personas > 1
+          ? ` — su parte de ${gs(conversion.pagado)} pagados por ${conversion.personas} personas`
+          : ""),
       glosa: "Conversión de clase de prueba",
       registrado_por: perfil?.id ?? null,
     });
@@ -384,20 +388,20 @@ async function pruebaConvertible(
     plazoDias: number | null;
     fechaVentaISO: string;
   }
-): Promise<{ pruebaId: number; monto: number; vence: string } | null> {
+): Promise<{ pruebaId: number; monto: number; vence: string; personas: number; pagado: number } | null> {
   if (!args.acredita) return null;
 
   const pruebas = exigir(
     await sb
       .from("inscripciones")
-      .select("id, fecha_fin")
+      .select("id, fecha_fin, acompanantes")
       .eq("alumno_id", args.alumnoId)
       .eq("plan_id", args.planId)
       .eq("es_prueba", true)
       .neq("estado", "baja")
       .order("fecha_fin", { ascending: false }),
     "las clases de prueba del alumno"
-  ) as { id: number; fecha_fin: string | null }[];
+  ) as { id: number; fecha_fin: string | null; acompanantes: number | null }[];
   if (!pruebas.length) return null;
 
   const plazo =
@@ -433,10 +437,19 @@ async function pruebaConvertible(
         .in("cuota_id", cuotas.map((q) => q.id)),
       "los pagos de la prueba"
     ) as { monto: number }[];
-    const monto = pagos.reduce((t, x) => t + Number(x.monto), 0);
-    if (monto <= 0) continue; // no pagó nada: no hay qué acreditar
+    const pagado = pagos.reduce((t, x) => t + Number(x.monto), 0);
+    if (pagado <= 0) continue; // no pagó nada: no hay qué acreditar
 
-    return { pruebaId: pr.id, monto, vence };
+    // **Se acredita LA PARTE DE ESTE ALUMNO, no el total del grupo** (Javier,
+    // 2026-09-11, opción b). En una prueba grupal cada uno paga lo suyo; el
+    // titular solo presta sus datos para simplificar el registro y no tiene
+    // por qué llevarse el crédito de los demás. Lo de los acompañantes queda
+    // disponible para cuando ellos se inscriban, dentro del mismo plazo.
+    const personas = 1 + Math.max(0, Number(pr.acompanantes) || 0);
+    const monto = Math.round((pagado / personas) * 100) / 100;
+    if (monto <= 0) continue;
+
+    return { pruebaId: pr.id, monto, vence, personas, pagado };
   }
   return null;
 }

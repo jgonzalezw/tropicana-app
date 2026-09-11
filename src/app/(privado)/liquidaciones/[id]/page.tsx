@@ -70,6 +70,7 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
     {
       alumno_id: number; curso_id: number; plan_id: number | null; fecha_inicio: string | null;
       fecha_fin: string | null; clases_plan: number | null; clases_hechas: number | null;
+      es_prueba: boolean | null; acompanantes: number | null;
     }
   >();
   const corrSuspPorInsc: Record<number, number> = {};
@@ -87,7 +88,7 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
 
   if (membresiaIds.length) {
     const [{ data: insc }, { data: corr }, { data: cuotas }, { data: asis }] = await Promise.all([
-      sb.from("inscripciones").select("id, alumno_id, curso_id, plan_id, fecha_inicio, fecha_fin, clases_plan, clases_hechas").in("id", membresiaIds),
+      sb.from("inscripciones").select("id, alumno_id, curso_id, plan_id, fecha_inicio, fecha_fin, clases_plan, clases_hechas, es_prueba, acompanantes").in("id", membresiaIds),
       sb.from("corrimientos_ciclo").select("inscripcion_id, tipo").in("inscripcion_id", membresiaIds),
       sb.from("cuotas").select("id, inscripcion_id, monto_devengado, descuento_adelanto").in("inscripcion_id", membresiaIds),
       sb.from("asistencias").select("inscripcion_id, sesion_id, estado, con_licencia").in("inscripcion_id", membresiaIds),
@@ -95,6 +96,7 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
     for (const r of (insc as {
       id: number; alumno_id: number; curso_id: number; plan_id: number | null; fecha_inicio: string | null;
       fecha_fin: string | null; clases_plan: number | null; clases_hechas: number | null;
+      es_prueba: boolean | null; acompanantes: number | null;
     }[]) ?? [])
       inscById.set(r.id, r);
     // Corrimientos: en el comprobante solo cuentan los de SUSPENSION (la falta con
@@ -198,7 +200,14 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
       alumno: i ? alNombre.get(i.alumno_id) ?? `#${i.alumno_id}` : "—",
       curso: cursoId != null ? cuNombre.get(cursoId) ?? `#${cursoId}` : "—",
       plan: i?.plan_id != null ? planNombre.get(i.plan_id) ?? `#${i.plan_id}` : "—",
-      tipoServicio: ETIQUETA_TIPO_SERVICIO[i?.plan_id != null ? planTipo.get(i.plan_id) ?? "" : ""] ?? "—",
+      // Qué se vendió: una clase de prueba no es lo mismo que un curso
+      // regular, y una prueba grupal reparte por 3 personas en vez de 1. Si no
+      // se dice, el profesor ve un monto raro y no tiene cómo entenderlo.
+      tipoServicio: i?.es_prueba
+        ? "Clase de prueba"
+        : ETIQUETA_TIPO_SERVICIO[i?.plan_id != null ? planTipo.get(i.plan_id) ?? "" : ""] ?? "—",
+      esPrueba: i?.es_prueba === true,
+      personas: 1 + Math.max(0, Number(i?.acompanantes) || 0),
       cicloInicio: i?.fecha_inicio ?? null,
       cicloFin: i?.fecha_fin ?? null,
       clasesPlan: i?.clases_plan ?? null,

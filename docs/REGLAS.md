@@ -94,6 +94,13 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
     Los cursos se eligen **siempre al comprar**. Un grupo es un titular
     identificado más N acompañantes sin nombre, un solo monto, y **una sola
     asistencia por curso** — todos van a la misma clase.
+    **Al convertir se acredita la parte de QUIEN se inscribe, no el total del
+    grupo**: lo pagado ÷ personas. En un grupo cada uno paga lo suyo y el
+    titular solo presta sus datos para simplificar el registro — no tiene por
+    qué llevarse el crédito de los demás. La parte del resto queda disponible
+    hasta la misma fecha de vencimiento; hoy **no hay forma de reclamarla**
+    porque los acompañantes no tienen nombre (D11, marcada crítica).
+    *(Javier, 2026-09-11, opción b.)*
 12. **Snapshot de precios y porcentajes.** Editar un precio o un % no reescribe
     lo ya vendido ni lo ya devengado.
 13. **Sin hardcode.** Tarifas, tolerancias, umbrales, motivos, categorías, roles

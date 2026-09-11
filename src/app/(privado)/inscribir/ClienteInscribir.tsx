@@ -66,7 +66,7 @@ export default function ClienteInscribir({
   /** Claves `cursoId|YYYY-MM-DD` de clases suspendidas: no son clase. */
   suspendidas: string[];
   /** Crédito de una clase de prueba sin convertir, por alumno y plan. */
-  creditoPruebaPorAlumnoPlan: Record<number, Record<number, { monto: number; fecha: string }>>;
+  creditoPruebaPorAlumnoPlan: Record<number, Record<number, { monto: number; fecha: string; personas: number; pagado: number }>>;
 }) {
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
@@ -184,6 +184,26 @@ export default function ClienteInscribir({
     setFechaCompromiso("");
     setError(null);
   }
+  /**
+   * Cambiar de alumno reinicia TODO lo que viene después.
+   *
+   * Sin esto, una venta que quedó a medias dejaba el plan, los días, la fecha
+   * y el cobro cargados, y al elegir otro alumno la pantalla mostraba los
+   * datos del anterior — listos para guardarse sobre la persona equivocada.
+   */
+  function elegirAlumno(a: Alumno | null) {
+    setAlumno(a);
+    setPlan(null);
+    setDiasPorCurso({});
+    setFechaIdx(0);
+    setRetroActivo(false);
+    setFechaRetro("");
+    setCobro(null);
+    setFechaCompromiso("");
+    setError(null);
+    setAviso(null);
+  }
+
   function elegirPlan(p: PlanVenta) {
     setPlan(p);
     // Por defecto, todos los días de cada curso.
@@ -330,10 +350,7 @@ export default function ClienteInscribir({
             padron={alumnos}
             canales={canales}
             abrirAlElegir={false}
-            onSelect={(a) => {
-              setAlumno(a);
-              setError(null);
-            }}
+            onSelect={elegirAlumno}
             onGuardar={guardarAlumnoNuevo}
           />
         )}
@@ -483,6 +500,14 @@ export default function ClienteInscribir({
                   Se le acredita su <strong>clase de prueba</strong> del{" "}
                   {fechaLarga(new Date(credito.fecha + "T00:00:00"))}: {gs(creditoPrueba)} sobre{" "}
                   {gs(precioPlan)}. A cobrar <strong>{gs(precioPlan - creditoPrueba)}</strong>.
+                  {credito.personas > 1 && (
+                    <>
+                      {" "}
+                      Es <strong>su parte</strong> de {gs(credito.pagado)} que pagaron{" "}
+                      {credito.personas} personas: al resto del grupo le queda la suya hasta la
+                      misma fecha.
+                    </>
+                  )}
                 </div>
               )}
 
@@ -531,9 +556,13 @@ export default function ClienteInscribir({
                 creditoPrueba > 0 && credito
                   ? {
                       monto: creditoPrueba,
-                      motivo: `Crédito de su clase de prueba del ${fechaLarga(
-                        new Date(credito.fecha + "T00:00:00")
-                      )}`,
+                      motivo:
+                        `Crédito de su clase de prueba del ${fechaLarga(
+                          new Date(credito.fecha + "T00:00:00")
+                        )}` +
+                        (credito.personas > 1
+                          ? ` (su parte de ${gs(credito.pagado)} entre ${credito.personas} personas)`
+                          : ""),
                     }
                   : null
               }

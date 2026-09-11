@@ -159,12 +159,18 @@ export default async function PaginaInscribir() {
   const pruebas = exigir(
     await supabase
       .from("inscripciones")
-      .select("id, alumno_id, plan_id, fecha_fin")
+      .select("id, alumno_id, plan_id, fecha_fin, acompanantes")
       .eq("es_prueba", true)
       .neq("estado", "baja"),
     "las clases de prueba"
-  ) as { id: number; alumno_id: number; plan_id: number | null; fecha_fin: string | null }[];
-  const creditoPruebaPorAlumnoPlan: Record<number, Record<number, { monto: number; fecha: string }>> = {};
+  ) as {
+    id: number; alumno_id: number; plan_id: number | null;
+    fecha_fin: string | null; acompanantes: number | null;
+  }[];
+  const creditoPruebaPorAlumnoPlan: Record<
+    number,
+    Record<number, { monto: number; fecha: string; personas: number; pagado: number }>
+  > = {};
   if (pruebas.length) {
     const convertidas = exigir(
       await supabase
@@ -209,12 +215,19 @@ export default async function PaginaInscribir() {
       const v = new Date(pr.fecha_fin + "T00:00:00");
       v.setDate(v.getDate() + plazo);
       if (hoyStr > isoFecha(v)) continue; // fuera de plazo
-      const monto = pagadoPorInsc[pr.id] ?? 0;
+      const pagado = pagadoPorInsc[pr.id] ?? 0;
+      if (pagado <= 0) continue;
+      // Se acredita LA PARTE DE ESTE ALUMNO, no el total del grupo (Javier,
+      // opción b): en una prueba grupal cada uno paga lo suyo.
+      const personas = 1 + Math.max(0, Number(pr.acompanantes) || 0);
+      const monto = Math.round((pagado / personas) * 100) / 100;
       if (monto <= 0) continue;
       (creditoPruebaPorAlumnoPlan[pr.alumno_id] ??= {});
       // Con la fecha: "se le acredita su prueba" sin decir CUÁL prueba obliga
       // a ir a buscarla a otra pantalla.
-      creditoPruebaPorAlumnoPlan[pr.alumno_id][pr.plan_id] = { monto, fecha: pr.fecha_fin };
+      creditoPruebaPorAlumnoPlan[pr.alumno_id][pr.plan_id] = {
+        monto, fecha: pr.fecha_fin, personas, pagado,
+      };
     }
   }
 

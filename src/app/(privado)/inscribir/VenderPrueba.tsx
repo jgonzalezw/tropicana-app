@@ -240,9 +240,19 @@ export default function VenderPrueba({
               padron={alumnos}
               canales={canales}
               abrirAlElegir={false}
+              // Cambiar de alumno reinicia todo lo que viene después: si no,
+              // una venta a medias deja el plan y los cursos del anterior.
               onSelect={(al) => {
                 setAlumno(al);
+                setPlan(null);
+                setCursoIds([]);
+                setAcompanantes("0");
+                setFechaPorCurso({});
+                setRetroActivo(false);
+                setCobro(null);
+                setFechaCompromiso("");
                 setError(null);
+                setAviso(null);
               }}
               onGuardar={guardarAlumnoNuevo}
             />

@@ -23,6 +23,10 @@ export type ItemComprobante = {
   monto: number;
   /** Parte de lo cobrado que le tocó a ESTE curso (prorrata). */
   parte: number;
+  /** Es una clase de prueba, no un ciclo regular. */
+  esPrueba: boolean;
+  /** Personas cubiertas: 1, salvo prueba grupal. */
+  personas: number;
   /** Reparto entre los cursos del plan. Vacío = un solo curso, nada que repartir. */
   reparto: {
     cursoId: number; curso: string; clases: number; precioClase: number;
@@ -276,7 +280,10 @@ export default function Comprobante({ datos }: { datos: DatosComprobante }) {
               <div key={i} className="border border-[var(--borde)] rounded-[var(--radio-chico)] p-3">
                 <div className="flex items-baseline justify-between gap-2">
                   <div className="font-semibold">{it.alumno}</div>
-                  <div className="text-sm text-[var(--texto-tenue)]">{it.tipoServicio}</div>
+                  <div className="text-sm text-[var(--texto-tenue)]">
+                    {it.tipoServicio} ·{" "}
+                    {it.personas > 1 ? `Grupal, ${it.personas} alumnos` : "Individual"}
+                  </div>
                 </div>
                 <div className="text-xs text-[var(--texto-tenue)] mt-0.5">
                   {it.plan} · {it.curso}
@@ -402,7 +409,9 @@ function construirHTMLImpresion(d: DatosComprobante): string {
         <div class="item">
           <div class="item-top">
             <span class="b">${esc(it.alumno)}</span>
-            <span class="muted">${esc(it.tipoServicio)}</span>
+            <span class="muted">${esc(it.tipoServicio)} &middot; ${
+              it.personas > 1 ? `Grupal, ${it.personas} alumnos` : "Individual"
+            }</span>
           </div>
           <div class="small muted">${esc(it.plan)} · ${esc(it.curso)}</div>
           <div class="small muted">
