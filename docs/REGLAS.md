@@ -29,6 +29,8 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
 | **Cerrarse** | `inscripciones.estado = 'completada'` | La **venta** terminó: agotado **y** cobrado. |
 | **Bono de tolerancia** | `inscripciones.bono_generado` / `bono_redimido` | Clases que se suman al ciclo siguiente por faltas con licencia. |
 | **Membresía** | `inscripciones` | Una venta de plan a un alumno. Cada renovación es una fila nueva. |
+| **Membresía de prueba** | `inscripciones.es_prueba` | Preliminar: 1 clase por curso elegido, sin tolerancia, bono ni renovación. Cuelga del **mismo plan regular**. `acompanantes` guarda la gente sin nombre del grupo. |
+| **Conversión** | `inscripciones.membresia_anterior_id` | De dónde viene la membresía: el ciclo anterior (renovación) o la prueba (el prospecto se convirtió). |
 | **Cuota** | `cuotas` | Lo devengado por una venta. Toda venta tiene la suya. |
 
 ## 2. Reglas de negocio
@@ -59,6 +61,23 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
    puede quedar con plata fuera de una cuota. Toda venta nueva crea la suya.
 8. **La comisión se calcula sobre lo efectivamente cobrado** (el descuento no
    suma), criterio 1, a mes vencido.
+9. **Precio del plan: el sistema propone, la persona decide.** Al elegir los
+   cursos de un plan, el sistema suma sus precios y lo ofrece como
+   **referencia**; el precio final lo fija quien crea el plan, y es **único**
+   para el plan (limitado, ilimitado o múltiple). La excepción es la prueba:
+   ahí el monto es la **suma de los cursos que el alumno elige al comprar**,
+   por la cantidad de personas.
+10. **La comisión de un plan multi-curso se reparte a prorrata.** Cada
+    profesor cobra sobre **su parte de lo efectivamente cobrado**, con peso =
+    precio de su curso × clases que ese curso realmente dictó (× personas, en
+    las pruebas). Un curso que no dictó nada no cobra nada. La prueba no es un
+    caso especial: es el caso general con 1 clase por curso.
+11. **La clase de prueba es una membresía preliminar de un plan regular**, no
+    un plan aparte. El plan regula si la acepta, en cuántos cursos distintos
+    se puede probar, si el fee se acredita al convertir y por cuántos días.
+    Los cursos se eligen **siempre al comprar**. Un grupo es un titular
+    identificado más N acompañantes sin nombre, un solo monto, y **una sola
+    asistencia por curso** — todos van a la misma clase.
 9. **Snapshot de precios y porcentajes.** Editar un precio o un % no reescribe
    lo ya vendido ni lo ya devengado.
 10. **Sin hardcode.** Tarifas, tolerancias, umbrales, motivos, categorías, roles
