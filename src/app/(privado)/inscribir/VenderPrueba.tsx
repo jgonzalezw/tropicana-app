@@ -92,21 +92,38 @@ export default function VenderPrueba({
   // el motor (regla de negocio 4).
   const opcionesPorCurso = useMemo(() => {
     const m = new Map<number, Date[]>();
-    for (const c of elegidos)
-      m.set(
-        c.id,
-        proximasClases(c.dias_semana ?? [], 12, hoy)
-          .filter((d) => !susp.has(`${c.id}|${isoFecha(d)}`))
-          .slice(0, 3)
-      );
+    for (const c of elegidos) {
+      if (retroActivo) {
+        // Clases que YA ocurrieron, de atrás hacia adelante. Antes acá había un
+        // campo de fecha libre, y dejó cargar una prueba de Bachata Conexión un
+        // sábado — un día en que ese curso no se dicta. Esa clase no existe:
+        // no aparece en ningún padrón y no liquida. Ofreciendo las clases
+        // reales, el error no se puede cometer.
+        const desde = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+        desde.setDate(desde.getDate() - 60);
+        m.set(
+          c.id,
+          proximasClases(c.dias_semana ?? [], 40, desde)
+            .filter((d) => isoFecha(d) <= isoFecha(hoy) && !susp.has(`${c.id}|${isoFecha(d)}`))
+            .slice(-6)
+            .reverse()
+        );
+      } else {
+        m.set(
+          c.id,
+          proximasClases(c.dias_semana ?? [], 12, hoy)
+            .filter((d) => !susp.has(`${c.id}|${isoFecha(d)}`))
+            .slice(0, 3)
+        );
+      }
+    }
     return m;
-  }, [elegidos, hoy, susp]);
+  }, [elegidos, hoy, susp, retroActivo]);
 
   /** La fecha elegida para ese curso, o la primera disponible si no tocó nada. */
   const fechaDe = (cursoId: number): string => {
     const elegida = fechaPorCurso[cursoId];
     if (elegida) return elegida;
-    if (retroActivo) return "";
     const op = opcionesPorCurso.get(cursoId);
     return op?.length ? isoFecha(op[0]) : "";
   };
@@ -346,18 +363,7 @@ export default function VenderPrueba({
                             </span>
                           ) : null}
                         </div>
-                        {retroActivo ? (
-                          <input
-                            type="date"
-                            value={actual}
-                            max={isoFecha(hoy)}
-                            onChange={(ev) => {
-                              setFechaPorCurso((p) => ({ ...p, [c.id]: ev.target.value }));
-                              setError(null);
-                            }}
-                            className="entrada max-w-[200px] mt-1"
-                          />
-                        ) : opciones.length ? (
+                        {opciones.length ? (
                           <div className="flex flex-wrap gap-2 mt-1">
                             {opciones.map((f) => {
                               const iso = isoFecha(f);
@@ -383,7 +389,9 @@ export default function VenderPrueba({
                           </div>
                         ) : (
                           <p className="text-sm text-[var(--peligro)] mt-1">
-                            Este curso no tiene próximas clases sin suspender.
+                            {retroActivo
+                              ? "Este curso no dictó clases en los últimos dos meses."
+                              : "Este curso no tiene próximas clases sin suspender."}
                           </p>
                         )}
                       </div>
@@ -393,8 +401,9 @@ export default function VenderPrueba({
 
                 {retroActivo && (
                   <p className="text-sm text-[var(--texto-tenue)] mt-2">
-                    Fecha real de cada clase a la que vino. Si probó dos cursos en días
-                    distintos, cada uno lleva la suya.
+                    Son las clases que ya se dictaron. Al cargar una prueba pasada, la
+                    asistencia queda confirmada sola: inscribirla con fecha vieja ya es
+                    decir que vino.
                   </p>
                 )}
 

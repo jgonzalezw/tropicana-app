@@ -15,6 +15,15 @@ import {
   sumarMeses,
 } from "@/lib/inscripcion";
 import { recalcularFinDeCiclo, registrarCorrimientosPendientes } from "@/lib/membresias";
+import { exigir } from "@/lib/datos";
+
+const DIAS_ROTULO = ["", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"];
+/** "martes y jueves" — para decirle a la persona qué días sí tiene el curso. */
+function rotuloDias(dias: number[]): string {
+  const n = dias.map((d) => DIAS_ROTULO[d]).filter(Boolean);
+  if (n.length <= 1) return n[0] ?? "sin días cargados";
+  return `${n.slice(0, -1).join(", ")} y ${n[n.length - 1]}`;
+}
 
 function admin() {
   const a = createAdminClient();
@@ -399,6 +408,39 @@ export async function venderPrueba(
   if (sinPrecio.length)
     return { error: "Falta cargar el precio de prueba de un curso elegido (ficha del curso)." };
 
+  // Cada fecha tiene que ser un día en que ESE curso se dicta. Sin esta
+  // validación entró una prueba de Bachata Conexión (martes y jueves) un
+  // sábado: una "clase" que no existe, que nunca aparece en un padrón y que
+  // no liquida. La pantalla ya solo ofrece clases reales; esto lo sostiene
+  // aunque la pantalla cambie.
+  const cursoRows = exigir(
+    await sb.from("cursos").select("id, nombre, dias_semana").in("id", cursoIds),
+    "los cursos de la prueba"
+  ) as { id: number; nombre: string; dias_semana: number[] }[];
+  const suspendidasPrueba = exigir(
+    await sb
+      .from("sesiones")
+      .select("curso_id, fecha")
+      .eq("estado", "suspendida")
+      .in("curso_id", cursoIds),
+    "las clases suspendidas"
+  ) as { curso_id: number; fecha: string }[];
+  const suspSet = new Set(suspendidasPrueba.map((x) => `${x.curso_id}|${x.fecha}`));
+
+  for (const cu of cursoRows) {
+    const f = fechaPorCurso.get(cu.id);
+    const d = f ? parseFechaISO(f) : null;
+    if (!d) return { error: `Falta la fecha de la clase de ${cu.nombre}.` };
+    const diaIso = d.getDay() === 0 ? 7 : d.getDay();
+    if (!(cu.dias_semana ?? []).includes(diaIso))
+      return {
+        error: `${cu.nombre} no se dicta ese día: elegí una de sus clases (${rotuloDias(cu.dias_semana ?? [])}).`,
+      };
+    // Una clase suspendida no se dictó: no se puede probar en ella.
+    if (suspSet.has(`${cu.id}|${f}`))
+      return { error: `La clase de ${cu.nombre} de ese día está suspendida: elegí otra.` };
+  }
+
   const acompanantes = Math.max(0, Math.trunc(Number(e.acompanantes) || 0));
   const personas = 1 + acompanantes;
   const referencia = cursoIds.reduce((t, c) => t + (precioPrueba.get(c) ?? 0), 0) * personas;
@@ -453,11 +495,7 @@ export async function venderPrueba(
   // aparecer al alumno en ese padrón y en ningún otro día). `dias` guarda los
   // días reales del curso, que es lo que le permite al motor correr la prueba
   // a la clase siguiente si la elegida se suspende (regla de negocio 4).
-  const { data: cursoRows } = await sb
-    .from("cursos")
-    .select("id, dias_semana")
-    .in("id", cursoIds);
-  const icRows = ((cursoRows as { id: number; dias_semana: number[] }[]) ?? []).map((cu) => ({
+  const icRows = cursoRows.map((cu) => ({
     inscripcion_id: inscripcionId,
     curso_id: cu.id,
     dias: cu.dias_semana ?? [],
@@ -470,6 +508,46 @@ export async function venderPrueba(
 
   await recalcularFinDeCiclo(a, inscripcionId);
   await registrarCorrimientosPendientes(a, inscripcionId, perfil?.id ?? null);
+
+  //
+  // Una prueba con fecha pasada YA ocurrió: inscribirla con esa fecha es la
+  // manifestación explícita de que el alumno la tomó (Javier, 2026-09-11). Así
+  // que su asistencia se confirma sola, sin que nadie tenga que pasar por el
+  // padrón — y sin tocar el estado de la clase: no la reabre ni la marca
+  // incompleta. Es lo que hace que la prueba entre a liquidación por sí misma.
+  //
+  // Solo si la clase existe y se dictó. Si no hay sesión, la clase todavía no
+  // se registró: crearla acá cambiaría el estado de una clase que nadie dictó.
+  const hoyIso = isoFecha(hoyLocal());
+  const pasadas = cursoRows
+    .map((cu) => ({ cursoId: cu.id, fecha: fechaPorCurso.get(cu.id)! }))
+    .filter((x) => x.fecha < hoyIso);
+  let confirmadas = 0;
+  for (const x of pasadas) {
+    const { data: ses } = await a
+      .from("sesiones")
+      .select("id, estado")
+      .eq("curso_id", x.cursoId)
+      .eq("fecha", x.fecha)
+      .maybeSingle();
+    if (!ses || ses.estado !== "dictada") continue;
+    const { data: ya } = await a
+      .from("asistencias")
+      .select("id")
+      .eq("sesion_id", ses.id)
+      .eq("alumno_id", e.alumnoId)
+      .maybeSingle();
+    if (ya) continue;
+    const { error: errAsis } = await a.from("asistencias").insert({
+      sesion_id: ses.id,
+      alumno_id: e.alumnoId,
+      inscripcion_id: inscripcionId,
+      estado: "presente",
+      con_licencia: false,
+      registrado_por: perfil?.id ?? null,
+    });
+    if (!errAsis) confirmadas++;
+  }
 
   // Toda venta tiene su cuota (regla 7).
   const { data: cuota, error: errCuota } = await a
@@ -516,27 +594,39 @@ export async function venderPrueba(
   const gente = personas === 1 ? "1 persona" : `${personas} personas`;
   const cursosTxt = cursoIds.length === 1 ? "1 curso" : `${cursoIds.length} cursos`;
 
-  // Cuándo asiste: se lee la fecha que el motor dejó guardada, no la que la
-  // pantalla calculó. Es lo que confirma que las dos coinciden.
-  const { data: guardada } = await sb
-    .from("inscripciones")
-    .select("fecha_fin")
-    .eq("id", inscripcionId)
-    .maybeSingle();
-  const cuando = (guardada as { fecha_fin: string | null } | null)?.fecha_fin;
-  // Una prueba cargada con fecha retroactiva ya ocurrió: decir "asiste" sobre
-  // una fecha pasada hace dudar de si el sistema entendió bien la fecha.
-  const asiste = cuando
-    ? ` ${cuando < isoFecha(hoyLocal()) ? "Asistió" : "Asiste"} el ${fechaLarga(
-        new Date(cuando + "T00:00:00")
-      )}.`
+  // Cuándo asiste: se leen las fechas que quedaron guardadas, no las que la
+  // pantalla calculó — es lo que confirma que las dos coinciden. Se listan
+  // TODAS: con dos cursos hay dos clases, en días distintos, y mostrar una
+  // sola dejaba la otra invisible.
+  const guardadas = exigir(
+    await sb
+      .from("inscripcion_cursos")
+      .select("curso_id, fecha")
+      .eq("inscripcion_id", inscripcionId),
+    "las clases de la prueba"
+  ) as { curso_id: number; fecha: string | null }[];
+  const nombreCurso = new Map(cursoRows.map((c) => [c.id, c.nombre]));
+  const clases = guardadas
+    .filter((g) => g.fecha)
+    .sort((x, y) => (x.fecha! < y.fecha! ? -1 : 1))
+    .map((g) => `${nombreCurso.get(g.curso_id) ?? "curso"} el ${fechaLarga(new Date(g.fecha! + "T00:00:00"))}`);
+  // Pasada la fecha ya ocurrió: decir "asiste" sobre una fecha vieja hace
+  // dudar de si el sistema entendió bien. Y si vienen varios, van en plural.
+  const todasPasadas = guardadas.every((g) => g.fecha && g.fecha < isoFecha(hoyLocal()));
+  const verbo = todasPasadas
+    ? personas === 1 ? "Asistió" : "Asistieron"
+    : personas === 1 ? "Asiste" : "Asisten";
+  const asiste = clases.length ? ` ${verbo} a ${clases.join(" y ")}.` : "";
+  const nota = confirmadas > 0
+    ? ` Asistencia confirmada en ${confirmadas === 1 ? "la clase ya dictada" : `${confirmadas} clases ya dictadas`}.`
     : "";
 
   return {
     ok: true,
     resumen:
       `Clase de prueba de ${quien} — ${cursosTxt}, ${gente}, ${gs(referencia)}.${asiste} ` +
-      (porPlata > 0 ? `Cobrado ${gs(porPlata)}${c.medio ? ` (${c.medio})` : ""}.` : "Sin cobro por ahora."),
+      (porPlata > 0 ? `Cobrado ${gs(porPlata)}${c.medio ? ` (${c.medio})` : ""}.` : "Sin cobro por ahora.") +
+      nota,
   };
 }
 

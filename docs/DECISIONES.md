@@ -31,6 +31,8 @@ pierden y se vuelven a discutir, o peor, se contradicen sin que nadie lo note.
 | D5 | **Clasificar mejor el motivo del cobro** en el recibo: Membresía, Clase Particular, Clase de Prueba, Alquiler, Taller, Venta Producto, Ajuste. | Pendiente (Javier: *"Dejemos eso para una mejora posterior"*) | Se resolvió lo urgente (que el motivo elegido no se descarte). | Cuando entren los otros tipos de servicio — Paso 2D (particulares, alquiler, talleres). Ahí el catálogo actual se queda corto solo. |
 | D6 | **Duración de la clase (`cursos.duracion_min`)** — no existe, y la agenda de sala la necesita para dibujar bloques. | Pendiente | Apareció al planificar 2D. | Al arrancar la agenda de sala (2D). |
 | D7 | **¿Puede existir una reserva de sala sin paquete vendido?** Sin responder. | Pendiente de decisión | Idem D6. | Al arrancar la agenda de sala (2D). |
+| D8 | **Pantalla "Precios y Paquetes" como punto único de los precios base.** Javier (2026-09-11): los tramos de precio por cantidad de clases —hoy definidos en la pantalla de Cursos— van a una pantalla propia, diseñada con Design, con una pestaña por bloque (entre ellas, valores de clase de prueba y tramos de precio por cantidad de clases). **De esos tramos** sale el valor unitario de cada clase para el precio referencial. Regla que la gobierna: **el precio pleno es por 4 semanas del calendario normal del curso** — 8 clases si el curso es de dos por semana. La pantalla unifica en un solo punto todas las definiciones de precio base de la aplicación, y desde ahí se cotiza y se adopta el precio de cursos, planes y ofertas especiales. | Pendiente (mejora el diseño; requiere compatibilizarse con el motor de planes, que se definió después) | Se definió **antes** del motor de planes y hay que compatibilizar las dos cosas. Hoy estamos en medio de la clase de prueba. | Junto con Design, después de cerrar la clase de prueba. **Antes** de cargar precios nuevos en producción: cada precio que se cargue con el modelo viejo es un dato más a migrar. |
+| D9 | **La tarjeta de confirmación de la venta tiene que ser específica**: plan + monto + cursos + días + fecha de la primera clase + si es clase de prueba. Hoy dice poco y hubo que ir a la base para saber qué había quedado. | Pendiente (pedido de Javier, 2026-09-11) | Se arregló lo urgente (que mostrara **todas** las fechas y el plural). Lo demás es un rediseño del mensaje. | Junto con D4, que también es cómo se le muestra una entidad a la persona. |
 
 ## 2. Decisiones vigentes que ya se violaron una vez
 
@@ -44,7 +46,31 @@ recaída.
 | **Un fallo no se disfraza de ausencia** (calidad 1) | 2026-09-11 | Dos veces: el recibo 404 y la venta sin planes. | `exigir()` + `error.tsx` + regla de calidad 1. |
 | **Un concepto, un nombre** | siempre (glosario) | Se agregó `membresia_anterior_id` en la 0023, con el resto del esquema en `inscripcion_id`. | **Control 15** + D1. |
 
-## 3. Pendiente de pase a producción
+## 3. Orden del pase y del refresh dev↔prod
+
+El orden importa y equivocarlo borra trabajo. Vale para **todo** cambio con
+migración — D8 incluida.
+
+1. **Migración + código en dev.** La migración la aplica la sesión; Javier no
+   pega SQL a mano.
+2. **Javier valida en dev.** Nada avanza sin esto.
+3. **OK explícito de Javier** (regla de proceso 1). Validar en dev no lo
+   dispara.
+4. **Migración en producción**, y recién entonces el deploy del código (Vercel
+   publica solo al mergear a `main`). Si el código llega antes que la
+   migración, la pantalla lee columnas que no existen y se cae entera.
+5. **Correr `scripts/control_migracion.sql` en producción** y comparar con lo
+   que dio en dev.
+6. **Recién después, si hace falta, refrescar dev desde prod.**
+
+> **La trampa:** `refresh-dev.mjs` **vacía** las tablas de dominio de dev y las
+> reemplaza con las de producción. Todo lo que se haya cargado en dev para
+> probar —planes, precios de prueba, inscripciones— **se pierde**. Nunca
+> refrescar entre los pasos 1 y 4: se pierde justo lo que se está por validar.
+> Los catálogos y parámetros sí se sincronizan por clave y sin borrar, así que
+> una clave que solo existe en dev sobrevive.
+
+## 4. Pendiente de pase a producción
 
 Lo que está **solo en dev** y espera el OK explícito de Javier (regla de
 proceso 1). No es un backlog de decisiones: es el estado del release.

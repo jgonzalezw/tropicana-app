@@ -234,6 +234,31 @@ select '14. pruebas con fechas que no son sus clases' as control,
    and (i.fecha_inicio is distinct from f.primera or i.fecha_fin is distinct from f.ultima);
 
 -- ---------------------------------------------------------------------
+-- 16. CLASE DE PRUEBA EN UN DIA QUE NO EXISTE
+--     La fecha de la clase de una prueba tiene que ser un dia en que ESE
+--     curso se dicta, y no puede caer en una clase suspendida. Si no, es una
+--     clase que no existe: no aparece en ningun padron y no liquida.
+--     Lo detecta el caso real: una prueba de Bachata Conexion (martes y
+--     jueves) quedo cargada un sabado, porque el campo de fecha era libre.
+-- ---------------------------------------------------------------------
+select '16. pruebas con clase en un dia sin curso o suspendida' as control,
+       count(*) as n,
+       case when count(*) = 0 then 'OK' else 'REVISAR' end as estado
+  from public.inscripcion_cursos ic
+  join public.inscripciones i on i.id = ic.inscripcion_id
+  join public.cursos c on c.id = ic.curso_id
+ where coalesce((to_jsonb(i) ->> 'es_prueba')::boolean, false)
+   and i.estado <> 'baja'
+   and (to_jsonb(ic) ->> 'fecha') is not null
+   and (
+     extract(isodow from (to_jsonb(ic) ->> 'fecha')::date)::int <> all(c.dias_semana)
+     or exists (select 1 from public.sesiones s
+                 where s.curso_id = ic.curso_id
+                   and s.fecha = (to_jsonb(ic) ->> 'fecha')::date
+                   and s.estado = 'suspendida')
+   );
+
+-- ---------------------------------------------------------------------
 -- 15. UN CONCEPTO, UN NOMBRE: llaves a `inscripciones` con nombres distintos
 --     La misma llave foranea se llama `inscripcion_id` en unas tablas y
 --     `membresia_id` en otras. Es deuda conocida (D1 en docs/DECISIONES.md),

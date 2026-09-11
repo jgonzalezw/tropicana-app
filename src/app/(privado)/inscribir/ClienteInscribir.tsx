@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useCallback, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { Alumno, DatosAlumno } from "@/lib/tipos";
 import EntidadAlumno from "@/components/entidades/EntidadAlumno";
@@ -8,6 +8,7 @@ import Cobro, { type PayloadCobro } from "@/components/Cobro";
 import Toggle from "@/components/Toggle";
 import {
   DIAS_LARGOS,
+  diaIso,
   fechaClaseN,
   fechaLarga,
   gs,
@@ -50,6 +51,7 @@ export default function ClienteInscribir({
   deudaPorAlumno,
   planesActivosPorAlumno,
   bonoPorAlumnoPlan,
+  suspendidas,
 }: {
   alumnos: Alumno[];
   planes: PlanVenta[];
@@ -60,6 +62,8 @@ export default function ClienteInscribir({
   deudaPorAlumno: Record<number, number>;
   planesActivosPorAlumno: Record<number, number[]>;
   bonoPorAlumnoPlan: Record<number, Record<number, number>>;
+  /** Claves `cursoId|YYYY-MM-DD` de clases suspendidas: no son clase. */
+  suspendidas: string[];
 }) {
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
@@ -99,13 +103,41 @@ export default function ClienteInscribir({
   }, [plan, diasPorCurso]);
 
   const unionDias = useMemo(() => Array.from(new Set(diasConteo)).sort(), [diasConteo]);
-  const fechas = useMemo(() => (plan ? proximasClases(unionDias, 3, hoy) : []), [plan, unionDias, hoy]);
+  const susp = useMemo(() => new Set(suspendidas), [suspendidas]);
+  /** ¿Ese día hay clase de alguno de los cursos elegidos, y no está suspendida? */
+  const hayClaseReal = useCallback(
+    (d: Date) => {
+      const dia = diaIso(d);
+      const iso = isoFecha(d);
+      return Object.entries(diasPorCurso).some(
+        ([cid, dias]) => dias.includes(dia) && !susp.has(`${cid}|${iso}`)
+      );
+    },
+    [diasPorCurso, susp]
+  );
+
+  // Fechas de inicio ofrecidas. Hacia adelante, las próximas 3 clases; hacia
+  // atrás (inscripción retroactiva), las últimas 6 que YA se dictaron. Antes
+  // acá había un campo de fecha libre: dejaba elegir un día en que el curso no
+  // se dicta, o una clase suspendida, y la membresía arrancaba en un día que
+  // no existe.
+  const fechas = useMemo(() => {
+    if (!plan) return [] as Date[];
+    if (!retroActivo) return proximasClases(unionDias, 12, hoy).filter(hayClaseReal).slice(0, 3);
+    const desde = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+    desde.setDate(desde.getDate() - 60);
+    return proximasClases(unionDias, 40, desde)
+      .filter((d) => isoFecha(d) <= isoFecha(hoy) && hayClaseReal(d))
+      .slice(-6)
+      .reverse();
+  }, [plan, unionDias, hoy, retroActivo, hayClaseReal]);
   const fechaProxima = fechas[Math.min(fechaIdx, Math.max(0, fechas.length - 1))] ?? null;
   const fechaRetroDate = useMemo(
     () => (retroActivo ? parseFechaLocal(fechaRetro) : null),
     [retroActivo, fechaRetro]
   );
-  const fechaSel = retroActivo ? fechaRetroDate : fechaProxima;
+  void fechaRetroDate;
+  const fechaSel = fechaProxima;
   const fechaFin = !fechaSel
     ? null
     : ilimitado
@@ -388,24 +420,7 @@ export default function ClienteInscribir({
             {/* Fecha de inicio */}
             <div>
               <div className="text-sm text-[var(--texto-tenue)] mb-1.5">Empieza a tomar clases</div>
-              {retroActivo ? (
-                <div>
-                  <input
-                    type="date"
-                    value={fechaRetro}
-                    max={isoFecha(hoy)}
-                    onChange={(e) => {
-                      setFechaRetro(e.target.value);
-                      setError(null);
-                    }}
-                    className="entrada max-w-[200px]"
-                  />
-                  <p className="text-sm text-[var(--texto-tenue)] mt-1.5">
-                    Fecha real en que empezó a tomar clases. Se usa para reconstruir un ciclo cuyo
-                    registro se omitió en su momento.
-                  </p>
-                </div>
-              ) : (
+              {(
                 <div className="flex flex-wrap gap-2">
                   {fechas.map((f, i) => (
                     <button
@@ -422,9 +437,19 @@ export default function ClienteInscribir({
                     </button>
                   ))}
                   {fechas.length === 0 && (
-                    <span className="text-sm text-[var(--texto-tenue)]">Elegí días para ver fechas de inicio.</span>
+                    <span className="text-sm text-[var(--texto-tenue)]">
+                      {retroActivo
+                        ? "No hay clases dictadas en los últimos dos meses para esos días."
+                        : "Elegí días para ver fechas de inicio."}
+                    </span>
                   )}
                 </div>
+              )}
+              {retroActivo && (
+                <p className="text-sm text-[var(--texto-tenue)] mt-1.5">
+                  Clases que ya se dictaron. Se usa para reconstruir un ciclo cuyo registro se
+                  omitió en su momento.
+                </p>
               )}
 
               <div className="mt-3">

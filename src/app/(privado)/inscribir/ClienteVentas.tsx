@@ -30,7 +30,7 @@ export default function ClienteVentas(props: {
   /** Claves `cursoId|YYYY-MM-DD` de clases suspendidas: no son clase. */
   suspendidas: string[];
 }) {
-  const { suspendidas, ...paraInscribir } = props;
+  const { suspendidas } = props;
   const [modo, setModo] = useState<Modo>("inscripcion");
 
   // Los planes que hoy se pueden vender a prueba: aceptan prueba Y alguno de
@@ -79,7 +79,7 @@ export default function ClienteVentas(props: {
       </div>
 
       {modo === "inscripcion" ? (
-        <ClienteInscribir {...paraInscribir} />
+        <ClienteInscribir {...props} />
       ) : vendibles.length > 0 ? (
         <div className="p-6 sm:p-8 max-w-3xl">
           <VenderPrueba
