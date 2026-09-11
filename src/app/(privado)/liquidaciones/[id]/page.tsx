@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { tienePermiso, obtenerParametro } from "@/lib/sesion";
+import { exigirUno } from "@/lib/datos";
 import SinAcceso from "@/components/SinAcceso";
 import Comprobante, { type DatosComprobante } from "./Comprobante";
 import type { LineaReparto } from "../acciones";
@@ -21,12 +22,31 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
   if (!Number.isFinite(liquidacionId)) return <SinAcceso />;
 
   const sb = await createClient();
-  const { data: liq } = await sb
-    .from("liquidaciones")
-    .select("id, profesor_id, periodo, periodicidad, estado, total_devengado, total_pagado, neto, creado_en")
-    .eq("id", liquidacionId)
-    .maybeSingle();
-  if (!liq) return <div className="p-8">La liquidación no existe.</div>;
+  // Se exige la lectura: si falla, tiene que decirlo. Con el patrón viejo
+  // —descartar el error— un fallo de lectura se veía igual que una
+  // liquidación borrada, y ya costó dos veces buscar el problema donde no
+  // estaba (regla de calidad 1).
+  const liq = exigirUno(
+    await sb
+      .from("liquidaciones")
+      .select("id, profesor_id, periodo, periodicidad, estado, total_devengado, total_pagado, neto, creado_en")
+      .eq("id", liquidacionId)
+      .maybeSingle(),
+    "la liquidación"
+  ) as {
+    id: number; profesor_id: number; periodo: string; periodicidad: string; estado: string;
+    total_devengado: number; total_pagado: number; neto: number; creado_en: string;
+  } | null;
+  if (!liq)
+    return (
+      <div className="p-8 max-w-lg">
+        <h1 className="text-xl titulo mb-2">Esa liquidación no existe</h1>
+        <p className="text-base text-[var(--texto-tenue)]">
+          No es un error de lectura: la consulta funcionó y no hay ninguna liquidación con el
+          número {liquidacionId}. Puede haberse dado de baja para regenerarla.
+        </p>
+      </div>
+    );
 
   const [{ data: prof }, { data: comis }, { data: pagosLiq }] = await Promise.all([
     sb.from("profesores").select("nombre, apellido, whatsapp").eq("id", liq.profesor_id).maybeSingle(),
