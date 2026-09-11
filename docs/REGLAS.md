@@ -28,7 +28,7 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
 | **Agotarse** | `cicloAgotado` (padrón), contadores | El ciclo se consumió. **No** es lo mismo que cerrarse. |
 | **Cerrarse** | `inscripciones.estado = 'completada'` | La **venta** terminó: agotado **y** cobrado. |
 | **Bono de tolerancia** | `inscripciones.bono_generado` / `bono_redimido` | Clases que se suman al ciclo siguiente por faltas con licencia. |
-| **Membresía** | `inscripciones` | Una venta de plan a un alumno. Cada renovación es una fila nueva. |
+| **Membresía** | `inscripciones` | Una venta de plan a un alumno. Cada renovación es una fila nueva. **La llave foránea se llama `inscripcion_id` en `asistencias`, `cuotas`, `pagos`, `corrimientos_ciclo` e `inscripcion_cursos`, y `membresia_id` en `comisiones_devengadas` y `liquidacion_items`.** Son el mismo campo: la inconsistencia es deuda conocida (D1 en `docs/DECISIONES.md`). **Ningún campo nuevo con una tercera grafía.** |
 | **Membresía de prueba** | `inscripciones.es_prueba` | Preliminar: 1 clase por curso elegido, sin tolerancia, bono ni renovación. Cuelga del **mismo plan regular**. `acompanantes` guarda la gente sin nombre del grupo. |
 | **Conversión** | `inscripciones.membresia_anterior_id` | De dónde viene la membresía: el ciclo anterior (renovación) o la prueba (el prospecto se convirtió). |
 | **Cuota** | `cuotas` | Lo devengado por una venta. Toda venta tiene la suya. |
@@ -105,6 +105,18 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
    por sí solo, y se reporta con el antes/después exacto.
 6. **Nunca pegar cadenas de conexión ni contraseñas** en el chat ni en el repo.
 7. **`docs/ESTADO.md` se actualiza con cada hito cerrado.**
+8. **Una decisión tomada se respeta hasta que otra decisión la cambie.** No se
+   revisa "sobre la marcha" ni porque en el momento parezca mejor: si hay que
+   cambiarla, se plantea, se pondera y se anota en `docs/DECISIONES.md` con la
+   fecha y el porqué. Javier no tiene cómo revisar cada decisión pasada en cada
+   cambio — llevar ese control es trabajo de esta sesión, no suyo.
+9. **Toda decisión postergada vive en `docs/DECISIONES.md` con su disparador**
+   (cuándo conviene hacerla, qué la vuelve urgente). **Todo plan que se le
+   proponga a Javier abre mostrando el backlog** de decisiones postergadas que
+   ese plan toca o encarece; si no aplica ninguna, se dice "ninguna". Y cuando
+   se cumple un disparador, se avisa aunque nadie haya preguntado.
+   *Costó tres veces: se reintrodujo una decisión ya tomada por no tenerla a
+   mano, y el retrabajo lo pagó Javier en horas y en tokens.*
 
 ## 4. Calidad del código
 

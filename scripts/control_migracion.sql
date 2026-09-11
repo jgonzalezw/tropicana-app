@@ -234,6 +234,34 @@ select '14. pruebas con fechas que no son sus clases' as control,
    and (i.fecha_inicio is distinct from f.primera or i.fecha_fin is distinct from f.ultima);
 
 -- ---------------------------------------------------------------------
+-- 15. UN CONCEPTO, UN NOMBRE: llaves a `inscripciones` con nombres distintos
+--     La misma llave foranea se llama `inscripcion_id` en unas tablas y
+--     `membresia_id` en otras. Es deuda conocida (D1 en docs/DECISIONES.md),
+--     asi que HOY este control da REVISAR a proposito: esta ahi para que la
+--     deuda no se olvide y para que NO se agregue una tercera grafia.
+--
+--     Si algun dia aparece un tercer nombre, el numero sube y se nota. Cuando
+--     se ejecute D1 (unificar), este control tiene que quedar en OK y recien
+--     ahi deja de ser un recordatorio.
+-- ---------------------------------------------------------------------
+select '15. nombres distintos para la llave a inscripciones' as control,
+       count(distinct kcu.column_name) as n,
+       case when count(distinct kcu.column_name) <= 1 then 'OK'
+            else 'REVISAR (deuda conocida D1: ' ||
+                 string_agg(distinct kcu.column_name, ' / ') || ')' end as estado
+  from information_schema.table_constraints tc
+  join information_schema.key_column_usage kcu
+       on kcu.constraint_name = tc.constraint_name
+      and kcu.table_schema = tc.table_schema
+  join information_schema.constraint_column_usage ccu
+       on ccu.constraint_name = tc.constraint_name
+      and ccu.table_schema = tc.table_schema
+ where tc.constraint_type = 'FOREIGN KEY'
+   and tc.table_schema = 'public'
+   and ccu.table_name = 'inscripciones'
+   and ccu.column_name = 'id';
+
+-- ---------------------------------------------------------------------
 -- Detalle, por si algun control da REVISAR:
 -- ---------------------------------------------------------------------
 -- select id, alumno_id, curso_id, estado, fecha_inicio, fecha_fin,
