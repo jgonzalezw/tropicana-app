@@ -27,7 +27,7 @@ export default async function PaginaInscribir() {
     supabase.from("cursos").select("*").eq("activo", true).order("nombre"),
     supabase
       .from("planes")
-      .select("id, nombre, cantidad_clases, precio, acceso_modo, clases_ilimitadas, ciclo_dias, acepta_prueba, prueba_cursos_max")
+      .select("id, nombre, cantidad_clases, precio, acceso_modo, clases_ilimitadas, ciclo_dias, acepta_prueba, prueba_cursos_max, prueba_acredita, prueba_plazo_dias")
       .eq("tipo_servicio", "curso_regular")
       .eq("activo", true)
       .order("nombre"),
@@ -153,6 +153,69 @@ export default async function PaginaInscribir() {
       (bonoPorAlumnoPlan[b.alumno_id][b.plan_id] ?? 0) + Math.max(0, Number(b.bono_generado));
   }
 
+  // Crédito de clase de prueba por alumno y plan: lo que pagó por una prueba
+  // de ese plan que todavía no convirtió. La pantalla lo muestra ANTES de
+  // cobrar; el servidor lo vuelve a calcular al vender, que es lo que manda.
+  const pruebas = exigir(
+    await supabase
+      .from("inscripciones")
+      .select("id, alumno_id, plan_id, fecha_fin")
+      .eq("es_prueba", true)
+      .neq("estado", "baja"),
+    "las clases de prueba"
+  ) as { id: number; alumno_id: number; plan_id: number | null; fecha_fin: string | null }[];
+  const creditoPruebaPorAlumnoPlan: Record<number, Record<number, number>> = {};
+  if (pruebas.length) {
+    const convertidas = exigir(
+      await supabase
+        .from("inscripciones")
+        .select("membresia_anterior_id")
+        .in("membresia_anterior_id", pruebas.map((p) => p.id)),
+      "las conversiones previas"
+    ) as { membresia_anterior_id: number | null }[];
+    const usadas = new Set(convertidas.map((x) => x.membresia_anterior_id));
+    const cuotasPrueba = exigir(
+      await supabase.from("cuotas").select("id, inscripcion_id").in("inscripcion_id", pruebas.map((p) => p.id)),
+      "las cuotas de las pruebas"
+    ) as { id: number; inscripcion_id: number }[];
+    const pagosPrueba = cuotasPrueba.length
+      ? (exigir(
+          await supabase
+            .from("pagos")
+            .select("cuota_id, monto")
+            .eq("tipo", "cobro")
+            .in("cuota_id", cuotasPrueba.map((q) => q.id)),
+          "los pagos de las pruebas"
+        ) as { cuota_id: number | null; monto: number }[])
+      : [];
+    const pagadoPorInsc: Record<number, number> = {};
+    const inscDeCuota = new Map(cuotasPrueba.map((q) => [q.id, q.inscripcion_id]));
+    for (const pg of pagosPrueba) {
+      const ins = pg.cuota_id != null ? inscDeCuota.get(pg.cuota_id) : undefined;
+      if (ins != null) pagadoPorInsc[ins] = (pagadoPorInsc[ins] ?? 0) + Number(pg.monto);
+    }
+    const plazoParam = Math.max(0, Number(await obtenerParametro("prueba_plazo_dias")) || 7);
+    const planCfg = new Map(
+      ((planes as { id: number; prueba_acredita?: boolean; prueba_plazo_dias?: number | null }[]) ?? []).map(
+        (p) => [p.id, p]
+      )
+    );
+    const hoyStr = isoFecha(new Date());
+    for (const pr of pruebas) {
+      if (pr.plan_id == null || usadas.has(pr.id) || !pr.fecha_fin) continue;
+      const cfg = planCfg.get(pr.plan_id);
+      if (cfg && cfg.prueba_acredita === false) continue;
+      const plazo = cfg?.prueba_plazo_dias ?? plazoParam;
+      const v = new Date(pr.fecha_fin + "T00:00:00");
+      v.setDate(v.getDate() + plazo);
+      if (hoyStr > isoFecha(v)) continue; // fuera de plazo
+      const monto = pagadoPorInsc[pr.id] ?? 0;
+      if (monto <= 0) continue;
+      (creditoPruebaPorAlumnoPlan[pr.alumno_id] ??= {});
+      creditoPruebaPorAlumnoPlan[pr.alumno_id][pr.plan_id] = monto;
+    }
+  }
+
   const inscById = new Map<number, { alumno_id: number }>();
   const cursosPorAlumno: Record<number, string[]> = {};
   const planesActivosPorAlumno: Record<number, number[]> = {};
@@ -207,6 +270,7 @@ export default async function PaginaInscribir() {
       planesActivosPorAlumno={planesActivosPorAlumno}
       bonoPorAlumnoPlan={bonoPorAlumnoPlan}
       suspendidas={suspendidas}
+      creditoPruebaPorAlumnoPlan={creditoPruebaPorAlumnoPlan}
     />
   );
 }

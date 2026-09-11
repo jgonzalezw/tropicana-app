@@ -52,6 +52,7 @@ export default function ClienteInscribir({
   planesActivosPorAlumno,
   bonoPorAlumnoPlan,
   suspendidas,
+  creditoPruebaPorAlumnoPlan,
 }: {
   alumnos: Alumno[];
   planes: PlanVenta[];
@@ -64,6 +65,8 @@ export default function ClienteInscribir({
   bonoPorAlumnoPlan: Record<number, Record<number, number>>;
   /** Claves `cursoId|YYYY-MM-DD` de clases suspendidas: no son clase. */
   suspendidas: string[];
+  /** Crédito de una clase de prueba sin convertir, por alumno y plan. */
+  creditoPruebaPorAlumnoPlan: Record<number, Record<number, number>>;
 }) {
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
@@ -89,10 +92,17 @@ export default function ClienteInscribir({
 
   const ilimitado = plan?.ilimitado ?? false;
   const N = ilimitado ? null : plan?.cantidadClases ?? null;
+  const precioPlan = plan?.precio ?? 0;
   // Bono de tolerancia pendiente del alumno para este plan (solo planes con N).
   const bono = !ilimitado && alumno && plan ? bonoPorAlumnoPlan[alumno.id]?.[plan.id] ?? 0 : 0;
+  // Crédito de la clase de prueba de este mismo plan (regla 11). Se muestra
+  // acá, antes de cobrar, pero el servidor lo vuelve a calcular al vender: la
+  // pantalla propone, el servidor decide.
+  const creditoPrueba =
+    alumno && plan ? Math.min(creditoPruebaPorAlumnoPlan[alumno.id]?.[plan.id] ?? 0, plan.precio) : 0;
+  /** Lo que queda por cobrar después de acreditarle la prueba. */
+  const total = Math.max(0, precioPlan - creditoPrueba);
   const Nefectivo = N != null ? N + bono : null;
-  const total = plan?.precio ?? 0;
 
   // Lista con repetición: una entrada por (curso, día) elegido.
   const diasConteo = useMemo(() => {
@@ -463,6 +473,13 @@ export default function ClienteInscribir({
                   descripcion="Para registrar una inscripción pasada que se omitió, con su fecha real."
                 />
               </div>
+
+              {creditoPrueba > 0 && (
+                <div className="mt-3 rounded-[var(--radio-panel)] border border-[var(--exito)] bg-[var(--exito-fill)] text-[var(--exito-texto)] px-4 py-2.5 text-sm">
+                  Se le acredita su <strong>clase de prueba</strong>: {gs(creditoPrueba)} menos sobre{" "}
+                  {gs(precioPlan)}. A cobrar <strong>{gs(total)}</strong>.
+                </div>
+              )}
 
               {bono > 0 && (
                 <div className="mt-3 rounded-[var(--radio-panel)] border border-[var(--exito)] bg-[var(--exito-fill)] text-[var(--exito-texto)] px-4 py-2.5 text-sm">

@@ -107,7 +107,7 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
 
   const { data: plan } = await sb
     .from("planes")
-    .select("id, nombre, cantidad_clases, precio, activo, acceso_modo, clases_ilimitadas, ciclo_dias")
+    .select("id, nombre, cantidad_clases, precio, activo, acceso_modo, clases_ilimitadas, ciclo_dias, prueba_acredita, prueba_plazo_dias")
     .eq("id", e.planId)
     .maybeSingle();
   if (!plan) return { error: "El plan no existe." };
@@ -140,6 +140,16 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
     bono = rows.reduce((s, r) => s + Math.max(0, Number(r.bono_generado)), 0);
     bonoOrigenIds = rows.map((r) => r.id);
   }
+  // Conversión: si el alumno probó este mismo plan y el plan acredita el fee,
+  // lo que pagó por la prueba se le descuenta de la membresía (regla 11).
+  const conversion = await pruebaConvertible(sb, {
+    alumnoId: e.alumnoId,
+    planId: e.planId,
+    acredita: plan.prueba_acredita !== false,
+    plazoDias: (plan.prueba_plazo_dias as number | null) ?? null,
+    fechaVentaISO: e.fechaInicio,
+  });
+
   const clasesPlan = clasesPlanBase != null ? clasesPlanBase + bono : null;
   const precioUnit = Number(plan.precio);
   const referencia = Math.max(0, precioUnit);
@@ -248,6 +258,8 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
       clases_total: null,
       dias_elegidos: null,
       precio_aplicado: precioUnit,
+      // De dónde viene esta membresía: la prueba que el prospecto convirtió.
+      membresia_anterior_id: conversion?.pruebaId ?? null,
     })
     .select("id")
     .single();
@@ -291,9 +303,14 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
   if (errCuota) return { error: errCuota.message };
 
   // 10. Asentar el cobro contra la cuota del ciclo.
-  const porDesc = Math.min(descManual, referencia);
-  const porPlata = Math.min(mueve, referencia - porDesc);
-  const saldado = porDesc + porPlata;
+  // El crédito de la prueba es un DESCUENTO, no plata: baja lo que el alumno
+  // paga, y no suma a la base de comisión (regla 8) — el profesor ya cobró su
+  // parte cuando se vendió la prueba. Va en su propia línea para poder
+  // auditarlo aparte del descuento manual, que tiene otro motivo.
+  const credito = Math.min(conversion?.monto ?? 0, referencia);
+  const porDesc = Math.min(descManual, Math.max(0, referencia - credito));
+  const porPlata = Math.min(mueve, Math.max(0, referencia - credito - porDesc));
+  const saldado = credito + porDesc + porPlata;
   const estadoCuota =
     referencia === 0 || saldado >= referencia ? "pagada" : saldado > 0 ? "parcial" : "pendiente";
   if (estadoCuota !== "pendiente")
@@ -314,12 +331,118 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
     });
     if (errPago) return { error: "Se inscribió, pero falló registrar el cobro: " + errPago.message };
   }
+  if (credito > 0 && conversion) {
+    const { error: errCred } = await a.from("pagos").insert({
+      tipo: "cobro",
+      motivo: "membresia",
+      alumno_id: e.alumnoId,
+      inscripcion_id: inscripcionId,
+      cuota_id: cuota.id,
+      monto: 0,
+      medio: null,
+      descuento: credito,
+      descuento_motivo: `Crédito de clase de prueba (membresía #${conversion.pruebaId})`,
+      glosa: "Conversión de clase de prueba",
+      registrado_por: perfil?.id ?? null,
+    });
+    if (errCred)
+      return { error: "Se inscribió, pero falló acreditar la clase de prueba: " + errCred.message };
+  }
 
   revalidatePath("/inscribir");
   return {
     ok: true,
-    resumen: armarResumen(alumno, plan.nombre, inicio, porPlata, c.medio, bono),
+    resumen:
+      armarResumen(alumno, plan.nombre, inicio, porPlata, c.medio, bono) +
+      (credito > 0 ? ` Se acreditó ${gs(credito)} de su clase de prueba.` : ""),
   };
+}
+
+/**
+ * La clase de prueba que este alumno puede convertir en esta venta, si la hay.
+ *
+ * **Qué habilita el crédito** (regla 11): el alumno probó **este mismo plan**,
+ * el plan acredita el fee (`prueba_acredita`), la prueba todavía está dentro
+ * del plazo, y nadie la convirtió ya. El monto acreditado es lo que
+ * **efectivamente pagó** por la prueba: si quedó debiendo parte, esa parte no
+ * se le acredita porque nunca entró.
+ *
+ * El plazo lo fija el plan; si no lo fija, el parámetro `prueba_plazo_dias`.
+ * Se cuenta desde la **última clase de la prueba**, que es cuando el prospecto
+ * terminó de probar y tiene que decidir.
+ */
+async function pruebaConvertible(
+  sb: Awaited<ReturnType<typeof createClient>>,
+  args: {
+    alumnoId: number;
+    planId: number;
+    acredita: boolean;
+    plazoDias: number | null;
+    fechaVentaISO: string;
+  }
+): Promise<{ pruebaId: number; monto: number; vence: string } | null> {
+  if (!args.acredita) return null;
+
+  const pruebas = exigir(
+    await sb
+      .from("inscripciones")
+      .select("id, fecha_fin")
+      .eq("alumno_id", args.alumnoId)
+      .eq("plan_id", args.planId)
+      .eq("es_prueba", true)
+      .neq("estado", "baja")
+      .order("fecha_fin", { ascending: false }),
+    "las clases de prueba del alumno"
+  ) as { id: number; fecha_fin: string | null }[];
+  if (!pruebas.length) return null;
+
+  const plazo =
+    args.plazoDias ?? Math.max(0, Number(await obtenerParametro("prueba_plazo_dias")) || 7);
+
+  // Ya convertidas: una prueba se acredita una sola vez.
+  const yaConvertidas = exigir(
+    await sb
+      .from("inscripciones")
+      .select("membresia_anterior_id")
+      .in("membresia_anterior_id", pruebas.map((p) => p.id)),
+    "las conversiones previas"
+  ) as { membresia_anterior_id: number | null }[];
+  const usadas = new Set(yaConvertidas.map((x) => x.membresia_anterior_id));
+
+  for (const pr of pruebas) {
+    if (usadas.has(pr.id)) continue;
+    if (!pr.fecha_fin) continue;
+    const vence = sumarDias(pr.fecha_fin, plazo);
+    if (args.fechaVentaISO > vence) continue; // fuera de plazo
+
+    // Lo efectivamente cobrado por esa prueba.
+    const cuotas = exigir(
+      await sb.from("cuotas").select("id").eq("inscripcion_id", pr.id),
+      "las cuotas de la prueba"
+    ) as { id: number }[];
+    if (!cuotas.length) continue;
+    const pagos = exigir(
+      await sb
+        .from("pagos")
+        .select("monto")
+        .eq("tipo", "cobro")
+        .in("cuota_id", cuotas.map((q) => q.id)),
+      "los pagos de la prueba"
+    ) as { monto: number }[];
+    const monto = pagos.reduce((t, x) => t + Number(x.monto), 0);
+    if (monto <= 0) continue; // no pagó nada: no hay qué acreditar
+
+    return { pruebaId: pr.id, monto, vence };
+  }
+  return null;
+}
+
+/** `iso` + n días, en ISO local. */
+function sumarDias(iso: string, n: number): string {
+  const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
+  const f = new Date(y, m - 1, d);
+  f.setDate(f.getDate() + n);
+  return isoFecha(f);
 }
 
 // ── Venta de clase de prueba ────────────────────────────────────────────
