@@ -54,6 +54,7 @@ export default function ClienteAsistencia({
   const [marcas, setMarcas] = useState<Record<number, Estado>>({});
   const [licencias, setLicencias] = useState<Record<number, boolean>>({});
   const [cargando, setCargando] = useState(false);
+  const [errorPadron, setErrorPadron] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [suspendida, setSuspendida] = useState(false);
@@ -86,18 +87,34 @@ export default function ClienteAsistencia({
         setCompletada(r.completada);
         setIncompleta(r.incompleta);
         setEstadosPorFecha(r.estadosPorFecha);
+        setErrorPadron(r.error);
         setEditando(false);
         setFormSusp(false);
         setMotivoInput("");
+      })
+      .catch((e: unknown) => {
+        // Un padrón que no se pudo leer nunca puede verse como una clase sin
+        // alumnos: se tomaría la asistencia sin nadie (regla de calidad 1).
+        if (id !== pedido.current) return;
+        setFilas([]);
+        setErrorPadron(e instanceof Error ? e.message : "No se pudo cargar el padrón.");
       })
       .finally(() => {
         if (id === pedido.current) setCargando(false);
       });
   }, [cursoId, fecha, recarga]);
 
-  const total = filas.length;
-  const presentes = filas.filter((f) => marcas[f.alumnoId] === "presente").length;
-  const ausentes = filas.filter((f) => marcas[f.alumnoId] === "ausente").length;
+  // El conteo va por PERSONAS, no por filas: una prueba grupal es una sola
+  // fila y una sola asistencia, pero son varios los que entran a la clase
+  // (regla 11). Para el profesor, lo que importa es cuánta gente hay.
+  const gente = (f: FilaAsistencia) => Math.max(1, f.personas);
+  const total = filas.reduce((t, f) => t + gente(f), 0);
+  const presentes = filas
+    .filter((f) => marcas[f.alumnoId] === "presente")
+    .reduce((t, f) => t + gente(f), 0);
+  const ausentes = filas
+    .filter((f) => marcas[f.alumnoId] === "ausente")
+    .reduce((t, f) => t + gente(f), 0);
   const marcados = presentes + ausentes;
   const sinMarcar = total - marcados;
 
@@ -336,6 +353,19 @@ export default function ClienteAsistencia({
         </div>
       )}
 
+      {errorPadron && (
+        <div
+          role="alert"
+          className="mb-3 rounded-[var(--radio-panel)] border border-[var(--peligro)] bg-[var(--peligro-fill)] text-[var(--peligro-texto)] p-4"
+        >
+          <div className="font-semibold">No se pudo cargar el padrón</div>
+          <p className="text-sm mt-1">
+            Es un error al leer los datos, no que no haya alumnos. No tomes asistencia hasta
+            resolverlo: {errorPadron}
+          </p>
+        </div>
+      )}
+
       {/* Cuerpo de asistencia */}
       {cursoId != null && fechas.length > 0 && !suspendida && (
         <>
@@ -502,7 +532,13 @@ function FilaRow({
   // Info persistente (progreso, faltas del ciclo, o clases restantes de un
   // paquete parcial): se muestra siempre, sin importar el estado marcado, para
   // no perderla al pasar por presente → ausente → presente.
-  const meta = esParcial
+  const meta = fila.esPrueba
+    ? // Una prueba es una sola clase: no tiene progreso de ciclo ni faltas que
+      // contar. Lo que sí importa en el padrón es cuánta gente trae.
+      fila.personas > 1
+      ? `Clase de prueba · ${fila.personas} personas`
+      : "Clase de prueba"
+    : esParcial
     ? `${ETIQUETA_MODALIDAD[fila.modalidad]}${
         fila.restantes != null ? ` · quedan ${fila.restantes} ${fila.restantes === 1 ? "clase" : "clases"}` : ""
       }`
@@ -522,8 +558,9 @@ function FilaRow({
     sub = `Ausente${licencia && tol != null ? " · con licencia (bono)" : ""} · ${meta}`;
   else sub = meta;
 
-  const pill =
-    !estado && tol != null
+  const pill = fila.esPrueba
+    ? "Prueba"
+    : !estado && tol != null
       ? tol <= 0
         ? fila.faltaSinLicenciaEnCiclo
           ? "Sin bono"

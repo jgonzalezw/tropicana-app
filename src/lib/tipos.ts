@@ -368,6 +368,14 @@ export type FilaAsistencia = {
    * puede generar bono de tolerancia, aunque el plan tuviera cupo.
    */
   faltaSinLicenciaEnCiclo: boolean;
+  /** Es una membresía de prueba: se muestra distinta y no renueva. */
+  esPrueba: boolean;
+  /**
+   * Cuánta gente cubre esta fila. Casi siempre 1; una prueba grupal es un
+   * titular más N acompañantes sin nombre, con una sola asistencia (regla 11),
+   * así que la fila vale por varios para el conteo de la clase.
+   */
+  personas: number;
 };
 
 export type MarcaAsistencia = {

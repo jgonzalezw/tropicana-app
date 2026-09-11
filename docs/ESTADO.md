@@ -708,3 +708,40 @@ clases** (no `cuotas.vencimiento`); la **falta con licencia** anota **bono** (no
 corre el ciclo actual; salta a la renovación); `cuotas.vencimiento`/`fecha_compromiso`
 pasa a ser la fecha de compromiso de pago del saldo. La traza `corrimientos_ciclo`
 se conserva re-apuntada al nuevo efecto (se ajusta en el sub-hito 1B).
+
+---
+
+## Clase de prueba — Paso D (padrón de asistencia) · cerrado 2026-09-11
+
+La prueba ya se vende (Pasos A-C) y ahora **aparece en el padrón**.
+
+**Lo que se arregló de fondo, y no era de las pruebas.** El padrón resolvía las
+membresías por `inscripciones.curso_id`, que guarda solo el **curso principal**
+de la venta. Un plan multi-curso vive en `inscripcion_cursos`: medido en dev, la
+inscripción 28 (activa, no es prueba) tiene 5 cursos y aparecía en el padrón de
+uno solo — **invisible en los otros cuatro**. Ahora el padrón (y el contador de
+las tarjetas de curso) se resuelve por `inscripcion_cursos`, con
+`inscripciones.curso_id` como respaldo para filas viejas sin esa fila.
+
+Con eso se empezó a respetar `inscripcion_cursos.dias`: si la membresía declaró
+días para ese curso, solo figura esos días — el mismo criterio que usa el motor
+para contar el ciclo. Medido antes de aplicarlo: en las 27 filas activas de dev
+los días elegidos coinciden exactamente con los del curso, así que hoy no
+cambia a nadie.
+
+**Lo propio de la prueba.**
+- Distintivo **"Prueba"** en la fila, y la línea de detalle dice "Clase de
+  prueba" en vez de progreso de ciclo y faltas (una prueba es una sola clase:
+  no tiene ciclo ni bono).
+- El conteo de la clase va **por personas, no por filas**: una prueba grupal es
+  un titular más N acompañantes sin nombre, con **una sola asistencia**
+  (regla 11), pero entran todos. Vale para el contador de la tarjeta del curso
+  y para "X de Y marcados".
+
+**Un padrón que no se pudo leer ya no se ve como una clase sin alumnos.**
+`cargarPadron` devuelve `error` y la pantalla lo muestra en rojo pidiendo no
+tomar asistencia hasta resolverlo (regla de calidad 1). Antes un fallo de
+lectura devolvía el padrón vacío en silencio.
+
+**Pendiente de la clase de prueba:** E (liquidación a prorrata), F (crédito al
+convertir), G (reparar inscripciones 17/18/19).

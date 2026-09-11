@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { tienePermiso, obtenerParametro, obtenerPerfilActual } from "@/lib/sesion";
 import { compararPorApellido } from "@/lib/texto";
+import { diaIso } from "@/lib/inscripcion";
 import type { EntradaAsistencia, FilaAsistencia } from "@/lib/tipos";
 import { recalcularFinDeCiclo, recalcularMembresia } from "@/lib/membresias";
 
@@ -141,6 +142,12 @@ export async function cargarPadron(
   incompleta: boolean;
   /** Estado por fecha (ISO) del curso dentro de la ventana: para el selector. */
   estadosPorFecha: Record<string, EstadoFecha>;
+  /**
+   * Falló la lectura del padrón. Un padrón vacío y un padrón que no se pudo
+   * leer se ven igual, y confundirlos hace que la clase se tome sin nadie
+   * (regla de calidad 1). Con esto la pantalla puede decir cuál de los dos es.
+   */
+  error: string | null;
 }> {
   const vacio = {
     filas: [],
@@ -151,6 +158,7 @@ export async function cargarPadron(
     completada: false,
     incompleta: false,
     estadosPorFecha: {} as Record<string, EstadoFecha>,
+    error: null,
   };
   if (!(await tienePermiso("asistencia", "ver"))) return vacio;
   if (!ISO.test(fecha)) return vacio;
@@ -188,13 +196,38 @@ export async function cargarPadron(
   // ventana, no solo en la fecha elegida (una inscripción retroactiva cambia
   // padrones ya tomados, y un ciclo ya completado igual tenía que estar
   // marcado en las clases que cayeron dentro de su período).
-  const { data: insc } = await sb
-    .from("inscripciones")
-    .select(
-      "id, alumno_id, estado, modalidad, fecha_inicio, clases_total, plan_id, clases_plan, fecha_fin, tolerancia_faltas, bono_generado, alumno:alumnos(id, nombre, apellido, activo)"
-    )
-    .eq("curso_id", cursoId)
-    .neq("estado", "baja");
+  //
+  // Qué membresías toca este curso. NO alcanza con `inscripciones.curso_id`:
+  // ese campo guarda el curso *principal* de la venta, y una membresía de plan
+  // multi-curso (o una prueba de varios cursos) vive en `inscripcion_cursos`.
+  // Filtrando solo por `curso_id`, un alumno con un plan de 5 cursos aparecía
+  // en el padrón de uno y era invisible en los otros cuatro.
+  const { data: icCurso, error: errIC } = await sb
+    .from("inscripcion_cursos")
+    .select("inscripcion_id, dias")
+    .eq("curso_id", cursoId);
+  if (errIC) return { ...vacio, error: `No se pudo leer qué alumnos toma este curso: ${errIC.message}` };
+  const icRows = (icCurso as { inscripcion_id: number; dias: number[] | null }[]) ?? [];
+  const diasPorInsc = new Map<number, number[]>();
+  for (const r of icRows) if (r.dias?.length) diasPorInsc.set(r.inscripcion_id, r.dias);
+  const idsPorCurso = [...new Set(icRows.map((r) => r.inscripcion_id))];
+
+  const COLS =
+    "id, alumno_id, estado, modalidad, fecha_inicio, clases_total, plan_id, clases_plan, fecha_fin, tolerancia_faltas, bono_generado, es_prueba, acompanantes, alumno:alumnos(id, nombre, apellido, activo)";
+  // Dos lecturas y se unen por id: las que declaran este curso en
+  // `inscripcion_cursos`, y las viejas que solo tienen `curso_id` (legado).
+  const [porCursoPrincipal, porInscCursos] = await Promise.all([
+    sb.from("inscripciones").select(COLS).eq("curso_id", cursoId).neq("estado", "baja"),
+    idsPorCurso.length
+      ? sb.from("inscripciones").select(COLS).in("id", idsPorCurso).neq("estado", "baja")
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  const errInsc = porCursoPrincipal.error ?? porInscCursos.error;
+  if (errInsc) return { ...vacio, error: `No se pudo leer el padrón: ${errInsc.message}` };
+  const porId = new Map<number, unknown>();
+  for (const r of [...(porCursoPrincipal.data ?? []), ...(porInscCursos.data ?? [])])
+    porId.set((r as { id: number }).id, r);
+  const insc = [...porId.values()];
 
   type InscRow = {
     id: number;
@@ -208,6 +241,8 @@ export async function cargarPadron(
     fecha_fin: string | null;
     tolerancia_faltas: number | null;
     bono_generado: number;
+    es_prueba: boolean | null;
+    acompanantes: number | null;
     alumno: { id: number; nombre: string; apellido: string; activo: boolean } | null;
   };
   const membresias = ((insc as unknown as InscRow[]) ?? []).filter((r) => r.alumno?.activo);
@@ -248,9 +283,20 @@ export async function cargarPadron(
       ? (dictadasPorInsc[r.id] ?? 0) >= r.clases_plan
       : r.clases_total != null && (consumidas[r.id] ?? 0) >= r.clases_total;
 
+  /**
+   * ¿Toma ESTE curso ESE día? Cuando la membresía declaró días para este curso
+   * (`inscripcion_cursos.dias`), manda esa elección: es la misma que usa el
+   * motor para contar el ciclo. Sin días declarados (legado), no filtra.
+   */
+  const tomaEseDia = (r: InscRow, f: string) => {
+    const dias = diasPorInsc.get(r.id);
+    return !dias?.length || dias.includes(diaIso(parseISO(f)));
+  };
+
   /** Ya había empezado a esa fecha y su ciclo no terminó (ilimitada vencida). */
   const enPeriodo = (r: InscRow, f: string) =>
     r.fecha_inicio <= f &&
+    tomaEseDia(r, f) &&
     !(r.plan_id != null && r.clases_plan == null && r.fecha_fin != null && r.fecha_fin < f);
   /**
    * ¿Esa clase caía dentro del período de esta membresía? Para el conteo de
@@ -259,6 +305,7 @@ export async function cargarPadron(
    */
   const cubriaLaClase = (r: InscRow, f: string) =>
     r.fecha_inicio <= f &&
+    tomaEseDia(r, f) &&
     !(r.fecha_fin != null && r.fecha_fin < f) &&
     (r.modalidad === "mensual" || Math.max(0, (r.clases_total ?? 0) - (consumidas[r.id] ?? 0)) > 0);
 
@@ -383,6 +430,8 @@ export async function cargarPadron(
       deuda: deuda[e.alumnoId] ?? 0,
       toleranciaRestante: null,
       faltaSinLicenciaEnCiclo: false,
+      esPrueba: false,
+      personas: 1,
     });
 
   const filas: FilaAsistencia[] = inscripciones
@@ -405,6 +454,10 @@ export async function cargarPadron(
         deuda: deuda[r.alumno_id] ?? 0,
         toleranciaRestante: toleranciaRestantePorInsc.has(r.id) ? toleranciaRestantePorInsc.get(r.id)! : null,
         faltaSinLicenciaEnCiclo: (faltasSinLicPrevias[r.id] ?? 0) > 0,
+        esPrueba: r.es_prueba === true,
+        // Un grupo de prueba es un titular más N acompañantes sin nombre: una
+        // sola fila y una sola asistencia, pero cuentan todos para la clase.
+        personas: 1 + Math.max(0, Number(r.acompanantes) || 0),
       };
     });
 
@@ -417,6 +470,7 @@ export async function cargarPadron(
     completada: estadosPorFecha[fecha] === "completada",
     incompleta: estadosPorFecha[fecha] === "incompleta",
     estadosPorFecha,
+    error: null,
   };
 }
 
