@@ -332,6 +332,15 @@ export type FilaLiquidacion = {
   totalDevengado: number;
   totalPagado: number;
   neto: number;
+  /**
+   * Quedaron devengos de este profesor y período **fuera** de la liquidación:
+   * o nunca se incluyeron, o se dieron de baja porque alguien corrigió una
+   * clase (regla de negocio 16). En los dos casos la liquidación quedó
+   * desactualizada y hay que volver a generarla — y eso tiene que verse, no
+   * quedar en que alguien se acuerde.
+   */
+  pendienteMonto: number;
+  pendienteCount: number;
 };
 
 export async function cargarLiquidaciones(): Promise<{
@@ -341,6 +350,7 @@ export async function cargarLiquidaciones(): Promise<{
   if (!(await tienePermiso("comisiones", "ver"))) return { profesores: [], liquidaciones: [] };
   const sb = await createClient();
 
+  const periodoVencido = primerDiaMesVencidoISO();
   const pendientes = await calcularPendientes(sb, finMesVencidoISO());
   const porProf = new Map<number, { monto: number; count: number }>();
   for (const p of pendientes) {
@@ -386,6 +396,10 @@ export async function cargarLiquidaciones(): Promise<{
     totalDevengado: Number(l.total_devengado),
     totalPagado: Number(l.total_pagado),
     neto: Number(l.neto),
+    // Solo la del período que se está liquidando puede quedar desactualizada:
+    // los pendientes se calculan contra ese período.
+    pendienteMonto: l.periodo === periodoVencido ? porProf.get(l.profesor_id)?.monto ?? 0 : 0,
+    pendienteCount: l.periodo === periodoVencido ? porProf.get(l.profesor_id)?.count ?? 0 : 0,
   }));
 
   return { profesores, liquidaciones };

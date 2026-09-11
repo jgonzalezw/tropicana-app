@@ -138,9 +138,26 @@ export default function ClienteLiquidaciones({
             <tbody>
               {liquidaciones.map((l) => {
                 const restante = Math.max(0, l.totalDevengado - l.totalPagado);
+                // Quedaron comisiones fuera de esta liquidación: o nunca
+                // entraron, o se dieron de baja porque alguien corrigió una
+                // clase del período (regla de negocio 16). Hay que regenerarla,
+                // y tiene que verse — si no, se paga de menos sin que nadie lo note.
+                const desactualizada = l.pendienteCount > 0;
                 return (
-                  <tr key={l.id} className="border-t border-[var(--borde)] align-top">
-                    <td className="py-3 px-4 font-medium">{l.profesor}</td>
+                  <tr
+                    key={l.id}
+                    className={`border-t border-[var(--borde)] align-top ${
+                      desactualizada ? "bg-[var(--aviso-fill,var(--fondo-elevado))]" : ""
+                    }`}
+                  >
+                    <td className="py-3 px-4 font-medium">
+                      {l.profesor}
+                      {desactualizada && (
+                        <span className="block text-sm font-normal text-[var(--peligro-texto)]">
+                          Cambió: quedan {gs(l.pendienteMonto)} sin incluir
+                        </span>
+                      )}
+                    </td>
                     <td className="py-3 px-4 text-[var(--texto-tenue)]">
                       {l.periodo} · {l.periodicidad}
                     </td>
@@ -157,6 +174,15 @@ export default function ClienteLiquidaciones({
                           >
                             Comprobante
                           </Link>
+                          {puedeCrear && desactualizada && (
+                            <button
+                              onClick={() => generar(l.profesorId)}
+                              disabled={pendiente}
+                              className="px-4 py-1.5 text-sm rounded-[var(--radio-control)] border border-[var(--peligro)] text-[var(--peligro-texto)] font-semibold disabled:opacity-40"
+                            >
+                              Regenerar
+                            </button>
+                          )}
                           {puedeCrear && restante > 0 && (
                             <button
                               onClick={() => (pagoDe === l.id ? setPagoDe(null) : abrirPago(l))}
