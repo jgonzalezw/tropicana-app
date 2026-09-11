@@ -4,6 +4,9 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { tienePermiso, obtenerParametro, obtenerPerfilActual } from "@/lib/sesion";
+import { exigir } from "@/lib/datos";
+import { valorDeUnaClase, type TarifasDeCurso } from "@/lib/precios";
+import type { Curso } from "@/lib/tipos";
 
 function admin() {
   const a = createAdminClient();
@@ -26,8 +29,19 @@ function finMesVencidoISO(hoy = new Date()): string {
 }
 
 // ── Cálculo de devengos criterio 1 (membresías cobradas + completadas) ────
-// Base = plata efectivamente cobrada de la membresía; monto = pct_ingresos del
-// profesor asignado al curso x base. Solo membresías de 1 curso (v1).
+//
+// **Regla de negocio 10, a prorrata.** Una membresía puede dar acceso a varios
+// cursos, y cada curso tiene su profesor. La comisión no es de la membresía:
+// es de cada curso, sobre **su parte** de lo efectivamente cobrado.
+//
+// Peso de un curso = precio de una clase de ese curso × clases que ese curso
+// **realmente dictó** × personas cubiertas. Un curso que no dictó nada pesa 0
+// y no cobra nada. La clase de prueba no es un caso especial: es el caso
+// general con una clase por curso y N personas.
+//
+// Antes esto repartía usando `inscripciones.curso_id` —el curso principal de
+// la venta— así que en un plan de cinco cursos un solo profesor se llevaba
+// todo y los otros cuatro no cobraban.
 
 export type DevengoPendiente = {
   membresiaId: number;
@@ -38,118 +52,267 @@ export type DevengoPendiente = {
   base: number;
   pct: number;
   monto: number;
+  /** Clases que ese curso dictó para esta membresía: el peso del reparto. */
+  clases: number;
+  /** Personas cubiertas (1, salvo prueba grupal). */
+  personas: number;
+  /** Cuánto de lo cobrado le tocó a este curso, sobre el total de la venta. */
+  cobradoTotal: number;
+};
+
+type InscLiq = {
+  id: number;
+  alumno_id: number;
+  curso_id: number;
+  plan_id: number | null;
+  es_prueba: boolean | null;
+  acompanantes: number | null;
+  fecha_inicio: string;
+  fecha_fin: string | null;
 };
 
 async function calcularPendientes(
   sb: Awaited<ReturnType<typeof createClient>>,
   hastaISO: string
 ): Promise<DevengoPendiente[]> {
-  // 1. Membresías completadas (de plan, 1 curso), cuyo ciclo terminó a más
-  //    tardar en `hastaISO` (mensual: último día del mes vencido). Una
-  //    membresía que se completó después no corresponde a este período.
-  const { data: insc } = await sb
-    .from("inscripciones")
-    .select("id, alumno_id, curso_id, plan_id, estado")
-    .eq("estado", "completada")
-    .not("plan_id", "is", null)
-    .not("fecha_fin", "is", null)
-    .lte("fecha_fin", hastaISO);
-  const membresias = (insc as {
-    id: number;
-    alumno_id: number;
-    curso_id: number;
-    plan_id: number | null;
-  }[]) ?? [];
-  if (membresias.length === 0) return [];
-  const inscIds = membresias.map((m) => m.id);
+  // 1. Membresías completadas cuyo ciclo terminó a más tardar en `hastaISO`.
+  //    Una que se completó después no corresponde a este período.
+  const insc = exigir(
+    await sb
+      .from("inscripciones")
+      .select("id, alumno_id, curso_id, plan_id, es_prueba, acompanantes, fecha_inicio, fecha_fin")
+      .eq("estado", "completada")
+      .not("plan_id", "is", null)
+      .not("fecha_fin", "is", null)
+      .lte("fecha_fin", hastaISO),
+    "las membresías a liquidar"
+  ) as InscLiq[];
+  if (insc.length === 0) return [];
+  const inscIds = insc.map((m) => m.id);
 
-  // 2. Ya devengadas (excluir).
-  const { data: comis } = await sb
-    .from("comisiones_devengadas")
-    .select("membresia_id")
-    .in("membresia_id", inscIds);
-  const yaDevengada = new Set(
-    ((comis as { membresia_id: number | null }[]) ?? []).map((c) => c.membresia_id)
-  );
+  // 2. Los cursos de cada membresía, con sus días y —si es prueba— la fecha
+  //    exacta de su clase. El curso principal es solo el respaldo para filas
+  //    viejas sin `inscripcion_cursos`.
+  const icRows = exigir(
+    await sb
+      .from("inscripcion_cursos")
+      .select("inscripcion_id, curso_id, dias, fecha")
+      .in("inscripcion_id", inscIds),
+    "los cursos de las membresías"
+  ) as { inscripcion_id: number; curso_id: number; dias: number[] | null; fecha: string | null }[];
+  const cursosDe = new Map<number, typeof icRows>();
+  for (const r of icRows) {
+    const ya = cursosDe.get(r.inscripcion_id);
+    if (ya) ya.push(r);
+    else cursosDe.set(r.inscripcion_id, [r]);
+  }
+  for (const m of insc)
+    if (!cursosDe.has(m.id))
+      cursosDe.set(m.id, [{ inscripcion_id: m.id, curso_id: m.curso_id, dias: null, fecha: null }]);
 
-  // 3. Cuotas y pagos → saldo y plata cobrada por membresía.
-  const { data: cuotas } = await sb
-    .from("cuotas")
-    .select("id, inscripcion_id, monto_devengado, descuento_adelanto")
-    .in("inscripcion_id", inscIds);
-  const cuotaRows = (cuotas as {
-    id: number;
-    inscripcion_id: number;
-    monto_devengado: number;
-    descuento_adelanto: number;
-  }[]) ?? [];
+  // 3. Ya devengado, por (membresía, curso). Una fila vieja con `curso_id`
+  //    nulo se devengó con el modelo anterior, por la membresía entera: esa
+  //    membresía queda afuera completa (regla 12: no se reescribe lo devengado).
+  const comis = exigir(
+    await sb.from("comisiones_devengadas").select("membresia_id, curso_id").in("membresia_id", inscIds),
+    "las comisiones ya devengadas"
+  ) as { membresia_id: number | null; curso_id: number | null }[];
+  const devengadoEntero = new Set<number>();
+  const devengadoCurso = new Set<string>();
+  for (const c of comis) {
+    if (c.membresia_id == null) continue;
+    if (c.curso_id == null) devengadoEntero.add(c.membresia_id);
+    else devengadoCurso.add(`${c.membresia_id}|${c.curso_id}`);
+  }
+
+  // 4. Cuotas y pagos → saldo y plata efectivamente cobrada por membresía.
+  //    La comisión se calcula sobre lo COBRADO: el descuento no suma (regla 8).
+  const cuotaRows = exigir(
+    await sb
+      .from("cuotas")
+      .select("id, inscripcion_id, monto_devengado, descuento_adelanto")
+      .in("inscripcion_id", inscIds),
+    "las cuotas"
+  ) as { id: number; inscripcion_id: number; monto_devengado: number; descuento_adelanto: number }[];
   const cuotaIds = cuotaRows.map((c) => c.id);
   const pagadoPorCuota: Record<number, number> = {};
   const plataPorCuota: Record<number, number> = {};
   if (cuotaIds.length) {
-    const { data: pagos } = await sb
-      .from("pagos")
-      .select("cuota_id, monto, descuento")
-      .eq("tipo", "cobro")
-      .in("cuota_id", cuotaIds);
-    for (const p of (pagos as { cuota_id: number | null; monto: number; descuento: number }[]) ?? []) {
+    const pagos = exigir(
+      await sb.from("pagos").select("cuota_id, monto, descuento").eq("tipo", "cobro").in("cuota_id", cuotaIds),
+      "los pagos"
+    ) as { cuota_id: number | null; monto: number; descuento: number }[];
+    for (const p of pagos) {
       if (p.cuota_id == null) continue;
       plataPorCuota[p.cuota_id] = (plataPorCuota[p.cuota_id] ?? 0) + Number(p.monto);
       pagadoPorCuota[p.cuota_id] = (pagadoPorCuota[p.cuota_id] ?? 0) + Number(p.monto) + Number(p.descuento);
     }
   }
   const saldoPorInsc: Record<number, number> = {};
-  const basePorInsc: Record<number, number> = {};
+  const cobradoPorInsc: Record<number, number> = {};
   for (const c of cuotaRows) {
     const efectivo = Math.max(0, Number(c.monto_devengado) - Number(c.descuento_adelanto));
-    const saldo = Math.max(0, efectivo - (pagadoPorCuota[c.id] ?? 0));
-    saldoPorInsc[c.inscripcion_id] = (saldoPorInsc[c.inscripcion_id] ?? 0) + saldo;
-    basePorInsc[c.inscripcion_id] = (basePorInsc[c.inscripcion_id] ?? 0) + (plataPorCuota[c.id] ?? 0);
+    saldoPorInsc[c.inscripcion_id] =
+      (saldoPorInsc[c.inscripcion_id] ?? 0) + Math.max(0, efectivo - (pagadoPorCuota[c.id] ?? 0));
+    cobradoPorInsc[c.inscripcion_id] = (cobradoPorInsc[c.inscripcion_id] ?? 0) + (plataPorCuota[c.id] ?? 0);
   }
 
-  // 4. Asignación vigente por curso (profesor + pct).
-  const cursoIds = [...new Set(membresias.map((m) => m.curso_id))];
-  const { data: asig } = await sb
-    .from("asignaciones")
-    .select("curso_id, profesor_id, pct_ingresos, desde")
-    .in("curso_id", cursoIds)
-    .is("hasta", null)
-    .order("desde", { ascending: false });
+  // 5. Clases que cada curso dictó de verdad, por membresía. Una sesión
+  //    suspendida no se dictó y no pesa (regla 4); una falta sí — la clase
+  //    ocurrió, el profesor la dio (regla 3).
+  const cursoIds = [...new Set(icRows.map((r) => r.curso_id).concat(insc.map((m) => m.curso_id)))];
+  const desde = insc.map((m) => m.fecha_inicio).sort()[0];
+  const sesiones = exigir(
+    await sb
+      .from("sesiones")
+      .select("curso_id, fecha, estado")
+      .in("curso_id", cursoIds)
+      .gte("fecha", desde)
+      .lte("fecha", hastaISO),
+    "las clases dictadas"
+  ) as { curso_id: number; fecha: string; estado: string }[];
+  const dictadas = new Set(
+    sesiones.filter((s) => s.estado === "dictada").map((s) => `${s.curso_id}|${s.fecha}`)
+  );
+
+  // 6. Precio de una clase de cada curso. Para la prueba es su tarifa de
+  //    prueba; para el resto, el valor de una clase según el tramo (regla 9).
+  const cursos = exigir(
+    await sb.from("cursos").select("*").in("id", cursoIds),
+    "los cursos"
+  ) as Curso[];
+  const cursoPorId = new Map(cursos.map((c) => [c.id, c]));
+  const tarifas = exigir(
+    await sb.from("curso_tarifas").select("curso_id, modalidad, precio").in("curso_id", cursoIds),
+    "las tarifas"
+  ) as { curso_id: number; modalidad: string; precio: number }[];
+  const tarifaDe = new Map<number, TarifasDeCurso & { prueba?: number }>();
+  for (const t of tarifas) {
+    const actual = tarifaDe.get(t.curso_id) ?? {};
+    (actual as Record<string, number>)[t.modalidad] = Number(t.precio);
+    tarifaDe.set(t.curso_id, actual);
+  }
+  const factorMedioMes = Math.max(1, Number(await obtenerParametro("medio_mes_factor")) || 2);
+
+  // 7. Asignación vigente por curso (profesor + %).
+  const asig = exigir(
+    await sb
+      .from("asignaciones")
+      .select("curso_id, profesor_id, pct_ingresos, desde")
+      .in("curso_id", cursoIds)
+      .is("hasta", null)
+      .order("desde", { ascending: false }),
+    "las asignaciones de profesores"
+  ) as { curso_id: number; profesor_id: number; pct_ingresos: number }[];
   const asigPorCurso = new Map<number, { profesor_id: number; pct: number }>();
-  for (const r of (asig as { curso_id: number; profesor_id: number; pct_ingresos: number }[]) ?? [])
+  for (const r of asig)
     if (!asigPorCurso.has(r.curso_id))
       asigPorCurso.set(r.curso_id, { profesor_id: r.profesor_id, pct: Number(r.pct_ingresos) });
 
-  // 5. Nombres.
-  const alumnoIds = [...new Set(membresias.map((m) => m.alumno_id))];
-  const { data: al } = await sb.from("alumnos").select("id, nombre, apellido").in("id", alumnoIds);
-  const alNombre = new Map(
-    ((al as { id: number; nombre: string; apellido: string }[]) ?? []).map((a) => [a.id, `${a.apellido}, ${a.nombre}`])
-  );
-  const { data: cu } = await sb.from("cursos").select("id, nombre").in("id", cursoIds);
-  const cuNombre = new Map(((cu as { id: number; nombre: string }[]) ?? []).map((c) => [c.id, c.nombre]));
+  // 8. Nombres.
+  const al = exigir(
+    await sb.from("alumnos").select("id, nombre, apellido").in("id", [...new Set(insc.map((m) => m.alumno_id))]),
+    "los alumnos"
+  ) as { id: number; nombre: string; apellido: string }[];
+  const alNombre = new Map(al.map((a) => [a.id, `${a.apellido}, ${a.nombre}`]));
 
-  // 6. Armar pendientes: completada + cobrada (saldo 0) + con asignación + no devengada.
+  // 9. Repartir.
   const out: DevengoPendiente[] = [];
-  for (const m of membresias) {
-    if (yaDevengada.has(m.id)) continue;
-    if ((saldoPorInsc[m.id] ?? 0) > 0) continue; // no cobrada
-    const a = asigPorCurso.get(m.curso_id);
-    if (!a) continue; // sin profesor asignado
-    const base = basePorInsc[m.id] ?? 0;
-    const monto = Math.round(base * a.pct) / 100; // redondeo a centavos, no a boliviano entero
-    out.push({
-      membresiaId: m.id,
-      profesorId: a.profesor_id,
-      cursoId: m.curso_id,
-      alumno: alNombre.get(m.alumno_id) ?? `#${m.alumno_id}`,
-      curso: cuNombre.get(m.curso_id) ?? `#${m.curso_id}`,
-      base,
-      pct: a.pct,
-      monto,
+  for (const m of insc) {
+    if (devengadoEntero.has(m.id)) continue;
+    if ((saldoPorInsc[m.id] ?? 0) > 0) continue; // vendida pero no cobrada
+    const cobrado = cobradoPorInsc[m.id] ?? 0;
+    if (cobrado <= 0) continue;
+
+    const personas = 1 + Math.max(0, Number(m.acompanantes) || 0);
+    const propios = cursosDe.get(m.id) ?? [];
+
+    // Peso de cada curso = precio de una clase × clases dictadas × personas.
+    const pesos = propios.map((ic) => {
+      const curso = cursoPorId.get(ic.curso_id);
+      const clases = clasesDictadas(ic, m, dictadas);
+      const precio = precioDeUnaClase(curso, tarifaDe.get(ic.curso_id) ?? {}, m.es_prueba === true, clases, factorMedioMes);
+      return { ic, curso, clases, peso: clases > 0 ? precio * clases * personas : 0 };
     });
+    const total = pesos.reduce((t, x) => t + x.peso, 0);
+    if (total <= 0) continue; // ningún curso dictó: no hay nada que repartir
+
+    // Se reparte en centavos y el resto va al curso de mayor peso, para que
+    // las partes sumen exactamente lo cobrado y no se pierda un centavo.
+    const centavos = Math.round(cobrado * 100);
+    const porCurso = pesos.map((x) => ({ ...x, cent: Math.floor((centavos * x.peso) / total) }));
+    const sobra = centavos - porCurso.reduce((t, x) => t + x.cent, 0);
+    if (sobra > 0) {
+      const mayor = porCurso.reduce((a, b) => (b.peso > a.peso ? b : a));
+      mayor.cent += sobra;
+    }
+
+    for (const x of porCurso) {
+      if (x.peso <= 0) continue;
+      if (devengadoCurso.has(`${m.id}|${x.ic.curso_id}`)) continue;
+      const a = asigPorCurso.get(x.ic.curso_id);
+      if (!a) continue; // sin profesor asignado
+      const base = x.cent / 100;
+      out.push({
+        membresiaId: m.id,
+        profesorId: a.profesor_id,
+        cursoId: x.ic.curso_id,
+        alumno: alNombre.get(m.alumno_id) ?? `#${m.alumno_id}`,
+        curso: x.curso?.nombre ?? `#${x.ic.curso_id}`,
+        base,
+        pct: a.pct,
+        monto: Math.round(base * a.pct) / 100,
+        clases: x.clases,
+        personas,
+        cobradoTotal: cobrado,
+      });
+    }
   }
   return out;
+}
+
+/**
+ * Clases que ESE curso dictó para ESA membresía. Una prueba tiene una sola, en
+ * su fecha elegida (0024). Una membresía regular, las de su período que caen
+ * en los días que el alumno eligió. En los dos casos cuenta solo lo **dictado**:
+ * una clase suspendida no la dio nadie.
+ */
+function clasesDictadas(
+  ic: { curso_id: number; dias: number[] | null; fecha: string | null },
+  m: InscLiq,
+  dictadas: Set<string>
+): number {
+  if (ic.fecha) return dictadas.has(`${ic.curso_id}|${ic.fecha}`) ? 1 : 0;
+  if (!m.fecha_fin) return 0;
+  let n = 0;
+  const d = new Date(m.fecha_inicio + "T00:00:00");
+  const fin = new Date(m.fecha_fin + "T00:00:00");
+  for (let i = 0; i < 400 && d <= fin; i++) {
+    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const dia = d.getDay() === 0 ? 7 : d.getDay();
+    if ((!ic.dias?.length || ic.dias.includes(dia)) && dictadas.has(`${ic.curso_id}|${iso}`)) n++;
+    d.setDate(d.getDate() + 1);
+  }
+  return n;
+}
+
+/**
+ * Precio de UNA clase del curso, que es el peso unitario del reparto. Para una
+ * prueba es su tarifa de prueba —lo que efectivamente se cobró por esa clase—;
+ * para el resto, el valor de una clase según el tramo que corresponde a la
+ * cantidad comprada (regla 9).
+ */
+function precioDeUnaClase(
+  curso: Curso | undefined,
+  tarifa: TarifasDeCurso & { prueba?: number },
+  esPrueba: boolean,
+  clases: number,
+  factorMedioMes: number
+): number {
+  if (esPrueba) return Number(tarifa.prueba ?? 0);
+  if (!curso) return 0;
+  const v = valorDeUnaClase(curso, tarifa, Math.max(1, clases), factorMedioMes);
+  return v?.valor ?? 0;
 }
 
 export type FilaProfesor = {
@@ -272,12 +435,21 @@ export async function generarLiquidacion(profesorId: number): Promise<{ ok?: tru
       .insert({
         profesor_id: p.profesorId,
         membresia_id: p.membresiaId,
+        curso_id: p.cursoId,
         criterio: 1,
         periodo,
         tipo: "comision",
         base: p.base,
         monto: p.monto,
-        origen: `Criterio 1: ${p.pct}% de ${p.base} (${p.curso} / ${p.alumno})`,
+        // La glosa tiene que dejar auditar el reparto sin abrir el código: de
+        // cuánto se partió, qué parte le tocó a este curso y por qué.
+        origen:
+          `Criterio 1: ${p.pct}% de ${p.base} (${p.curso} / ${p.alumno})` +
+          (p.base !== p.cobradoTotal
+            ? ` — parte de ${p.cobradoTotal} cobrado, a prorrata por ${p.clases} ${
+                p.clases === 1 ? "clase" : "clases"
+              }${p.personas > 1 ? ` x ${p.personas} personas` : ""}`
+            : ""),
         liquidacion_id: liquidacionId,
       })
       .select("id")
@@ -287,7 +459,9 @@ export async function generarLiquidacion(profesorId: number): Promise<{ ok?: tru
       liquidacion_id: liquidacionId,
       comision_id: com.id,
       membresia_id: p.membresiaId,
-      descripcion: `${p.alumno} — ${p.curso} (${p.pct}% de ${p.base})`,
+      descripcion:
+        `${p.alumno} — ${p.curso} (${p.pct}% de ${p.base})` +
+        (p.base !== p.cobradoTotal ? ` · parte de ${p.cobradoTotal}` : ""),
       monto: p.monto,
     });
   }

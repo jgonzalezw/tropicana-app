@@ -14,7 +14,7 @@ import {
   primerDiaDelMes,
   sumarMeses,
 } from "@/lib/inscripcion";
-import { recalcularFinDeCiclo, registrarCorrimientosPendientes } from "@/lib/membresias";
+import { recalcularFinDeCiclo, recalcularMembresia, registrarCorrimientosPendientes } from "@/lib/membresias";
 import { exigir } from "@/lib/datos";
 
 const DIAS_ROTULO = ["", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"];
@@ -548,6 +548,10 @@ export async function venderPrueba(
     });
     if (!errAsis) confirmadas++;
   }
+  // Con su clase ya confirmada, la prueba agotó su ciclo. Recalcular es lo que
+  // la cierra (agotada + cobrada, regla 1) y lo que la deja entrar a
+  // liquidación: sin esto quedaba "activa" para siempre.
+  if (confirmadas > 0) await recalcularMembresia(a, inscripcionId);
 
   // Toda venta tiene su cuota (regla 7).
   const { data: cuota, error: errCuota } = await a
