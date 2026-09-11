@@ -22,10 +22,16 @@ export default async function PaginaCursos() {
 
   const tarifas: Record<number, TarifasCurso> = {};
   for (const r of (tarifasRows as { curso_id: number; modalidad: string; precio: number }[]) ?? []) {
-    const t = (tarifas[r.curso_id] ??= { clase: null, semana: null, medio_mes: null });
+    const t = (tarifas[r.curso_id] ??= {
+      clase: null,
+      semana: null,
+      medio_mes: null,
+      prueba: null,
+    });
     if (r.modalidad === "clase") t.clase = r.precio;
     else if (r.modalidad === "semana") t.semana = r.precio;
     else if (r.modalidad === "medio_mes") t.medio_mes = r.precio;
+    else if (r.modalidad === "prueba") t.prueba = r.precio;
   }
 
   const deps: Record<number, number> = {};

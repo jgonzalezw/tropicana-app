@@ -20,7 +20,7 @@ function validar(d: DatosCurso): string | null {
   return null;
 }
 
-const MODALIDADES = ["clase", "semana", "medio_mes"] as const;
+const MODALIDADES = ["clase", "semana", "medio_mes", "prueba"] as const;
 
 /** Sincroniza las filas de curso_tarifas con lo cargado (upsert/borra). */
 async function guardarTarifas(

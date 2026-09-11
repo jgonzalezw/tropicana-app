@@ -145,6 +145,9 @@ export type TarifasCurso = {
   clase: number | null;
   semana: number | null;
   medio_mes: number | null;
+  /** Precio de la clase de prueba, por alumno. Explícitamente por curso: una
+   *  prueba de Heels no vale lo que una de Zumba. */
+  prueba: number | null;
 };
 
 /** Datos que el componente de Curso envía al host para crear/editar. */

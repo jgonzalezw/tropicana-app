@@ -127,6 +127,7 @@ function FichaCurso({
   const [tClase, setTClase] = useState(numOrEmpty(tarifasIniciales?.clase));
   const [tSemana, setTSemana] = useState(numOrEmpty(tarifasIniciales?.semana));
   const [tMedio, setTMedio] = useState(numOrEmpty(tarifasIniciales?.medio_mes));
+  const [tPrueba, setTPrueba] = useState(numOrEmpty(tarifasIniciales?.prueba));
   const [error, setError] = useState<string | null>(null);
   const [pendiente, startTransition] = useTransition();
 
@@ -149,7 +150,12 @@ function FichaCurso({
           dias_semana: dias,
           hora: hora ? hora : null,
           precio_mensual: parse(precio) ?? 0,
-          tarifas: { clase: parse(tClase), semana: parse(tSemana), medio_mes: parse(tMedio) },
+          tarifas: {
+            clase: parse(tClase),
+            semana: parse(tSemana),
+            medio_mes: parse(tMedio),
+            prueba: parse(tPrueba),
+          },
         },
         inicial?.id ?? null
       );
@@ -246,6 +252,28 @@ function FichaCurso({
             <input value={tMedio} onChange={(e) => setTMedio(e.target.value)} inputMode="decimal" placeholder="—" className="entrada" />
           </Campo>
         </div>
+      </div>
+
+      {/* La prueba va aparte: no es otra forma de comprar el curso, es lo que
+          cuesta venir a probarlo. Sin precio cargado no se puede vender una
+          prueba de este curso — no cae al mensual como las de arriba. */}
+      <div>
+        <span className="block text-base font-medium mb-1.5">Clase de prueba</span>
+        <div className="max-w-[220px]">
+          <Campo etiqueta="Precio por alumno (Bs.)">
+            <input
+              value={tPrueba}
+              onChange={(e) => setTPrueba(e.target.value)}
+              inputMode="decimal"
+              placeholder="—"
+              className="entrada"
+            />
+          </Campo>
+        </div>
+        <p className="text-sm text-[var(--texto-tenue)] mt-1.5">
+          Lo que paga cada persona por venir a probar este curso. Sin precio cargado, este curso no
+          se puede ofrecer como prueba — una prueba de Heels no vale lo que una de Zumba.
+        </p>
       </div>
 
       {error && (
