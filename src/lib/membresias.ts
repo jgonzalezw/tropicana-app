@@ -138,10 +138,16 @@ export async function finDeCicloReal(
 ): Promise<string | null> {
   const { data: insc } = await a
     .from("inscripciones")
-    .select("id, fecha_inicio, clases_plan, plan_id")
+    .select("id, fecha_inicio, clases_plan, plan_id, es_prueba")
     .eq("id", inscripcionId)
     .maybeSingle();
   if (!insc?.fecha_inicio || insc.clases_plan == null) return null;
+
+  // Una PRUEBA no se camina: sus clases son fechas elegidas al vender, una por
+  // curso (0024). Caminar el calendario aterrizaría en la primera ocurrencia
+  // del día de la semana, que no tiene por qué ser la clase que se eligió.
+  if (insc.es_prueba === true) return await finDeCicloDePrueba(a, inscripcionId);
+
   const n = Number(insc.clases_plan);
   if (!(n > 0)) return null;
 
@@ -202,6 +208,56 @@ export async function renovacionBonificada(
   // Una clase más, arrancando el día siguiente al fin de ciclo.
   const desde = sumarDiasISO(fin, 1);
   return caminarClases(desde, cursos, suspendidas, 1);
+}
+
+/**
+ * Fin de ciclo de una **membresía de prueba**: la última de sus clases, que son
+ * fechas elegidas al vender, una por curso (`inscripcion_cursos.fecha`, 0024).
+ *
+ * La única regla que sigue aplicando es la 4: si la clase elegida se suspende,
+ * no se pierde — corre a la siguiente clase de ese curso que sí se dicte. Para
+ * eso `dias` guarda los días reales del curso, no el de la clase elegida.
+ */
+async function finDeCicloDePrueba(
+  a: ClienteAdmin,
+  inscripcionId: number
+): Promise<string | null> {
+  const { data: ic } = await a
+    .from("inscripcion_cursos")
+    .select("curso_id, dias, fecha")
+    .eq("inscripcion_id", inscripcionId);
+  const cursos = ((ic as { curso_id: number; dias: number[] | null; fecha: string | null }[]) ?? [])
+    .filter((c) => c.fecha);
+  if (!cursos.length) return null;
+
+  const desde = cursos.map((c) => c.fecha!).sort()[0];
+  const { data: ses } = await a
+    .from("sesiones")
+    .select("curso_id, fecha")
+    .in("curso_id", cursos.map((c) => c.curso_id))
+    .eq("estado", "suspendida")
+    .gte("fecha", desde);
+  const suspendidas = new Set(
+    ((ses as { curso_id: number; fecha: string }[]) ?? []).map((s) => `${s.curso_id}|${s.fecha}`)
+  );
+
+  const fechas: string[] = [];
+  for (const c of cursos) {
+    // Si la clase elegida no está suspendida, es esa y no se busca más.
+    if (!suspendidas.has(`${c.curso_id}|${c.fecha}`)) {
+      fechas.push(c.fecha!);
+      continue;
+    }
+    const corrida = caminarClases(
+      c.fecha!,
+      [{ curso_id: c.curso_id, dias: c.dias ?? [] }],
+      suspendidas,
+      1
+    );
+    if (corrida) fechas.push(corrida);
+  }
+  if (!fechas.length) return null;
+  return fechas.sort()[fechas.length - 1];
 }
 
 /**

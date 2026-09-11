@@ -193,6 +193,22 @@ select '12. asistencias fuera de los cursos de la membresia' as control,
                            or extract(isodow from s.fecha)::int = any(ic.dias)));
 
 -- ---------------------------------------------------------------------
+-- 13. PRUEBA SIN LA FECHA DE SU CLASE
+--     Desde 0024 cada curso de una membresia de prueba guarda la fecha
+--     exacta de su unica clase, y el padron la usa para mostrar al alumno
+--     ese dia y ninguno otro. Sin fecha, la prueba no aparece en el padron
+--     de ese curso: el alumno viene y no esta en la lista.
+--     Se salta si la columna todavia no existe (0024 no aplicada).
+-- ---------------------------------------------------------------------
+select '13. pruebas sin fecha de clase' as control,
+       count(*) as n,
+       case when count(*) = 0 then 'OK' else 'REVISAR' end as estado
+  from public.inscripcion_cursos ic
+  join public.inscripciones i on i.id = ic.inscripcion_id
+ where coalesce((to_jsonb(i) ->> 'es_prueba')::boolean, false)
+   and (to_jsonb(ic) ->> 'fecha') is null;
+
+-- ---------------------------------------------------------------------
 -- Detalle, por si algun control da REVISAR:
 -- ---------------------------------------------------------------------
 -- select id, alumno_id, curso_id, estado, fecha_inicio, fecha_fin,

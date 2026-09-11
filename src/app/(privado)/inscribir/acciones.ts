@@ -312,12 +312,14 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
 export type EntradaPrueba = {
   alumnoId: number;
   planId: number;
-  /** Cursos que va a probar: una clase en cada uno. */
-  cursoIds: number[];
+  /**
+   * Cursos que va a probar, **con la fecha de su clase**: una clase en cada
+   * uno, y cada una puede caer un día distinto. Por eso la fecha es por curso
+   * y no una sola de la membresía (0024, pedido de Javier).
+   */
+  cursos: { cursoId: number; fecha: string }[];
   /** Acompañantes SIN identificar. Personas cubiertas = 1 + esto. */
   acompanantes: number;
-  /** Fecha de inicio, ISO local. */
-  fechaInicio: string;
   cobro: EntradaInscripcion["cobro"];
 };
 
@@ -342,8 +344,16 @@ export async function venderPrueba(
   const a = admin();
   const perfil = await obtenerPerfilActual();
 
-  const inicio = parseFechaISO(e.fechaInicio);
-  if (!inicio) return { error: "Fecha de inicio inválida." };
+  // Una fecha por curso: cada clase de prueba cae en su propio día. El inicio
+  // de la membresía es la primera y el fin la última — la prueba dura
+  // exactamente lo que sus clases, ni un día más.
+  const elegidos = (e.cursos ?? []).filter((c) => Number.isFinite(c.cursoId));
+  if (!elegidos.length) return { error: "Elegí al menos un curso para probar." };
+  for (const c of elegidos)
+    if (!parseFechaISO(c.fecha)) return { error: "Falta la fecha de la clase de un curso." };
+  const fechasOrdenadas = elegidos.map((c) => c.fecha).sort();
+  const inicio = parseFechaISO(fechasOrdenadas[0])!;
+  const finPrueba = fechasOrdenadas[fechasOrdenadas.length - 1];
 
   const { data: alumno } = await sb
     .from("alumnos")
@@ -360,8 +370,10 @@ export async function venderPrueba(
   if (!plan) return { error: "El plan no existe." };
   if (!plan.acepta_prueba) return { error: "Ese plan no se ofrece como clase de prueba." };
 
-  const cursoIds = [...new Set(e.cursoIds)].filter((x) => Number.isFinite(x));
-  if (!cursoIds.length) return { error: "Elegí al menos un curso para probar." };
+  const cursoIds = [...new Set(elegidos.map((c) => c.cursoId))];
+  if (cursoIds.length !== elegidos.length)
+    return { error: "Un curso aparece repetido en la prueba." };
+  const fechaPorCurso = new Map(elegidos.map((c) => [c.cursoId, c.fecha]));
   const tope = Math.max(1, Number(plan.prueba_cursos_max) || 1);
   if (cursoIds.length > tope)
     return { error: `Este plan permite probar ${tope} ${tope === 1 ? "curso" : "cursos"}.` };
@@ -420,6 +432,7 @@ export async function venderPrueba(
       curso_id: cursoIds[0],
       modalidad: "clase",
       fecha_inicio: isoFecha(inicio),
+      fecha_fin: finPrueba,
       estado: "activa",
       plan_id: plan.id,
       es_prueba: true,
@@ -436,8 +449,10 @@ export async function venderPrueba(
   if (errInsc) return { error: errInsc.message };
   const inscripcionId = insc.id as number;
 
-  // Los días de cada curso: son los que hacen que el alumno aparezca en el
-  // padrón de esas clases.
+  // La clase de cada curso: la FECHA elegida es la que manda (es la que hace
+  // aparecer al alumno en ese padrón y en ningún otro día). `dias` guarda los
+  // días reales del curso, que es lo que le permite al motor correr la prueba
+  // a la clase siguiente si la elegida se suspende (regla de negocio 4).
   const { data: cursoRows } = await sb
     .from("cursos")
     .select("id, dias_semana")
@@ -446,10 +461,11 @@ export async function venderPrueba(
     inscripcion_id: inscripcionId,
     curso_id: cu.id,
     dias: cu.dias_semana ?? [],
+    fecha: fechaPorCurso.get(cu.id) ?? null,
   }));
   if (icRows.length) {
     const { error: errIC } = await a.from("inscripcion_cursos").insert(icRows);
-    if (errIC) return { error: "Se creó la prueba, pero falló guardar los días: " + errIC.message };
+    if (errIC) return { error: "Se creó la prueba, pero falló guardar las clases: " + errIC.message };
   }
 
   await recalcularFinDeCiclo(a, inscripcionId);

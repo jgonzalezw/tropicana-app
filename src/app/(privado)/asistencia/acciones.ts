@@ -204,12 +204,20 @@ export async function cargarPadron(
   // en el padrón de uno y era invisible en los otros cuatro.
   const { data: icCurso, error: errIC } = await sb
     .from("inscripcion_cursos")
-    .select("inscripcion_id, dias")
+    .select("inscripcion_id, dias, fecha")
     .eq("curso_id", cursoId);
   if (errIC) return { ...vacio, error: `No se pudo leer qué alumnos toma este curso: ${errIC.message}` };
-  const icRows = (icCurso as { inscripcion_id: number; dias: number[] | null }[]) ?? [];
+  const icRows =
+    (icCurso as { inscripcion_id: number; dias: number[] | null; fecha: string | null }[]) ?? [];
   const diasPorInsc = new Map<number, number[]>();
-  for (const r of icRows) if (r.dias?.length) diasPorInsc.set(r.inscripcion_id, r.dias);
+  // Una prueba tiene UNA clase en este curso, en una fecha elegida al vender
+  // (0024): figura ese día y ningún otro, aunque el curso se dicte dos veces
+  // por semana.
+  const fechaPruebaPorInsc = new Map<number, string>();
+  for (const r of icRows) {
+    if (r.dias?.length) diasPorInsc.set(r.inscripcion_id, r.dias);
+    if (r.fecha) fechaPruebaPorInsc.set(r.inscripcion_id, r.fecha.slice(0, 10));
+  }
   const idsPorCurso = [...new Set(icRows.map((r) => r.inscripcion_id))];
 
   const COLS =
@@ -290,15 +298,19 @@ export async function cargarPadron(
    * motor para contar el ciclo. Sin días declarados (legado), no filtra.
    */
   const tomaEseDia = (r: InscRow, f: string) => {
+    // La fecha de una prueba es exacta: manda sobre los días del curso.
+    const fechaPrueba = fechaPruebaPorInsc.get(r.id);
+    if (r.es_prueba === true && fechaPrueba) return f === fechaPrueba;
     const dias = diasPorInsc.get(r.id);
     return !dias?.length || dias.includes(diaIso(parseISO(f)));
   };
 
   /**
-   * Una prueba es **una clase en una fecha**, y esa fecha es su fin de ciclo.
-   * Pasada esa fecha deja de figurar, la hayan marcado o no. Sin esto una
-   * prueba que nadie marcó nunca agota su ciclo (el ciclo se agota contando
-   * asistencias) y el alumno se quedaría en el padrón para siempre.
+   * Respaldo para una prueba sin fecha explícita por curso (dato viejo, previo
+   * a 0024): igual es **una clase**, así que pasada su fecha de fin deja de
+   * figurar, la hayan marcado o no. Sin esto una prueba que nadie marcó nunca
+   * agota su ciclo —el ciclo se agota contando asistencias— y el alumno se
+   * quedaría en el padrón para siempre.
    */
   const pruebaVencida = (r: InscRow, f: string) =>
     r.es_prueba === true && r.fecha_fin != null && f > r.fecha_fin;
