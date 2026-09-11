@@ -16,6 +16,7 @@ import {
 } from "@/lib/inscripcion";
 import { recalcularFinDeCiclo, recalcularMembresia, registrarCorrimientosPendientes } from "@/lib/membresias";
 import { exigir } from "@/lib/datos";
+import { cierreLiquidado, estaCerrado, motivoCerrado } from "@/lib/periodos";
 
 const DIAS_ROTULO = ["", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"];
 /** "martes y jueves" — para decirle a la persona qué días sí tiene el curso. */
@@ -89,6 +90,12 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
 
   const inicio = parseFechaISO(e.fechaInicio);
   if (!inicio) return { error: "Fecha de inicio inválida." };
+
+  // Un período ya liquidado y pagado está cerrado (regla de negocio 16): una
+  // venta con fecha ahí adentro cambiaría el reparto de comisiones ya pagadas.
+  const cierre = await cierreLiquidado(sb);
+  if (estaCerrado(e.fechaInicio, cierre))
+    return { error: motivoCerrado(e.fechaInicio, cierre!) };
 
   // 1. Alumno y plan (datos autoritativos del servidor).
   const { data: alumno } = await sb
@@ -363,6 +370,11 @@ export async function venderPrueba(
   const fechasOrdenadas = elegidos.map((c) => c.fecha).sort();
   const inicio = parseFechaISO(fechasOrdenadas[0])!;
   const finPrueba = fechasOrdenadas[fechasOrdenadas.length - 1];
+
+  // Un período ya liquidado y pagado está cerrado (regla de negocio 16).
+  const cierre = await cierreLiquidado(sb);
+  const enCerrado = fechasOrdenadas.find((f) => estaCerrado(f, cierre));
+  if (enCerrado) return { error: motivoCerrado(enCerrado, cierre!) };
 
   const { data: alumno } = await sb
     .from("alumnos")

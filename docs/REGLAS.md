@@ -89,6 +89,19 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
 14. **Diferenciación por rol/permiso, nunca por persona.**
 15. **Toda lista de personas para localizar a alguien se ordena por apellido**
     (helper `compararPorApellido`), en cualquier entidad.
+16. **Un período liquidado y pagado está cerrado.** Ningún hecho con fecha
+    dentro de él se crea ni se modifica: ni una venta retroactiva, ni suspender
+    o reabrir una clase, ni corregir una asistencia. Si hay que corregir algo de
+    un período cerrado, se hace con un **ajuste con fecha de hoy**, que deja
+    rastro; el pasado no se reescribe. **El corte es el primer pago**, no el
+    pago total: una liquidación `cerrada` tiene pago parcial y esa plata ya
+    salió. Mientras esté `abierta` (nada pagado) el cambio se permite, y el
+    devengo afectado **se revierte solo** para que se recalcule — si no, la
+    membresía quedaría marcada como "ya devengada" y la corrección nunca
+    llegaría a la comisión.
+    *Importa desde la regla 10: la comisión depende de cuántas clases dictó
+    cada curso, así que tocar una clase vieja mueve plata ya pagada.*
+    *(Decisión de Javier, 2026-09-11, opción a.)*
 
 ## 3. Reglas de proceso
 

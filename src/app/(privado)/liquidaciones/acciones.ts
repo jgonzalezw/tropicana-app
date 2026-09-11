@@ -392,6 +392,64 @@ export async function cargarLiquidaciones(): Promise<{
 }
 
 /** Genera (o completa) la liquidación de un profesor con sus devengos pendientes. */
+/**
+ * Revierte los devengos que una clase afecta, **si su liquidación sigue
+ * abierta** (nadie cobró todavía).
+ *
+ * Es la otra mitad de la regla de negocio 16, opción (a) de Javier: un período
+ * pagado está cerrado y no se toca; uno abierto se puede corregir, y entonces
+ * el devengo viejo tiene que irse para que el cálculo lo rehaga con los datos
+ * nuevos. Sin esto, `calcularPendientes` ve la membresía como "ya devengada" y
+ * la saltea para siempre — la corrección no llegaría nunca a la comisión.
+ *
+ * Devuelve cuántos devengos se revirtieron, para poder avisarlo.
+ */
+export async function revertirDevengosAbiertos(
+  a: Admin,
+  cursoId: number,
+  fechaISO: string
+): Promise<number> {
+  // Membresías que incluyen ese curso y cuyo período cubre esa fecha.
+  const { data: ic } = await a
+    .from("inscripcion_cursos")
+    .select("inscripcion_id, fecha")
+    .eq("curso_id", cursoId);
+  const candidatas = ((ic as { inscripcion_id: number; fecha: string | null }[]) ?? []).map(
+    (r) => r.inscripcion_id
+  );
+  if (!candidatas.length) return 0;
+
+  const { data: insc } = await a
+    .from("inscripciones")
+    .select("id, fecha_inicio, fecha_fin")
+    .in("id", candidatas)
+    .lte("fecha_inicio", fechaISO);
+  const afectadas = ((insc as { id: number; fecha_inicio: string; fecha_fin: string | null }[]) ?? [])
+    .filter((m) => !m.fecha_fin || m.fecha_fin >= fechaISO)
+    .map((m) => m.id);
+  if (!afectadas.length) return 0;
+
+  // Sus comisiones de ese curso que estén en una liquidación ABIERTA.
+  const { data: com } = await a
+    .from("comisiones_devengadas")
+    .select("id, liquidacion_id, liquidacion:liquidaciones(estado)")
+    .in("membresia_id", afectadas)
+    .eq("curso_id", cursoId);
+  const revertibles = ((com as unknown as {
+    id: number;
+    liquidacion_id: number | null;
+    liquidacion: { estado: string } | null;
+  }[]) ?? []).filter((c) => c.liquidacion?.estado === "abierta");
+  if (!revertibles.length) return 0;
+
+  const ids = revertibles.map((c) => c.id);
+  await a.from("liquidacion_items").delete().in("comision_id", ids);
+  await a.from("comisiones_devengadas").delete().in("id", ids);
+  for (const liq of [...new Set(revertibles.map((c) => c.liquidacion_id).filter((x): x is number => x != null))])
+    await recomputarTotales(a, liq);
+  return ids.length;
+}
+
 export async function generarLiquidacion(profesorId: number): Promise<{ ok?: true; liquidacionId?: number; error?: string }> {
   if (!(await tienePermiso("comisiones", "crear"))) return { error: "Sin permiso." };
   const a = admin();

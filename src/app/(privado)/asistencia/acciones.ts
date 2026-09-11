@@ -6,8 +6,10 @@ import { createClient } from "@/lib/supabase/server";
 import { tienePermiso, obtenerParametro, obtenerPerfilActual } from "@/lib/sesion";
 import { compararPorApellido } from "@/lib/texto";
 import { diaIso } from "@/lib/inscripcion";
+import { cierreLiquidado, estaCerrado, motivoCerrado } from "@/lib/periodos";
 import type { EntradaAsistencia, FilaAsistencia } from "@/lib/tipos";
 import { recalcularFinDeCiclo, recalcularMembresia } from "@/lib/membresias";
+import { revertirDevengosAbiertos } from "../liquidaciones/acciones";
 
 function admin() {
   const a = createAdminClient();
@@ -44,6 +46,15 @@ async function validarFecha(fecha: string): Promise<string | null> {
   if (!ISO.test(fecha)) return "Fecha inválida.";
   const hoy = hoyISO();
   if (fecha > hoy) return "No se puede operar una fecha futura.";
+
+  // Un período ya liquidado y PAGADO está cerrado (regla de negocio 16). Desde
+  // que la comisión se reparte a prorrata, tomar o corregir una asistencia, o
+  // suspender o reabrir una clase, cambia cuántas clases dictó cada curso — y
+  // con eso, una comisión que ya se pagó.
+  const sbCierre = await createClient();
+  const cierre = await cierreLiquidado(sbCierre);
+  if (estaCerrado(fecha, cierre)) return motivoCerrado(fecha, cierre!);
+
   if (fecha < hoy) {
     if (!(await tienePermiso("asistencia", "editar")))
       return "No tenés permiso para cargar fechas pasadas.";
@@ -564,6 +575,12 @@ export async function guardarAsistencia(
   const perfil = await obtenerPerfilActual();
   const a = admin();
 
+  // Si esta clase ya habia devengado comision en una liquidacion ABIERTA, el
+  // devengo se revierte para que se recalcule con los datos nuevos (regla de
+  // negocio 16, opcion a). Si la liquidacion ya tenia pago, validarFecha ni
+  // siquiera dejo llegar hasta aca.
+  const devengosRehechos = await revertirDevengosAbiertos(a, e.cursoId, e.fecha);
+
   const { data: curso } = await a
     .from("cursos")
     .select("id, dias_semana")
@@ -636,7 +653,11 @@ export async function guardarAsistencia(
       ausentes,
       "ausente",
       "ausentes"
-    )}.${notaLic}${notaComp}`,
+    )}.${notaLic}${notaComp}${
+      devengosRehechos > 0
+        ? ` Se dio de baja ${plu(devengosRehechos, "una comisión ya devengada", "comisiones ya devengadas")} de una liquidación abierta: hay que volver a generarla.`
+        : ""
+    }`,
   };
 }
 
@@ -674,6 +695,11 @@ export async function suspenderClase(args: {
 
   const perfil = await obtenerPerfilActual();
   const a = admin();
+  // Suspender cambia cuantas clases dicto el curso, y con eso el reparto de la
+  // comision (regla de negocio 10). Si el devengo esta en una liquidacion
+  // abierta se revierte para que se recalcule; si ya tenia pago, validarFecha
+  // no dejo llegar hasta aca (regla 16).
+  await revertirDevengosAbiertos(a, args.cursoId, args.fecha);
 
   const { data: curso } = await a
     .from("cursos")
@@ -761,6 +787,8 @@ export async function reabrirSesion(args: {
     .eq("fecha", args.fecha)
     .maybeSingle();
   if (!sesion) return { ok: true };
+  // Reabrir tambien cambia el conteo de clases dictadas: mismo tratamiento.
+  await revertirDevengosAbiertos(a, args.cursoId, args.fecha);
   await revertirCorrimientos(a, sesion.id);
   await a
     .from("sesiones")

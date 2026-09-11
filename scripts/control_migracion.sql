@@ -259,6 +259,36 @@ select '16. pruebas con clase en un dia sin curso o suspendida' as control,
    );
 
 -- ---------------------------------------------------------------------
+-- 17. HECHOS DENTRO DE UN PERIODO YA LIQUIDADO Y PAGADO
+--     Regla de negocio 16: un periodo liquidado y pagado esta cerrado. Si
+--     aparecen ventas, clases suspendidas o asistencias con fecha dentro de
+--     el, alguien reescribio el pasado y la comision que se pago quedo sin
+--     respaldo. Cuenta los hechos posteriores al cierre que caen ahi adentro.
+--     El cierre es el ultimo dia del mes de la liquidacion mas nueva CON PAGO
+--     (estado 'pagada' o 'cerrada': 'cerrada' es pago parcial).
+-- ---------------------------------------------------------------------
+with cierre as (
+  select max((date_trunc('month', periodo) + interval '1 month - 1 day')::date) as hasta
+    from public.liquidaciones
+   where estado in ('pagada', 'cerrada') and periodo is not null
+)
+select '17. hechos dentro de un periodo pagado' as control,
+       (select count(*) from public.inscripciones i, cierre
+         where cierre.hasta is not null and i.creado_en::date > cierre.hasta
+           and i.fecha_inicio <= cierre.hasta)
+     + (select count(*) from public.sesiones s, cierre
+         where cierre.hasta is not null and s.estado = 'suspendida'
+           and s.fecha <= cierre.hasta and s.actualizado_en::date > cierre.hasta)
+       as n,
+       case when (select count(*) from public.inscripciones i, cierre
+                   where cierre.hasta is not null and i.creado_en::date > cierre.hasta
+                     and i.fecha_inicio <= cierre.hasta)
+                + (select count(*) from public.sesiones s, cierre
+                    where cierre.hasta is not null and s.estado = 'suspendida'
+                      and s.fecha <= cierre.hasta and s.actualizado_en::date > cierre.hasta) = 0
+            then 'OK' else 'REVISAR' end as estado;
+
+-- ---------------------------------------------------------------------
 -- 15. UN CONCEPTO, UN NOMBRE: llaves a `inscripciones` con nombres distintos
 --     La misma llave foranea se llama `inscripcion_id` en unas tablas y
 --     `membresia_id` en otras. Es deuda conocida (D1 en docs/DECISIONES.md),
