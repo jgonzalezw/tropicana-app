@@ -228,7 +228,11 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
     return { error: "El descuento manual necesita un motivo." };
 
   // 6. Fecha de compromiso de pago (solo si queda saldo), tope por parámetro.
-  const saldo = Math.max(0, referencia - mueve - descManual);
+  // El crédito de la prueba cuenta como cobrado: si no, una venta pagada al
+  // contado quedaba con un saldo fantasma del tamaño del crédito y pedía una
+  // fecha de compromiso que no correspondía.
+  const creditoPrev = Math.min(conversion?.monto ?? 0, referencia);
+  const saldo = Math.max(0, referencia - creditoPrev - mueve - descManual);
   let fechaCompromiso: string | null = null;
   if (saldo > 0) {
     const diasMax = Math.max(1, Number(await obtenerParametro("dias_compromiso_pago")) || 30);
@@ -307,7 +311,7 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
   // paga, y no suma a la base de comisión (regla 8) — el profesor ya cobró su
   // parte cuando se vendió la prueba. Va en su propia línea para poder
   // auditarlo aparte del descuento manual, que tiene otro motivo.
-  const credito = Math.min(conversion?.monto ?? 0, referencia);
+  const credito = creditoPrev;
   const porDesc = Math.min(descManual, Math.max(0, referencia - credito));
   const porPlata = Math.min(mueve, Math.max(0, referencia - credito - porDesc));
   const saldado = credito + porDesc + porPlata;

@@ -39,6 +39,7 @@ export default function Cobro({
   direccion,
   medios,
   permitirSinCobro = true,
+  credito,
   cuentaId,
   onChange,
 }: {
@@ -50,10 +51,21 @@ export default function Cobro({
   direccion: Direccion;
   medios: string[];
   permitirSinCobro?: boolean;
+  /**
+   * Crédito ya ganado que se deduce de la referencia — hoy, la clase de prueba
+   * que el alumno convierte. **No modifica el precio**: el precio del plan
+   * sigue siendo el precio del plan, y esto se ve como un descuento con su
+   * motivo, igual que cualquier otro. (Javier, 2026-09-11.)
+   */
+  credito?: { monto: number; motivo: string } | null;
   cuentaId: string;
   onChange?: (p: PayloadCobro) => void;
 }) {
-  const sinReferencia = !(referencia > 0);
+  // El crédito baja lo que hay que cobrar, no el precio: todo el cálculo de
+  // abajo trabaja sobre la referencia NETA.
+  const credMonto = Math.max(0, Math.min(Number(credito?.monto) || 0, referencia));
+  const refNeta = Math.max(0, referencia - credMonto);
+  const sinReferencia = !(refNeta > 0);
   const [modo, setModo] = useState<ModoCobro>(sinReferencia ? "parcial" : "entero");
   const [monto, setMonto] = useState("");
   const [medio, setMedio] = useState<string | null>(null);
@@ -64,11 +76,11 @@ export default function Cobro({
 
   // Cambiar de cuenta/referencia reinicia el paso. Patrón de "ajustar estado
   // en render" (React: You Might Not Need an Effect), no un efecto.
-  const claveActual = `${cuentaId}|${referencia}`;
+  const claveActual = `${cuentaId}|${refNeta}`;
   const [claveReset, setClaveReset] = useState(claveActual);
   if (claveReset !== claveActual) {
     setClaveReset(claveActual);
-    setModo(referencia > 0 ? "entero" : "parcial");
+    setModo(refNeta > 0 ? "entero" : "parcial");
     setMonto("");
     setMedio(null);
     setNotaMedio("");
@@ -83,7 +95,7 @@ export default function Cobro({
   };
 
   const ajusteNum = politica === "simple" ? 0 : parse(ajuste);
-  const total = Math.max(0, referencia - ajusteNum);
+  const total = Math.max(0, refNeta - ajusteNum);
   const mueve = modo === "sin" ? 0 : modo === "entero" ? total : parse(monto);
   const saldo = Math.max(0, total - mueve);
 
@@ -109,13 +121,13 @@ export default function Cobro({
       notaMedio,
       ajuste: ajusteNum,
       ajusteMotivo,
-      referencia,
+      referencia: refNeta,
       total,
       saldo,
       valido,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cuentaId, modo, monto, medio, notaMedio, ajuste, ajusteMotivo, referencia]);
+  }, [cuentaId, modo, monto, medio, notaMedio, ajuste, ajusteMotivo, refNeta]);
 
   const etiquetasModo: Record<ModoCobro, string> =
     direccion === "cobro"
@@ -137,6 +149,14 @@ export default function Cobro({
           <div className="text-right">
             <div className="text-sm text-[var(--texto-tenue)]">{referenciaLabel}</div>
             <div className="titulo text-2xl">{fmt(referencia)}</div>
+            {credMonto > 0 && (
+              <>
+                <div className="text-sm text-[var(--exito-texto)] mt-1">
+                  − {fmt(credMonto)} · {credito?.motivo}
+                </div>
+                <div className="text-base font-semibold mt-0.5">A cobrar {fmt(refNeta)}</div>
+              </>
+            )}
           </div>
         </div>
       )}

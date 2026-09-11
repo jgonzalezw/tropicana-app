@@ -66,7 +66,7 @@ export default function ClienteInscribir({
   /** Claves `cursoId|YYYY-MM-DD` de clases suspendidas: no son clase. */
   suspendidas: string[];
   /** Crédito de una clase de prueba sin convertir, por alumno y plan. */
-  creditoPruebaPorAlumnoPlan: Record<number, Record<number, number>>;
+  creditoPruebaPorAlumnoPlan: Record<number, Record<number, { monto: number; fecha: string }>>;
 }) {
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
@@ -98,10 +98,14 @@ export default function ClienteInscribir({
   // Crédito de la clase de prueba de este mismo plan (regla 11). Se muestra
   // acá, antes de cobrar, pero el servidor lo vuelve a calcular al vender: la
   // pantalla propone, el servidor decide.
-  const creditoPrueba =
-    alumno && plan ? Math.min(creditoPruebaPorAlumnoPlan[alumno.id]?.[plan.id] ?? 0, plan.precio) : 0;
-  /** Lo que queda por cobrar después de acreditarle la prueba. */
-  const total = Math.max(0, precioPlan - creditoPrueba);
+  const credito = alumno && plan ? creditoPruebaPorAlumnoPlan[alumno.id]?.[plan.id] ?? null : null;
+  const creditoPrueba = credito ? Math.min(credito.monto, precioPlan) : 0;
+  /**
+   * El precio del plan NO cambia: el crédito se deduce de lo que hay que
+   * cobrar, como un descuento con su motivo (Javier). Por eso `total` sigue
+   * siendo el precio, y el crédito viaja al paso de cobro.
+   */
+  const total = precioPlan;
   const Nefectivo = N != null ? N + bono : null;
 
   // Lista con repetición: una entrada por (curso, día) elegido.
@@ -474,10 +478,11 @@ export default function ClienteInscribir({
                 />
               </div>
 
-              {creditoPrueba > 0 && (
+              {creditoPrueba > 0 && credito && (
                 <div className="mt-3 rounded-[var(--radio-panel)] border border-[var(--exito)] bg-[var(--exito-fill)] text-[var(--exito-texto)] px-4 py-2.5 text-sm">
-                  Se le acredita su <strong>clase de prueba</strong>: {gs(creditoPrueba)} menos sobre{" "}
-                  {gs(precioPlan)}. A cobrar <strong>{gs(total)}</strong>.
+                  Se le acredita su <strong>clase de prueba</strong> del{" "}
+                  {fechaLarga(new Date(credito.fecha + "T00:00:00"))}: {gs(creditoPrueba)} sobre{" "}
+                  {gs(precioPlan)}. A cobrar <strong>{gs(precioPlan - creditoPrueba)}</strong>.
                 </div>
               )}
 
@@ -521,7 +526,17 @@ export default function ClienteInscribir({
 
             <Cobro
               referencia={total}
-              referenciaLabel="A cobrar"
+              referenciaLabel="Precio del plan"
+              credito={
+                creditoPrueba > 0 && credito
+                  ? {
+                      monto: creditoPrueba,
+                      motivo: `Crédito de su clase de prueba del ${fechaLarga(
+                        new Date(credito.fecha + "T00:00:00")
+                      )}`,
+                    }
+                  : null
+              }
               politica="descuento"
               direccion="cobro"
               medios={medios}

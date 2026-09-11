@@ -164,7 +164,7 @@ export default async function PaginaInscribir() {
       .neq("estado", "baja"),
     "las clases de prueba"
   ) as { id: number; alumno_id: number; plan_id: number | null; fecha_fin: string | null }[];
-  const creditoPruebaPorAlumnoPlan: Record<number, Record<number, number>> = {};
+  const creditoPruebaPorAlumnoPlan: Record<number, Record<number, { monto: number; fecha: string }>> = {};
   if (pruebas.length) {
     const convertidas = exigir(
       await supabase
@@ -212,7 +212,9 @@ export default async function PaginaInscribir() {
       const monto = pagadoPorInsc[pr.id] ?? 0;
       if (monto <= 0) continue;
       (creditoPruebaPorAlumnoPlan[pr.alumno_id] ??= {});
-      creditoPruebaPorAlumnoPlan[pr.alumno_id][pr.plan_id] = monto;
+      // Con la fecha: "se le acredita su prueba" sin decir CUÁL prueba obliga
+      // a ir a buscarla a otra pantalla.
+      creditoPruebaPorAlumnoPlan[pr.alumno_id][pr.plan_id] = { monto, fecha: pr.fecha_fin };
     }
   }
 

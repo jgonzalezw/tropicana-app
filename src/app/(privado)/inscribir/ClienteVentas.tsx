@@ -30,7 +30,7 @@ export default function ClienteVentas(props: {
   /** Claves `cursoId|YYYY-MM-DD` de clases suspendidas: no son clase. */
   suspendidas: string[];
   /** Crédito de una clase de prueba sin convertir, por alumno y plan. */
-  creditoPruebaPorAlumnoPlan: Record<number, Record<number, number>>;
+  creditoPruebaPorAlumnoPlan: Record<number, Record<number, { monto: number; fecha: string }>>;
 }) {
   const { suspendidas } = props;
   const [modo, setModo] = useState<Modo>("inscripcion");
