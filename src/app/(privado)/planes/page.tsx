@@ -13,6 +13,7 @@ export default async function PaginaPlanes() {
   const supabase = await createClient();
 
   const toleranciaAcademia = Math.max(0, Number(await obtenerParametro("tolerancia_faltas")) || 0);
+  const plazoAcademia = Math.max(0, Number(await obtenerParametro("prueba_plazo_dias")) || 7);
 
   const [{ data: planes }, { data: cursos }, { data: planCursos }, { data: insc }] =
     await Promise.all([
@@ -48,6 +49,7 @@ export default async function PaginaPlanes() {
         cursos={(cursos as Curso[]) ?? []}
         deps={deps}
         toleranciaAcademia={toleranciaAcademia}
+        plazoAcademia={plazoAcademia}
       />
     </div>
   );

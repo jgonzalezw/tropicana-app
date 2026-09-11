@@ -78,12 +78,12 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
     Los cursos se eligen **siempre al comprar**. Un grupo es un titular
     identificado más N acompañantes sin nombre, un solo monto, y **una sola
     asistencia por curso** — todos van a la misma clase.
-9. **Snapshot de precios y porcentajes.** Editar un precio o un % no reescribe
-   lo ya vendido ni lo ya devengado.
-10. **Sin hardcode.** Tarifas, tolerancias, umbrales, motivos, categorías, roles
-   y permisos van a catálogo o parámetro.
-11. **Diferenciación por rol/permiso, nunca por persona.**
-12. **Toda lista de personas para localizar a alguien se ordena por apellido**
+12. **Snapshot de precios y porcentajes.** Editar un precio o un % no reescribe
+    lo ya vendido ni lo ya devengado.
+13. **Sin hardcode.** Tarifas, tolerancias, umbrales, motivos, categorías, roles
+    y permisos van a catálogo o parámetro.
+14. **Diferenciación por rol/permiso, nunca por persona.**
+15. **Toda lista de personas para localizar a alguien se ordena por apellido**
     (helper `compararPorApellido`), en cualquier entidad.
 
 ## 3. Reglas de proceso

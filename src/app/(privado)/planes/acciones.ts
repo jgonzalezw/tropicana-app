@@ -91,6 +91,12 @@ export async function crearPlan(d: DatosPlan): Promise<Resultado> {
       precio: d.precio,
       criterio_liquidacion: d.criterio_liquidacion,
       tolerancia_faltas: d.tolerancia_faltas,
+      acepta_prueba: d.acepta_prueba,
+      // Las condiciones solo se guardan si el plan acepta prueba: si se apaga,
+      // no quedan restos configurados que confundan después.
+      prueba_cursos_max: d.acepta_prueba ? d.prueba_cursos_max : null,
+      prueba_acredita: d.acepta_prueba ? d.prueba_acredita : true,
+      prueba_plazo_dias: d.acepta_prueba ? d.prueba_plazo_dias : null,
       renovable: true,
       activo: true,
     })
@@ -121,6 +127,12 @@ export async function actualizarPlan(id: number, d: DatosPlan): Promise<Resultad
       precio: d.precio,
       criterio_liquidacion: d.criterio_liquidacion,
       tolerancia_faltas: d.tolerancia_faltas,
+      acepta_prueba: d.acepta_prueba,
+      // Las condiciones solo se guardan si el plan acepta prueba: si se apaga,
+      // no quedan restos configurados que confundan después.
+      prueba_cursos_max: d.acepta_prueba ? d.prueba_cursos_max : null,
+      prueba_acredita: d.acepta_prueba ? d.prueba_acredita : true,
+      prueba_plazo_dias: d.acepta_prueba ? d.prueba_plazo_dias : null,
       actualizado_en: new Date().toISOString(),
     })
     .eq("id", id);

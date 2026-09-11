@@ -18,6 +18,10 @@ const VACIO: DatosPlan = {
   criterio_liquidacion: 1,
   tolerancia_faltas: null,
   cursoIds: [],
+  acepta_prueba: false,
+  prueba_cursos_max: null,
+  prueba_acredita: true,
+  prueba_plazo_dias: null,
 };
 
 const ACCESO_LABEL: Record<AccesoModo, string> = {
@@ -36,11 +40,14 @@ export default function ClientePlanes({
   cursos,
   deps,
   toleranciaAcademia,
+  plazoAcademia,
 }: {
   planes: Plan[];
   cursos: Curso[];
   /** Parámetro `tolerancia_faltas`: lo que aplica si el plan no define lo suyo. */
   toleranciaAcademia: number;
+  /** Parámetro `prueba_plazo_dias`: el plazo por defecto para convertir. */
+  plazoAcademia: number;
   deps: Record<number, number>;
 }) {
   const router = useRouter();
@@ -77,6 +84,10 @@ export default function ClientePlanes({
       criterio_liquidacion: p.criterio_liquidacion,
       tolerancia_faltas: p.tolerancia_faltas,
       cursoIds: p.cursoIds ?? (p.curso_id != null ? [p.curso_id] : []),
+      acepta_prueba: p.acepta_prueba,
+      prueba_cursos_max: p.prueba_cursos_max,
+      prueba_acredita: p.prueba_acredita,
+      prueba_plazo_dias: p.prueba_plazo_dias,
     });
     setError(null);
     if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
@@ -115,6 +126,28 @@ export default function ClientePlanes({
   }
 
   const muestraCursos = form.acceso_modo !== "todas";
+
+  /**
+   * A qué cursos da acceso el plan, según cómo se definió el acceso. No es lo
+   * mismo que los tildados: con "todas excepto", los tildados son los que
+   * quedan afuera.
+   */
+  const cursosDelPlan = useMemo(() => {
+    if (form.acceso_modo === "todas") return cursos;
+    if (form.acceso_modo === "excepto") return cursos.filter((c) => !form.cursoIds.includes(c.id));
+    return cursos.filter((c) => form.cursoIds.includes(c.id));
+  }, [cursos, form.acceso_modo, form.cursoIds]);
+
+  /**
+   * Valor de referencia: lo que costaría comprar cada curso por separado. Es
+   * una sugerencia, no el precio — quien arma el plan decide qué cobra. Se
+   * vuelve importante en los planes múltiples, donde la cuenta no es obvia.
+   */
+  const referencia = useMemo(
+    () => cursosDelPlan.reduce((t, c) => t + Number(c.precio_mensual ?? 0), 0),
+    [cursosDelPlan]
+  );
+  const difPrecio = form.precio > 0 ? form.precio - referencia : 0;
 
   return (
     <div className="space-y-6">
@@ -182,6 +215,105 @@ export default function ClientePlanes({
                 className="entrada w-full"
               />
             </div>
+          </div>
+
+          {/* Referencia de precio: la suma de los cursos que el plan incluye. */}
+          {cursosDelPlan.length > 0 && referencia > 0 && (
+            <div className="rounded-[var(--radio-panel)] border border-[var(--borde)] bg-[var(--fondo-elevado)] p-3">
+              <div className="flex items-baseline justify-between gap-3 flex-wrap">
+                <span className="text-base">
+                  Comprados por separado:{" "}
+                  <span className="tabular-nums font-semibold">{gs(referencia)}</span>
+                </span>
+                {form.precio !== referencia && (
+                  <button
+                    type="button"
+                    onClick={() => setForm({ ...form, precio: referencia })}
+                    className="text-sm text-[var(--primario)]"
+                  >
+                    Usar este precio
+                  </button>
+                )}
+              </div>
+              <p className="text-sm text-[var(--texto-tenue)] mt-1">
+                {cursosDelPlan
+                  .map((c) => `${c.nombre} ${gs(Number(c.precio_mensual ?? 0))}`)
+                  .join(" + ")}
+              </p>
+              {form.precio > 0 && difPrecio !== 0 && (
+                <p className="text-sm mt-1 text-[var(--primario-hover)]">
+                  {difPrecio < 0
+                    ? `El alumno ahorra ${gs(-difPrecio)} comprando el plan.`
+                    : `El plan sale ${gs(difPrecio)} más que comprarlos por separado.`}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Clase de prueba: el plan decide si se ofrece y con qué condiciones. */}
+          <div className="space-y-2">
+            <Toggle
+              checked={form.acepta_prueba}
+              onChange={(v) =>
+                setForm({
+                  ...form,
+                  acepta_prueba: v,
+                  prueba_cursos_max: v ? (form.prueba_cursos_max ?? 1) : null,
+                  prueba_plazo_dias: v ? (form.prueba_plazo_dias ?? plazoAcademia) : null,
+                })
+              }
+              label="Se puede probar antes de comprar"
+              descripcion="El prospecto toma una clase de prueba de este plan, la paga al precio de prueba del curso, y después decide."
+            />
+            {form.acepta_prueba && (
+              <div className="space-y-3 pl-2 border-l-2 border-[var(--borde)]">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-sm text-[var(--texto-tenue)] block mb-1">
+                      ¿Cuántos cursos puede probar?
+                    </label>
+                    <input
+                      value={form.prueba_cursos_max ?? ""}
+                      onChange={(e) =>
+                        setForm({ ...form, prueba_cursos_max: numOrNull(e.target.value) })
+                      }
+                      inputMode="numeric"
+                      placeholder="1"
+                      className="entrada w-full"
+                    />
+                    <p className="text-sm text-[var(--texto-tenue)] mt-1">
+                      Una clase en cada uno.
+                      {cursosDelPlan.length > 1
+                        ? ` El plan da acceso a ${cursosDelPlan.length}.`
+                        : ""}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="text-sm text-[var(--texto-tenue)] block mb-1">
+                      Días para decidir
+                    </label>
+                    <input
+                      value={form.prueba_plazo_dias ?? ""}
+                      onChange={(e) =>
+                        setForm({ ...form, prueba_plazo_dias: numOrNull(e.target.value) })
+                      }
+                      inputMode="numeric"
+                      placeholder={String(plazoAcademia)}
+                      className="entrada w-full"
+                    />
+                    <p className="text-sm text-[var(--texto-tenue)] mt-1">
+                      Vacío usa la política de la academia: {plazoAcademia} días.
+                    </p>
+                  </div>
+                </div>
+                <Toggle
+                  checked={form.prueba_acredita}
+                  onChange={(v) => setForm({ ...form, prueba_acredita: v })}
+                  label="Lo pagado por la prueba se le acredita al inscribirse"
+                  descripcion="Dentro del plazo, el fee de la prueba baja lo que tiene que pagar. Pasado el plazo, se pierde."
+                />
+              </div>
+            )}
           </div>
 
           {/* Tolerancia: por defecto manda la política de la academia. */}

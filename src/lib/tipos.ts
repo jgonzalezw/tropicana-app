@@ -175,6 +175,14 @@ export type Plan = {
   clases_ilimitadas: boolean;
   ciclo_dias: number | null;
   renovable: boolean;
+  /** Si este plan se puede ofrecer como clase de prueba. */
+  acepta_prueba: boolean;
+  /** En cuántos cursos DISTINTOS del plan puede probar el prospecto. null = 1. */
+  prueba_cursos_max: number | null;
+  /** Si al convertir dentro del plazo, lo pagado se acredita a la membresía nueva. */
+  prueba_acredita: boolean;
+  /** Días para convertir conservando el crédito. null = usa el parámetro. */
+  prueba_plazo_dias: number | null;
   activo: boolean;
   creado_en: string;
   actualizado_en: string;
@@ -197,6 +205,11 @@ export type DatosPlan = {
   tolerancia_faltas: number | null;
   /** Cursos seleccionados: incluidos ('solo') o excluidos ('excepto'). */
   cursoIds: number[];
+  /** Si el plan se ofrece como clase de prueba, y con qué condiciones. */
+  acepta_prueba: boolean;
+  prueba_cursos_max: number | null;
+  prueba_acredita: boolean;
+  prueba_plazo_dias: number | null;
 };
 
 export type Asignacion = {
