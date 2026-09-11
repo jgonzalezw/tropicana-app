@@ -27,7 +27,10 @@ export default function ClienteVentas(props: {
   deudaPorAlumno: Record<number, number>;
   planesActivosPorAlumno: Record<number, number[]>;
   bonoPorAlumnoPlan: Record<number, Record<number, number>>;
+  /** Claves `cursoId|YYYY-MM-DD` de clases suspendidas: no son clase. */
+  suspendidas: string[];
 }) {
+  const { suspendidas, ...paraInscribir } = props;
   const [modo, setModo] = useState<Modo>("inscripcion");
 
   // Los planes que hoy se pueden vender a prueba: aceptan prueba Y alguno de
@@ -76,7 +79,7 @@ export default function ClienteVentas(props: {
       </div>
 
       {modo === "inscripcion" ? (
-        <ClienteInscribir {...props} />
+        <ClienteInscribir {...paraInscribir} />
       ) : vendibles.length > 0 ? (
         <div className="p-6 sm:p-8 max-w-3xl">
           <VenderPrueba
@@ -85,6 +88,7 @@ export default function ClienteVentas(props: {
             diasCompromiso={props.diasCompromiso}
             medios={props.medios}
             canales={props.canales}
+            suspendidas={suspendidas}
           />
         </div>
       ) : (

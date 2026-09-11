@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { tienePermiso, obtenerParametro } from "@/lib/sesion";
 import SinAcceso from "@/components/SinAcceso";
 import { exigir } from "@/lib/datos";
+import { isoFecha } from "@/lib/inscripcion";
 import ClienteVentas from "./ClienteVentas";
 import type { PlanVenta } from "./ClienteInscribir";
 import type { Alumno, Curso } from "@/lib/tipos";
@@ -54,6 +55,23 @@ export default async function PaginaInscribir() {
       t.curso_id,
       Number(t.precio),
     ])
+  );
+
+  // Clases suspendidas: la pantalla tiene que poder decir a qué clase va el
+  // alumno, y una suspendida no cuenta (regla de negocio 4). Sin esto la
+  // pantalla mostraría una fecha y el motor guardaría otra.
+  const desdeSusp = new Date();
+  desdeSusp.setDate(desdeSusp.getDate() - 90);
+  const sesionesSusp = exigir(
+    await supabase
+      .from("sesiones")
+      .select("curso_id, fecha")
+      .eq("estado", "suspendida")
+      .gte("fecha", isoFecha(desdeSusp)),
+    "las clases suspendidas"
+  );
+  const suspendidas = ((sesionesSusp as { curso_id: number; fecha: string }[]) ?? []).map(
+    (s) => `${s.curso_id}|${s.fecha}`
   );
 
   // Cursos por plan.
@@ -188,6 +206,7 @@ export default async function PaginaInscribir() {
       deudaPorAlumno={deudaPorAlumno}
       planesActivosPorAlumno={planesActivosPorAlumno}
       bonoPorAlumnoPlan={bonoPorAlumnoPlan}
+      suspendidas={suspendidas}
     />
   );
 }

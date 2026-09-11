@@ -499,10 +499,21 @@ export async function venderPrueba(
   const quien = `${alumno.nombre} ${alumno.apellido}`;
   const gente = personas === 1 ? "1 persona" : `${personas} personas`;
   const cursosTxt = cursoIds.length === 1 ? "1 curso" : `${cursoIds.length} cursos`;
+
+  // Cuándo asiste: se lee la fecha que el motor dejó guardada, no la que la
+  // pantalla calculó. Es lo que confirma que las dos coinciden.
+  const { data: guardada } = await sb
+    .from("inscripciones")
+    .select("fecha_fin")
+    .eq("id", inscripcionId)
+    .maybeSingle();
+  const cuando = (guardada as { fecha_fin: string | null } | null)?.fecha_fin;
+  const asiste = cuando ? ` Asiste el ${fechaLarga(new Date(cuando + "T00:00:00"))}.` : "";
+
   return {
     ok: true,
     resumen:
-      `Clase de prueba de ${quien} — ${cursosTxt}, ${gente}, ${gs(referencia)}. ` +
+      `Clase de prueba de ${quien} — ${cursosTxt}, ${gente}, ${gs(referencia)}.${asiste} ` +
       (porPlata > 0 ? `Cobrado ${gs(porPlata)}${c.medio ? ` (${c.medio})` : ""}.` : "Sin cobro por ahora."),
   };
 }

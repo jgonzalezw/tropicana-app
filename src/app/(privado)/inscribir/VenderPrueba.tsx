@@ -7,7 +7,7 @@ import EntidadAlumno from "@/components/entidades/EntidadAlumno";
 import Cobro, { type PayloadCobro } from "@/components/Cobro";
 import Toggle from "@/components/Toggle";
 import { etiquetaDias } from "@/components/entidades/EntidadCurso";
-import { fechaLarga, gs, isoFecha } from "@/lib/inscripcion";
+import { diaIso, fechaLarga, gs, isoFecha, proximasClases } from "@/lib/inscripcion";
 import { crearAlumnoDesdeInscripcion, venderPrueba } from "./acciones";
 import type { PlanVenta } from "./ClienteInscribir";
 
@@ -30,12 +30,14 @@ export default function VenderPrueba({
   diasCompromiso,
   medios,
   canales,
+  suspendidas,
 }: {
   alumnos: Alumno[];
   planes: PlanVenta[];
   diasCompromiso: number;
   medios: string[];
   canales: Canal[];
+  suspendidas: string[];
 }) {
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
@@ -45,6 +47,7 @@ export default function VenderPrueba({
   const [plan, setPlan] = useState<PlanVenta | null>(null);
   const [cursoIds, setCursoIds] = useState<number[]>([]);
   const [acompanantes, setAcompanantes] = useState("0");
+  const [fechaIdx, setFechaIdx] = useState(0);
   const [retroActivo, setRetroActivo] = useState(false);
   const [fechaRetro, setFechaRetro] = useState("");
   const [cobro, setCobro] = useState<PayloadCobro | null>(null);
@@ -73,7 +76,50 @@ export default function VenderPrueba({
     0
   );
   const total = porPersona * personas;
-  const fechaInicio = retroActivo && fechaRetro ? fechaRetro : isoFecha(hoy);
+
+  const susp = useMemo(() => new Set(suspendidas), [suspendidas]);
+
+  // ¿Qué día viene a probar? La fecha de la venta NO es la fecha de la clase:
+  // se vende un viernes una prueba de un curso que es lunes y miércoles. Mismo
+  // selector que la inscripción: las próximas clases de los cursos elegidos,
+  // salteando las suspendidas — igual criterio que el motor (regla 4), para
+  // que la pantalla no diga una fecha y la base guarde otra.
+  const elegidos = useMemo(
+    () => cursoIds.map((id) => cursosProbables.find((c) => c.id === id)).filter((c) => !!c),
+    // cursosProbables se deriva de `plan`, que ya está en las dependencias.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [cursoIds, plan]
+  );
+  const fechas = useMemo(() => {
+    if (!elegidos.length) return [] as Date[];
+    const dias = [...new Set(elegidos.flatMap((c) => c.dias_semana ?? []))];
+    // Una fecha sirve si algún curso elegido dicta ese día y no está suspendida.
+    return proximasClases(dias, 12, hoy)
+      .filter((d) =>
+        elegidos.some(
+          (c) => (c.dias_semana ?? []).includes(diaIso(d)) && !susp.has(`${c.id}|${isoFecha(d)}`)
+        )
+      )
+      .slice(0, 3);
+  }, [elegidos, hoy, susp]);
+
+  const fechaElegida = fechas[Math.min(fechaIdx, Math.max(0, fechas.length - 1))] ?? hoy;
+  const fechaInicio = retroActivo && fechaRetro ? fechaRetro : isoFecha(fechaElegida);
+
+  // Qué clase le toca a cada curso desde esa fecha (con varios cursos, cada
+  // uno cae en su propio día).
+  const cuandoAsiste = useMemo(() => {
+    const desde = new Date(fechaInicio + "T00:00:00");
+    return elegidos.map((c) => ({
+      id: c.id,
+      nombre: c.nombre,
+      hora: c.hora,
+      fecha:
+        proximasClases(c.dias_semana ?? [], 20, desde).find(
+          (d) => !susp.has(`${c.id}|${isoFecha(d)}`)
+        ) ?? null,
+    }));
+  }, [elegidos, fechaInicio, susp]);
 
   async function guardarAlumnoNuevo(datos: DatosAlumno) {
     const res = await crearAlumnoDesdeInscripcion(datos);
@@ -87,11 +133,13 @@ export default function VenderPrueba({
   function elegirPlan(p: PlanVenta) {
     setPlan(p);
     setCursoIds([]);
+    setFechaIdx(0);
     setCobro(null);
     setError(null);
   }
   function toggleCurso(id: number) {
     setError(null);
+    setFechaIdx(0);
     setCursoIds((prev) => {
       if (prev.includes(id)) return prev.filter((x) => x !== id);
       if (prev.length >= tope) return prev; // el tope lo pone el plan
@@ -138,6 +186,7 @@ export default function VenderPrueba({
       setPlan(null);
       setCursoIds([]);
       setAcompanantes("0");
+      setFechaIdx(0);
       setCobro(null);
       setRetroActivo(false);
       setFechaRetro("");
@@ -268,33 +317,86 @@ export default function VenderPrueba({
               </div>
             )}
 
-            <div className="mt-4">
-              <Toggle
-                checked={retroActivo}
-                onChange={(v) => {
-                  setRetroActivo(v);
-                  if (!v) setFechaRetro("");
-                  setError(null);
-                }}
-                label="La prueba fue en una fecha pasada"
-                descripcion="Para registrar una prueba que ya ocurrió. Apagado, se toma hoy."
-              />
-              {retroActivo && (
-                <label className="block max-w-[220px] mt-2">
-                  <span className="block text-base font-medium mb-1.5">¿Qué día fue?</span>
-                  <input
-                    type="date"
-                    value={fechaRetro}
-                    max={isoFecha(hoy)}
-                    onChange={(e) => {
-                      setFechaRetro(e.target.value);
+            {cursoIds.length > 0 && (
+              <div className="mt-4">
+                <div className="text-sm text-[var(--texto-tenue)] mb-1.5">
+                  {retroActivo ? "Vino a probar el" : "Viene a probar el"}
+                </div>
+                {retroActivo ? (
+                  <div>
+                    <input
+                      type="date"
+                      value={fechaRetro}
+                      max={isoFecha(hoy)}
+                      onChange={(e) => {
+                        setFechaRetro(e.target.value);
+                        setError(null);
+                      }}
+                      className="entrada max-w-[200px]"
+                    />
+                    <p className="text-sm text-[var(--texto-tenue)] mt-1.5">
+                      Fecha real en que vino a la clase de prueba.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {fechas.map((f, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => setFechaIdx(i)}
+                        className={`px-4 py-2 text-sm rounded-[var(--radio-control)] border ${
+                          fechaIdx === i
+                            ? "bg-[var(--primario)] text-[var(--primario-texto)] border-[var(--primario)] font-semibold"
+                            : "border-[var(--borde)] hover:border-[var(--primario)]"
+                        }`}
+                      >
+                        {i === 0 && isoFecha(f) === isoFecha(hoy) ? "hoy " : ""}
+                        {fechaLarga(f)}
+                      </button>
+                    ))}
+                    {fechas.length === 0 && (
+                      <span className="text-sm text-[var(--texto-tenue)]">
+                        Ese curso no tiene próximas clases en los próximos días.
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {/* A qué clase va exactamente: con varios cursos, cada uno cae
+                    en su propio día, así que no alcanza con la fecha de inicio. */}
+                <ul className="mt-3 space-y-1">
+                  {cuandoAsiste.map((c) => (
+                    <li key={c.id} className="text-base">
+                      <span className="font-medium">{c.nombre}</span>:{" "}
+                      {c.fecha ? (
+                        <>
+                          {fechaLarga(c.fecha)}
+                          {c.hora ? ` · ${c.hora.slice(0, 5)}` : ""}
+                        </>
+                      ) : (
+                        <span className="text-[var(--peligro)]">
+                          sin clase disponible desde esa fecha
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+
+                <div className="mt-3">
+                  <Toggle
+                    checked={retroActivo}
+                    onChange={(v) => {
+                      setRetroActivo(v);
+                      if (!v) setFechaRetro("");
                       setError(null);
                     }}
-                    className="entrada"
+                    label="La prueba fue en una fecha pasada"
+                    descripcion="Para registrar una prueba que ya ocurrió y no se cargó en su momento."
                   />
-                </label>
-              )}
-            </div>
+                </div>
+              </div>
+            )}
           </section>
 
           {/* 3 · Cobro */}
@@ -303,8 +405,11 @@ export default function VenderPrueba({
               <h2 className="titulo text-xl mb-1">Cobro</h2>
               <p className="text-sm text-[var(--texto-tenue)] mb-3">
                 {gs(porPersona)} por persona × {personas}{" "}
-                {personas === 1 ? "persona" : "personas"} = {gs(total)}. Empieza el{" "}
-                {fechaLarga(new Date(fechaInicio + "T00:00:00"))}.
+                {personas === 1 ? "persona" : "personas"} = {gs(total)}. Asiste{" "}
+                {cuandoAsiste
+                  .map((c) => `${c.nombre} el ${c.fecha ? fechaLarga(c.fecha) : "—"}`)
+                  .join(" · ")}
+                .
               </p>
               <Cobro
                 sujeto={alumno ? `${alumno.apellido}, ${alumno.nombre}` : undefined}
