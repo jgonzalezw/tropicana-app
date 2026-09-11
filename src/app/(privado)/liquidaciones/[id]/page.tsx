@@ -1,7 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
-import { tienePermiso } from "@/lib/sesion";
+import { tienePermiso, obtenerParametro } from "@/lib/sesion";
 import SinAcceso from "@/components/SinAcceso";
 import Comprobante, { type DatosComprobante } from "./Comprobante";
+import type { LineaReparto } from "../acciones";
 
 export const dynamic = "force-dynamic";
 
@@ -29,11 +30,19 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
 
   const [{ data: prof }, { data: comis }, { data: pagosLiq }] = await Promise.all([
     sb.from("profesores").select("nombre, apellido, whatsapp").eq("id", liq.profesor_id).maybeSingle(),
-    sb.from("comisiones_devengadas").select("id, membresia_id, base, monto").eq("liquidacion_id", liquidacionId).order("id"),
+    sb.from("comisiones_devengadas").select("id, membresia_id, curso_id, base, monto, reparto").eq("liquidacion_id", liquidacionId).order("id"),
     sb.from("pagos").select("fecha, monto, medio, motivo").eq("tipo", "pago").eq("liquidacion_id", liquidacionId).order("fecha"),
   ]);
 
-  const comisiones = (comis as { id: number; membresia_id: number | null; base: number; monto: number }[]) ?? [];
+  const comisiones =
+    (comis as unknown as {
+      id: number;
+      membresia_id: number | null;
+      curso_id: number | null;
+      base: number;
+      monto: number;
+      reparto: LineaReparto[] | null;
+    }[]) ?? [];
   const membresiaIds = [...new Set(comisiones.map((c) => c.membresia_id).filter((x): x is number => x != null))];
 
   const inscById = new Map<
@@ -150,9 +159,15 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
     const i = mid != null ? inscById.get(mid) : undefined;
     const base = Number(c.base);
     const monto = Number(c.monto);
+    // El curso de la COMISIÓN, no el principal de la membresía: con prorrata
+    // una membresía genera una comisión por curso, y mostrar siempre el
+    // principal hacía que dos líneas distintas dijeran el mismo curso.
+    const cursoId = c.curso_id ?? i?.curso_id ?? null;
+    const reparto = c.reparto ?? [];
+    const pesoTotal = reparto.reduce((t, r) => t + Number(r.peso), 0);
     return {
       alumno: i ? alNombre.get(i.alumno_id) ?? `#${i.alumno_id}` : "—",
-      curso: i ? cuNombre.get(i.curso_id) ?? `#${i.curso_id}` : "—",
+      curso: cursoId != null ? cuNombre.get(cursoId) ?? `#${cursoId}` : "—",
       plan: i?.plan_id != null ? planNombre.get(i.plan_id) ?? `#${i.plan_id}` : "—",
       tipoServicio: ETIQUETA_TIPO_SERVICIO[i?.plan_id != null ? planTipo.get(i.plan_id) ?? "" : ""] ?? "—",
       cicloInicio: i?.fecha_inicio ?? null,
@@ -168,8 +183,19 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
       cobrado: mid != null ? cobradoPorInsc[mid] ?? base : base,
       pct: base > 0 ? Math.round((monto / base) * 100) : 0,
       monto,
+      // Prorrata: `base` es la PARTE de este curso, no lo cobrado entero.
+      parte: base,
+      reparto,
+      pesoTotal,
+      pesoCurso: reparto.find((r) => r.cursoId === cursoId)?.peso ?? 0,
+      clasesCurso: reparto.find((r) => r.cursoId === cursoId)?.clases ?? null,
     };
   });
+
+  const [repPantalla, repImpreso] = await Promise.all([
+    obtenerParametro("liquidacion_reparto_pantalla"),
+    obtenerParametro("liquidacion_reparto_impreso"),
+  ]);
 
   const datos: DatosComprobante = {
     id: liq.id as number,
@@ -183,6 +209,10 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
     neto: Number(liq.neto),
     creadoEn: liq.creado_en as string,
     items,
+    // Cómo se muestra el reparto: lo decide un parámetro, distinto para la
+    // pantalla y para el papel (regla 13, sin hardcode).
+    repartoPantalla: repPantalla === "compacto" ? "compacto" : "completo",
+    repartoImpreso: repImpreso === "completo" ? "completo" : "compacto",
     pagos: ((pagosLiq as { fecha: string; monto: number; medio: string | null; motivo: string | null }[]) ?? []).map((p) => ({
       fecha: p.fecha,
       monto: Number(p.monto),

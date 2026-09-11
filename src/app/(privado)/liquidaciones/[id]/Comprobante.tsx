@@ -21,7 +21,106 @@ export type ItemComprobante = {
   cobrado: number;
   pct: number;
   monto: number;
+  /** Parte de lo cobrado que le tocó a ESTE curso (prorrata). */
+  parte: number;
+  /** Reparto entre los cursos del plan. Vacío = un solo curso, nada que repartir. */
+  reparto: { cursoId: number; curso: string; clases: number; precioClase: number; peso: number }[];
+  pesoTotal: number;
+  pesoCurso: number;
+  clasesCurso: number | null;
 };
+
+/** El reparto, para el papel. Mismo criterio que en pantalla, otro formato. */
+function repartoHTML(it: ItemComprobante, modo: "completo" | "compacto"): string {
+  const esc2 = (t: string) => t.replace(/[&<>]/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[m]!);
+  if (modo === "compacto") {
+    const linea = it.reparto
+      .map((r) => `${esc2(r.curso)} ${r.peso === 0 ? "no dictó" : r.peso}`)
+      .join(" · ");
+    return `<div class="small muted">Reparto: ${linea} (total ${it.pesoTotal})</div>`;
+  }
+  const filas = it.reparto
+    .map((r) => {
+      const esEste = r.peso === it.pesoCurso && r.clases === it.clasesCurso;
+      const detalle =
+        r.clases === 0
+          ? "no dictó"
+          : `${r.clases} ${r.clases === 1 ? "clase" : "clases"} &times; ${gs(r.precioClase)}`;
+      const pct = it.pesoTotal > 0 ? Math.round((r.peso / it.pesoTotal) * 100) : 0;
+      return `<tr${esEste ? ' class="b"' : ' class="muted"'}>
+        <td>${esc2(r.curso)}</td><td>${detalle}</td>
+        <td style="text-align:right">${r.peso}</td>
+        <td style="text-align:right">${pct}%</td>
+        <td style="text-align:right">${esEste ? "&larr;" : ""}</td></tr>`;
+    })
+    .join("");
+  return `<div class="small" style="margin-top:6px;border-top:1px solid #ddd;padding-top:4px">
+      <div class="k">Reparto entre los cursos del plan</div>
+      <table style="width:100%;font-size:11px">${filas}</table>
+    </div>`;
+}
+
+/** ¿Esta comisión salió de repartir una venta entre varios cursos? */
+function hayReparto(it: ItemComprobante): boolean {
+  return it.reparto.length > 1 && it.pesoTotal > 0;
+}
+/** Qué porcentaje de la venta pesó este curso. */
+function pctPeso(it: ItemComprobante): number {
+  return it.pesoTotal > 0 ? Math.round((it.pesoCurso / it.pesoTotal) * 100) : 0;
+}
+
+/**
+ * De dónde sale la parte de este curso.
+ *
+ * Existe porque sin esto el comprobante decía "Cobrado Bs. 800 → Comisión 50%
+ * → Bs. 400" sobre una venta cuya comisión real era Bs. 100: los Bs. 800 nunca
+ * fueron la base de ese profesor. Un número que no se puede verificar no se
+ * puede discutir, y una liquidación es justamente algo que se discute.
+ *
+ * Se muestran TODOS los cursos, incluido el que no dictó: que quede en cero es
+ * la regla de negocio 10 a la vista, no un olvido.
+ */
+function Reparto({ it, modo }: { it: ItemComprobante; modo: "completo" | "compacto" }) {
+  const suEl = it.reparto.find((r) => r.peso === it.pesoCurso && r.clases === it.clasesCurso);
+  if (modo === "compacto") {
+    return (
+      <div className="text-xs text-[var(--texto-tenue)] mt-1.5">
+        Reparto:{" "}
+        {it.reparto
+          .map((r) => `${r.curso} ${r.peso === 0 ? "no dictó" : r.peso}`)
+          .join(" · ")}{" "}
+        (total {it.pesoTotal})
+      </div>
+    );
+  }
+  return (
+    <div className="mt-2 border-t border-[var(--borde)] pt-2">
+      <div className="text-xs text-[var(--texto-tenue)] mb-1">Reparto entre los cursos del plan</div>
+      <table className="w-full text-xs">
+        <tbody>
+          {it.reparto.map((r) => {
+            const esEste = r === suEl;
+            return (
+              <tr key={r.cursoId} className={esEste ? "font-semibold" : "text-[var(--texto-tenue)]"}>
+                <td className="py-0.5">{r.curso}</td>
+                <td className="py-0.5">
+                  {r.clases === 0
+                    ? "no dictó"
+                    : `${r.clases} ${r.clases === 1 ? "clase" : "clases"} × ${gs(r.precioClase)}`}
+                </td>
+                <td className="py-0.5 text-right tabular-nums">{r.peso}</td>
+                <td className="py-0.5 text-right tabular-nums w-12">
+                  {it.pesoTotal > 0 ? Math.round((r.peso / it.pesoTotal) * 100) : 0}%
+                </td>
+                <td className="py-0.5 w-6 text-right">{esEste ? "←" : ""}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 export type DatosComprobante = {
   id: number;
@@ -35,6 +134,9 @@ export type DatosComprobante = {
   neto: number;
   creadoEn: string;
   items: ItemComprobante[];
+  /** Cómo se muestra el reparto a prorrata en pantalla y en el papel. */
+  repartoPantalla: "completo" | "compacto";
+  repartoImpreso: "completo" | "compacto";
   pagos: { fecha: string; monto: number; medio: string; concepto: string }[];
 };
 
@@ -153,8 +255,12 @@ export default function Comprobante({ datos }: { datos: DatosComprobante }) {
                   {it.plan} · {it.curso}
                 </div>
                 <div className="text-xs text-[var(--texto-tenue)] mt-0.5">
-                  Ciclo {fechaCorta(it.cicloInicio)} → {fechaCorta(it.cicloFin)} ·{" "}
-                  {it.clasesHechas ?? "—"}/{it.clasesPlan ?? "—"} clases
+                  Ciclo {fechaCorta(it.cicloInicio)} → {fechaCorta(it.cicloFin)}
+                  {hayReparto(it)
+                    ? ` · este curso dictó ${it.clasesCurso ?? 0} ${
+                        (it.clasesCurso ?? 0) === 1 ? "clase" : "clases"
+                      }`
+                    : ` · ${it.clasesHechas ?? "—"}/${it.clasesPlan ?? "—"} clases`}
                   {faltas ? ` · ${faltas}` : ""}
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-1 mt-2 text-sm">
@@ -164,8 +270,15 @@ export default function Comprobante({ datos }: { datos: DatosComprobante }) {
                     valor={it.descuento > 0 ? `− ${gs(it.descuento)}` : gs(0)}
                   />
                   <Cifra etiqueta="Cobrado" valor={gs(it.cobrado)} />
+                  {hayReparto(it) && (
+                    <Cifra
+                      etiqueta={`Parte de este curso (${pctPeso(it)}%)`}
+                      valor={gs(it.parte)}
+                    />
+                  )}
                   <Cifra etiqueta={`Comisión (${it.pct}%)`} valor={gs(it.monto)} fuerte />
                 </div>
+                {hayReparto(it) && <Reparto it={it} modo={datos.repartoPantalla} />}
               </div>
             );
           })}
@@ -267,14 +380,24 @@ function construirHTMLImpresion(d: DatosComprobante): string {
           <div class="small muted">${esc(it.plan)} · ${esc(it.curso)}</div>
           <div class="small muted">
             Ciclo ${fechaCorta(it.cicloInicio)} &rarr; ${fechaCorta(it.cicloFin)} ·
-            ${it.clasesHechas ?? "—"}/${it.clasesPlan ?? "—"} clases${faltas ? ` · ${esc(faltas)}` : ""}
+            ${
+              hayReparto(it)
+                ? `este curso dictó ${it.clasesCurso ?? 0} ${(it.clasesCurso ?? 0) === 1 ? "clase" : "clases"}`
+                : `${it.clasesHechas ?? "—"}/${it.clasesPlan ?? "—"} clases`
+            }${faltas ? ` · ${esc(faltas)}` : ""}
           </div>
           <div class="grid">
             <div><div class="k">Valor total</div><div>${gs(it.valorTotal)}</div></div>
             <div><div class="k">${descEtq}</div><div>${desc}</div></div>
             <div><div class="k">Cobrado</div><div>${gs(it.cobrado)}</div></div>
+            ${
+              hayReparto(it)
+                ? `<div><div class="k">Parte de este curso (${pctPeso(it)}%)</div><div>${gs(it.parte)}</div></div>`
+                : ""
+            }
             <div><div class="k">Comisión (${it.pct}%)</div><div class="b">${gs(it.monto)}</div></div>
           </div>
+          ${hayReparto(it) ? repartoHTML(it, d.repartoImpreso) : ""}
         </div>`;
     })
     .join("");

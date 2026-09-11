@@ -58,6 +58,17 @@ export type DevengoPendiente = {
   personas: number;
   /** Cuánto de lo cobrado le tocó a este curso, sobre el total de la venta. */
   cobradoTotal: number;
+  /** Cómo se repartió la venta entre TODOS los cursos del plan. */
+  reparto: LineaReparto[];
+};
+
+/** Una línea del reparto: qué peso tuvo un curso y por qué. */
+export type LineaReparto = {
+  cursoId: number;
+  curso: string;
+  clases: number;
+  precioClase: number;
+  peso: number;
 };
 
 type InscLiq = {
@@ -246,6 +257,17 @@ async function calcularPendientes(
       mayor.cent += sobra;
     }
 
+    // La foto del reparto: va igual en cada comisión de esta membresía, con
+    // TODOS los cursos —también los de otros profesores y los que no dictaron—
+    // porque es lo que permite verificar que los pesos suman el total.
+    const reparto: LineaReparto[] = pesos.map((x) => ({
+      cursoId: x.ic.curso_id,
+      curso: x.curso?.nombre ?? `#${x.ic.curso_id}`,
+      clases: x.clases,
+      precioClase: precioDeUnaClase(x.curso, tarifaDe.get(x.ic.curso_id) ?? {}, m.es_prueba === true),
+      peso: x.peso,
+    }));
+
     for (const x of porCurso) {
       if (x.peso <= 0) continue;
       if (devengadoCurso.has(`${m.id}|${x.ic.curso_id}`)) continue;
@@ -264,6 +286,7 @@ async function calcularPendientes(
         clases: x.clases,
         personas,
         cobradoTotal: cobrado,
+        reparto,
       });
     }
   }
@@ -522,6 +545,9 @@ export async function generarLiquidacion(profesorId: number): Promise<{ ok?: tru
         tipo: "comision",
         base: p.base,
         monto: p.monto,
+        // Foto del reparto: el comprobante la lee en vez de recalcular, para
+        // que el mismo papel diga siempre lo mismo (regla 12).
+        reparto: p.reparto.length > 1 ? p.reparto : null,
         // La glosa tiene que dejar auditar el reparto sin abrir el código: de
         // cuánto se partió, qué parte le tocó a este curso y por qué.
         origen:
