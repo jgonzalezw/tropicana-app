@@ -76,6 +76,14 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
     precio de su curso × clases que ese curso realmente dictó (× personas, en
     las pruebas). Un curso que no dictó nada no cobra nada. La prueba no es un
     caso especial: es el caso general con 1 clase por curso.
+    **El "precio de su curso" es el valor de UNA clase del curso —su tarifa de
+    clase suelta—, no el valor por tramo.** El tramo es para *proponer* un
+    precio (regla 9): ahí la pregunta es cuánto costaría comprar eso por
+    separado. Repartir plata ya cobrada es otra cosa: la pregunta es cuánto vale
+    una clase de cada curso, comparadas **entre sí**. Midiendo cada curso con el
+    tramo que le tocó según cuántas clases dictó, dos cursos igual de caros
+    pesarían distinto solo por eso y el reparto dejaría de estar ecualizado.
+    *(Javier, 2026-09-11.)*
 11. **La clase de prueba es una membresía preliminar de un plan regular**, no
     un plan aparte. El plan regula si la acepta, en cuántos cursos distintos
     se puede probar, si el fee se acredita al convertir y por cuántos días.

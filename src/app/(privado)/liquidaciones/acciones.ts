@@ -5,7 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { tienePermiso, obtenerParametro, obtenerPerfilActual } from "@/lib/sesion";
 import { exigir } from "@/lib/datos";
-import { valorDeUnaClase, type TarifasDeCurso } from "@/lib/precios";
+import type { TarifasDeCurso } from "@/lib/precios";
 import type { Curso } from "@/lib/tipos";
 
 function admin() {
@@ -192,7 +192,6 @@ async function calcularPendientes(
     (actual as Record<string, number>)[t.modalidad] = Number(t.precio);
     tarifaDe.set(t.curso_id, actual);
   }
-  const factorMedioMes = Math.max(1, Number(await obtenerParametro("medio_mes_factor")) || 2);
 
   // 7. Asignación vigente por curso (profesor + %).
   const asig = exigir(
@@ -231,7 +230,7 @@ async function calcularPendientes(
     const pesos = propios.map((ic) => {
       const curso = cursoPorId.get(ic.curso_id);
       const clases = clasesDictadas(ic, m, dictadas);
-      const precio = precioDeUnaClase(curso, tarifaDe.get(ic.curso_id) ?? {}, m.es_prueba === true, clases, factorMedioMes);
+      const precio = precioDeUnaClase(curso, tarifaDe.get(ic.curso_id) ?? {}, m.es_prueba === true);
       return { ic, curso, clases, peso: clases > 0 ? precio * clases * personas : 0 };
     });
     const total = pesos.reduce((t, x) => t + x.peso, 0);
@@ -297,22 +296,32 @@ function clasesDictadas(
 }
 
 /**
- * Precio de UNA clase del curso, que es el peso unitario del reparto. Para una
- * prueba es su tarifa de prueba —lo que efectivamente se cobró por esa clase—;
- * para el resto, el valor de una clase según el tramo que corresponde a la
- * cantidad comprada (regla 9).
+ * Precio de UNA clase del curso: el peso unitario del reparto.
+ *
+ * **Es la tarifa de clase suelta del curso, NO el valor por tramo** (Javier,
+ * 2026-09-11). El tramo existe para *proponer* el precio de un plan (regla 9):
+ * ahí la pregunta es cuánto costaría comprar eso por separado, y comprar suelto
+ * sale más caro por clase que comprar el mes. Repartir plata **ya cobrada** es
+ * otra cosa: la pregunta es cuánto vale una clase de cada curso, comparadas
+ * entre sí. Si cada curso se midiera con el tramo que le tocó según cuántas
+ * clases dictó, dos cursos igual de caros pesarían distinto solo por eso — el
+ * reparto dejaría de estar ecualizado.
+ *
+ * Para una prueba es su tarifa de prueba: es lo que efectivamente se cobró por
+ * esa clase.
  */
 function precioDeUnaClase(
   curso: Curso | undefined,
   tarifa: TarifasDeCurso & { prueba?: number },
-  esPrueba: boolean,
-  clases: number,
-  factorMedioMes: number
+  esPrueba: boolean
 ): number {
   if (esPrueba) return Number(tarifa.prueba ?? 0);
+  if (Number(tarifa.clase ?? 0) > 0) return Number(tarifa.clase);
+  // Sin tarifa de clase cargada, se deriva del mensual: el precio pleno es por
+  // 4 semanas del calendario del curso (8 clases si es de dos por semana).
   if (!curso) return 0;
-  const v = valorDeUnaClase(curso, tarifa, Math.max(1, clases), factorMedioMes);
-  return v?.valor ?? 0;
+  const porMes = Math.max(1, (curso.dias_semana ?? []).length * 4);
+  return Number(curso.precio_mensual ?? 0) / porMes;
 }
 
 export type FilaProfesor = {
