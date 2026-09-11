@@ -18,7 +18,14 @@ import { etiquetaDias } from "@/components/entidades/EntidadCurso";
 import { crearAlumnoDesdeInscripcion, inscribirYCobrar } from "./acciones";
 
 type Canal = { valor: string; etiqueta: string };
-export type CursoPlan = { id: number; nombre: string; dias_semana: number[]; hora: string | null };
+export type CursoPlan = {
+  id: number;
+  nombre: string;
+  dias_semana: number[];
+  hora: string | null;
+  /** Precio de la prueba por alumno. `null` = este curso no se puede probar. */
+  precioPrueba: number | null;
+};
 export type PlanVenta = {
   id: number;
   nombre: string;
@@ -26,6 +33,10 @@ export type PlanVenta = {
   precio: number;
   ilimitado: boolean;
   cicloDias: number | null;
+  /** Si el plan se ofrece como clase de prueba. */
+  aceptaPrueba: boolean;
+  /** En cuántos cursos distintos se puede probar. */
+  pruebaCursosMax: number;
   cursos: CursoPlan[];
 };
 

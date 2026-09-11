@@ -306,6 +306,222 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
   };
 }
 
+// ── Venta de clase de prueba ────────────────────────────────────────────
+
+/** Lo que la pantalla manda para vender una prueba. */
+export type EntradaPrueba = {
+  alumnoId: number;
+  planId: number;
+  /** Cursos que va a probar: una clase en cada uno. */
+  cursoIds: number[];
+  /** Acompañantes SIN identificar. Personas cubiertas = 1 + esto. */
+  acompanantes: number;
+  /** Fecha de inicio, ISO local. */
+  fechaInicio: string;
+  cobro: EntradaInscripcion["cobro"];
+};
+
+/**
+ * Vende una clase de prueba: una **membresía preliminar** del mismo plan
+ * regular (regla 11 de `docs/REGLAS.md`). No es un plan aparte.
+ *
+ * El monto es la **suma del precio de prueba de los cursos elegidos**, por la
+ * cantidad de personas — no el precio del plan. El grupo es un titular
+ * identificado más N acompañantes sin nombre, con un solo monto.
+ *
+ * La membresía nace con `clases_plan` = cantidad de cursos elegidos (una clase
+ * en cada uno) y sin tolerancia: una prueba no genera bono.
+ */
+export async function venderPrueba(
+  e: EntradaPrueba
+): Promise<{ ok?: true; error?: string; resumen?: string }> {
+  if (!(await tienePermiso("inscripciones", "crear")))
+    return { error: "No tenés permiso para vender." };
+
+  const sb = await createClient();
+  const a = admin();
+  const perfil = await obtenerPerfilActual();
+
+  const inicio = parseFechaISO(e.fechaInicio);
+  if (!inicio) return { error: "Fecha de inicio inválida." };
+
+  const { data: alumno } = await sb
+    .from("alumnos")
+    .select("id, nombre, apellido")
+    .eq("id", e.alumnoId)
+    .maybeSingle();
+  if (!alumno) return { error: "El alumno no existe." };
+
+  const { data: plan } = await sb
+    .from("planes")
+    .select("id, nombre, acepta_prueba, prueba_cursos_max, acceso_modo")
+    .eq("id", e.planId)
+    .maybeSingle();
+  if (!plan) return { error: "El plan no existe." };
+  if (!plan.acepta_prueba) return { error: "Ese plan no se ofrece como clase de prueba." };
+
+  const cursoIds = [...new Set(e.cursoIds)].filter((x) => Number.isFinite(x));
+  if (!cursoIds.length) return { error: "Elegí al menos un curso para probar." };
+  const tope = Math.max(1, Number(plan.prueba_cursos_max) || 1);
+  if (cursoIds.length > tope)
+    return { error: `Este plan permite probar ${tope} ${tope === 1 ? "curso" : "cursos"}.` };
+
+  // Los cursos tienen que pertenecer al plan.
+  const permitidos = await cursosDelPlan(sb, plan.id, (plan.acceso_modo as string) ?? "solo");
+  const fuera = cursoIds.filter((c) => !permitidos.has(c));
+  if (fuera.length) return { error: "Un curso elegido no pertenece al plan." };
+
+  // Precio de prueba de cada curso. Sin precio no se vende: no se inventa 0.
+  const { data: tarifas } = await sb
+    .from("curso_tarifas")
+    .select("curso_id, precio")
+    .eq("modalidad", "prueba")
+    .in("curso_id", cursoIds);
+  const precioPrueba = new Map(
+    ((tarifas as { curso_id: number; precio: number }[]) ?? []).map((t) => [
+      t.curso_id,
+      Number(t.precio),
+    ])
+  );
+  const sinPrecio = cursoIds.filter((c) => !(precioPrueba.get(c)! > 0));
+  if (sinPrecio.length)
+    return { error: "Falta cargar el precio de prueba de un curso elegido (ficha del curso)." };
+
+  const acompanantes = Math.max(0, Math.trunc(Number(e.acompanantes) || 0));
+  const personas = 1 + acompanantes;
+  const referencia = cursoIds.reduce((t, c) => t + (precioPrueba.get(c) ?? 0), 0) * personas;
+
+  // El cobro se recomputa en el servidor, igual que la venta de plan.
+  const c = e.cobro;
+  const mueve = Math.max(0, Math.round(Number(c.monto) || 0));
+  const descManual = Math.max(0, Math.round(Number(c.ajuste) || 0));
+  if (descManual > 0 && !c.ajusteMotivo.trim())
+    return { error: "El descuento manual necesita un motivo." };
+
+  const saldo = Math.max(0, referencia - mueve - descManual);
+  let fechaCompromiso: string | null = null;
+  if (saldo > 0) {
+    const diasMax = Math.max(1, Number(await obtenerParametro("dias_compromiso_pago")) || 30);
+    const fc = parseFechaISO(c.fechaCompromiso ?? "");
+    if (!fc) return { error: "Cargá la fecha de compromiso de pago del saldo." };
+    const hoy0 = hoyLocal();
+    const maxF = new Date(hoy0);
+    maxF.setDate(maxF.getDate() + diasMax);
+    if (fc < hoy0) return { error: "La fecha de compromiso no puede ser anterior a hoy." };
+    if (fc > maxF) return { error: `La fecha de compromiso no puede superar ${diasMax} días desde hoy.` };
+    fechaCompromiso = isoFecha(fc);
+  }
+
+  // La membresía preliminar. Sin tolerancia: una prueba no genera bono.
+  const { data: insc, error: errInsc } = await a
+    .from("inscripciones")
+    .insert({
+      alumno_id: e.alumnoId,
+      curso_id: cursoIds[0],
+      modalidad: "clase",
+      fecha_inicio: isoFecha(inicio),
+      estado: "activa",
+      plan_id: plan.id,
+      es_prueba: true,
+      acompanantes,
+      clases_plan: cursoIds.length,
+      ciclo_numero: 1,
+      tolerancia_faltas: 0,
+      clases_total: null,
+      dias_elegidos: null,
+      precio_aplicado: referencia,
+    })
+    .select("id")
+    .single();
+  if (errInsc) return { error: errInsc.message };
+  const inscripcionId = insc.id as number;
+
+  // Los días de cada curso: son los que hacen que el alumno aparezca en el
+  // padrón de esas clases.
+  const { data: cursoRows } = await sb
+    .from("cursos")
+    .select("id, dias_semana")
+    .in("id", cursoIds);
+  const icRows = ((cursoRows as { id: number; dias_semana: number[] }[]) ?? []).map((cu) => ({
+    inscripcion_id: inscripcionId,
+    curso_id: cu.id,
+    dias: cu.dias_semana ?? [],
+  }));
+  if (icRows.length) {
+    const { error: errIC } = await a.from("inscripcion_cursos").insert(icRows);
+    if (errIC) return { error: "Se creó la prueba, pero falló guardar los días: " + errIC.message };
+  }
+
+  await recalcularFinDeCiclo(a, inscripcionId);
+  await registrarCorrimientosPendientes(a, inscripcionId, perfil?.id ?? null);
+
+  // Toda venta tiene su cuota (regla 7).
+  const { data: cuota, error: errCuota } = await a
+    .from("cuotas")
+    .insert({
+      inscripcion_id: inscripcionId,
+      periodo: isoFecha(primerDiaDelMes(inicio)),
+      monto_devengado: referencia,
+      descuento_adelanto: 0,
+      vencimiento: fechaCompromiso ?? isoFecha(sumarMeses(inicio, 1)),
+      fecha_compromiso: fechaCompromiso,
+      estado: "pendiente",
+    })
+    .select("id")
+    .single();
+  if (errCuota) return { error: errCuota.message };
+
+  const porDesc = Math.min(descManual, referencia);
+  const porPlata = Math.min(mueve, referencia - porDesc);
+  const saldado = porDesc + porPlata;
+  const estadoCuota =
+    referencia === 0 || saldado >= referencia ? "pagada" : saldado > 0 ? "parcial" : "pendiente";
+  if (estadoCuota !== "pendiente")
+    await a.from("cuotas").update({ estado: estadoCuota }).eq("id", cuota.id);
+  if (porPlata > 0 || porDesc > 0) {
+    const { error: errPago } = await a.from("pagos").insert({
+      tipo: "cobro",
+      motivo: "membresia",
+      alumno_id: e.alumnoId,
+      inscripcion_id: inscripcionId,
+      cuota_id: cuota.id,
+      monto: porPlata,
+      medio: porPlata > 0 ? c.medio : null,
+      descuento: porDesc,
+      descuento_motivo: porDesc > 0 ? c.ajusteMotivo.trim() : null,
+      glosa: medioGlosa(c),
+      registrado_por: perfil?.id ?? null,
+    });
+    if (errPago) return { error: "Se vendió la prueba, pero falló el cobro: " + errPago.message };
+  }
+
+  revalidatePath("/inscribir");
+  const quien = `${alumno.nombre} ${alumno.apellido}`;
+  const gente = personas === 1 ? "1 persona" : `${personas} personas`;
+  const cursosTxt = cursoIds.length === 1 ? "1 curso" : `${cursoIds.length} cursos`;
+  return {
+    ok: true,
+    resumen:
+      `Clase de prueba de ${quien} — ${cursosTxt}, ${gente}, ${gs(referencia)}. ` +
+      (porPlata > 0 ? `Cobrado ${gs(porPlata)}${c.medio ? ` (${c.medio})` : ""}.` : "Sin cobro por ahora."),
+  };
+}
+
+/** Ids de los cursos a los que un plan da acceso, según su modo. */
+async function cursosDelPlan(
+  sb: Awaited<ReturnType<typeof createClient>>,
+  planId: number,
+  modo: string
+): Promise<Set<number>> {
+  const { data: activos } = await sb.from("cursos").select("id").eq("activo", true);
+  const todos = new Set(((activos as { id: number }[]) ?? []).map((c) => c.id));
+  if (modo === "todas") return todos;
+  const { data: pc } = await sb.from("plan_cursos").select("curso_id").eq("plan_id", planId);
+  const sel = new Set(((pc as { curso_id: number }[]) ?? []).map((r) => r.curso_id));
+  if (modo === "excepto") return new Set([...todos].filter((c) => !sel.has(c)));
+  return sel;
+}
+
 // ── Auxiliares ──────────────────────────────────────────────────────────
 
 function parseFechaISO(s: string): Date | null {

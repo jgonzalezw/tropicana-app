@@ -1,7 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { tienePermiso, obtenerParametro } from "@/lib/sesion";
 import SinAcceso from "@/components/SinAcceso";
-import ClienteInscribir, { type PlanVenta } from "./ClienteInscribir";
+import ClienteVentas from "./ClienteVentas";
+import type { PlanVenta } from "./ClienteInscribir";
 import type { Alumno, Curso } from "@/lib/tipos";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +25,7 @@ export default async function PaginaInscribir() {
     supabase.from("cursos").select("*").eq("activo", true).order("nombre"),
     supabase
       .from("planes")
-      .select("id, nombre, cantidad_clases, precio, acceso_modo, clases_ilimitadas, ciclo_dias")
+      .select("id, nombre, cantidad_clases, precio, acceso_modo, clases_ilimitadas, ciclo_dias, acepta_prueba, prueba_cursos_max")
       .eq("tipo_servicio", "curso_regular")
       .eq("activo", true)
       .order("nombre"),
@@ -35,6 +36,18 @@ export default async function PaginaInscribir() {
   ]);
 
   const cursosById = new Map<number, Curso>(((cursos as Curso[]) ?? []).map((c) => [c.id, c]));
+
+  // Precio de prueba por curso: sin él, ese curso no se puede ofrecer a prueba.
+  const { data: tarifasPrueba } = await supabase
+    .from("curso_tarifas")
+    .select("curso_id, precio")
+    .eq("modalidad", "prueba");
+  const precioPruebaPorCurso = new Map<number, number>(
+    ((tarifasPrueba as { curso_id: number; precio: number }[]) ?? []).map((t) => [
+      t.curso_id,
+      Number(t.precio),
+    ])
+  );
 
   // Cursos por plan.
   const cursosPorPlan: Record<number, number[]> = {};
@@ -59,6 +72,8 @@ export default async function PaginaInscribir() {
     acceso_modo: string;
     clases_ilimitadas: boolean;
     ciclo_dias: number | null;
+    acepta_prueba: boolean;
+    prueba_cursos_max: number | null;
   }[]) ?? [])
     .map((p) => ({
       id: p.id,
@@ -67,11 +82,14 @@ export default async function PaginaInscribir() {
       precio: Number(p.precio),
       ilimitado: p.clases_ilimitadas,
       cicloDias: p.ciclo_dias,
+      aceptaPrueba: p.acepta_prueba,
+      pruebaCursosMax: Math.max(1, Number(p.prueba_cursos_max) || 1),
       cursos: cursosDelPlan(p.id, p.acceso_modo).map((c) => ({
         id: c.id,
         nombre: c.nombre,
         dias_semana: c.dias_semana,
         hora: c.hora,
+        precioPrueba: precioPruebaPorCurso.get(c.id) ?? null,
       })),
     }))
     .filter((p) => p.cursos.length > 0);
@@ -153,7 +171,7 @@ export default async function PaginaInscribir() {
     .filter(Boolean);
 
   return (
-    <ClienteInscribir
+    <ClienteVentas
       alumnos={(alumnos as Alumno[]) ?? []}
       planes={planesVenta}
       diasCompromiso={Math.max(1, Number(diasCompromisoParam) || 30)}
