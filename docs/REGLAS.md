@@ -161,12 +161,21 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
 4. **Si un cambio no aparece en pantalla, descartar el build antes que el
    código.** El orden correcto es: confirmar el archivo en disco
    (`Select-String -Path <archivo> -Pattern <texto nuevo>`), cortar el server,
-   `Remove-Item -Recurse -Force .next`, `npm run dev`, y recargar con Ctrl+F5.
-   Recién si después de eso sigue igual, el problema es el código.
+   y arrancar con **`npm run dev:limpio`** (borra la build y levanta, en un
+   comando y en cualquier sistema), recargando con Ctrl+F5. Recién si después
+   de eso sigue igual, el problema es el código.
+   **Síntoma que engaña:** no es solo "el cambio no aparece" — también una ruta
+   que existe y devuelve **404 propio de Next**, llevándose puesto el app-shell.
+   Un 404 así es de resolución de ruta, no de datos: ninguna pantalla de este
+   proyecto devuelve 404 cuando no encuentra un registro.
    *Costó dos veces (commits `2a26010` y `8fb648c`): las dos se fue el tiempo
    revisando datos, RLS y componentes que estaban bien. El repo vive dentro de
    OneDrive, que sincroniza por debajo y pelea con el watcher de Turbopack —
-   moverlo fuera (p. ej. `C:\dev\tropicana-app`) sacaría la causa de raíz.*
+   moverlo fuera (p. ej. `C:\dev\tropicana-app`) sacaría la causa de raíz —
+   no hay arreglo por configuración, la doc de Next prohíbe sacar `distDir` del
+   proyecto. Desde 2026-09-11 `npm run dev` **avisa** cuando detecta el repo
+   dentro de una carpeta que sincroniza sola, para que el riesgo no vuelva a
+   aparecer disfrazado de bug.*
 5. **Una capacidad que no está disponible se explica; no desaparece.** Es la
    regla 1 aplicada a la pantalla. Si una pestaña, un botón o una opción se
    ocultan cuando falta su configuración, "todavía no lo configuré" y "algo se
