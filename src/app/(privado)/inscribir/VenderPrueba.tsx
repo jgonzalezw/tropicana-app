@@ -132,7 +132,12 @@ export default function VenderPrueba({
 
   function elegirPlan(p: PlanVenta) {
     setPlan(p);
-    setCursoIds([]);
+    // Si el plan ofrece tantos cursos probables como el tope (o menos), no hay
+    // nada que elegir: quedan tomados. Hacer tildar "1 de 1" era pedir una
+    // decisión que no existe, y encima bloqueaba la venta hasta tildarla.
+    const probables = p.cursos.filter((c) => (c.precioPrueba ?? 0) > 0);
+    const topeP = Math.max(1, p.pruebaCursosMax);
+    setCursoIds(probables.length <= topeP ? probables.map((c) => c.id) : []);
     setFechaIdx(0);
     setCobro(null);
     setError(null);
@@ -278,7 +283,11 @@ export default function VenderPrueba({
             {plan && (
               <div className="mt-4">
                 <span className="block text-base font-medium mb-1.5">
-                  Cursos a probar ({cursoIds.length} de {tope})
+                  {cursosProbables.length <= tope
+                    ? cursosProbables.length === 1
+                      ? "Curso que va a probar"
+                      : "Cursos que va a probar"
+                    : `Cursos a probar (${cursoIds.length} de ${tope})`}
                 </span>
                 <div className="space-y-2">
                   {cursosProbables.map((c) => {
