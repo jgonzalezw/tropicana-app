@@ -289,6 +289,57 @@ select '17. hechos dentro de un periodo pagado' as control,
             then 'OK' else 'REVISAR' end as estado;
 
 -- ---------------------------------------------------------------------
+-- 18. LAS PARTES DE UNA MEMBRESIA SUMAN LO COBRADO
+--     Es la invariante de la prorrata (regla de negocio 10): la venta se
+--     reparte entre los cursos, asi que la suma de las bases devengadas de
+--     una membresia tiene que dar exactamente lo que se cobro. Si da menos,
+--     algun curso quedo sin devengar y un profesor no va a cobrar. Si da
+--     mas, se devengo dos veces.
+--     Solo mira membresias con TODAS sus partes ya devengadas: mientras se
+--     generan las liquidaciones de a un profesor por vez, es normal que
+--     falten. Y solo las de 0025 en adelante (curso_id no nulo): lo anterior
+--     se devengaba por membresia entera.
+-- ---------------------------------------------------------------------
+with partes as (
+  select cd.membresia_id,
+         sum(cd.base) as suma_partes,
+         count(*) as cursos_devengados
+    from public.comisiones_devengadas cd
+   where cd.membresia_id is not null and cd.curso_id is not null
+   group by cd.membresia_id
+),
+esperado as (
+  select p.membresia_id, p.suma_partes,
+         (select count(*) from public.inscripcion_cursos ic
+           where ic.inscripcion_id = p.membresia_id) as cursos_del_plan,
+         p.cursos_devengados,
+         coalesce((select sum(pg.monto) from public.pagos pg
+                     join public.cuotas cu on cu.id = pg.cuota_id
+                    where cu.inscripcion_id = p.membresia_id and pg.tipo = 'cobro'), 0) as cobrado
+    from partes p
+)
+select '18. partes devengadas que no suman lo cobrado' as control,
+       count(*) as n,
+       case when count(*) = 0 then 'OK' else 'REVISAR' end as estado
+  from esperado e
+ -- Un curso que no dicto no devenga, asi que "todas las partes" no es
+ -- "tantas filas como cursos": se compara la plata, que es lo que importa.
+ where e.cobrado > 0
+   and e.cursos_devengados >= 1
+   and abs(e.suma_partes - e.cobrado) > 0.01
+   -- Solo cuando ya se devengaron todos los cursos que dictaron algo.
+   and not exists (
+     select 1 from public.inscripcion_cursos ic
+      where ic.inscripcion_id = e.membresia_id
+        and not exists (select 1 from public.comisiones_devengadas cd2
+                         where cd2.membresia_id = e.membresia_id and cd2.curso_id = ic.curso_id)
+        and exists (select 1 from public.sesiones s
+                     join public.inscripciones i on i.id = e.membresia_id
+                    where s.curso_id = ic.curso_id and s.estado = 'dictada'
+                      and s.fecha between i.fecha_inicio and coalesce(i.fecha_fin, s.fecha))
+   );
+
+-- ---------------------------------------------------------------------
 -- 15. UN CONCEPTO, UN NOMBRE: llaves a `inscripciones` con nombres distintos
 --     La misma llave foranea se llama `inscripcion_id` en unas tablas y
 --     `membresia_id` en otras. Es deuda conocida (D1 en docs/DECISIONES.md),

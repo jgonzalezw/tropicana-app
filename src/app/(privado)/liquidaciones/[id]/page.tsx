@@ -156,7 +156,15 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
     }
 
     const alIds = [...new Set([...inscById.values()].map((i) => i.alumno_id))];
-    const cuIds = [...new Set([...inscById.values()].map((i) => i.curso_id))];
+    // Los nombres de curso se buscan para el principal de cada membresía Y
+    // para el de cada comisión: con prorrata no son el mismo, y sin esto el
+    // comprobante mostraba "#3" en vez de "Zumba".
+    const cuIds = [
+      ...new Set([
+        ...[...inscById.values()].map((i) => i.curso_id),
+        ...comisiones.map((c) => c.curso_id).filter((x): x is number => x != null),
+      ]),
+    ];
     const planIds = [...new Set([...inscById.values()].map((i) => i.plan_id).filter((x): x is number => x != null))];
     const [{ data: al }, { data: cu }, { data: pl }] = await Promise.all([
       sb.from("alumnos").select("id, nombre, apellido").in("id", alIds),
@@ -179,9 +187,10 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
     const i = mid != null ? inscById.get(mid) : undefined;
     const base = Number(c.base);
     const monto = Number(c.monto);
-    // El curso de la COMISIÓN, no el principal de la membresía: con prorrata
-    // una membresía genera una comisión por curso, y mostrar siempre el
-    // principal hacía que dos líneas distintas dijeran el mismo curso.
+    // El curso de la COMISIÓN. `inscripciones.curso_id` no es "el curso" de la
+    // membresía —solo significa algo en un plan mono-curso (Javier)— así que
+    // queda apenas como respaldo para lo devengado antes de 0025, que no
+    // guardaba el curso.
     const cursoId = c.curso_id ?? i?.curso_id ?? null;
     const reparto = c.reparto ?? [];
     const pesoTotal = reparto.reduce((t, r) => t + Number(r.peso), 0);

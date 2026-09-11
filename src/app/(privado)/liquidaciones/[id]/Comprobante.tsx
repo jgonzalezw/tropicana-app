@@ -24,7 +24,13 @@ export type ItemComprobante = {
   /** Parte de lo cobrado que le tocó a ESTE curso (prorrata). */
   parte: number;
   /** Reparto entre los cursos del plan. Vacío = un solo curso, nada que repartir. */
-  reparto: { cursoId: number; curso: string; clases: number; precioClase: number; peso: number }[];
+  reparto: {
+    cursoId: number; curso: string; clases: number; precioClase: number;
+    /** Número intermedio (clases × valor de clase). No se muestra: no es plata. */
+    peso: number;
+    /** La plata de este curso. Las partes suman lo cobrado. */
+    parte?: number;
+  }[];
   pesoTotal: number;
   pesoCurso: number;
   clasesCurso: number | null;
@@ -35,9 +41,9 @@ function repartoHTML(it: ItemComprobante, modo: "completo" | "compacto"): string
   const esc2 = (t: string) => t.replace(/[&<>]/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[m]!);
   if (modo === "compacto") {
     const linea = it.reparto
-      .map((r) => `${esc2(r.curso)} ${r.peso === 0 ? "no dictó" : r.peso}`)
+      .map((r) => `${esc2(r.curso)} ${r.peso === 0 ? "no dictó" : gs(parteDe(it, r))}`)
       .join(" · ");
-    return `<div class="small muted">Reparto: ${linea} (total ${it.pesoTotal})</div>`;
+    return `<div class="small muted">Reparto: ${linea} (suman ${gs(it.cobrado)})</div>`;
   }
   const filas = it.reparto
     .map((r) => {
@@ -49,11 +55,14 @@ function repartoHTML(it: ItemComprobante, modo: "completo" | "compacto"): string
       const pct = it.pesoTotal > 0 ? Math.round((r.peso / it.pesoTotal) * 100) : 0;
       return `<tr${esEste ? ' class="b"' : ' class="muted"'}>
         <td>${esc2(r.curso)}</td><td>${detalle}</td>
-        <td style="text-align:right">${r.peso}</td>
+        <td style="text-align:right">${gs(parteDe(it, r))}</td>
         <td style="text-align:right">${pct}%</td>
         <td style="text-align:right">${esEste ? "&larr;" : ""}</td></tr>`;
     })
-    .join("");
+    .join("") +
+    `<tr><td colspan="2" style="border-top:1px solid #ddd">Suma de las partes</td>
+      <td class="b" style="text-align:right;border-top:1px solid #ddd">${gs(it.cobrado)}</td>
+      <td style="text-align:right;border-top:1px solid #ddd">100%</td><td style="border-top:1px solid #ddd"></td></tr>`;
   return `<div class="small" style="margin-top:6px;border-top:1px solid #ddd;padding-top:4px">
       <div class="k">Reparto entre los cursos del plan</div>
       <table style="width:100%;font-size:11px">${filas}</table>
@@ -64,6 +73,16 @@ function repartoHTML(it: ItemComprobante, modo: "completo" | "compacto"): string
 function hayReparto(it: ItemComprobante): boolean {
   return it.reparto.length > 1 && it.pesoTotal > 0;
 }
+/**
+ * La parte en plata de una línea del reparto. Lo devengado antes de que se
+ * guardara `parte` se deriva del peso — el mismo número, calculado en vez de
+ * leído.
+ */
+function parteDe(it: ItemComprobante, r: ItemComprobante["reparto"][number]): number {
+  if (typeof r.parte === "number") return r.parte;
+  return it.pesoTotal > 0 ? (it.cobrado * r.peso) / it.pesoTotal : 0;
+}
+
 /** Qué porcentaje de la venta pesó este curso. */
 function pctPeso(it: ItemComprobante): number {
   return it.pesoTotal > 0 ? Math.round((it.pesoCurso / it.pesoTotal) * 100) : 0;
@@ -87,9 +106,9 @@ function Reparto({ it, modo }: { it: ItemComprobante; modo: "completo" | "compac
       <div className="text-xs text-[var(--texto-tenue)] mt-1.5">
         Reparto:{" "}
         {it.reparto
-          .map((r) => `${r.curso} ${r.peso === 0 ? "no dictó" : r.peso}`)
+          .map((r) => `${r.curso} ${r.peso === 0 ? "no dictó" : gs(parteDe(it, r))}`)
           .join(" · ")}{" "}
-        (total {it.pesoTotal})
+        (suman {gs(it.cobrado)})
       </div>
     );
   }
@@ -108,7 +127,7 @@ function Reparto({ it, modo }: { it: ItemComprobante; modo: "completo" | "compac
                     ? "no dictó"
                     : `${r.clases} ${r.clases === 1 ? "clase" : "clases"} × ${gs(r.precioClase)}`}
                 </td>
-                <td className="py-0.5 text-right tabular-nums">{r.peso}</td>
+                <td className="py-0.5 text-right tabular-nums">{gs(parteDe(it, r))}</td>
                 <td className="py-0.5 text-right tabular-nums w-12">
                   {it.pesoTotal > 0 ? Math.round((r.peso / it.pesoTotal) * 100) : 0}%
                 </td>
@@ -116,6 +135,14 @@ function Reparto({ it, modo }: { it: ItemComprobante; modo: "completo" | "compac
               </tr>
             );
           })}
+          <tr className="border-t border-[var(--borde)]">
+            <td className="py-0.5" colSpan={2}>
+              Suma de las partes
+            </td>
+            <td className="py-0.5 text-right tabular-nums font-semibold">{gs(it.cobrado)}</td>
+            <td className="py-0.5 text-right">100%</td>
+            <td />
+          </tr>
         </tbody>
       </table>
     </div>

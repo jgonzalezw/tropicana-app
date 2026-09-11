@@ -68,7 +68,10 @@ export type LineaReparto = {
   curso: string;
   clases: number;
   precioClase: number;
+  /** Número intermedio: clases × valor de una clase. NO es plata. */
   peso: number;
+  /** La plata que le tocó a este curso. Las partes suman lo cobrado. */
+  parte: number;
 };
 
 type InscLiq = {
@@ -260,12 +263,15 @@ async function calcularPendientes(
     // La foto del reparto: va igual en cada comisión de esta membresía, con
     // TODOS los cursos —también los de otros profesores y los que no dictaron—
     // porque es lo que permite verificar que los pesos suman el total.
-    const reparto: LineaReparto[] = pesos.map((x) => ({
+    const reparto: LineaReparto[] = porCurso.map((x) => ({
       cursoId: x.ic.curso_id,
       curso: x.curso?.nombre ?? `#${x.ic.curso_id}`,
       clases: x.clases,
       precioClase: precioDeUnaClase(x.curso, tarifaDe.get(x.ic.curso_id) ?? {}, m.es_prueba === true),
       peso: x.peso,
+      // La parte en plata, con el mismo reparto en centavos que se devenga:
+      // así lo que muestra el comprobante suma EXACTAMENTE lo cobrado.
+      parte: x.cent / 100,
     }));
 
     for (const x of porCurso) {

@@ -29,6 +29,7 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
 | **Cerrarse** | `inscripciones.estado = 'completada'` | La **venta** terminó: agotado **y** cobrado. |
 | **Bono de tolerancia** | `inscripciones.bono_generado` / `bono_redimido` | Clases que se suman al ciclo siguiente por faltas con licencia. |
 | **Membresía** | `inscripciones` | Una venta de plan a un alumno. Cada renovación es una fila nueva. **La llave foránea se llama `inscripcion_id` en `asistencias`, `cuotas`, `pagos`, `corrimientos_ciclo` e `inscripcion_cursos`, y `membresia_id` en `comisiones_devengadas` y `liquidacion_items`.** Son el mismo campo: la inconsistencia es deuda conocida (D1 en `docs/DECISIONES.md`). **Ningún campo nuevo con una tercera grafía.** |
+| **Curso de una membresía** | `inscripcion_cursos` | Los cursos que la membresía habilita, con sus días y —si es prueba— la fecha de su clase. **`inscripciones.curso_id` NO es "el curso" de la membresía**: es un resabio que solo significa algo en un plan mono-curso, y queda como respaldo para filas viejas. Para saber qué cursos toca una membresía —padrón, liquidación, cualquier cosa— se mira `inscripcion_cursos`. *(Javier, 2026-09-11: "no existe curso principal de la membresía, salvo que sea mono curso".)* |
 | **Membresía de prueba** | `inscripciones.es_prueba` | Preliminar: 1 clase por curso elegido, sin tolerancia, bono ni renovación. Cuelga del **mismo plan regular**. `acompanantes` guarda la gente sin nombre del grupo. |
 | **Conversión** | `inscripciones.membresia_anterior_id` | De dónde viene la membresía: el ciclo anterior (renovación) o la prueba (el prospecto se convirtió). |
 | **Cuota** | `cuotas` | Lo devengado por una venta. Toda venta tiene la suya. |
@@ -83,6 +84,9 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
     una clase de cada curso, comparadas **entre sí**. Midiendo cada curso con el
     tramo que le tocó según cuántas clases dictó, dos cursos igual de caros
     pesarían distinto solo por eso y el reparto dejaría de estar ecualizado.
+    **La comisión es de un profesor por un curso**, no por una membresía: si un
+    profesor dicta dos cursos del mismo plan y el alumno fue a los dos, su
+    liquidación lleva **dos líneas**, una por curso, cada una con su parte.
     *(Javier, 2026-09-11.)*
 11. **La clase de prueba es una membresía preliminar de un plan regular**, no
     un plan aparte. El plan regula si la acepta, en cuántos cursos distintos
