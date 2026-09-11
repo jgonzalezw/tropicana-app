@@ -95,6 +95,11 @@ with base as (
   select i.id, i.fecha_inicio, i.clases_plan, i.fecha_fin
     from inscripciones i
    where i.estado <> 'baja' and i.clases_plan is not null and i.fecha_inicio is not null
+     -- Las PRUEBAS quedan fuera: desde 0024 sus clases son fechas elegidas al
+     -- vender, no el resultado de caminar el calendario. Si el vendedor elige
+     -- la clase del lunes que viene en vez de la proxima, caminar da otra
+     -- fecha y este control gritaria en falso. Las cubre el control 13.
+     and not coalesce((to_jsonb(i) ->> 'es_prueba')::boolean, false)
 ),
 clases as (
   select b.id as inscripcion_id, d::date as fecha,
@@ -207,6 +212,26 @@ select '13. pruebas sin fecha de clase' as control,
   join public.inscripciones i on i.id = ic.inscripcion_id
  where coalesce((to_jsonb(i) ->> 'es_prueba')::boolean, false)
    and (to_jsonb(ic) ->> 'fecha') is null;
+
+-- ---------------------------------------------------------------------
+-- 14. PRUEBA CUYAS FECHAS NO SON LAS DE SUS CLASES
+--     Reemplaza al control 9 para las pruebas: una prueba empieza en su
+--     primera clase y termina en la ultima. Si no coincide, el padron y la
+--     liquidacion van a mirar un periodo que no existe.
+-- ---------------------------------------------------------------------
+select '14. pruebas con fechas que no son sus clases' as control,
+       count(*) as n,
+       case when count(*) = 0 then 'OK' else 'REVISAR' end as estado
+  from public.inscripciones i
+  join (
+    select ic.inscripcion_id, min(ic.fecha) as primera, max(ic.fecha) as ultima
+      from public.inscripcion_cursos ic
+     where ic.fecha is not null
+     group by ic.inscripcion_id
+  ) f on f.inscripcion_id = i.id
+ where coalesce((to_jsonb(i) ->> 'es_prueba')::boolean, false)
+   and i.estado <> 'baja'
+   and (i.fecha_inicio is distinct from f.primera or i.fecha_fin is distinct from f.ultima);
 
 -- ---------------------------------------------------------------------
 -- Detalle, por si algun control da REVISAR:

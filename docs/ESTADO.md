@@ -745,3 +745,44 @@ lectura devolvía el padrón vacío en silencio.
 
 **Pendiente de la clase de prueba:** E (liquidación a prorrata), F (crédito al
 convertir), G (reparar inscripciones 17/18/19).
+
+---
+
+## Clase de prueba — una fecha por curso (0024) · cerrado 2026-09-11
+
+Probando la prueba de 2 cursos, Javier: *"no me queda claro cómo registraría
+pruebas pasadas si los cursos no tuvieran clases coincidentes en el mismo día
+de la fecha"*. Tenía razón, y el problema era del modelo, no de la pantalla.
+
+**Por qué fallaba.** Una membresía guarda **una** `fecha_inicio`, y el fin de
+ciclo se calcula caminando el calendario desde ahí. Para una membresía regular
+alcanza: el ciclo es un período continuo. Una prueba no: es **una clase suelta
+en cada curso**, y esas clases caen en días distintos. Con una sola fecha, el
+segundo curso quedaba donde el calendario lo dejara — y en una prueba pasada
+podía quedar en el futuro.
+
+**Qué se hizo.** `inscripcion_cursos.fecha` guarda la fecha exacta de la única
+clase de ese curso. Se **guarda** en vez de derivarse porque un día de la
+semana se repite: si el vendedor elige la clase del lunes 21 y no la del 14,
+caminar el calendario aterrizaría en el 14. `dias` conserva los días reales del
+curso, que es lo que permite correr la prueba a la clase siguiente si la
+elegida se suspende (regla de negocio 4).
+
+- **Venta**: un selector de fechas por curso; el toggle de fecha pasada pide
+  una fecha por curso.
+- **Motor**: `finDeCicloDePrueba` no camina — resuelve desde las fechas
+  elegidas y solo corre las suspendidas.
+- **Padrón**: una prueba figura **exactamente** el día de su clase, no todos
+  los días del curso.
+- **`fecha_inicio` de una prueba** pasa a ser su primera clase. Antes era la
+  fecha de la venta, que para una prueba no significa nada. El backfill salta
+  las ya devengadas (regla de negocio 5).
+
+**Controles.** El 9 (fin de ciclo vs suspensiones) **excluye** las pruebas: iba
+a gritar en falso en cuanto alguien eligiera una clase que no fuera la próxima.
+Lo reemplazan el **13** (prueba sin la fecha de su clase — sin ella el alumno no
+aparece en el padrón y nadie se entera) y el **14** (fechas de la prueba que no
+son las de sus clases). Los cuatro (9, 11, 12, 13, 14) en OK en dev.
+
+**Pendiente de la clase de prueba:** E (liquidación a prorrata), F (crédito al
+convertir), G (reparar inscripciones 17/18/19).
