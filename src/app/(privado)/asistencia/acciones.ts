@@ -213,7 +213,7 @@ export async function cargarPadron(
   const idsPorCurso = [...new Set(icRows.map((r) => r.inscripcion_id))];
 
   const COLS =
-    "id, alumno_id, estado, modalidad, fecha_inicio, clases_total, plan_id, clases_plan, fecha_fin, tolerancia_faltas, bono_generado, es_prueba, acompanantes, alumno:alumnos(id, nombre, apellido, activo)";
+    "id, alumno_id, estado, modalidad, fecha_inicio, clases_total, plan_id, clases_plan, fecha_fin, tolerancia_faltas, bono_generado, es_prueba, acompanantes, creado_en, alumno:alumnos(id, nombre, apellido, activo)";
   // Dos lecturas y se unen por id: las que declaran este curso en
   // `inscripcion_cursos`, y las viejas que solo tienen `curso_id` (legado).
   const [porCursoPrincipal, porInscCursos] = await Promise.all([
@@ -243,6 +243,7 @@ export async function cargarPadron(
     bono_generado: number;
     es_prueba: boolean | null;
     acompanantes: number | null;
+    creado_en: string | null;
     alumno: { id: number; nombre: string; apellido: string; activo: boolean } | null;
   };
   const membresias = ((insc as unknown as InscRow[]) ?? []).filter((r) => r.alumno?.activo);
@@ -293,19 +294,44 @@ export async function cargarPadron(
     return !dias?.length || dias.includes(diaIso(parseISO(f)));
   };
 
+  /**
+   * Una prueba es **una clase en una fecha**, y esa fecha es su fin de ciclo.
+   * Pasada esa fecha deja de figurar, la hayan marcado o no. Sin esto una
+   * prueba que nadie marcó nunca agota su ciclo (el ciclo se agota contando
+   * asistencias) y el alumno se quedaría en el padrón para siempre.
+   */
+  const pruebaVencida = (r: InscRow, f: string) =>
+    r.es_prueba === true && r.fecha_fin != null && f > r.fecha_fin;
+
   /** Ya había empezado a esa fecha y su ciclo no terminó (ilimitada vencida). */
   const enPeriodo = (r: InscRow, f: string) =>
     r.fecha_inicio <= f &&
     tomaEseDia(r, f) &&
+    !pruebaVencida(r, f) &&
     !(r.plan_id != null && r.clases_plan == null && r.fecha_fin != null && r.fecha_fin < f);
   /**
    * ¿Esa clase caía dentro del período de esta membresía? Para el conteo de
    * "faltan por marcar" se mira el período real (incluido el de un ciclo ya
    * completado) y se descartan los paquetes por clase ya agotados.
    */
+  /**
+   * Una **prueba vendida después** de que la clase se dictara no reabre esa
+   * clase (decisión de Javier, 2026-09-11): registrar la asistencia de una
+   * prueba pasada no le da nada al profesor ni al alumno — lo que importa es
+   * si el alumno decide convertirse. Sigue listada por si Natalia la quiere
+   * marcar, pero su ausencia no deja la clase "incompleta".
+   *
+   * Ojo: esto vale **solo** para pruebas. Una membresía regular vendida con
+   * fecha retroactiva sí reabre la clase, que es lo que hizo falta con Lucas
+   * Campero: él había ido y faltaba marcarlo.
+   */
+  const pruebaPosterior = (r: InscRow, f: string) =>
+    r.es_prueba === true && r.creado_en != null && r.creado_en.slice(0, 10) > f;
+
   const cubriaLaClase = (r: InscRow, f: string) =>
     r.fecha_inicio <= f &&
     tomaEseDia(r, f) &&
+    !pruebaPosterior(r, f) &&
     !(r.fecha_fin != null && r.fecha_fin < f) &&
     (r.modalidad === "mensual" || Math.max(0, (r.clases_total ?? 0) - (consumidas[r.id] ?? 0)) > 0);
 

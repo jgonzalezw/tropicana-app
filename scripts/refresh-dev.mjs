@@ -38,9 +38,11 @@ const ORDEN = [
   "cursos",
   "curso_tarifas",
   "planes",
+  "plan_cursos",
   "asignaciones",
   "descuentos_adelanto",
   "inscripciones",
+  "inscripcion_cursos",
   "cuotas",
   "sesiones",
   "asistencias",
@@ -95,6 +97,10 @@ async function mapaReferencias(db) {
 }
 
 async function copiarTabla(prod, dev, t, nullCols, deferCols) {
+  // La tabla puede no existir todavia en prod (migracion aplicada solo en dev):
+  // no es un error, simplemente no hay nada que traer.
+  const existe = (await prod.query(`select to_regclass($1) as t`, [`public.${t}`])).rows[0].t != null;
+  if (!existe) return { tabla: t, filas: 0, ausenteEnProd: true };
   const { rows } = await prod.query(`select * from public.${t}`);
   if (rows.length === 0) return { tabla: t, filas: 0 };
 
@@ -164,9 +170,15 @@ async function reajustarSecuencia(dev, t) {
 }
 
 /**
- * Repone en DEV lo que depende de migraciones que quiza no esten en PROD (y por
- * eso el copiado no trae): la etiqueta planes.modalidad y las tablas de 0013
- * (plan_cursos, inscripcion_cursos). Todo idempotente y solo si existen en dev.
+ * Repone en DEV lo que PROD no pudo aportar porque su esquema es mas viejo: la
+ * etiqueta planes.modalidad y, si prod todavia no tiene las tablas de 0013, una
+ * fila por el curso principal en plan_cursos / inscripcion_cursos.
+ *
+ * OJO: esto es un RESPALDO, no la fuente. Las dos tablas se copian de prod en
+ * ORDEN. Antes se reconstruian siempre desde el curso principal, y eso APLANABA
+ * un plan multi-curso a un solo curso en cada refresh, en silencio. Como el
+ * padron resuelve por inscripcion_cursos, eso volvia invisibles a los alumnos
+ * en todos los demas cursos de su plan.
  */
 async function postBackfill(dev) {
   const existeCol = async (tabla, col) =>
@@ -211,6 +223,66 @@ async function postBackfill(dev) {
   }
 }
 
+/**
+ * Sincroniza la config de DOMINIO (catalogos, sus valores y parametros) desde
+ * prod, **por clave y sin borrar**: pisa lo que existe en las dos y agrega lo
+ * que falta, pero deja intacta una clave que solo existe en dev (tipicamente
+ * una migracion todavia no pasada a prod).
+ *
+ * No toca roles, perfiles ni temas: ahi vive el acceso, y dev conserva su
+ * propio admin.
+ *
+ * Existe porque sin esto dev y prod derivan en silencio: se ajusta un catalogo
+ * en produccion, se refresca dev, y las pruebas corren contra otra config que
+ * la real sin que nada lo avise.
+ */
+async function sincronizarConfig(prod, dev) {
+  const tocadas = [];
+
+  const params = await prod.query(`select * from public.parametros`);
+  for (const r of params.rows) {
+    const cols = Object.keys(r);
+    const otras = cols.filter((c) => c !== "clave");
+    await dev.query(
+      `insert into public.parametros (${cols.map((c) => `"${c}"`).join(", ")})
+       values (${cols.map((_, i) => `$${i + 1}`).join(", ")})
+       on conflict (clave) do update set
+         ${otras.map((c) => `"${c}" = excluded."${c}"`).join(", ")}`,
+      cols.map((c) => r[c])
+    );
+  }
+  tocadas.push(`parametros: ${params.rows.length}`);
+
+  // Los catalogos se identifican por clave, no por id: los ids pueden no
+  // coincidir entre las dos bases.
+  const cats = await prod.query(`select * from public.catalogos`);
+  let valores = 0;
+  for (const c of cats.rows) {
+    const up = await dev.query(
+      `insert into public.catalogos (clave, nombre, descripcion, es_sistema)
+       values ($1, $2, $3, $4)
+       on conflict (clave) do update set nombre = excluded.nombre,
+         descripcion = excluded.descripcion, es_sistema = excluded.es_sistema
+       returning id`,
+      [c.clave, c.nombre, c.descripcion, c.es_sistema]
+    );
+    const devCatId = up.rows[0].id;
+    const vs = await prod.query(`select * from public.catalogo_valores where catalogo_id = $1`, [c.id]);
+    for (const v of vs.rows) {
+      await dev.query(
+        `insert into public.catalogo_valores (catalogo_id, valor, etiqueta, orden, activo)
+         values ($1, $2, $3, $4, $5)
+         on conflict (catalogo_id, valor) do update set etiqueta = excluded.etiqueta,
+           orden = excluded.orden, activo = excluded.activo`,
+        [devCatId, v.valor, v.etiqueta, v.orden, v.activo]
+      );
+      valores++;
+    }
+  }
+  tocadas.push(`catalogos: ${cats.rows.length} (${valores} valores)`);
+  return tocadas;
+}
+
 async function main() {
   if (!process.argv.includes("--yes"))
     fatal("Falta --yes. Esto BORRA los datos de dev y los reemplaza con los de prod. Corré: node scripts/refresh-dev.mjs --yes");
@@ -236,22 +308,34 @@ async function main() {
     const { nullCols, deferCols } = await mapaReferencias(dev);
 
     console.log("Vaciando tablas de dominio en DEV...");
-    const lista = ORDEN.map((t) => `public.${t}`).join(", ");
+    const enDev = [];
+    for (const t of ORDEN) {
+      const r = await dev.query(`select to_regclass($1) as t`, [`public.${t}`]);
+      if (r.rows[0].t != null) enDev.push(t);
+    }
+    const lista = enDev.map((t) => `public.${t}`).join(", ");
     await dev.query(`truncate ${lista} restart identity cascade`);
 
     console.log("Copiando datos de PROD -> DEV:");
-    for (const t of ORDEN) {
+    for (const t of enDev) {
       const r = await copiarTabla(prod, dev, t, nullCols[t] ?? new Set(), deferCols[t] ?? new Set());
-      console.log(`  ${t.padEnd(22)} ${r.filas} filas`);
+      console.log(`  ${t.padEnd(22)} ${r.filas} filas${r.ausenteEnProd ? "  (no existe en prod)" : ""}`);
     }
 
     console.log("Reajustando secuencias...");
-    for (const t of ORDEN) await reajustarSecuencia(dev, t);
+    for (const t of enDev) await reajustarSecuencia(dev, t);
 
     console.log("Rellenando tablas/etiquetas de dev que no existen en prod...");
     await postBackfill(dev);
 
-    console.log("\nRefresh completo. DEV ahora tiene los datos de PROD (sin usuarios/config).");
+    if (process.argv.includes("--sin-config")) {
+      console.log("Config: NO sincronizada (--sin-config).");
+    } else {
+      console.log("Sincronizando config de dominio (por clave, sin borrar)...");
+      for (const t of await sincronizarConfig(prod, dev)) console.log(`  ${t}`);
+    }
+
+    console.log("\nRefresh completo. DEV ahora tiene los datos de PROD.");
     console.log("Login de dev: seguí usando tu usuario admin de dev (no se tocó).");
   } finally {
     await prod.end();
