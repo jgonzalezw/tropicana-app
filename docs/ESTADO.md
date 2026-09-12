@@ -69,16 +69,22 @@ Referencia: `docs/PLAN_CIERRE_ETAPA1_v2_MOTOR.md` §2. Actualizado 2026-09-10.
 | Paso | Qué es | Estado |
 | --- | --- | --- |
 | 0 | Reencuadre al Motor de Planes y Membresías | ✅ Hecho (2026-09-05) |
-| **1** | **Liquidación a profesores** (motor base Plan Regular: planes N/ilimitado, multi-curso, asistencia con contador/completada/tolerancia/bono, liquidación criterio 1 + comprobante) | ✅ **Hecho — EN PRODUCCIÓN** (desplegado y verificado 2026-09-09/10) |
+| **1** | **Liquidación a profesores** (motor base Plan Regular: planes N/ilimitado, multi-curso, asistencia con contador/completada/tolerancia/bono, liquidación criterio 1 + comprobante) | ✅ **v1 EN PRODUCCIÓN** (2026-09-09/10) · 🟡 **v2 en dev, sin pasar**: prorrata multi-curso real (reglas 10/16/17/18/19/20), quién dictó la clase, comprobante auditable. Migraciones 0025–0030 |
 | 2 | Venta de particulares/alquiler + confirmar sesión (con horario) + renovación + estado de cuenta del alumno | ⏳ Pendiente — no iniciado |
 | 3 | App Shell (armazón + visual ya diseñado) + Dashboard operativo | ⏳ Pendiente — no iniciado |
 | 4 | Costos fijos | ⏳ Pendiente — no iniciado |
 | 5 | Agenda de sala (+ `duracion_min` en `cursos`) | ⏳ Pendiente — no iniciado |
 | 6 | Alineación a estándares del resto de pantallas (ver `docs/PLAN_UX_DANZE.md`) | 🟡 En curso, parcial — Toggle estándar adoptado y pantalla Planes ya alineada; Cursos/Profesores/Dashboard/navegación siguen en el backlog de `PLAN_UX_DANZE.md` |
 
-**Estamos parados al cierre del Paso 1**, ya desplegado y validado en vivo en
-producción (deployment `41942b9`, Ready, 0% error). El siguiente a construir
-es el **Paso 2**, y no arranca sin tu OK explícito.
+**Dónde estamos (2026-09-12).** El Paso 1 v1 está en producción desde el
+09/10. Encima de él se construyó, **solo en dev**, una segunda vuelta que es la
+que hoy espera el OK: el motor de planes multi-curso de punta a punta —prorrata
+por curso y por profesor, las reglas de negocio 10 y 16 a 20, quién dictó cada
+clase— más la clase de prueba completa (rebanada 2D). Son las migraciones
+**0023 a 0030**.
+
+Nada de eso pasó a producción. El resto del Paso 2 (2C, 2E, 2F, 2G, 2H) y los
+pasos 3 a 5 siguen sin iniciar.
 
 **Infraestructura construida como prerrequisito del Paso 1 (no es un paso
 numerado de la secuencia, pero fue condición para poder construirlo):**
@@ -348,7 +354,7 @@ producción no quedara colgada.
 | 2A.1 | **Ajustes de Caja** — toggle "Ocurrió en fecha pasada"; "Por cobrar" agrupada vencidas/en fecha y ordenada por antigüedad; recibo imprimible por movimiento; glosa a ancho completo; hipervínculos desde ambas listas; motivos reclasificados por operación (`0020`) | ✅ En producción |
 | 2B | **Estado de cuenta del alumno** (`/alumnos/[id]/cuenta`) — deuda total, membresías con su consumo y faltas, cuotas con saldo, y pagos. Se llega con la acción **Cuenta** desde la lista de alumnos. Cada cuota con saldo enlaza a Caja ya apuntada a esa deuda (`/caja?linea=cuota:N`) y cada pago a su recibo. **Documento imprimible** del estado de cuenta, por el mismo camino que el comprobante de liquidación y el recibo | ✅ En producción (2026-09-10) |
 | 2C | **Renovación de membresía** — qué pasa cuando un ciclo se cierra y el alumno sigue: renovar sin volver a vender desde cero | ⏳ No iniciado |
-| 2D | **Venta de particulares, alquiler, talleres y clases de prueba** — hoy no existe ninguna de estas ventas. Los motivos de caja ya las contemplan, pero no tienen de dónde venir. Incluye el problema de las clases de prueba migradas (punto 1 de arriba) | ⏳ No iniciado |
+| 2D | **Venta de particulares, alquiler, talleres y clases de prueba** | 🟡 **Parcial.** La **clase de prueba** está completa en dev y sin pasar a producción: configuración por plan, venta individual y grupal, fecha por curso, padrón, prorrata y crédito al convertir (migraciones 0023/0024). **Particulares, alquiler y talleres: no iniciados** |
 | 2E | **Confirmar sesión (con horario)** | ⏳ No iniciado |
 | 2F | **Egresos de Caja / cuentas por pagar** — `lineasPorCobrar` solo arma el bucket `cuotas`; pagar una comisión o un proveedor no tiene su lista de "Por pagar" (punto 2 de arriba) | ⏳ No iniciado |
 | 2G | **Arqueo, apertura/cierre y responsable de caja** — quién rinde cuentas de cuál caja (punto 3 de arriba) | ⏳ No iniciado, sin diseño |
