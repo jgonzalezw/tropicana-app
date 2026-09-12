@@ -103,9 +103,8 @@ proceso 1). No es un backlog de decisiones: es el estado del release.
 - **Migraciones 0023–0030: APLICADAS EN PRODUCCIÓN el 2026-09-12**, con el OK
   explícito de Javier. Ningún dato de dominio se modificó (detalle y controles
   en `docs/ESTADO.md`).
-- **Falta el deploy del código**: Vercel publica al mergear a `main`. Mientras
-  tanto producción corre el esquema nuevo con el código viejo — seguro, porque
-  todo lo agregado es aditivo.
+- **Código desplegado**: `main` actualizado `31da6ae..ed44fbd` el 2026-09-12
+  (fast-forward, 47 commits). Vercel publica solo al mergear.
 - **Pendiente de decisión**: el control 3 da **2** en producción (membresías 23
   y 24, contadores de clases desactualizados desde el 10/09, anteriores al
   pase). Se corrige volviendo a guardar esas dos asistencias, pero es un cambio

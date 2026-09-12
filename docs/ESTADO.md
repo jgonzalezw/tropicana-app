@@ -1014,6 +1014,6 @@ motor recalcula el contador al guardar asistencia, así que se corrige solo
 volviendo a tocar esas dos clases, pero es un cambio de datos en producción y
 no se hace sin su OK (regla de proceso 5).
 
-**Falta el deploy del código**: Vercel publica al mergear a `main`. Hasta
-entonces producción corre el esquema nuevo con el código viejo — que es
-seguro, porque todo lo agregado es aditivo y el código viejo no lo lee.
+**Deploy del código**: `main` actualizado `31da6ae..ed44fbd` (fast-forward, 47
+commits) con el OK explícito de Javier. Vercel publica solo al mergear.
+Verificado antes de pushear: typecheck, lint y build limpios.
