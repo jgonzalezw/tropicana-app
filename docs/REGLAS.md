@@ -174,6 +174,21 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
     la fuerza mayor quiere decir que no hay multa ni se le descuenta un
     reemplazante — no que se le pague la clase.
     *(Javier, 2026-09-12: "El profesor no cobra por clases que no dicta. Punto.")*
+20. **Una clase con asistencia registrada la dictó alguien.** No se puede
+    asumir que no la dio nadie. Si ese día el curso **no tenía titular
+    asignado**, la dio un **suplente**: un profesor externo que **no entra en el
+    prorrateo** y **no cobra por liquidación, sino por tarifa** — un monto por
+    clase dictada, que se confirma al registrar la asistencia (la tabla de
+    profesores da la referencia). Ese costo es de la **administración de la
+    academia**: no se le descuenta a nadie. Así que la parte de esa clase **no
+    se devenga como comisión** —ni al titular, que no la dio, ni al suplente,
+    que cobra por otra vía— y el comprobante **lo dice**: plata que no se
+    devenga sin explicación es un fallo disfrazado de ausencia (calidad 1).
+    **Al tomar asistencia se muestra el titular vigente**, y si el curso está
+    desasignado ese día, **registrar un reemplazo es obligatorio** salvo que la
+    clase se cancele.
+    *(Javier, 2026-09-12: "Si una clase no se canceló y se registró la
+    asistencia, alguien la dictó, no podés asumirlo, mala decisión.")*
 
 ## 3. Reglas de proceso
 

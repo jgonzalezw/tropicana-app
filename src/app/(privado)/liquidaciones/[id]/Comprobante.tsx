@@ -37,6 +37,8 @@ export type ItemComprobante = {
     parte?: number;
     /** Presente solo si el curso lo dictó más de un profesor (0029). */
     profesores?: { profesorId: number; profesor: string; clases: number; parte: number }[];
+    /** Clases que ese día no tenían titular: las dio un suplente (regla 19). */
+    sinAsignar?: number;
   }[];
   pesoTotal: number;
   pesoCurso: number;
@@ -90,13 +92,19 @@ function repartoHTML(it: ItemComprobante, modo: "completo" | "compacto"): string
             <td style="text-align:right">${pr.profesorId === it.profesorId ? "usted" : ""}</td></tr>`
         )
         .join("");
+      const supl = (r.sinAsignar ?? 0) > 0
+        ? `<tr class="muted"><td style="padding-left:10px"><i>&mdash; ${esc2(r.curso)}: sin titular asignado</i></td>
+           <td style="text-align:right">${r.sinAsignar}</td><td></td>
+           <td style="text-align:right">no se devenga</td><td></td>
+           <td style="text-align:right">suplente</td></tr>`
+        : "";
       return `<tr${esEste ? ' class="b"' : ' class="muted"'}>
         <td>${esc2(r.curso)}</td>
         <td style="text-align:right">${r.clases === 0 ? "ninguna" : r.clases}</td>
         <td style="text-align:right">${gs(r.precioClase)}</td>
         <td style="text-align:right">${gs(parteDe(it, r))}</td>
         <td style="text-align:right">${pct}%</td>
-        <td style="text-align:right">${esEste ? "este curso" : ""}</td></tr>${sub}`;
+        <td style="text-align:right">${esEste ? "este curso" : ""}</td></tr>${supl}${sub}`;
     })
     .join("") +
     `<tr><td colspan="3" style="border-top:1px solid #ddd">Suma de las partes = lo cobrado</td>
@@ -109,6 +117,17 @@ function repartoHTML(it: ItemComprobante, modo: "completo" | "compacto"): string
         ${esc2(LEYENDA_CLASES)}</div>
       <table style="width:100%;font-size:11px">${encabezado}${filas}</table>
     </div>`;
+}
+
+/**
+ * Cuántas **ventas distintas** cerró el profesor en el período.
+ *
+ * No es la cantidad de líneas: desde el prorrateo, una membresía de varios
+ * cursos deja una línea por curso, y un curso repartido entre dos titulares
+ * deja dos. Contar líneas daría un número inflado del trabajo real.
+ */
+function membresiasDelPeriodo(items: ItemComprobante[]): number {
+  return new Set(items.map((i) => `${i.alumno}|${i.cicloInicio}|${i.cicloFin}`)).size;
 }
 
 /** ¿Esta comisión salió de repartir una venta entre varios cursos? */
@@ -205,6 +224,22 @@ function Reparto({ it, modo }: { it: ItemComprobante; modo: "completo" | "compac
           {/* Un curso que dictó más de un profesor: sin abrirlo, la base de la
               comisión parece no coincidir con la parte del curso. Cada
               sub-línea dice cuántas clases puso cada uno y cuánto le tocó. */}
+          {/* Clases que dio un suplente: no se devengan como comisión —el
+              suplente cobra por tarifa (regla 19)— pero se dicen, porque plata
+              que no se devenga sin explicación es un fallo disfrazado de
+              ausencia. */}
+          {it.reparto
+            .filter((r) => (r.sinAsignar ?? 0) > 0)
+            .map((r) => (
+              <tr key={`${r.cursoId}-suplente`} className="text-[var(--texto-tenue)] italic">
+                <td className="py-0.5 pl-4">— {r.curso}: sin titular asignado</td>
+                <td className="py-0.5 text-right tabular-nums">{r.sinAsignar}</td>
+                <td />
+                <td className="py-0.5 text-right">no se devenga</td>
+                <td />
+                <td className="py-0.5 text-right whitespace-nowrap">suplente</td>
+              </tr>
+            ))}
           {it.reparto.flatMap((r) =>
             (r.profesores ?? []).map((pr) => (
               <tr
@@ -368,6 +403,21 @@ export default function Comprobante({ datos }: { datos: DatosComprobante }) {
             <div className="font-semibold text-base">{periodoLargo(datos.periodo)}</div>
             <div className="text-[var(--texto-tenue)] text-xs">({datos.periodicidad} vencido)</div>
           </div>
+        </div>
+
+        {/* Cuántas ventas cerró en el período: es el volumen del trabajo del
+            profesor, y estaba solo en la pantalla "Por liquidar". Un
+            comprobante que no lo dice obliga a contar las líneas a mano — y
+            con el prorrateo, una membresía puede dejar varias líneas. */}
+        <div className="text-sm mb-3">
+          <span className="text-[var(--texto-tenue)]">Membresías cerradas en el período: </span>
+          <span className="font-semibold">{membresiasDelPeriodo(datos.items)}</span>
+          {datos.items.length !== membresiasDelPeriodo(datos.items) && (
+            <span className="text-[var(--texto-tenue)]">
+              {" "}
+              ({datos.items.length} líneas de comisión, una por curso)
+            </span>
+          )}
         </div>
 
         {/* Detalle por membresía */}
@@ -632,6 +682,13 @@ function construirHTMLImpresion(d: DatosComprobante): string {
           <div class="b">${periodoLargo(d.periodo)}</div>
           <div class="muted small">(${esc(d.periodicidad)} vencido)</div>
         </div>
+      </div>
+      <div class="small" style="margin-bottom:6px">
+        <span class="muted">Membresias cerradas en el periodo: </span><b>${membresiasDelPeriodo(d.items)}</b>${
+          d.items.length !== membresiasDelPeriodo(d.items)
+            ? ` <span class="muted">(${d.items.length} lineas de comision, una por curso)</span>`
+            : ""
+        }
       </div>
       <div class="muted small">Detalle de comisiones</div>
       ${filasItems || '<div class="muted small">Sin ítems.</div>'}

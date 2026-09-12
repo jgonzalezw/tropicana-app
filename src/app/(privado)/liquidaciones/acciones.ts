@@ -122,6 +122,13 @@ export type LineaReparto = {
    * (un cambio de titular a mitad de ciclo). Ausente en el caso normal.
    */
   profesores?: { profesorId: number; profesor: string; clases: number; parte: number }[];
+  /**
+   * Clases del curso que ese día **no tenían titular asignado**: las dio un
+   * suplente, que cobra por tarifa y no por comisión (regla 19). Su parte no
+   * se devenga, y por eso tiene que verse — si no, es plata que desaparece sin
+   * explicación.
+   */
+  sinAsignar?: number;
 };
 
 type InscLiq = {
@@ -433,10 +440,21 @@ async function calcularPendientes(
     // titular todo el ciclo— da una sola línea con la parte entera, idéntico
     // a como era antes.
     //
-    // Las clases **sin ninguna asignación** ese día no se pagan: su plata no
-    // se devenga y queda sin reclamar, igual que un curso entero sin profesor.
-    // Repartirla entre los demás sería pagarle a alguien por una clase que no
-    // dio.
+    // **Una clase con asistencia registrada la dictó alguien.** Si ese día el
+    // curso no tenía titular asignado, la dio un **suplente**, y un suplente no
+    // entra en el prorrateo: se le paga **por tarifa**, por clase dictada, y el
+    // costo es de la administración de la academia — no se le descuenta a
+    // nadie (regla de negocio 19 + D17). Así que esa clase **no se devenga como
+    // comisión**: ni al titular, que no la dio, ni al suplente, que cobra por
+    // otra vía.
+    //
+    // No se reparte entre los demás profesores: sería pagarle a alguien por una
+    // clase que no dio. Y no se esconde — `sinAsignar` la deja a la vista en el
+    // reparto, porque plata que no se devenga sin decirlo es un fallo
+    // disfrazado de ausencia (regla de calidad 1).
+    //
+    // *Javier, 2026-09-12: "Si una clase no se canceló y se registró la
+    // asistencia, alguien la dictó, no podés asumirlo."*
     const repartoProf = porCurso.map((x) => {
       const conteo = new Map<number, { pct: Map<number, number>; clases: number }>();
       for (const f of x.fechas) {
@@ -465,13 +483,13 @@ async function calcularPendientes(
         const sobra = x.cent - lineas.reduce((t, l) => t + l.cent, 0);
         if (sobra > 0) lineas.reduce((a, b) => (b.clases > a.clases ? b : a)).cent += sobra;
       }
-      return { x, lineas };
+      return { x, lineas, sinAsignar: x.clases - clasesConProfesor };
     });
 
     // La foto del reparto: va igual en cada comisión de esta membresía, con
     // TODOS los cursos —también los de otros profesores y los que no dictaron—
     // porque es lo que permite verificar que los pesos suman el total.
-    const reparto: LineaReparto[] = repartoProf.map(({ x, lineas }) => ({
+    const reparto: LineaReparto[] = repartoProf.map(({ x, lineas, sinAsignar }) => ({
       cursoId: x.ic.curso_id,
       curso: x.curso?.nombre ?? `#${x.ic.curso_id}`,
       clases: x.clases,
@@ -491,6 +509,7 @@ async function calcularPendientes(
               parte: l.cent / 100,
             }))
           : undefined,
+      sinAsignar: sinAsignar > 0 ? sinAsignar : undefined,
     }));
 
     for (const { x, lineas } of repartoProf) {
