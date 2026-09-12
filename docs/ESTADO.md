@@ -6,10 +6,18 @@
 > `docs/design/README.md` (fuente de verdad del **diseño**), `docs/CONTEXTO_AVANCE.md`
 > (bitácora larga de Etapa 0), `docs/DESIGN_SYNC.md` (cómo entran los handoffs).
 >
-> **Última actualización:** 2026-09-12 — Liquidación a prorrata (Paso E), las
-> reglas de negocio 16 a 19 y el bug del padrón: ver el bloque final
-> **"Liquidación a prorrata — cierre de E, y las reglas 16 a 19"**. Todo en dev,
-> pendiente del OK para producción.
+> **Última actualización:** 2026-09-12 (tarde) — **arrancó el Paso 2D y la base
+> del Paso 5.** Se construyó *Precios y paquetes* (D8: el centro único de los
+> precios base, cinco pestañas) y la **migración 0035**, que agrega los precios
+> de particulares y la matriz de sala, las ventas con contador, y `reservas_sala`
+> con no-choque garantizado por la base. **Validado en dev por Javier**
+> (*"veo todo ok"*), **solo en dev**, pendiente del OK para producción. Ver el
+> bloque final **"Precios y paquetes, y la base de la sala"**.
+>
+> **Dónde estamos, en una línea:** Paso 1 cerrado y en producción; **Paso 2 en
+> curso** (empezó por los precios base, falta la venta); **Paso 5 con la base de
+> datos hecha y la agenda visual pendiente**. La secuencia completa, en §0bis; lo
+> que Natalia necesita y el encuadre de los dos ejes, en **§0duodecies**.
 >
 > **2026-09-10 — Consolidación de estado a pedido de
 > Javier: ver **§0bis** (tabla de los 7 pasos) para la foto completa. **Motor
@@ -70,10 +78,10 @@ Referencia: `docs/PLAN_CIERRE_ETAPA1_v2_MOTOR.md` §2. Actualizado 2026-09-10.
 | --- | --- | --- |
 | 0 | Reencuadre al Motor de Planes y Membresías | ✅ Hecho (2026-09-05) |
 | **1** | **Liquidación a profesores** (motor base Plan Regular: planes N/ilimitado, multi-curso, asistencia con contador/completada/tolerancia/bono, liquidación criterio 1 + comprobante) | ✅ **v1 y v2 EN PRODUCCIÓN** (v1 el 2026-09-09/10; v2 el 2026-09-12): prorrata multi-curso real (reglas 10/16/17/18/19/20), quién dictó la clase, descuento del reemplazante, comprobante auditable. Migraciones 0023–0033 |
-| 2 | Venta de particulares/alquiler + confirmar sesión (con horario) + renovación + estado de cuenta del alumno | ⏳ Pendiente — no iniciado |
+| 2 | Venta de particulares/alquiler + confirmar sesión (con horario) + renovación + estado de cuenta del alumno | 🟡 **Arrancó el 2026-09-12 por los precios base.** *Precios y paquetes* (D8) construida y **validada en dev por Javier**: las cinco pestañas, con los paquetes de particular (bloque D) y la matriz de sala (bloque E) que son las que faltaban para poder cotizar. Falta la venta en sí (*Vender servicio*) y la confirmación/reserva de sesión. Migración **0035**, solo en dev |
 | 3 | App Shell (armazón + visual ya diseñado) + Dashboard operativo | ⏳ Pendiente — no iniciado |
 | 4 | Costos fijos | ⏳ Pendiente — no iniciado |
-| 5 | Agenda de sala (+ `duracion_min` en `cursos`) | ⏳ Pendiente — no iniciado. **Natalia lo pide con urgencia (2026-09-12)** junto con los particulares (2D): sin validar la sala no se puede vender una hora. Ver §0duodecies |
+| 5 | Agenda de sala (+ `duracion_min` en `cursos`) | 🟡 **Base de datos construida el 2026-09-12** (migración 0035, solo en dev): `salas` (D20), `reservas_sala` con una restricción `EXCLUDE` que impide en la **base** que dos reservas de la misma sala se pisen, y los motivos de bloqueo sin venta (D7). Falta **la agenda visual**, que Javier marcó como no negociable: *"es una herramienta fundamental para Natalia por su vista. Debe ir, ya es hoy un problema para ella."* Sin mockup todavía. Ver §0duodecies |
 | 6 | Alineación a estándares del resto de pantallas (ver `docs/PLAN_UX_DANZE.md`) | 🟡 En curso, parcial — Toggle estándar adoptado y pantalla Planes ya alineada; Cursos/Profesores/Dashboard/navegación siguen en el backlog de `PLAN_UX_DANZE.md` |
 
 **Dónde estamos (2026-09-12, tarde).** El **Paso 1 está cerrado y en
@@ -371,10 +379,10 @@ Javier trae un pedido operativo, y **no cae en una sola rebanada**: Natalia est�
 urgida por **la gestión de clases particulares** y por **validar y reservar la
 disponibilidad de la sala**.
 
-| Lo que pide | Dónde vive en el plan | Estado |
+| Lo que pide | Dónde vive en el plan | Estado al 2026-09-12, tarde |
 | --- | --- | --- |
-| Vender y gestionar clases particulares | **2D** (la mitad que no es clase de prueba) | No iniciado |
-| Validar/reservar disponibilidad de la sala | **Paso 5** — Agenda de sala | No iniciado |
+| Vender y gestionar clases particulares | **2D** (la mitad que no es clase de prueba) | 🟡 **Precios base listos** (pantalla *Precios y paquetes*, validada en dev). Falta la venta en sí |
+| Validar/reservar disponibilidad de la sala | **Paso 5** — Agenda de sala | 🟡 **Base de datos lista** (0035: `salas`, `reservas_sala` con no-choque garantizado). Falta la agenda visual |
 
 **El punto que importa:** son dos lugares distintos del plan, y el segundo está
 **tres pasos más adelante** que el primero. Pero operativamente van juntos: no se
@@ -396,20 +404,47 @@ Eso es una decisión de Javier, no una lectura del plan.
 - **D6 — duración de la clase.** ✅ **Construida y en producción** (0034).
 - **D5 — motivos del cobro.** Confirmada; se construye junto con particulares.
 
-### Lo que todavía falta para poder arrancar
+### Las tres respuestas — todas dadas el 2026-09-12
 
-Tres respuestas, las tres de Javier:
-
-| | Qué | Por qué bloquea |
+| | Qué | Respuesta |
 | --- | --- | --- |
-| ~~**D20**~~ | ✅ **RESPONDIDA** (2026-09-12): *"por el momento una sola sala, posteriormente podrían haber varias"* | Se modela **para N y se muestra para 1**: existe `salas` con una fila, cada clase y bloqueo dicen en cuál están, el choque se pregunta por sala, y el selector aparece recién con la segunda |
-| **Alcance** | ¿Paso 5 completo, o **validación mínima de choque** dentro de 2D primero? | Lo segundo destraba a Natalia mucho antes; la agenda visual queda después sobre la misma base |
-| **Diseño** | Particulares es pantalla nueva: ¿Design-first o código v1? | Regla de proceso 3: avisar antes de construir |
+| ~~**D20**~~ | ¿una sala o varias? | ✅ *"por el momento una sola sala, posteriormente podrían haber varias"*. Se modela **para N y se muestra para 1**. **Ya construido** en la 0035 |
+| ~~**Alcance**~~ | ¿Paso 5 completo o validación mínima? | ✅ **Validación mínima primero**, agenda visual después sobre la misma base |
+| ~~**Diseño**~~ | ¿Design-first o código v1? | ✅ **Código v1, Design refina.** Y resultó una pregunta más chica: *Vender servicio* y *Confirmar sesión* **ya tenían diseño aprobado** desde el 30 ago |
+
+### El encuadre que dio Javier, y que gobierna lo que sigue
+
+Javier reformuló el problema en **dos ejes**, y es la lectura que manda:
+
+1. **La venta de paquetes de horas** (particulares y alquileres) con sus
+   contadores, que descuentan horas en cada sesión realizada.
+2. **Un motor de calendario de sala**, *"muy visual, como un calendario del mes,
+   semana, día"*, con la ocupación en intervalos de 30 min (parametrizable),
+   donde se selecciona un rango libre para reservar y se lo asocia al tipo
+   (interno/bloqueo, particular, alquiler) y a su motivo o paquete.
+
+Lo que se ve en el calendario **tiene que decir por qué y para quién** está
+tomada la sala. Reservas: particulares, alquileres, internas. Bloqueos: cursos
+regulares, horario fuera de trabajo, feriados, otros. Y el motor tiene que
+permitir, además de reservar, **reprogramar y cancelar**, y registrar asistencia
+o suspender clases regulares desde el mismo calendario.
+
+**La agenda visual no es opcional ni lejana.** Javier: *"es una herramienta
+fundamental para Natalia por su vista. Debe ir, ya es hoy un problema para ella."*
+Lo que se acordó es el **orden**: primero el eje de ventas y contadores *"para
+que pueda ir registrando sus ventas"*, con algún mecanismo de confirmación de
+sesiones, y después integrarlo al eje visual.
+
+**Lo que el diseño de agosto NO cubre, y hay que construir igual:** reservar una
+sesión **a futuro**. *Confirmar sesión* solo registra que una sesión **ya
+ocurrió**; elegir fecha y hora al momento de vender es la pieza que une los dos
+ejes, y no está en ningún mockup.
 
 **Lo que ya está listo para apoyarse:** `src/lib/horarios.ts` con `seSolapan` y
 el criterio de choque fijado —intervalo medio abierto, así que una clase que
-termina 20:00 y otra que empieza 20:00 **no** chocan—, y `cursos.duracion_min`
-en las dos bases.
+termina 20:00 y otra que empieza 20:00 **no** chocan—, `cursos.duracion_min` en
+las dos bases, y desde hoy `src/lib/sala.ts` + la migración **0035** (ver el
+bloque final de este documento).
 
 **Un dato medido que orienta el modelo** (producción, 2026-09-12): con 60
 minutos **ningún par de cursos se pisa** — los que comparten hora no comparten
@@ -1337,3 +1372,83 @@ importa para diseñar el Paso 5.
 **El código todavía NO está desplegado.** `main` sigue en `2c29cf1`: el campo
 existe en la base pero la pantalla de Cursos no lo muestra. Es el estado seguro
 del orden de §3, y el merge espera su propio OK.
+
+---
+
+## Precios y paquetes, y la base de la sala · 2026-09-12 (dev)
+
+**Qué se hizo, y por qué en este orden.** Javier pidió arrancar con lo que
+Natalia necesita —particulares y sala— y en el camino definió el orden:
+*"quiero aplicar esa pantalla como un paso"*, refiriéndose a **Precios y
+paquetes**. Es la dependencia real: sin precios cargados no se puede cotizar un
+paquete de particular ni un alquiler, así que la venta sin esto no tiene de
+dónde sacar un monto.
+
+### D8 sale del backlog, y resultó más barata de lo temido
+
+Javier la activó: *"ese debe ser el centro donde se definen los precios base de
+todos los servicios"*. Se construyeron **las cinco pestañas**, no dos.
+
+**El miedo que la tenía postergada era una migración de datos que no existe.**
+Medido el 2026-09-12: los precios ya vivían en sus propias tablas —
+`curso_tarifas` (parciales y prueba), `descuentos_adelanto` (meses adelantados),
+`cursos.precio_mensual`— y las dos que faltaban las crea la 0035. D8 es **una
+pantalla que los junta, no un movimiento de datos**.
+
+**Pendiente que abre:** la pantalla de Cursos conserva sus columnas de tarifa.
+Dos superficies para el mismo dato es justamente lo que D8 venía a cerrar; hay
+que decidir si Cursos delega en esta pantalla.
+
+### Migración 0035 — lo que agrega
+
+| Tabla | Para qué |
+| --- | --- |
+| `salas` | D20: se modela para N, hoy una fila |
+| `tarifas_particular` | Bloque D: paquetes de particular por estilo |
+| `sala_tamanos` · `sala_horas_paquete` · `sala_tarifas` | Bloque E: la matriz categoría × tamaño × horas |
+| `paquetes_particular` · `alquileres_sala` | Las ventas, con contador de horas usadas |
+| `reservas_sala` | La ocupación de la sala: particular, alquiler o bloqueo sin venta (D7) |
+
+Además: `profesores.comision_particular_pct`, el catálogo
+`motivo_bloqueo_sala` (6 valores) y dos columnas en `comisiones_devengadas`
+para que una comisión de particular entre al **mismo** motor de liquidación que
+los cursos regulares, en vez de construir uno paralelo.
+
+### Las dos decisiones de diseño que conviene no olvidar
+
+**1. El no-choque lo garantiza la base, no el código.** `reservas_sala` tiene
+una columna generada `rango` (fecha + hora + duración) y una restricción
+`EXCLUDE USING gist`: dos reservas activas de la misma sala **no pueden**
+solaparse, aunque el código se olvide de chequear. Probado contra dev: dos
+reservas que se pisan media hora rebotan; una pegada a la hora siguiente entra
+—el cambio de turno normal de una sala no es un conflicto—.
+
+**2. Los cursos regulares NO son filas de `reservas_sala`.** Su ocupación se
+**calcula** desde el curso (`dias_semana` + `hora` + `duracion_min`), su vigencia
+y las sesiones suspendidas. Guardar el mismo hecho en dos lugares es la
+confusión más cara de este proyecto; el calendario del curso ya es la fuente de
+verdad. Por eso el choque contra cursos vive en `src/lib/sala.ts` y el choque
+entre reservas vive en la base: cada uno donde está el dato.
+
+### Qué NO se hizo, a propósito
+
+- **No se cargó ningún precio.** Son datos de negocio, no configuración: las
+  tablas quedan vacías y Natalia las carga desde la pantalla. Una celda vacía es
+  *"sin tarifa"* y se muestra marcada — nunca se toma como cero.
+- **No se alineó la barra lateral** a los 7 grupos del App Shell diseñado (hoy
+  tiene 3). Eso es el **Paso 3**. *Precios y paquetes* igual quedó en
+  `Administración`, que es su grupo definitivo en el diseño, así que no se va a
+  tener que mover.
+
+### Estado
+
+Validado en dev por Javier (*"veo todo ok"*). `tsc` y `eslint` limpios.
+**Solo en dev**: la 0035 no está en producción y el código no está en `main`.
+Espera el OK del pase (regla de proceso 1).
+
+### Lo que sigue
+
+**Vender servicio** (2D): los dos caminos del mockup de agosto, más la pieza que
+ese mockup no tiene — **elegir fecha y hora al vender**, validando la sala. Es
+lo que une los dos ejes que planteó Javier. Después, la **agenda visual**, que
+no tiene mockup y es la que Natalia pide por su vista.

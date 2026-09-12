@@ -160,5 +160,14 @@ proceso 1). No es un backlog de decisiones: es el estado del release.
   par de cursos se pisa** con esa duración — los que comparten hora no comparten
   día—, así que la grilla de producción es consistente con **una sola sala**.
 - **Código desplegado (D6)**: `main` `2c29cf1..650ae6d` el 2026-09-12, con el
-  OK explícito de Javier (*"mergea y publica"*). **Producción está completa: no
-  queda nada en dev sin pasar.** Migraciones 0001–0034 en las dos bases.
+  OK explícito de Javier (*"mergea y publica"*). Migraciones 0001–0034 en las
+  dos bases.
+- **Migración 0035 + pantalla *Precios y paquetes* (D8) — SOLO EN DEV**
+  (2026-09-12, tarde). Aditiva: no modifica ni una fila de dominio existente.
+  Crea `salas`, `tarifas_particular`, la matriz de sala
+  (`sala_tamanos`/`sala_horas_paquete`/`sala_tarifas`), `paquetes_particular`,
+  `alquileres_sala` y `reservas_sala`, más `profesores.comision_particular_pct`,
+  el catálogo `motivo_bloqueo_sala` y dos columnas en `comisiones_devengadas`.
+  **Validada en dev por Javier** (*"veo todo ok"*). El código tampoco está en
+  `main`: vive en `claude/tropicana-app-context-d5zjt8`. **Espera el OK del
+  pase** (regla de proceso 1). Detalle en `docs/ESTADO.md`, bloque final.
