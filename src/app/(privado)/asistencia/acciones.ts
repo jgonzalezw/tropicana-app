@@ -266,12 +266,35 @@ export async function cargarPadron(
     alumno: { id: number; nombre: string; apellido: string; activo: boolean } | null;
   };
   const membresias = ((insc as unknown as InscRow[]) ?? []).filter((r) => r.alumno?.activo);
-  const activas = membresias.filter((r) => r.estado === "activa");
+  /**
+   * **El padrón NO mira `estado`** (regla de negocio 2). Quién figura lo decide
+   * el período de la membresía y su consumo real al día que se está mirando
+   * —`enPeriodo` y `cicloAgotadoAl`—, nunca el estado de la venta.
+   *
+   * Acá había un filtro `estado === "activa"` que contradecía la regla y al
+   * comentario de treinta líneas más arriba, que trae a propósito las
+   * membresías de **todas** las fechas porque "un ciclo ya completado igual
+   * tenía que estar marcado en las clases que cayeron dentro de su período".
+   * Con el filtro puesto, una membresía `completada` —agotada y cobrada, o sea
+   * el final normal de toda venta— desaparecía del padrón de sus propias
+   * clases pasadas. Al volver a una fecha vieja la clase se veía **vacía**, y
+   * una clase que parece vacía se suspende "sin alumnos": eso le borra el peso
+   * de esa clase al profesor en el prorrateo. Pasó con Heels en agosto.
+   *
+   * Lo único que se excluye es la baja, y eso ya lo hace la consulta.
+   */
+  const activas = membresias;
 
   // Historial de cada membresía sobre sesiones DICTADAS: clases consumidas
   // (presentes) y clases del ciclo ya ocurridas (presentes + faltas).
   const consumidas: Record<number, number> = {};
   const dictadasPorInsc: Record<number, number> = {};
+  // Las MISMAS clases, pero con su fecha. Hacen falta para poder preguntar
+  // "¿este ciclo estaba agotado **el día que estoy mirando**?". Con los totales
+  // de hoy no se puede: una membresía que terminó sus 8 clases da "agotada"
+  // siempre, también el 25 de agosto, cuando le faltaban tres.
+  const fechasDictadas: Record<number, string[]> = {};
+  const fechasPresentes: Record<number, string[]> = {};
   if (membresias.length) {
     const { data } = await sb
       .from("asistencias")
@@ -279,29 +302,43 @@ export async function cargarPadron(
       .in("inscripcion_id", membresias.map((r) => r.id));
     const filasAsis = (data as { inscripcion_id: number | null; sesion_id: number; estado: Estado }[]) ?? [];
     const sesIds = [...new Set(filasAsis.map((f) => f.sesion_id))];
-    const dictadas = new Set<number>();
+    const dictadas = new Map<number, string>(); // sesión dictada → su fecha
     if (sesIds.length) {
-      const { data: ses } = await sb.from("sesiones").select("id, estado").in("id", sesIds);
-      for (const s of (ses as { id: number; estado: string }[]) ?? [])
-        if (s.estado === "dictada") dictadas.add(s.id);
+      const { data: ses } = await sb.from("sesiones").select("id, estado, fecha").in("id", sesIds);
+      for (const s of (ses as { id: number; estado: string; fecha: string }[]) ?? [])
+        if (s.estado === "dictada") dictadas.set(s.id, s.fecha);
     }
     for (const f of filasAsis) {
-      if (f.inscripcion_id == null || !dictadas.has(f.sesion_id)) continue;
+      if (f.inscripcion_id == null) continue;
+      const fechaSesion = dictadas.get(f.sesion_id);
+      if (!fechaSesion) continue;
       dictadasPorInsc[f.inscripcion_id] = (dictadasPorInsc[f.inscripcion_id] ?? 0) + 1;
-      if (f.estado === "presente") consumidas[f.inscripcion_id] = (consumidas[f.inscripcion_id] ?? 0) + 1;
+      (fechasDictadas[f.inscripcion_id] ??= []).push(fechaSesion);
+      if (f.estado === "presente") {
+        consumidas[f.inscripcion_id] = (consumidas[f.inscripcion_id] ?? 0) + 1;
+        (fechasPresentes[f.inscripcion_id] ??= []).push(fechaSesion);
+      }
     }
   }
 
   /**
-   * El ciclo se AGOTÓ: ya ocurrieron sus N clases (plan) o consumió el paquete
-   * comprado (venta por clase). Es lo que decide si sigue tomando clases, y va
-   * aparte de `estado`: una membresía agotada pero impaga sigue `activa`
-   * (se cierra recién al cobrarse) y aun así no debe seguir en el padrón.
+   * El ciclo estaba AGOTADO **al día `f`**: para esa fecha ya habían ocurrido
+   * sus N clases (plan) o ya había consumido el paquete comprado (venta por
+   * clase). Es lo que decide si seguía tomando clases, y va aparte de `estado`:
+   * una membresía agotada pero impaga sigue `activa` (se cierra recién al
+   * cobrarse) y aun así no debe seguir en el padrón.
+   *
+   * **Se pregunta al día, no de hoy.** Antes se comparaba contra los totales
+   * actuales, y eso dejaba a una membresía terminada fuera del padrón de las
+   * clases de su propio ciclo: al volver a una fecha vieja la lista salía
+   * vacía. Solo cuentan las clases **anteriores** a `f` — la del propio día `f`
+   * es la que se está por marcar, no puede haberla agotado.
    */
-  const cicloAgotado = (r: InscRow) =>
+  const cicloAgotadoAl = (r: InscRow, f: string) =>
     r.clases_plan != null
-      ? (dictadasPorInsc[r.id] ?? 0) >= r.clases_plan
-      : r.clases_total != null && (consumidas[r.id] ?? 0) >= r.clases_total;
+      ? (fechasDictadas[r.id] ?? []).filter((x) => x < f).length >= r.clases_plan
+      : r.clases_total != null &&
+        (fechasPresentes[r.id] ?? []).filter((x) => x < f).length >= r.clases_total;
 
   /**
    * ¿Toma ESTE curso ESE día? Cuando la membresía declaró días para este curso
@@ -356,7 +393,10 @@ export async function cargarPadron(
     tomaEseDia(r, f) &&
     !pruebaPosterior(r, f) &&
     !(r.fecha_fin != null && r.fecha_fin < f) &&
-    (r.modalidad === "mensual" || Math.max(0, (r.clases_total ?? 0) - (consumidas[r.id] ?? 0)) > 0);
+    // Al día `f`, no con el saldo de hoy: un paquete agotado en septiembre
+    // igual cubría sus clases de agosto, y si no, el chip de esa fecha diría
+    // "completa" con gente del padrón sin marcar.
+    (r.modalidad === "mensual" || !cicloAgotadoAl(r, f));
 
   // Estado de cada fecha para el selector. "incompleta" = la asistencia ya se
   // tomó pero quedan alumnos del padrón de ESA fecha sin marcar: es lo que pasa
@@ -484,9 +524,11 @@ export async function cargarPadron(
     });
 
   const filas: FilaAsistencia[] = inscripciones
-    // Un ciclo agotado ya no toma clases, esté cobrado o no. Si tiene marca en
-    // esta sesión se queda, para poder corregirla.
-    .filter((r) => !cicloAgotado(r) || marcas[r.alumno!.id] != null)
+    // Un ciclo agotado ya no toma clases, esté cobrado o no. Se pregunta **al
+    // día que se está mirando**: el 25 de agosto un ciclo que terminó el 8 de
+    // septiembre todavía estaba corriendo. Si tiene marca en esta sesión se
+    // queda igual, para poder corregirla.
+    .filter((r) => !cicloAgotadoAl(r, fecha) || marcas[r.alumno!.id] != null)
     .map((r) => {
       const esMensual = r.modalidad === "mensual";
       const restantes = esMensual ? null : Math.max(0, (r.clases_total ?? 0) - (consumidas[r.id] ?? 0));
