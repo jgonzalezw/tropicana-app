@@ -1282,3 +1282,38 @@ Los que comparten hora (Danza Comercial y Ladies a las 17:30; Heels, Zumba y
 Domingo Salsa y Bachata a las 18:30) **no comparten día**. O sea que la grilla
 actual es consistente con **una sola sala** — dato que importa para diseñar el
 Paso 5.
+
+---
+
+## Pase a producción de la migración 0034 · 2026-09-12
+
+**OK explícito de Javier**: *"ok 0034"*.
+
+**Verificación previa (solo lectura):** producción en `20260912093915`;
+`cursos.duracion_min`, el parámetro `duracion_clase_min` y la constraint
+`cursos_duracion_valida` **no existían**; 9 cursos, **ninguno sin hora**; y el
+grupo de parámetros "Cursos" **ya existía con esa grafía exacta** (lo usa
+`medio_mes_factor`), así que no se abre un grupo duplicado — el antecedente de
+"Liquidación" / "Liquidaciones" ya costó una vez.
+
+**Aplicada sin error.** El backfill dejó los 9 cursos en 60 minutos; ningún otro
+dato se modificó.
+
+**Controles: todos OK.** Se corrieron los del bloque 1–8 y los individuales 9,
+10, 11, 12, 13, 19, 20 y 21.
+
+> **Nota de método, porque la primera corrida estuvo mal.** Al abreviar la
+> consulta de los controles, el 19 quedó escrito como `where false`, que siempre
+> devuelve 0: no verificaba nada y lo habría reportado como OK. Se detectó,
+> se corrió el control real —con su CTE de días de clase— y **ahí sí** dio 0.
+> Un control que no puede fallar no es un control.
+
+**Medido después de aplicar**, con 60 minutos: **ningún par de cursos se pisa**.
+Los que comparten hora no comparten día — 17:30 Ladies y Danza Comercial; 18:30
+Zumba, Heels y Domingo Salsa y Bachata; 19:30 Contemporáneo y Salsa y Bachata
+Inicial. La grilla de producción es consistente con **una sola sala**, dato que
+importa para diseñar el Paso 5.
+
+**El código todavía NO está desplegado.** `main` sigue en `2c29cf1`: el campo
+existe en la base pero la pantalla de Cursos no lo muestra. Es el estado seguro
+del orden de §3, y el merge espera su propio OK.

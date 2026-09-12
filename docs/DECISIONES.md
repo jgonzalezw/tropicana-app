@@ -130,8 +130,12 @@ proceso 1). No es un backlog de decisiones: es el estado del release.
 - **Código desplegado (D17b + vigencia)**: `main` `5f547f0..2c29cf1` el
   2026-09-12, con el OK explícito de Javier. Confirmado por él en la app: chip
   **PROD**, commit `#2c29cf1`.
-- **Migración 0034** (D6, duración de la clase: `cursos.duracion_min` +
-  parámetro `duracion_clase_min`) — **aplicada solo en dev**, y su **código
-  tampoco está en `main`**: vive en la rama `claude/tropicana-app-context-d5zjt8`
-  (`031aee9`). Es aditiva; el backfill dejó los 9 cursos en 60 min. Espera
-  validación en dev y el OK del pase.
+- **Migración 0034: APLICADA EN PRODUCCIÓN el 2026-09-12**, con el OK explícito
+  de Javier (*"ok 0034"*). Aditiva: el backfill dejó los 9 cursos en 60 min y no
+  tocó nada más. Los controles dan **OK**. Medido después de aplicar: **ningún
+  par de cursos se pisa** con esa duración — los que comparten hora no comparten
+  día—, así que la grilla de producción es consistente con **una sola sala**.
+- **PENDIENTE: el código de D6.** `main` sigue en `2c29cf1`; la duración vive en
+  la rama `claude/tropicana-app-context-d5zjt8`. Producción tiene el **esquema
+  nuevo con el código viejo** —el estado seguro—, así que el campo existe pero
+  la pantalla de Cursos todavía no lo muestra. Falta el OK para mergear.
