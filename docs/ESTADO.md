@@ -1104,10 +1104,38 @@ cambió**. Queda como **control 21** del script.
 
 `vigente_hasta` **no** se backfilleó, ni siquiera en cursos ya inactivos:
 inventarle una fecha de baja sería el cambio silencioso que la regla 5 prohíbe.
-De ahora en más, desactivar un curso desde la pantalla le estampa la fecha de
-**hoy** (hacia adelante, nunca hacia atrás), y reactivarlo la borra — un curso
-"activo" con baja vencida no generaría ninguna clase y las dos señales se
-contradirían sin decirlo (regla de calidad 5).
+
+**La fecha de baja la pone la persona, nunca el sistema.** La primera versión de
+esto estampaba `vigente_hasta = hoy` al desactivar. Javier lo frenó el mismo
+día: *"la fecha de validez hasta de un curso es delicada como para que la
+asignes sin intervención… es importante que el usuario intervenga y pueda
+establecerla o confirmarla antes de grabar la inactivación, porque puede ser
+otra fecha la que refleja la inactivación, ya sea adelantada o atrasada."* Tenía
+razón: de esa fecha depende cuántas clases pone el curso en el prorrateo, así
+que ponerla por default es decidir plata por omisión. Ahora:
+
+- El panel de baja **pide la fecha**, propuesta en hoy y confirmable o
+  editable. Desde la lista, "Dar de baja…" abre la ficha en vez de ejecutar.
+- Una fecha **futura** es una **baja programada**: el curso sigue activo y
+  vendible hasta entonces (el Plan Regular lo acompaña).
+- Una baja **hacia atrás por encima de historial se rechaza**, con el dato:
+  *"tiene clases o membresías en curso hasta el X; la fecha de baja no puede ser
+  anterior al X"*. Lo mismo al revés: `vigente_desde` no puede saltar por encima
+  de la primera clase o membresía ya registrada. El guard corre también al
+  **editar la ficha**, no solo al dar de baja — si no, sería salteable.
+- Reactivar borra la fecha de baja: un curso "activo" con baja vencida no
+  generaría ninguna clase y las dos señales se contradirían sin decirlo (regla
+  de calidad 5). Solo puede ampliar la vigencia, nunca recortarla.
+
+De paso se corrigió `contarDependencias`, que solo miraba `asignaciones` e
+`inscripciones.curso_id`: no veía `inscripcion_cursos` ni `sesiones`, así que un
+curso de un plan multi-curso se daba por "sin historial" y el borrado chocaba
+contra la FK (`on delete restrict`) en vez de ofrecer la baja.
+
+Medido en dev con el mismo criterio del guard: en los 9 cursos `vigente_desde`
+**ya es igual** a su primera evidencia (o sea, ninguno puede activarse más
+tarde), y la baja más temprana posible va del **19/09** (Ladies) al **01/10**
+(Contemporáneo), según hasta cuándo corren sus membresías.
 
 **Dónde muerde la regla**, todo a través de un helper único (`src/lib/vigencia.ts`):
 

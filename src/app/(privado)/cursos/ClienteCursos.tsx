@@ -35,8 +35,8 @@ export default function ClienteCursos({
     }
     return res ?? {};
   }
-  async function onBaja(id: number) {
-    const res = await eliminarODesactivarCurso(id);
+  async function onBaja(id: number, vigenteHasta: string | null) {
+    const res = await eliminarODesactivarCurso(id, vigenteHasta);
     if (!res?.error) {
       setEditSel(null);
       setRemount((n) => n + 1);
@@ -130,18 +130,31 @@ export default function ClienteCursos({
                         Editar
                       </button>
                       {c.activo ? (
-                        <button
-                          disabled={pendiente}
-                          onClick={() =>
-                            rowAccion(
-                              () => eliminarODesactivarCurso(c.id),
-                              historial ? "Curso desactivado." : "Curso eliminado."
-                            )
-                          }
-                          className="px-4 py-1.5 text-sm rounded-[var(--radio-control)] border border-[var(--peligro)] text-[var(--peligro)] disabled:opacity-40"
-                        >
-                          {historial ? "Desactivar" : "Eliminar"}
-                        </button>
+                        /* Con historial la baja NO se dispara desde la fila:
+                           necesita una fecha que la persona elija y confirme
+                           (Javier, 2026-09-12), así que abre la ficha. Sin
+                           historial se elimina directo — ahí no hay fecha. */
+                        historial ? (
+                          <button
+                            onClick={() => {
+                              setEditSel(c);
+                              setRemount((n) => n + 1);
+                            }}
+                            className="px-4 py-1.5 text-sm rounded-[var(--radio-control)] border border-[var(--primario)] text-[var(--primario)]"
+                          >
+                            Dar de baja…
+                          </button>
+                        ) : (
+                          <button
+                            disabled={pendiente}
+                            onClick={() =>
+                              rowAccion(() => eliminarODesactivarCurso(c.id), "Curso eliminado.")
+                            }
+                            className="px-4 py-1.5 text-sm rounded-[var(--radio-control)] border border-[var(--peligro)] text-[var(--peligro)] disabled:opacity-40"
+                          >
+                            Eliminar
+                          </button>
+                        )
                       ) : (
                         <button
                           disabled={pendiente}

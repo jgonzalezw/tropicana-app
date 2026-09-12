@@ -5,7 +5,11 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { tienePermiso } from "@/lib/sesion";
 import type { DatosCurso } from "@/lib/tipos";
 
-type Resultado = { ok?: true; error?: string; accion?: "eliminado" | "desactivado" };
+type Resultado = {
+  ok?: true;
+  error?: string;
+  accion?: "eliminado" | "desactivado" | "baja_programada";
+};
 
 function admin() {
   const a = createAdminClient();
@@ -31,6 +35,75 @@ function validar(d: DatosCurso): string | null {
 }
 
 const MODALIDADES = ["clase", "semana", "medio_mes", "prueba"] as const;
+
+function hoyISO(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/**
+ * La vigencia no puede dejar afuera lo que ya pasó.
+ *
+ * **Por qué existe** (Javier, 2026-09-12): *"la fecha de validez hasta de un
+ * curso es delicada… no tiene sentido inactivar hacia atrás si tiene clases y/o
+ * membresías en curso."* Mover `vigente_desde` hacia adelante o
+ * `vigente_hasta` hacia atrás por encima de algo ya registrado le cambiaría el
+ * conteo de clases a membresías ya vendidas —y con eso el peso del reparto—
+ * sin que nadie lo pidiera: exactamente lo que la regla de negocio 5 prohíbe.
+ *
+ * Se corre **antes de grabar**, y en vez de un "no se puede" a secas devuelve
+ * qué está en el medio y hasta dónde se puede mover.
+ */
+async function vigenciaChocaConHistorial(
+  a: ReturnType<typeof admin>,
+  cursoId: number,
+  desde: string,
+  hasta: string | null
+): Promise<string | null> {
+  const [{ data: ses }, { data: ic }, { data: insc }] = await Promise.all([
+    a.from("sesiones").select("fecha").eq("curso_id", cursoId),
+    a
+      .from("inscripcion_cursos")
+      .select("fecha, inscripcion:inscripciones(fecha_inicio, fecha_fin)")
+      .eq("curso_id", cursoId),
+    a.from("inscripciones").select("fecha_inicio, fecha_fin").eq("curso_id", cursoId),
+  ]);
+
+  const fechas: string[] = [];
+  for (const s of (ses as { fecha: string }[]) ?? []) fechas.push(s.fecha.slice(0, 10));
+  for (const r of (ic as unknown as {
+    fecha: string | null;
+    inscripcion: { fecha_inicio: string; fecha_fin: string | null } | null;
+  }[]) ?? []) {
+    if (r.fecha) fechas.push(r.fecha.slice(0, 10));
+    if (r.inscripcion) {
+      fechas.push(r.inscripcion.fecha_inicio.slice(0, 10));
+      if (r.inscripcion.fecha_fin) fechas.push(r.inscripcion.fecha_fin.slice(0, 10));
+    }
+  }
+  for (const r of (insc as { fecha_inicio: string; fecha_fin: string | null }[]) ?? []) {
+    fechas.push(r.fecha_inicio.slice(0, 10));
+    if (r.fecha_fin) fechas.push(r.fecha_fin.slice(0, 10));
+  }
+  if (!fechas.length) return null;
+
+  const primera = fechas.reduce((m, f) => (f < m ? f : m));
+  const ultima = fechas.reduce((m, f) => (f > m ? f : m));
+
+  if (desde > primera)
+    return (
+      `Este curso ya tiene clases o membresías desde el ${primera}. ` +
+      `Si lo activás el ${desde}, esas clases dejarían de contar y se movería el reparto de comisiones ` +
+      `de membresías ya vendidas. La fecha de activación no puede ser posterior al ${primera}.`
+    );
+  if (hasta && hasta < ultima)
+    return (
+      `Este curso tiene clases o membresías en curso hasta el ${ultima}. ` +
+      `Darlo de baja el ${hasta} las dejaría afuera y cambiaría el reparto de comisiones ya calculado. ` +
+      `La fecha de baja no puede ser anterior al ${ultima}.`
+    );
+  return null;
+}
 
 /** Sincroniza las filas de curso_tarifas con lo cargado (upsert/borra). */
 async function guardarTarifas(
@@ -174,6 +247,9 @@ export async function actualizarCurso(id: number, d: DatosCurso): Promise<Result
   if (err) return { error: err };
 
   const a = admin();
+  const choque = await vigenciaChocaConHistorial(a, id, d.vigente_desde, d.vigente_hasta);
+  if (choque) return { error: choque };
+
   const { error } = await a
     .from("cursos")
     .update({
@@ -200,25 +276,47 @@ export async function actualizarCurso(id: number, d: DatosCurso): Promise<Result
   return { ok: true };
 }
 
-/** Historial dependiente de un curso: asignaciones y membresias (inscripciones).
- *  Con eso >0 el curso se desactiva en vez de borrarse. El Plan Regular
- *  auto-creado no cuenta (se borra junto al curso si esta vacio). */
+/** Historial dependiente de un curso: asignaciones, membresías (por `curso_id`
+ *  y por `inscripcion_cursos` — regla del glosario: los cursos de una membresía
+ *  viven ahí) y clases registradas. Con eso >0 el curso se da de baja en vez de
+ *  borrarse. El Plan Regular auto-creado no cuenta (se borra junto al curso si
+ *  está vacío). */
 async function contarDependencias(id: number): Promise<number> {
   const a = admin();
-  const [{ count: asig }, { count: insc }] = await Promise.all([
+  const [{ count: asig }, { count: insc }, { count: ic }, { count: ses }] = await Promise.all([
     a.from("asignaciones").select("id", { count: "exact", head: true }).eq("curso_id", id),
     a.from("inscripciones").select("id", { count: "exact", head: true }).eq("curso_id", id),
+    a.from("inscripcion_cursos").select("id", { count: "exact", head: true }).eq("curso_id", id),
+    a.from("sesiones").select("id", { count: "exact", head: true }).eq("curso_id", id),
   ]);
-  return (asig ?? 0) + (insc ?? 0);
+  return (asig ?? 0) + (insc ?? 0) + (ic ?? 0) + (ses ?? 0);
 }
 
-export async function eliminarODesactivarCurso(id: number): Promise<Resultado> {
+/**
+ * Elimina el curso (si no tiene historial) o lo da de baja **en la fecha que la
+ * persona indica**.
+ *
+ * **La fecha no se asigna sola, y es a propósito** (Javier, 2026-09-12): *"la
+ * fecha de validez hasta de un curso es delicada como para que la asignes sin
+ * intervención… es importante que el usuario intervenga y pueda establecerla o
+ * confirmarla antes de grabar la inactivación, porque puede ser otra fecha la
+ * que refleja la inactivación, ya sea adelantada o atrasada."*
+ *
+ * De esa fecha depende cuántas clases pone el curso en el prorrateo y qué
+ * asistencias se exigen: ponerla por default sería decidir plata por omisión.
+ * Si la fecha es **futura**, es una baja programada y el curso sigue activo
+ * hasta entonces; si es hoy o pasada, se desactiva ahora.
+ */
+export async function eliminarODesactivarCurso(
+  id: number,
+  vigenteHasta?: string | null
+): Promise<Resultado> {
   if (!(await tienePermiso("cursos", "eliminar"))) return { error: "Sin permiso." };
 
   const a = admin();
   const deps = await contarDependencias(id);
   if (deps === 0) {
-    // Sin membresias: se borra el Plan Regular vacio (FK restrict) y el curso.
+    // Sin historial: se borra el Plan Regular vacio (FK restrict) y el curso.
     // curso_tarifas se borra en cascada.
     const { error: errPlan } = await a.from("planes").delete().eq("curso_id", id);
     if (errPlan) return { error: errPlan.message };
@@ -228,21 +326,28 @@ export async function eliminarODesactivarCurso(id: number): Promise<Resultado> {
     return { ok: true, accion: "eliminado" };
   }
 
-  // Desactivar es dar de baja: se le estampa la fecha de hoy si no tenía una.
-  // **Hacia adelante, nunca hacia atrás** — ponerle una fecha pasada cambiaría
-  // el conteo de clases de membresías ya devengadas, que es justo lo que la
-  // regla de negocio 5 prohíbe hacer en silencio. Si la baja fue antes, Javier
-  // corrige la fecha en la ficha, a la vista.
-  const hoy = new Date();
-  const hoyISO = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}-${String(hoy.getDate()).padStart(2, "0")}`;
-  const { data: vig } = await a.from("cursos").select("vigente_hasta").eq("id", id).maybeSingle();
+  if (!vigenteHasta || !ISO.test(vigenteHasta))
+    return { error: "Indicá desde qué fecha el curso deja de dictarse." };
+
+  const { data: cur } = await a
+    .from("cursos")
+    .select("vigente_desde")
+    .eq("id", id)
+    .maybeSingle();
+  const desde = (cur as { vigente_desde: string } | null)?.vigente_desde?.slice(0, 10);
+  if (desde && vigenteHasta < desde)
+    return { error: `La baja no puede ser anterior a la activación del curso (${desde}).` };
+
+  const choque = await vigenciaChocaConHistorial(a, id, desde ?? vigenteHasta, vigenteHasta);
+  if (choque) return { error: choque };
+
+  // Baja futura = baja programada: el curso sigue activo hasta esa fecha.
+  const programada = vigenteHasta > hoyISO();
   const { error } = await a
     .from("cursos")
     .update({
-      activo: false,
-      ...(vig && (vig as { vigente_hasta: string | null }).vigente_hasta == null
-        ? { vigente_hasta: hoyISO }
-        : {}),
+      activo: programada,
+      vigente_hasta: vigenteHasta,
       actualizado_en: new Date().toISOString(),
     })
     .eq("id", id);
@@ -250,11 +355,11 @@ export async function eliminarODesactivarCurso(id: number): Promise<Resultado> {
   // El plan sigue la vigencia del curso.
   await a
     .from("planes")
-    .update({ activo: false, actualizado_en: new Date().toISOString() })
+    .update({ activo: programada, actualizado_en: new Date().toISOString() })
     .eq("curso_id", id)
     .eq("tipo_servicio", "curso_regular");
   revalidatePath("/cursos");
-  return { ok: true, accion: "desactivado" };
+  return { ok: true, accion: programada ? "baja_programada" : "desactivado" };
 }
 
 export async function activarCurso(id: number): Promise<Resultado> {

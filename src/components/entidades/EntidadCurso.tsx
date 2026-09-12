@@ -42,7 +42,7 @@ export default function EntidadCurso({
   valor?: Curso | null;
   depsDe?: (id: number) => number | undefined;
   onGuardar?: (datos: DatosCurso, id: number | null) => Promise<{ error?: string }>;
-  onBaja?: (id: number) => Promise<{ error?: string; accion?: string }>;
+  onBaja?: (id: number, vigenteHasta: string | null) => Promise<{ error?: string; accion?: string }>;
   onCancelar?: () => void;
 }) {
   const [ficha, setFicha] = useState<Curso | "nuevo" | null>(valor);
@@ -115,7 +115,7 @@ function FichaCurso({
   permitirBaja: boolean;
   deps?: number;
   onGuardar?: (datos: DatosCurso, id: number | null) => Promise<{ error?: string }>;
-  onBaja?: (id: number) => Promise<{ error?: string; accion?: string }>;
+  onBaja?: (id: number, vigenteHasta: string | null) => Promise<{ error?: string; accion?: string }>;
   onCerrar: () => void;
 }) {
   const [nombre, setNombre] = useState(inicial?.nombre ?? "");
@@ -126,6 +126,8 @@ function FichaCurso({
   const [precio, setPrecio] = useState(inicial ? String(inicial.precio_mensual) : "");
   const [desde, setDesde] = useState(inicial?.vigente_desde?.slice(0, 10) ?? hoyISO());
   const [hasta, setHasta] = useState(inicial?.vigente_hasta?.slice(0, 10) ?? "");
+  // Fecha de la baja: se propone hoy, pero se confirma o se cambia a mano.
+  const [bajaFecha, setBajaFecha] = useState(inicial?.vigente_hasta?.slice(0, 10) ?? hoyISO());
   const [tClase, setTClase] = useState(numOrEmpty(tarifasIniciales?.clase));
   const [tSemana, setTSemana] = useState(numOrEmpty(tarifasIniciales?.semana));
   const [tMedio, setTMedio] = useState(numOrEmpty(tarifasIniciales?.medio_mes));
@@ -172,7 +174,9 @@ function FichaCurso({
     if (!inicial) return;
     setError(null);
     startTransition(async () => {
-      const res = await onBaja?.(inicial.id);
+      // La fecha de baja la pone la persona, nunca el sistema: de ella depende
+      // cuántas clases pone el curso en el prorrateo (Javier, 2026-09-12).
+      const res = await onBaja?.(inicial.id, tieneHistorial ? bajaFecha : null);
       if (res?.error) setError(res.error);
       else onCerrar();
     });
@@ -320,20 +324,41 @@ function FichaCurso({
             tieneHistorial ? "border-[var(--primario)] bg-[var(--accent-100)]" : "border-[var(--borde)] bg-[var(--fondo-elevado)]"
           }`}
         >
-          <div className="font-medium">{tieneHistorial ? "No se puede eliminar" : "Eliminar curso"}</div>
+          <div className="font-medium">{tieneHistorial ? "Dar de baja el curso" : "Eliminar curso"}</div>
           <p className="text-sm text-[var(--texto-tenue)] mt-1">
             {tieneHistorial
-              ? "Tiene asignaciones (u otro historial). Desactivarlo lo saca de las inscripciones nuevas y conserva lo registrado."
+              ? "Tiene historial (clases, asignaciones o membresías): no se elimina, se da de baja. Lo registrado se conserva."
               : "Sin historial dependiente: se elimina de verdad (con sus tarifas)."}
           </p>
+          {/* La fecha de baja NO se asigna sola: de ella depende cuántas clases
+              pone el curso en el prorrateo y qué asistencias se exigen. Se
+              propone hoy y la persona la confirma o la cambia — puede ser
+              anterior o posterior. (Javier, 2026-09-12.) */}
+          {tieneHistorial && (
+            <div className="mt-3 max-w-[260px]">
+              <Campo etiqueta="Deja de dictarse el">
+                <input
+                  type="date"
+                  value={bajaFecha}
+                  onChange={(e) => setBajaFecha(e.target.value)}
+                  className="entrada"
+                />
+              </Campo>
+              <p className="text-sm text-[var(--texto-tenue)] mt-1.5">
+                {bajaFecha > hoyISO()
+                  ? "Es una baja programada: el curso sigue activo y vendible hasta esa fecha."
+                  : "Desde esa fecha el curso no genera clases, no se pide su asistencia y no se puede vender."}
+              </p>
+            </div>
+          )}
           <button
             onClick={baja}
-            disabled={pendiente}
+            disabled={pendiente || (tieneHistorial && !bajaFecha)}
             className={`mt-3 px-4 py-2 text-base rounded-[var(--radio-control)] border ${
               tieneHistorial ? "border-[var(--primario)] text-[var(--primario)]" : "border-[var(--peligro)] text-[var(--peligro)]"
             } disabled:opacity-40`}
           >
-            {tieneHistorial ? "Desactivar" : "Eliminar"}
+            {tieneHistorial ? "Dar de baja" : "Eliminar"}
           </button>
         </div>
       )}
