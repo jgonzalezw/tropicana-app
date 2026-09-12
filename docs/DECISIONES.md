@@ -147,7 +147,6 @@ proceso 1). No es un backlog de decisiones: es el estado del release.
   tocó nada más. Los controles dan **OK**. Medido después de aplicar: **ningún
   par de cursos se pisa** con esa duración — los que comparten hora no comparten
   día—, así que la grilla de producción es consistente con **una sola sala**.
-- **PENDIENTE: el código de D6.** `main` sigue en `2c29cf1`; la duración vive en
-  la rama `claude/tropicana-app-context-d5zjt8`. Producción tiene el **esquema
-  nuevo con el código viejo** —el estado seguro—, así que el campo existe pero
-  la pantalla de Cursos todavía no lo muestra. Falta el OK para mergear.
+- **Código desplegado (D6)**: `main` `2c29cf1..650ae6d` el 2026-09-12, con el
+  OK explícito de Javier (*"mergea y publica"*). **Producción está completa: no
+  queda nada en dev sin pasar.** Migraciones 0001–0034 en las dos bases.
