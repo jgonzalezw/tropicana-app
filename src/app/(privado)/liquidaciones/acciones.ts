@@ -81,6 +81,30 @@ export type MembresiaBloqueada = {
   profesorIds: number[];
 };
 
+/**
+ * Lo que se le muestra al profesor: **el curso y las fechas**, no las ventas.
+ *
+ * El problema es del curso y de la fecha —una clase que nadie registró—, y es
+ * independiente del plan que la haya vendido. La misma clase puede estar
+ * trabando cinco membresías: se lista una vez. Javier, 2026-09-12: *"No veo
+ * necesario mencionar los planes. El problema es con los cursos."*
+ */
+export type CursoSinRegistrar = { cursoId: number; curso: string; fechas: string[] };
+
+/** Junta las membresías trabadas de un profesor en una lista por curso. */
+function porCurso(bloqueadas: MembresiaBloqueada[]): CursoSinRegistrar[] {
+  const m = new Map<number, { curso: string; fechas: Set<string> }>();
+  for (const b of bloqueadas)
+    for (const c of b.cursos) {
+      const ya = m.get(c.cursoId) ?? { curso: c.curso, fechas: new Set<string>() };
+      for (const f of c.fechas) ya.fechas.add(f);
+      m.set(c.cursoId, ya);
+    }
+  return [...m.entries()]
+    .map(([cursoId, v]) => ({ cursoId, curso: v.curso, fechas: [...v.fechas].sort() }))
+    .sort((a, b) => a.curso.localeCompare(b.curso, "es"));
+}
+
 /** Una línea del reparto: qué peso tuvo un curso y por qué. */
 export type LineaReparto = {
   cursoId: number;
@@ -280,14 +304,23 @@ async function calcularPendientes(
       return { ic, curso, clases, faltan, peso: clases > 0 ? precio * clases * personas : 0 };
     });
 
-    // **Regla de negocio 17.** Si alguna clase del ciclo no tiene ni asistencia
-    // ni suspensión, la membresía no se liquida: se avisa y se espera. No es
-    // una precaución cosmética — el primer pago cierra el período (regla 16), y
-    // después de eso la clase que falta ya no se puede registrar ni corregir.
-    // Liquidar con clases sin registrar congela un número incompleto para
-    // siempre. El bloqueo es de la membresía entera, no del curso que falta:
-    // el reparto de los demás cursos se calcula contra el peso de TODOS.
-    const faltantes = pesos.filter((x) => x.faltan.length > 0);
+    // **Regla de negocio 17 (revisada 2026-09-12): solo bloquea el prorrateo.**
+    //
+    // Si la membresía tiene UN SOLO curso, el conteo no decide plata: lo
+    // cobrado va entero a ese curso, se hayan dictado tres clases o doce (el
+    // reparto de abajo con un solo peso da `cobrado` siempre). Bloquearla
+    // sería trabar una liquidación por un trámite que no puede cambiar su
+    // número. Se liquida sin esperar a nadie.
+    //
+    // Con dos o más cursos sí: ahí el conteo es lo que reparte, y una clase
+    // sin asistencia ni suspensión pesa igual que una dictada (regla 10). Esa
+    // membresía espera. El bloqueo es de la membresía, no del profesor ni del
+    // período: las demás se liquidan, y esta entra después como complemento
+    // —agregar una membresía no toca el reparto de ninguna otra—.
+    //
+    // Una clase sin alumnos nunca llega hasta acá: el recorrido es el del
+    // ciclo de ESTA membresía, así que todo día que cuenta la tiene a ella.
+    const faltantes = propios.length > 1 ? pesos.filter((x) => x.faltan.length > 0) : [];
     if (faltantes.length > 0) {
       bloqueadas.push({
         membresiaId: m.id,
@@ -445,12 +478,14 @@ export type FilaProfesor = {
   pendienteMonto: number;
   pendienteCount: number;
   /**
-   * Membresías suyas que **no se pueden liquidar** hasta registrar sus clases
+   * Clases suyas sin registrar que dejan alguna venta multi-curso esperando
    * (regla de negocio 17). El profesor sigue listado aunque todo lo suyo esté
-   * bloqueado: si desapareciera, no habría forma de saber desde la pantalla
+   * esperando: si desapareciera, no habría forma de saber desde la pantalla
    * que le falta cobrar algo ni por qué (regla de calidad 5).
    */
-  bloqueadas: MembresiaBloqueada[];
+  sinRegistrar: CursoSinRegistrar[];
+  /** Cuántas ventas suyas están esperando por eso. */
+  ventasEsperando: number;
 };
 
 export type FilaLiquidacion = {
@@ -473,11 +508,12 @@ export type FilaLiquidacion = {
   pendienteMonto: number;
   pendienteCount: number;
   /**
-   * Membresías del período que todavía no se pueden liquidar (regla 17).
-   * Mientras haya una, **no se paga**: el primer pago cierra el período
-   * (regla 16) y esa comisión ya no podría registrarse ni cobrarse nunca.
+   * Clases del período sin registrar que dejan alguna venta multi-curso suya
+   * esperando. **No impide pagar** (regla 16 revisada): la que espera se cobra
+   * después como complemento. Se muestra para que se sepa que falta.
    */
-  bloqueadas: MembresiaBloqueada[];
+  sinRegistrar: CursoSinRegistrar[];
+  ventasEsperando: number;
 };
 
 export async function cargarLiquidaciones(): Promise<{
@@ -511,9 +547,10 @@ export async function cargarLiquidaciones(): Promise<{
       nombre: `${p.apellido}, ${p.nombre}`,
       pendienteMonto: porProf.get(p.id)?.monto ?? 0,
       pendienteCount: porProf.get(p.id)?.count ?? 0,
-      bloqueadas: trabadasPorProf.get(p.id) ?? [],
+      sinRegistrar: porCurso(trabadasPorProf.get(p.id) ?? []),
+      ventasEsperando: (trabadasPorProf.get(p.id) ?? []).length,
     }))
-    .filter((p) => p.pendienteCount > 0 || p.bloqueadas.length > 0);
+    .filter((p) => p.pendienteCount > 0 || p.ventasEsperando > 0);
 
   const { data: liqs } = await sb
     .from("liquidaciones")
@@ -545,7 +582,8 @@ export async function cargarLiquidaciones(): Promise<{
     // los pendientes se calculan contra ese período.
     pendienteMonto: l.periodo === periodoVencido ? porProf.get(l.profesor_id)?.monto ?? 0 : 0,
     pendienteCount: l.periodo === periodoVencido ? porProf.get(l.profesor_id)?.count ?? 0 : 0,
-    bloqueadas: l.periodo === periodoVencido ? trabadasPorProf.get(l.profesor_id) ?? [] : [],
+    sinRegistrar: l.periodo === periodoVencido ? porCurso(trabadasPorProf.get(l.profesor_id) ?? []) : [],
+    ventasEsperando: l.periodo === periodoVencido ? (trabadasPorProf.get(l.profesor_id) ?? []).length : 0,
   }));
 
   return { profesores, liquidaciones };
@@ -621,25 +659,22 @@ export async function generarLiquidacion(profesorId: number): Promise<{ ok?: tru
   const calculo = await calcularPendientes(sb, finMesVencidoISO());
   const pendientes = calculo.pendientes.filter((p) => p.profesorId === profesorId);
 
-  // **Regla de negocio 17: registrar las sesiones es imperativo para liquidar.**
-  // La validación vive acá y no solo en la pantalla: el botón se deshabilita,
-  // pero el que decide es el servidor. Se bloquea el período entero del
-  // profesor, no solo la membresía trabada — el primer pago cierra el período
-  // (regla 16) y después ya no hay forma de registrar la clase que falta ni de
-  // que esa comisión llegue a cobrarse.
-  const trabadas = calculo.bloqueadas.filter((b) => b.profesorIds.includes(profesorId));
-  if (trabadas.length > 0) {
-    const detalle = trabadas
-      .flatMap((b) => b.cursos.map((c) => `${c.curso} ${c.fechas.join(", ")}`))
-      .join(" · ");
-    return {
-      error:
-        `Faltan registrar clases del período: ${detalle}. ` +
-        "Cargá la asistencia o marcá la clase como suspendida en Asistencia, y volvé a generar.",
-    };
+  // Regla 17 revisada: las membresías con prorrateo y clases sin registrar ya
+  // quedaron afuera de `pendientes`. El profesor **sí** liquida el resto: no
+  // hay por qué trabarle la plata de diez membresías por una que espera un
+  // trámite. La que espera entra después como complemento, y no se pierde
+  // porque la clase que le falta sigue siendo editable (regla 16 revisada:
+  // solo se congela una clase de la que depende un prorrateo YA pagado).
+  if (pendientes.length === 0) {
+    const trabadas = calculo.bloqueadas.filter((b) => b.profesorIds.includes(profesorId));
+    if (trabadas.length > 0)
+      return {
+        error:
+          "Lo único pendiente de este profesor son membresías multi-curso con clases sin registrar. " +
+          "Cargá la asistencia —o marcá la clase como suspendida— en Asistencia, y volvé a generar.",
+      };
+    return { error: "No hay devengos pendientes para este profesor." };
   }
-
-  if (pendientes.length === 0) return { error: "No hay devengos pendientes para este profesor." };
 
   // Liquidación abierta del profesor en ese período, o nueva.
   const { data: existente } = await a
@@ -652,7 +687,10 @@ export async function generarLiquidacion(profesorId: number): Promise<{ ok?: tru
 
   let liquidacionId: number;
   if (existente) {
-    if (existente.estado === "pagada") return { error: "La liquidación del período ya está pagada." };
+    // Una liquidación ya pagada **acepta un complemento**: si aparece una
+    // membresía que en su momento no estaba (se registró tarde, se vendió
+    // retroactiva), su comisión se agrega y la liquidación vuelve a quedar con
+    // saldo. No se reescribe nada de lo que ya se pagó — se suma lo nuevo.
     liquidacionId = existente.id as number;
   } else {
     const { data: nueva, error } = await a
@@ -768,26 +806,10 @@ export async function registrarPagoLiquidacion(args: {
     .maybeSingle();
   if (!liq) return { error: "La liquidación no existe." };
 
-  // Regla de negocio 17, en el momento que más importa: **el primer pago
-  // cierra el período** (regla 16). Si queda una clase sin registrar, pagar
-  // ahora deja esa comisión afuera para siempre — no se podría ni registrar la
-  // clase ni cobrarle al profesor lo que le corresponde.
-  if (liq.periodo === primerDiaMesVencidoISO()) {
-    const sb = await createClient();
-    const { bloqueadas } = await calcularPendientes(sb, finMesVencidoISO());
-    const trabadas = bloqueadas.filter((b) => b.profesorIds.includes(liq.profesor_id as number));
-    if (trabadas.length > 0) {
-      const detalle = trabadas
-        .flatMap((b) => b.cursos.map((c) => `${c.curso} ${c.fechas.join(", ")}`))
-        .join(" · ");
-      return {
-        error:
-          `No se puede pagar: faltan registrar clases del período (${detalle}). ` +
-          "El primer pago cierra el período y esa comisión quedaría sin poder cobrarse.",
-      };
-    }
-  }
-
+  // Pagar ya no se bloquea por una membresía trabada de otro (regla 16
+  // revisada): el pago congela solo las clases de las que depende un prorrateo
+  // que este pago hace efectivo, no el mes entero. La membresía que espera
+  // sigue pudiendo registrarse y se cobra después, como complemento.
   const restante = Math.max(0, Number(liq.total_devengado) - Number(liq.total_pagado));
   if (monto > restante) return { error: `El pago supera el neto pendiente (${restante}).` };
 

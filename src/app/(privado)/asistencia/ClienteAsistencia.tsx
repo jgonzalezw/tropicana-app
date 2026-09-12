@@ -7,7 +7,7 @@ import { ETIQUETA_MODALIDAD, diaIso, fechaLarga, gs, isoFecha } from "@/lib/insc
 import { cargarPadron, guardarAsistencia, suspenderClase, reabrirSesion } from "./acciones";
 
 type Estado = "presente" | "ausente";
-type EstadoSesion = "completada" | "incompleta" | "suspendida";
+type EstadoSesion = "completada" | "incompleta" | "suspendida" | "sin_alumnos";
 
 export default function ClienteAsistencia({
   cursos,
@@ -289,11 +289,15 @@ export default function ClienteAsistencia({
           {fechas.map((f) => {
             const e = estadosPorFecha[f.iso];
             const pre =
-              e === "completada" ? "✓ " : e === "suspendida" ? "⊘ " : e === "incompleta" ? "⚠ " : "";
+              e === "completada" ? "✓ " : e === "suspendida" ? "⊘ " : e === "incompleta" ? "⚠ " : e === "sin_alumnos" ? "○ " : "";
             return (
               <option key={f.iso} value={f.iso}>
                 {pre}
                 {f.label}
+                {/* Sin alumnos: nadie tenía que dictarla ni marcarla. Se
+                    muestra igual, dicho con todas las letras, para que no se
+                    confunda con una asistencia que falta cargar. */}
+                {e === "sin_alumnos" ? " — sin alumnos" : ""}
               </option>
             );
           })}
@@ -387,7 +391,14 @@ export default function ClienteAsistencia({
           {cargando ? (
             <p className="text-[var(--texto-tenue)]">Cargando lista…</p>
           ) : total === 0 ? (
-            <p className="text-[var(--texto-tenue)]">Este curso no tiene alumnos con inscripción activa.</p>
+            // Sin alumnos ESE día no es un pendiente: nadie tenía que dictarla
+            // ni marcarla, no cuenta para el prorrateo y no traba ninguna
+            // liquidación. Decirlo evita que se la suspenda "por las dudas",
+            // que es lo que le borraba al profesor el peso de esa clase.
+            <p className="text-[var(--texto-tenue)]">
+              Ningún alumno tenía clase este día. No hace falta registrar nada: una clase sin
+              alumnos no obliga al profesor, no cuenta para su comisión y no traba la liquidación.
+            </p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               {filas.map((f) => (

@@ -10,9 +10,68 @@ import {
   registrarPagoLiquidacion,
   type FilaProfesor,
   type FilaLiquidacion,
+  type CursoSinRegistrar,
 } from "./acciones";
 
 const fmt = (iso: string) => fechaLarga(new Date(iso + "T00:00:00"));
+
+/**
+ * Las clases sin registrar del profesor, **comprimidas**.
+ *
+ * Una línea cerrada con el total, y el detalle por curso al expandir. El
+ * problema es del curso y de la fecha: no se nombran ni los planes ni los
+ * alumnos, que multiplicaban la lista sin agregar nada (la misma clase puede
+ * estar trabando cinco ventas). Javier, 2026-09-12.
+ *
+ * No desaparece cuando no hay nada: simplemente no se dibuja, porque acá la
+ * ausencia sí es un resultado legítimo — no hay clases sin registrar.
+ */
+function SinRegistrar({ cursos, ventas }: { cursos: CursoSinRegistrar[]; ventas: number }) {
+  const [abierto, setAbierto] = useState(false);
+  if (cursos.length === 0) return null;
+  const clases = cursos.reduce((t, c) => t + c.fechas.length, 0);
+  return (
+    <div className="mt-1.5 text-sm font-normal">
+      <button
+        type="button"
+        onClick={() => setAbierto((v) => !v)}
+        aria-expanded={abierto}
+        className="text-left text-[var(--peligro-texto)] hover:underline"
+      >
+        <span aria-hidden className="inline-block w-3">
+          {abierto ? "▾" : "▸"}
+        </span>{" "}
+        {cursos.length} {cursos.length === 1 ? "curso" : "cursos"} · {clases}{" "}
+        {clases === 1 ? "clase" : "clases"} sin registrar
+        <span className="text-[var(--texto-tenue)]">
+          {" "}
+          — {ventas} {ventas === 1 ? "venta multi-curso espera" : "ventas multi-curso esperan"}
+        </span>
+      </button>
+      {abierto && (
+        <div className="mt-1.5 pl-4 border-l-2 border-[var(--borde)]">
+          <ul className="space-y-1">
+            {cursos.map((c) => (
+              <li key={c.cursoId}>
+                <span className="font-medium">{c.curso}</span>{" "}
+                <span className="text-[var(--texto-tenue)]">
+                  ({c.fechas.length}): {c.fechas.map(fmt).join(", ")}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-1.5 text-[var(--texto-tenue)]">
+            Cargá la asistencia —o marcá la clase como suspendida— en{" "}
+            <Link href="/asistencia" className="underline">
+              Asistencia
+            </Link>
+            .
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const ESTADO_LABEL: Record<string, string> = {
   abierta: "Abierta",
@@ -116,63 +175,31 @@ export default function ClienteLiquidaciones({
               </tr>
             </thead>
             <tbody>
-              {profesores.map((p) => {
-                // Regla de negocio 17: registrar las sesiones es imperativo
-                // para liquidar. Mientras quede una clase del período sin
-                // asistencia ni suspensión, el período no se liquida — y se
-                // dice cuál falta y dónde cargarla, no se esconde la fila.
-                const trabado = p.bloqueadas.length > 0;
-                return (
-                  <tr
-                    key={p.profesorId}
-                    className={`border-t border-[var(--borde)] align-top ${
-                      trabado ? "bg-[var(--aviso-fill,var(--fondo-elevado))]" : ""
-                    }`}
-                  >
-                    <td className="py-3 px-4 font-medium">
-                      {p.nombre}
-                      {trabado && (
-                        <div className="mt-1 text-sm font-normal">
-                          <div className="text-[var(--peligro-texto)] font-semibold">
-                            Faltan registrar clases: no se puede liquidar el período.
-                          </div>
-                          <ul className="mt-1 space-y-0.5 text-[var(--texto-tenue)]">
-                            {p.bloqueadas.map((b) =>
-                              b.cursos.map((c) => (
-                                <li key={`${b.membresiaId}-${c.cursoId}`}>
-                                  {b.alumno} · <span className="font-medium">{c.curso}</span>:{" "}
-                                  {c.fechas.map(fmt).join(", ")}
-                                </li>
-                              ))
-                            )}
-                          </ul>
-                          <div className="mt-1 text-[var(--texto-tenue)]">
-                            Cargá la asistencia —o marcá la clase como suspendida— en{" "}
-                            <Link href="/asistencia" className="underline">
-                              Asistencia
-                            </Link>
-                            .
-                          </div>
-                        </div>
-                      )}
-                    </td>
-                    <td className="py-3 px-4 text-right">{p.pendienteCount}</td>
-                    <td className="py-3 px-4 text-right font-bold">{gs(p.pendienteMonto)}</td>
-                    <td className="py-3 px-4 text-right">
-                      {puedeCrear && (
-                        <button
-                          disabled={pendiente || trabado}
-                          title={trabado ? "Hay clases del período sin registrar." : undefined}
-                          onClick={() => generar(p.profesorId)}
-                          className="px-4 py-1.5 text-sm rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)] disabled:opacity-40 disabled:cursor-not-allowed"
-                        >
-                          Generar liquidación
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
+              {profesores.map((p) => (
+                <tr key={p.profesorId} className="border-t border-[var(--borde)] align-top">
+                  <td className="py-3 px-4 font-medium">
+                    {p.nombre}
+                    {/* Regla 17: lo que espera son las ventas multi-curso con
+                        clases sin registrar. El resto se liquida igual, así que
+                        esto informa, no traba. Colapsado por default: la lista
+                        abierta ocupaba trece líneas por profesor. */}
+                    <SinRegistrar cursos={p.sinRegistrar} ventas={p.ventasEsperando} />
+                  </td>
+                  <td className="py-3 px-4 text-right">{p.pendienteCount}</td>
+                  <td className="py-3 px-4 text-right font-bold">{gs(p.pendienteMonto)}</td>
+                  <td className="py-3 px-4 text-right">
+                    {puedeCrear && p.pendienteCount > 0 && (
+                      <button
+                        disabled={pendiente}
+                        onClick={() => generar(p.profesorId)}
+                        className="px-4 py-1.5 text-sm rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)] disabled:opacity-40"
+                      >
+                        Generar liquidación
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
               {profesores.length === 0 && (
                 <tr>
                   <td colSpan={4} className="py-4 px-4 text-[var(--texto-tenue)]">
@@ -212,15 +239,11 @@ export default function ClienteLiquidaciones({
                 // Quedó sin comisiones y sin pagos: típicamente porque se
                 // corrigió una clase del período y el devengo se revirtió.
                 const vacia = l.totalDevengado === 0 && l.totalPagado === 0;
-                // Regla 17 + regla 16: mientras quede una clase del período sin
-                // registrar, no se paga. El primer pago cierra el período, y
-                // esa comisión no podría entrar nunca más.
-                const trabada = l.bloqueadas.length > 0;
                 return (
                   <tr
                     key={l.id}
                     className={`border-t border-[var(--borde)] align-top ${
-                      desactualizada || trabada ? "bg-[var(--aviso-fill,var(--fondo-elevado))]" : ""
+                      desactualizada ? "bg-[var(--aviso-fill,var(--fondo-elevado))]" : ""
                     }`}
                   >
                     <td className="py-3 px-4 font-medium">
@@ -230,23 +253,7 @@ export default function ClienteLiquidaciones({
                           Cambió: quedan {gs(l.pendienteMonto)} sin incluir
                         </span>
                       )}
-                      {trabada && (
-                        <div className="mt-1 text-sm font-normal">
-                          <div className="text-[var(--peligro-texto)] font-semibold">
-                            Faltan registrar clases del período: no se puede pagar.
-                          </div>
-                          <ul className="mt-1 space-y-0.5 text-[var(--texto-tenue)]">
-                            {l.bloqueadas.map((b) =>
-                              b.cursos.map((c) => (
-                                <li key={`${b.membresiaId}-${c.cursoId}`}>
-                                  {b.alumno} · <span className="font-medium">{c.curso}</span>:{" "}
-                                  {c.fechas.map(fmt).join(", ")}
-                                </li>
-                              ))
-                            )}
-                          </ul>
-                        </div>
-                      )}
+                      <SinRegistrar cursos={l.sinRegistrar} ventas={l.ventasEsperando} />
                       {vacia && !desactualizada && (
                         <span className="block text-sm font-normal text-[var(--texto-tenue)]">
                           Quedó sin comisiones: se corrigió una clase del período
@@ -272,11 +279,8 @@ export default function ClienteLiquidaciones({
                           {puedeCrear && desactualizada && (
                             <button
                               onClick={() => generar(l.profesorId)}
-                              disabled={pendiente || trabada}
-                              title={
-                                trabada ? "Hay clases del período sin registrar." : undefined
-                              }
-                              className="px-4 py-1.5 text-sm rounded-[var(--radio-control)] border border-[var(--peligro)] text-[var(--peligro-texto)] font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
+                              disabled={pendiente}
+                              className="px-4 py-1.5 text-sm rounded-[var(--radio-control)] border border-[var(--peligro)] text-[var(--peligro-texto)] font-semibold disabled:opacity-40"
                             >
                               Regenerar
                             </button>
@@ -292,12 +296,8 @@ export default function ClienteLiquidaciones({
                           )}
                           {puedeCrear && restante > 0 && (
                             <button
-                              disabled={trabada}
-                              title={
-                                trabada ? "Hay clases del período sin registrar." : undefined
-                              }
                               onClick={() => (pagoDe === l.id ? setPagoDe(null) : abrirPago(l))}
-                              className="px-4 py-1.5 text-sm rounded-[var(--radio-control)] border border-[var(--exito)] text-[var(--exito)] disabled:opacity-40 disabled:cursor-not-allowed"
+                              className="px-4 py-1.5 text-sm rounded-[var(--radio-control)] border border-[var(--exito)] text-[var(--exito)]"
                             >
                               {pagoDe === l.id ? "Cancelar" : "Pagar"}
                             </button>

@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { tienePermiso, obtenerParametro, obtenerPerfilActual } from "@/lib/sesion";
 import { compararPorApellido } from "@/lib/texto";
 import { diaIso } from "@/lib/inscripcion";
-import { cierreLiquidado, estaCerrado, motivoCerrado } from "@/lib/periodos";
+import { cargarCongelador, claseCongelada, motivoCongelada } from "@/lib/periodos";
 import type { EntradaAsistencia, FilaAsistencia } from "@/lib/tipos";
 import { recalcularFinDeCiclo, recalcularMembresia } from "@/lib/membresias";
 import { revertirDevengosAbiertos } from "../liquidaciones/acciones";
@@ -21,7 +21,18 @@ type Admin = ReturnType<typeof admin>;
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 type Estado = "presente" | "ausente";
 /** Estado de una fecha del curso en el selector de asistencia. */
-export type EstadoFecha = "completada" | "incompleta" | "suspendida";
+/**
+ * Estado de una fecha del curso en el selector.
+ *
+ * `sin_alumnos` = ese día no lo cubre ninguna membresía. No hay a quién marcar
+ * y nadie tiene obligación de dictarla: no se registra, no cuenta para el
+ * prorrateo y no traba ninguna liquidación. Se muestra igual —marcada— en vez
+ * de esconderse: si desapareciera, "no hay clase" y "no hay alumnos" se verían
+ * iguales (regla de calidad 5). Javier, 2026-09-12: *"Solo se compromete al
+ * profesor para dictar clases donde hay alumnos, sin ellos no tiene obligación
+ * alguna en esa clase de la fecha, ni la academia con él."*
+ */
+export type EstadoFecha = "completada" | "incompleta" | "suspendida" | "sin_alumnos";
 
 // ── Fechas ──────────────────────────────────────────────────────────────
 function hoyISO(): string {
@@ -42,18 +53,21 @@ function restarDias(iso: string, dias: number): string {
 /** Próxima fecha (ISO) del patrón semanal del curso, estrictamente posterior a `baseIso`. */
 /** Valida la fecha para operar asistencia: nunca futuro; pasado solo con
  *  permiso de edición y dentro de la ventana en semanas. */
-async function validarFecha(fecha: string): Promise<string | null> {
+async function validarFecha(cursoId: number, fecha: string): Promise<string | null> {
   if (!ISO.test(fecha)) return "Fecha inválida.";
   const hoy = hoyISO();
   if (fecha > hoy) return "No se puede operar una fecha futura.";
 
-  // Un período ya liquidado y PAGADO está cerrado (regla de negocio 16). Desde
-  // que la comisión se reparte a prorrata, tomar o corregir una asistencia, o
-  // suspender o reabrir una clase, cambia cuántas clases dictó cada curso — y
-  // con eso, una comisión que ya se pagó.
+  // Regla de negocio 16 (revisada 2026-09-12): lo que no se puede tocar es una
+  // clase de la que depende una comisión **con prorrateo** que ya se pagó.
+  // Tomar o corregir una asistencia, o suspender una clase, cambia cuántas
+  // clases puso ese curso, y con eso el reparto (regla 10). Ya no se congela el
+  // mes entero: una membresía de un solo curso no depende del conteo, y una
+  // membresía nueva no toca lo ya repartido.
   const sbCierre = await createClient();
-  const cierre = await cierreLiquidado(sbCierre);
-  if (estaCerrado(fecha, cierre)) return motivoCerrado(fecha, cierre!);
+  const congelador = await cargarCongelador(sbCierre);
+  const quien = claseCongelada(congelador, cursoId, fecha);
+  if (quien) return motivoCongelada(fecha, quien);
 
   if (fecha < hoy) {
     if (!(await tienePermiso("asistencia", "editar")))
@@ -413,6 +427,15 @@ export async function cargarPadron(
     estadosPorFecha[s.fecha] = faltan > 0 ? "incompleta" : "completada";
   }
 
+  // Fechas de la ventana que no cubre ninguna membresía. Se marcan para que no
+  // se confundan con "falta cargar": no hay nada que cargar ahí.
+  const conSesion = new Set(winRows.map((s) => s.fecha));
+  for (const d = parseISO(minVentana); fmt(d) <= hoy; d.setDate(d.getDate() + 1)) {
+    const f = fmt(d);
+    if (conSesion.has(f)) continue;
+    if (!membresias.some((r) => cubriaLaClase(r, f))) estadosPorFecha[f] = "sin_alumnos";
+  }
+
   // Padrón de la fecha elegida (los ciclos agotados se filtran al final, salvo
   // que ya tengan marca en esta sesión: hay que poder corregirla).
   const inscripciones = activas.filter((r) => enPeriodo(r, fecha));
@@ -611,7 +634,7 @@ export async function guardarAsistencia(
   if (!(await tienePermiso("asistencia", "crear")))
     return { error: "No tenés permiso para registrar asistencia." };
   if (!e.marcas.length) return { error: "No hay nada marcado." };
-  const errFecha = await validarFecha(e.fecha);
+  const errFecha = await validarFecha(e.cursoId, e.fecha);
   if (errFecha) return { error: errFecha };
 
   const perfil = await obtenerPerfilActual();
@@ -732,7 +755,7 @@ export async function suspenderClase(args: {
 }): Promise<{ ok?: true; resumen?: string; error?: string }> {
   if (!(await tienePermiso("asistencia", "crear")))
     return { error: "No tenés permiso para suspender clases." };
-  const errFecha = await validarFecha(args.fecha);
+  const errFecha = await validarFecha(args.cursoId, args.fecha);
   if (errFecha) return { error: errFecha };
 
   const perfil = await obtenerPerfilActual();

@@ -340,13 +340,13 @@ select '18. partes devengadas que no suman lo cobrado' as control,
    );
 
 -- ---------------------------------------------------------------------
--- 19. COMISION DEVENGADA CON CLASES DEL CICLO SIN REGISTRAR
---     Regla de negocio 17. Desde que las clases se cuentan por calendario
---     menos suspendidas (regla 10), una clase sin sesion —ni asistencia ni
---     suspension— pesa igual que una dictada. Si ademas se devengo y se
---     pago, el periodo quedo cerrado (regla 16) y ya no hay forma de
---     registrarla: la comision quedo congelada sobre una clase que quiza
---     nunca ocurrio.
+-- 19. COMISION CON PRORRATEO DEVENGADA CON CLASES SIN REGISTRAR
+--     Regla de negocio 17 (alcance corregido 2026-09-12). Desde que las
+--     clases se cuentan por calendario menos suspendidas (regla 10), una
+--     clase sin sesion —ni asistencia ni suspension— pesa igual que una
+--     dictada. Eso solo mueve plata cuando hay que REPARTIR: con un solo
+--     curso, lo cobrado va entero a ese curso y el conteo no cambia nada.
+--     Por eso el control mira solo las membresias de DOS O MAS cursos.
 --     La pantalla lo impide; este control verifica que no haya quedado
 --     ninguna de antes del bloqueo.
 -- ---------------------------------------------------------------------
@@ -377,7 +377,35 @@ select '19. membresias devengadas con clases sin registrar' as control,
  where not exists (select 1 from public.sesiones s
                     where s.curso_id = dc.curso_id and s.fecha = dc.fecha)
    and exists (select 1 from public.comisiones_devengadas cd
-                where cd.membresia_id = dc.inscripcion_id);
+                where cd.membresia_id = dc.inscripcion_id)
+   -- Solo con prorrateo: una membresia mono-curso no depende del conteo.
+   and (select count(*) from public.inscripcion_cursos ic2
+         where ic2.inscripcion_id = dc.inscripcion_id) > 1;
+
+-- ---------------------------------------------------------------------
+-- 20. COMISION ATRIBUIDA A UN PROFESOR QUE NO TENIA EL CURSO ASIGNADO
+--     `asignaciones` tiene `desde` / `hasta`, pero el calculo del prorrateo
+--     lee solo las vigentes: si a mitad de mes cambia el titular de un
+--     curso, toda la comision del mes se le atribuye al nuevo y el anterior
+--     no cobra las clases que si dicto. Es D18 en docs/DECISIONES.md — un
+--     bug conocido, no una mejora.
+--     El control marca las comisiones cuyo profesor no tenia ese curso
+--     asignado durante el periodo liquidado. Hoy puede dar REVISAR: esta
+--     para que la deuda no se olvide y para medir cuanta plata toca.
+-- ---------------------------------------------------------------------
+select '20. comisiones de un profesor sin la asignacion vigente en el periodo' as control,
+       count(*) as n,
+       case when count(*) = 0 then 'OK' else 'REVISAR (D18)' end as estado
+  from public.comisiones_devengadas cd
+  join public.inscripciones i on i.id = cd.membresia_id
+ where cd.curso_id is not null
+   and not exists (
+     select 1 from public.asignaciones a
+      where a.curso_id = cd.curso_id
+        and a.profesor_id = cd.profesor_id
+        and a.desde <= coalesce(i.fecha_fin, i.fecha_inicio)
+        and (a.hasta is null or a.hasta >= i.fecha_inicio)
+   );
 
 -- ---------------------------------------------------------------------
 -- 15. UN CONCEPTO, UN NOMBRE: llaves a `inscripciones` con nombres distintos

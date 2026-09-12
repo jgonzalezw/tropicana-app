@@ -115,30 +115,57 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
 14. **Diferenciación por rol/permiso, nunca por persona.**
 15. **Toda lista de personas para localizar a alguien se ordena por apellido**
     (helper `compararPorApellido`), en cualquier entidad.
-16. **Un período liquidado y pagado está cerrado.** Ningún hecho con fecha
-    dentro de él se crea ni se modifica: ni una venta retroactiva, ni suspender
-    o reabrir una clase, ni corregir una asistencia. Si hay que corregir algo de
-    un período cerrado, se hace con un **ajuste con fecha de hoy**, que deja
-    rastro; el pasado no se reescribe. **El corte es el primer pago**, no el
-    pago total: una liquidación `cerrada` tiene pago parcial y esa plata ya
-    salió. Mientras esté `abierta` (nada pagado) el cambio se permite, y el
+16. **Una clase de la que depende una comisión ya pagada no se toca.** No se
+    toma ni se corrige su asistencia, ni se la suspende o reabre. Si hay que
+    corregirla, se hace con un **ajuste con fecha de hoy**, que deja rastro; el
+    pasado no se reescribe. **El corte es el primer pago**, no el pago total:
+    una liquidación `cerrada` tiene pago parcial y esa plata ya salió. Mientras
+    la liquidación esté `abierta` (nada pagado) el cambio se permite, y el
     devengo afectado **se revierte solo** para que se recalcule — si no, la
     membresía quedaría marcada como "ya devengada" y la corrección nunca
     llegaría a la comisión.
-    *Importa desde la regla 10: la comisión depende de cuántas clases dictó
-    cada curso, así que tocar una clase vieja mueve plata ya pagada.*
-    *(Decisión de Javier, 2026-09-11, opción a.)*
-17. **Registrar las sesiones es imperativo para liquidar.** Si alguna clase del
-    período tiene **ni asistencia cargada ni suspensión**, esa membresía no se
-    liquida: la pantalla la muestra con el curso y las fechas que faltan, y no
-    deja generar ni pagar hasta que se completen.
+    **Congela una clase, no el mes**, y solo cuando de esa clase depende una
+    membresía **con prorrateo (dos o más cursos)** ya pagada. Dos motivos, los
+    dos medidos en el código:
+    **(a)** una membresía de **un solo curso no depende del conteo** — lo
+    cobrado va entero a ese curso, se hayan dictado tres clases o doce;
+    **(b)** **agregar una membresía no toca lo ya repartido** — cada venta se
+    reparte sola, con su propia plata. Por eso una **venta retroactiva** no se
+    bloquea, y una liquidación ya pagada **acepta un complemento**: la membresía
+    que aparece después se devenga y se suma, sin reescribir lo cobrado.
+    *Importa desde la regla 10: la comisión depende de cuántas clases puso cada
+    curso, así que tocar una clase vieja mueve plata ya pagada.*
+    *(Javier, 2026-09-11, opción a; angostada por Javier el 2026-09-12: "no veo
+    por qué no se puedan liquidar cuando se registren completas".)*
+17. **Registrar las sesiones es imperativo para liquidar — pero solo donde hay
+    prorrateo.** Una membresía de **dos o más cursos** no se liquida mientras
+    alguna clase de su ciclo no tenga ni asistencia ni suspensión: ahí el conteo
+    es lo que reparte la plata. Una membresía de **un solo curso se liquida
+    igual**: su número no cambia con el conteo.
+    **El bloqueo es de esa membresía, no del profesor ni del período.** Las
+    demás se liquidan normalmente y la que espera entra después como
+    complemento (regla 16). La pantalla muestra qué falta —**por curso y
+    fecha**, comprimido y expandible; el plan y el alumno no hacen falta, el
+    problema es del curso— y con el link a dónde cargarlo.
     *Es el contrapeso de la regla 10: como las clases se cuentan por calendario,
-    una clase sin registrar pesa igual que una dictada. Y no se puede arreglar
-    después, porque el primer pago cierra el período (regla 16): la clase que
-    falta ya no se podría registrar ni esa comisión llegar a cobrarse. El
-    bloqueo alcanza al período entero del profesor, no solo a la membresía
-    trabada — pagar la mitad ahora es cerrarle la puerta a la otra mitad.*
-    *(Javier, 2026-09-11, junto con el criterio de la regla 10.)*
+    una clase sin registrar pesa igual que una dictada.*
+    *(Javier, 2026-09-11; alcance corregido el 2026-09-12.)*
+18. **Una clase sin alumnos no existe para nadie.** Si ningún alumno tenía clase
+    ese día, no hay que registrarla: no cuenta para el prorrateo, no traba
+    ninguna liquidación, y no obliga ni al profesor ni a la academia. La
+    pantalla de asistencia la muestra marcada como tal —no la esconde— para que
+    no se confunda con una asistencia pendiente de cargar.
+    *Javier, 2026-09-12: "Solo se compromete al profesor para dictar clases
+    donde hay alumnos, sin ellos, él no tiene obligación alguna en esa clase de
+    la fecha, ni la academia con él."*
+19. **El motivo de una suspensión dice a quién se le atribuye, y la plata no
+    cambia por eso.** Tres causas: **sin alumnos** (no hay nada que correr ni
+    que pagar), **atribuible al profesor** y **fuerza mayor** (feriado,
+    administración). En las dos últimas el alumno tiene **corrimiento**, y en
+    las tres **el profesor no cobra una clase que no dictó**. "No le afecta" en
+    la fuerza mayor quiere decir que no hay multa ni se le descuenta un
+    reemplazante — no que se le pague la clase.
+    *(Javier, 2026-09-12: "El profesor no cobra por clases que no dicta. Punto.")*
 
 ## 3. Reglas de proceso
 

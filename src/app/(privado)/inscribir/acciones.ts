@@ -16,7 +16,7 @@ import {
 } from "@/lib/inscripcion";
 import { recalcularFinDeCiclo, recalcularMembresia, registrarCorrimientosPendientes } from "@/lib/membresias";
 import { exigir } from "@/lib/datos";
-import { cierreLiquidado, estaCerrado, motivoCerrado } from "@/lib/periodos";
+import { cargarCongelador, claseCongelada, motivoCongelada } from "@/lib/periodos";
 
 const DIAS_ROTULO = ["", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"];
 /** "martes y jueves" — para decirle a la persona qué días sí tiene el curso. */
@@ -91,11 +91,12 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
   const inicio = parseFechaISO(e.fechaInicio);
   if (!inicio) return { error: "Fecha de inicio inválida." };
 
-  // Un período ya liquidado y pagado está cerrado (regla de negocio 16): una
-  // venta con fecha ahí adentro cambiaría el reparto de comisiones ya pagadas.
-  const cierre = await cierreLiquidado(sb);
-  if (estaCerrado(e.fechaInicio, cierre))
-    return { error: motivoCerrado(e.fechaInicio, cierre!) };
+  // Una venta retroactiva **ya no se bloquea** (regla de negocio 16, revisada
+  // 2026-09-12). Cada membresía se reparte sola, con su propia plata: agregar
+  // una no cambia el conteo ni el reparto de ninguna otra, así que no puede
+  // mover una comisión ya pagada. Se liquida después, como complemento.
+  // Lo que sí sigue protegido es tocar una clase de la que depende un
+  // prorrateo ya pagado — eso vive en Asistencia, donde se toca la clase.
 
   // 1. Alumno y plan (datos autoritativos del servidor).
   const { data: alumno } = await sb
@@ -511,10 +512,14 @@ export async function venderPrueba(
   const inicio = parseFechaISO(fechasOrdenadas[0])!;
   const finPrueba = fechasOrdenadas[fechasOrdenadas.length - 1];
 
-  // Un período ya liquidado y pagado está cerrado (regla de negocio 16).
-  const cierre = await cierreLiquidado(sb);
-  const enCerrado = fechasOrdenadas.find((f) => estaCerrado(f, cierre));
-  if (enCerrado) return { error: motivoCerrado(enCerrado, cierre!) };
+  // Acá sí hay que mirar (regla de negocio 16, revisada): una prueba con fecha
+  // pasada **confirma la asistencia sola**, así que crea o toca la sesión de
+  // esa clase. Si de esa clase depende un prorrateo ya pagado, no se puede.
+  const congelador = await cargarCongelador(sb);
+  for (const c of elegidos) {
+    const quien = claseCongelada(congelador, c.cursoId, c.fecha);
+    if (quien) return { error: motivoCongelada(c.fecha, quien) };
+  }
 
   const { data: alumno } = await sb
     .from("alumnos")
