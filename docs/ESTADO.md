@@ -69,22 +69,21 @@ Referencia: `docs/PLAN_CIERRE_ETAPA1_v2_MOTOR.md` §2. Actualizado 2026-09-10.
 | Paso | Qué es | Estado |
 | --- | --- | --- |
 | 0 | Reencuadre al Motor de Planes y Membresías | ✅ Hecho (2026-09-05) |
-| **1** | **Liquidación a profesores** (motor base Plan Regular: planes N/ilimitado, multi-curso, asistencia con contador/completada/tolerancia/bono, liquidación criterio 1 + comprobante) | ✅ **v1 EN PRODUCCIÓN** (2026-09-09/10) · 🟡 **v2 en dev, sin pasar**: prorrata multi-curso real (reglas 10/16/17/18/19/20), quién dictó la clase, comprobante auditable. Migraciones 0025–0030 |
+| **1** | **Liquidación a profesores** (motor base Plan Regular: planes N/ilimitado, multi-curso, asistencia con contador/completada/tolerancia/bono, liquidación criterio 1 + comprobante) | ✅ **v1 y v2 EN PRODUCCIÓN** (v1 el 2026-09-09/10; v2 el 2026-09-12): prorrata multi-curso real (reglas 10/16/17/18/19/20), quién dictó la clase, descuento del reemplazante, comprobante auditable. Migraciones 0023–0033 |
 | 2 | Venta de particulares/alquiler + confirmar sesión (con horario) + renovación + estado de cuenta del alumno | ⏳ Pendiente — no iniciado |
 | 3 | App Shell (armazón + visual ya diseñado) + Dashboard operativo | ⏳ Pendiente — no iniciado |
 | 4 | Costos fijos | ⏳ Pendiente — no iniciado |
-| 5 | Agenda de sala (+ `duracion_min` en `cursos`) | ⏳ Pendiente — no iniciado |
+| 5 | Agenda de sala (+ `duracion_min` en `cursos`) | ⏳ Pendiente — no iniciado. **Natalia lo pide con urgencia (2026-09-12)** junto con los particulares (2D): sin validar la sala no se puede vender una hora. Ver §0duodecies |
 | 6 | Alineación a estándares del resto de pantallas (ver `docs/PLAN_UX_DANZE.md`) | 🟡 En curso, parcial — Toggle estándar adoptado y pantalla Planes ya alineada; Cursos/Profesores/Dashboard/navegación siguen en el backlog de `PLAN_UX_DANZE.md` |
 
-**Dónde estamos (2026-09-12).** El Paso 1 v1 está en producción desde el
-09/10. Encima de él se construyó, **solo en dev**, una segunda vuelta que es la
-que hoy espera el OK: el motor de planes multi-curso de punta a punta —prorrata
+**Dónde estamos (2026-09-12, tarde).** El **Paso 1 está cerrado y en
+producción**, v1 y v2: el motor de planes multi-curso de punta a punta —prorrata
 por curso y por profesor, las reglas de negocio 10 y 16 a 20, quién dictó cada
-clase— más la clase de prueba completa (rebanada 2D). Son las migraciones
-**0023 a 0030**.
+clase, el descuento del reemplazante— más la clase de prueba completa y la
+vigencia del curso. Migraciones **0023 a 0033**, `main` en `2c29cf1`.
 
-Nada de eso pasó a producción. El resto del Paso 2 (2C, 2E, 2F, 2G, 2H) y los
-pasos 3 a 5 siguen sin iniciar.
+El Paso 2 está **a mitad**: 2A, 2A.1 y 2B en producción; 2D solo con la clase de
+prueba. **2C, 2E, 2F, 2G y 2H no arrancaron**, y los pasos 3 a 5 tampoco.
 
 **Infraestructura construida como prerrequisito del Paso 1 (no es un paso
 numerado de la secuencia, pero fue condición para poder construirlo):**
@@ -365,6 +364,37 @@ caja con 2A, así que conviene hacerlos juntos o seguidos. 2D es prerrequisito
 real de 2F para todos los buckets que no sean `cuotas` (no hay nada que cobrar
 ni pagar hasta que esas ventas existan). 2B y 2H se tocan: las dos responden
 "¿qué debe esta persona?" desde lados distintos.
+
+## 0duodecies. Lo que Natalia necesita con urgencia (2026-09-12)
+
+Javier trae un pedido operativo, y **no cae en una sola rebanada**: Natalia está
+urgida por **la gestión de clases particulares** y por **validar y reservar la
+disponibilidad de la sala**.
+
+| Lo que pide | Dónde vive en el plan | Estado |
+| --- | --- | --- |
+| Vender y gestionar clases particulares | **2D** (la mitad que no es clase de prueba) | No iniciado |
+| Validar/reservar disponibilidad de la sala | **Paso 5** — Agenda de sala | No iniciado |
+
+**El punto que importa:** son dos lugares distintos del plan, y el segundo está
+**tres pasos más adelante** que el primero. Pero operativamente van juntos: no se
+puede vender una hora de particular sin saber si la sala está libre a esa hora.
+Vender particulares sin validar la sala es vender doble la misma hora.
+
+O sea que atender el pedido implica **adelantar el Paso 5**, entero o en una
+versión mínima (solo la validación de choque, sin la agenda visual completa).
+Eso es una decisión de Javier, no una lectura del plan.
+
+**Tres decisiones postergadas cumplen acá su disparador** (regla de proceso 9):
+
+- **D6** — `cursos.duracion_min` no existe, y sin duración no hay bloque que
+  validar. Disparador textual: *"al arrancar la agenda de sala"*. **Cumplido.**
+- **D7** — *¿puede existir una reserva de sala sin paquete vendido?* Está
+  **sin responder**, y es lo primero que hay que decidir: define si la agenda es
+  un calendario libre o solo el reflejo de lo vendido. **Cumplido, y bloquea.**
+- **D5** — clasificar mejor el motivo del cobro en el recibo. Disparador:
+  *"cuando entren los otros tipos de servicio — Paso 2D"*. **Cumplido**: en
+  cuanto se venda un particular, el catálogo de motivos se queda corto solo.
 
 ## 0sexies. Mejora transversal — abrir la ficha de cualquier entidad (2026-09-10)
 
