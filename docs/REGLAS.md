@@ -217,7 +217,19 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
    cambiarla, se plantea, se pondera y se anota en `docs/DECISIONES.md` con la
    fecha y el porqué. Javier no tiene cómo revisar cada decisión pasada en cada
    cambio — llevar ese control es trabajo de esta sesión, no suyo.
-9. **Toda decisión postergada vive en `docs/DECISIONES.md` con su disparador**
+9. **La sesión sabe dónde corre, y no promete lo que ese entorno no puede.**
+   Claude Code **local** (el `claude` de PowerShell) ve el disco de Javier;
+   una sesión **en la nube** ve solo su propio clon del repo. Levantar el
+   server, leer `.env.local` o ver un stash es del local; las migraciones, el
+   código y los controles van por red y se pueden desde los dos. Si el paso
+   necesita su disco, se le pasa el comando para que lo corra él — no se
+   intenta y se le informa un resultado que midió otra máquina. **GitHub es el
+   único puente entre los dos**, así que la copia local se atrasa sola si no se
+   pullea. Detalle en `docs/ENTORNOS_CLAUDE.md`.
+   *Costó una vez: la sesión en la nube no podía ver el `stash` de la carpeta
+   de Javier, y ese stash tenía trabajo sin commitear que la mudanza del repo
+   habría borrado sin que nadie se enterara.*
+10. **Toda decisión postergada vive en `docs/DECISIONES.md` con su disparador**
    (cuándo conviene hacerla, qué la vuelve urgente). **Todo plan que se le
    proponga a Javier abre mostrando el backlog** de decisiones postergadas que
    ese plan toca o encarece; si no aplica ninguna, se dice "ninguna". Y cuando
