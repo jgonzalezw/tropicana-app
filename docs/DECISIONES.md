@@ -108,18 +108,15 @@ proceso 1). No es un backlog de decisiones: es el estado del release.
   en `docs/ESTADO.md`).
 - **Código desplegado**: `main` actualizado `31da6ae..ed44fbd` el 2026-09-12
   (fast-forward, 47 commits). Vercel publica solo al mergear.
-- **Pendiente de decisión**: el control 3 da **2** en producción (membresías 23
-  y 24, contadores de clases desactualizados desde el 10/09, anteriores al
-  pase). Se corrige volviendo a guardar esas dos asistencias, pero es un cambio
-  de datos en producción y necesita el OK de Javier (regla de proceso 5).
-- **Migración 0032** (D17b: `descuentos_liquidacion`, `liquidaciones.total_descuentos`,
-  catálogo `motivo_descuento`) — **aplicada solo en dev**. Es aditiva: ninguna
-  fila nace sola y `total_descuentos` arranca en 0, así que no toca ninguna
-  liquidación existente. Espera validación de Javier en dev y después su OK
-  explícito (regla de proceso 1).
-- **Migración 0033** (vigencia del curso: `cursos.vigente_desde` / `vigente_hasta`)
-  — **aplicada solo en dev**. Backfillea `vigente_desde` con la **evidencia más
-  vieja** de que el curso corría, para no cambiarle el conteo a ninguna
-  membresía ya devengada (regla de negocio 5). Verificado en dev: **0
-  membresías** quedan fuera de la vigencia de su curso (**control 21**), o sea
-  ningún conteo se movió. Espera validación y OK.
+- **Control 3 en producción: resuelto.** Daba 2 (membresías 23 y 24, Zumba);
+  al regrabarse esas asistencias el motor recalculó los contadores. Verificado
+  el 2026-09-12: da **0**. (Dev sigue en **1**, desvío propio de dev.)
+- **Migraciones 0032 y 0033: APLICADAS EN PRODUCCIÓN el 2026-09-12**, con el OK
+  explícito de Javier ("avanzá con las migraciones"). Las dos son aditivas y no
+  modificaron ningún dato de dominio. Los 21 controles dan **OK**, salvo el 15
+  —la deuda D1— que da REVISAR a propósito. Detalle en `docs/ESTADO.md`.
+- **PENDIENTE: el deploy del código.** `main` sigue en `5f547f0`; el código de
+  D17b y de la vigencia está en la rama, sin mergear. Producción tiene el
+  **esquema nuevo con el código viejo**, que es el estado seguro (las columnas
+  nuevas simplemente no se leen). Falta el OK para mergear a `main`, que es lo
+  que dispara Vercel.

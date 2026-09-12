@@ -1157,3 +1157,54 @@ afirmaba que "Salsa y Bachata Inicial tiene su primera sesión el 31/08 y el
 conteo le atribuye 8 clases de agosto". Medido contra dev: el 31/08 es su fecha
 de **creación**; su primera sesión y su primera asignación son del **03/08**. El
 curso sí corría en agosto. El agujero era real, el ejemplo no.
+
+---
+
+## Pase a producción de las migraciones 0032 y 0033 · 2026-09-12
+
+**OK explícito de Javier**: *"Avanza con las migraciones"*. Se saltó el paso 2
+de `DECISIONES.md` §3 (validación en dev) por decisión suya; el resto del orden
+se respetó.
+
+**Verificación previa, solo lectura sobre producción:**
+
+| Chequeo | Resultado |
+| --- | --- |
+| Migraciones aplicadas / última | 21 / `20260912040731` |
+| `descuentos_liquidacion`, `cursos.vigente_desde` | no existían |
+| Choques (catálogo `motivo_descuento`, constraint `cursos_vigencia_coherente`) | ninguno |
+| Liquidaciones / comisiones devengadas | **0 y 0** — la 0032 no puede perturbar nada |
+| Cursos sin `creado_en` (el fallback del backfill) | 0 |
+| Control 21 **simulado** antes de aplicar | 0 / 0 / 0 |
+
+**Las dos aplicadas sin error.** Ningún dato de dominio se modificó: 0
+descuentos, 0 liquidaciones con descuento, 0 cursos con fecha de baja, 0 cursos
+con `actualizado_en` de hoy. Las 5 membresías con `actualizado_en` de hoy son de
+las 04:10 UTC — del pase anterior (0023–0030, aplicado 04:07), no de estas.
+
+**El backfill de la vigencia en producción** (distinto al de dev, porque los
+datos son otros):
+
+| Curso | Corre desde |
+| --- | --- |
+| Bachata Conexión | 2026-08-11 |
+| Zumba | 2026-08-18 |
+| Heels, Ladies | 2026-08-28 |
+| Domingo Salsa y Bachata | 2026-08-30 |
+| Danza Comercial, Salsa y Bachata Inicial, Tropicoreográfico | 2026-08-31 |
+| Contemporáneo | 2026-09-01 |
+
+**Controles posteriores: los 21 en OK**, salvo el **15** (nombres distintos para
+la llave a `inscripciones`: `inscripcion_id` / `membresia_id` /
+`membresia_anterior_id`), que da REVISAR **a propósito** — es la deuda D1 y el
+control existe para que no se olvide.
+
+**El control 3 se resolvió solo en producción**: daba 2 antes del pase
+(membresías 23 y 24 de Zumba, contadores desactualizados desde el 10/09) y ahora
+da **0**, porque esas asistencias se volvieron a guardar y el motor recalculó.
+Dev sigue en 1, que es un desvío propio de dev.
+
+**El código todavía NO está desplegado.** `main` sigue en `5f547f0`. Producción
+quedó con **esquema nuevo y código viejo**, que es el estado seguro del orden de
+§3: las columnas nuevas simplemente no se leen. El merge a `main` —que es lo que
+dispara Vercel— espera su propio OK.
