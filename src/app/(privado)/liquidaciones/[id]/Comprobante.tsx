@@ -92,11 +92,11 @@ function repartoHTML(it: ItemComprobante, modo: "completo" | "compacto"): string
             <td style="text-align:right">${pr.profesorId === it.profesorId ? "usted" : ""}</td></tr>`
         )
         .join("");
-      const supl = (r.sinAsignar ?? 0) > 0
-        ? `<tr class="muted"><td style="padding-left:10px"><i>&mdash; ${esc2(r.curso)}: sin titular asignado</i></td>
+      const supl = (r.sinAsignar ?? 0) > 0 && r.cursoId === it.cursoId
+        ? `<tr class="muted"><td style="padding-left:10px"><i>&mdash; dictadas con reemplazo</i></td>
            <td style="text-align:right">${r.sinAsignar}</td><td></td>
-           <td style="text-align:right">no se devenga</td><td></td>
-           <td style="text-align:right">suplente</td></tr>`
+           <td style="text-align:right">queda en la academia</td><td></td>
+           <td style="text-align:right">Tropicana</td></tr>`
         : "";
       return `<tr${esEste ? ' class="b"' : ' class="muted"'}>
         <td>${esc2(r.curso)}</td>
@@ -224,20 +224,23 @@ function Reparto({ it, modo }: { it: ItemComprobante; modo: "completo" | "compac
           {/* Un curso que dictó más de un profesor: sin abrirlo, la base de la
               comisión parece no coincidir con la parte del curso. Cada
               sub-línea dice cuántas clases puso cada uno y cuánto le tocó. */}
-          {/* Clases que dio un suplente: no se devengan como comisión —el
-              suplente cobra por tarifa (regla 19)— pero se dicen, porque plata
-              que no se devenga sin explicación es un fallo disfrazado de
-              ausencia. */}
+          {/* Clase dictada con reemplazo por causa administrativa: su parte
+              queda para Tropicana, de donde sale el costo del reemplazo
+              (regla 20b). **Solo se muestra en el curso de ESTE profesor**: al
+              resto no le corresponde verlo, es una cuenta interna de la
+              academia. Pero en el suyo hay que decirlo, porque si no su base
+              no cuadra con la parte del curso y parece un error. Se dice
+              neutro: no se expone quién reemplazó ni cuánto se le pagó. */}
           {it.reparto
-            .filter((r) => (r.sinAsignar ?? 0) > 0)
+            .filter((r) => (r.sinAsignar ?? 0) > 0 && r.cursoId === it.cursoId)
             .map((r) => (
               <tr key={`${r.cursoId}-suplente`} className="text-[var(--texto-tenue)] italic">
-                <td className="py-0.5 pl-4">— {r.curso}: sin titular asignado</td>
+                <td className="py-0.5 pl-4">— dictadas con reemplazo</td>
                 <td className="py-0.5 text-right tabular-nums">{r.sinAsignar}</td>
                 <td />
-                <td className="py-0.5 text-right">no se devenga</td>
+                <td className="py-0.5 text-right">queda en la academia</td>
                 <td />
-                <td className="py-0.5 text-right whitespace-nowrap">suplente</td>
+                <td className="py-0.5 text-right whitespace-nowrap">Tropicana</td>
               </tr>
             ))}
           {it.reparto.flatMap((r) =>

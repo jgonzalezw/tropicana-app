@@ -440,21 +440,22 @@ async function calcularPendientes(
     // titular todo el ciclo— da una sola línea con la parte entera, idéntico
     // a como era antes.
     //
-    // **Una clase con asistencia registrada la dictó alguien.** Si ese día el
-    // curso no tenía titular asignado, la dio un **suplente**, y un suplente no
-    // entra en el prorrateo: se le paga **por tarifa**, por clase dictada, y el
-    // costo es de la administración de la academia — no se le descuenta a
-    // nadie (regla de negocio 19 + D17). Así que esa clase **no se devenga como
-    // comisión**: ni al titular, que no la dio, ni al suplente, que cobra por
-    // otra vía.
+    // **Una clase con asistencia registrada la dictó alguien** (regla 20). Si
+    // ese día el curso no tenía titular, la dio un **suplente**, que cobra por
+    // tarifa y no entra en el prorrateo.
     //
-    // No se reparte entre los demás profesores: sería pagarle a alguien por una
-    // clase que no dio. Y no se esconde — `sinAsignar` la deja a la vista en el
-    // reparto, porque plata que no se devenga sin decirlo es un fallo
-    // disfrazado de ausencia (regla de calidad 1).
+    // La clase **cuenta igual** para el peso del curso —se dictó—, y lo que le
+    // toca **queda para Tropicana**: de ahí sale el costo del reemplazo. No se
+    // reparte entre los otros profesores, que no la dieron.
+    //
+    // El otro caso, el reemplazo **atribuible al titular** (regla 20a), no pasa
+    // por acá: ahí el titular SÍ está asignado, así que la clase le cuenta y la
+    // cobra normal, y lo pagado al reemplazante se le descuenta del total —
+    // eso es D17b, todavía sin construir.
     //
     // *Javier, 2026-09-12: "Si una clase no se canceló y se registró la
     // asistencia, alguien la dictó, no podés asumirlo."*
+
     const repartoProf = porCurso.map((x) => {
       const conteo = new Map<number, { pct: Map<number, number>; clases: number }>();
       for (const f of x.fechas) {

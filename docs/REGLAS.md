@@ -175,20 +175,27 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
     reemplazante — no que se le pague la clase.
     *(Javier, 2026-09-12: "El profesor no cobra por clases que no dicta. Punto.")*
 20. **Una clase con asistencia registrada la dictó alguien.** No se puede
-    asumir que no la dio nadie. Si ese día el curso **no tenía titular
-    asignado**, la dio un **suplente**: un profesor externo que **no entra en el
-    prorrateo** y **no cobra por liquidación, sino por tarifa** — un monto por
-    clase dictada, que se confirma al registrar la asistencia (la tabla de
-    profesores da la referencia). Ese costo es de la **administración de la
-    academia**: no se le descuenta a nadie. Así que la parte de esa clase **no
-    se devenga como comisión** —ni al titular, que no la dio, ni al suplente,
-    que cobra por otra vía— y el comprobante **lo dice**: plata que no se
-    devenga sin explicación es un fallo disfrazado de ausencia (calidad 1).
-    **Al tomar asistencia se muestra el titular vigente**, y si el curso está
-    desasignado ese día, **registrar un reemplazo es obligatorio** salvo que la
-    clase se cancele.
+    asumir que no la dio nadie: si no la dio el titular, la dio un **suplente**.
+    Un suplente **no entra en el prorrateo** y **no cobra por liquidación, sino
+    por tarifa** — un monto por clase dictada, confirmado al registrar la
+    asistencia (la tabla de profesores da la referencia). **En los dos casos la
+    clase cuenta igual para el conteo del prorrateo**: se dictó.
+    Lo que cambia es de quién es la plata de esa clase:
+    **(a) Reemplazo atribuible al titular** (faltó, no avisó). Su liquidación
+    va **normal** —esa clase le cuenta y la cobra— y **al total se le descuenta**
+    lo que se le pagó al reemplazante, más cualquier multa. El descuento es un
+    concepto aparte en la liquidación: no es una comisión.
+    **(b) Reemplazo por causa administrativa de la academia** (el curso estaba
+    desasignado, una decisión de administración). La parte de esa clase **queda
+    para Tropicana**, que es de donde sale el costo del reemplazo. No se le
+    descuenta a nadie, y **no se le muestra a los demás profesores** — es una
+    cuenta interna de la academia, no de ellos.
+    **Al tomar asistencia se muestra el titular vigente de esa fecha**, y si el
+    curso está desasignado ese día, **registrar el reemplazo es obligatorio**
+    salvo que la clase se cancele.
     *(Javier, 2026-09-12: "Si una clase no se canceló y se registró la
-    asistencia, alguien la dictó, no podés asumirlo, mala decisión.")*
+    asistencia, alguien la dictó, no podés asumirlo, mala decisión." Y la
+    corrección de las dos ramas, el mismo día.)*
 
 ## 3. Reglas de proceso
 
