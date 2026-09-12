@@ -123,12 +123,16 @@ export type LineaReparto = {
    */
   profesores?: { profesorId: number; profesor: string; clases: number; parte: number }[];
   /**
-   * Clases del curso que ese día **no tenían titular asignado**: las dio un
-   * suplente, que cobra por tarifa y no por comisión (regla 19). Su parte no
-   * se devenga, y por eso tiene que verse — si no, es plata que desaparece sin
-   * explicación.
+   * Clases del curso dictadas **con reemplazo por causa administrativa**: el
+   * curso no tenía titular ese día (regla 20b). Cuentan para el conteo —se
+   * dictaron— y su parte queda para Tropicana, de donde sale el costo del
+   * reemplazo.
+   *
+   * Van con su plata porque **sin ellas el desglose del curso no cierra**: la
+   * parte del curso menos lo de sus profesores deja un hueco mudo.
    */
   sinAsignar?: number;
+  parteSinAsignar?: number;
 };
 
 type InscLiq = {
@@ -499,10 +503,12 @@ async function calcularPendientes(
       // La parte en plata, con el mismo reparto en centavos que se devenga:
       // así lo que muestra el comprobante suma EXACTAMENTE lo cobrado.
       parte: x.cent / 100,
-      // Solo cuando el curso lo dictó más de uno: si no, la línea del curso ya
-      // lo dice todo y abrirla sería ruido.
+      // Se abre el desglose cuando el curso lo dictó más de uno **o cuando
+      // hubo reemplazo**: en los dos casos la parte del curso no es la de una
+      // sola persona, y sin abrirla el número no se puede seguir. Con un solo
+      // titular y sin reemplazos, la línea del curso ya lo dice todo.
       profesores:
-        lineas.length > 1
+        lineas.length > 1 || sinAsignar > 0
           ? lineas.map((l) => ({
               profesorId: l.profesorId,
               profesor: profNombre.get(l.profesorId) ?? `#${l.profesorId}`,
@@ -511,6 +517,8 @@ async function calcularPendientes(
             }))
           : undefined,
       sinAsignar: sinAsignar > 0 ? sinAsignar : undefined,
+      parteSinAsignar:
+        sinAsignar > 0 ? (x.cent - lineas.reduce((t, l) => t + l.cent, 0)) / 100 : undefined,
     }));
 
     for (const { x, lineas } of repartoProf) {
