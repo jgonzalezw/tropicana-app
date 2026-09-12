@@ -402,7 +402,7 @@ Tres respuestas, las tres de Javier:
 
 | | Qué | Por qué bloquea |
 | --- | --- | --- |
-| **D20** | **¿Una sala o varias?** | Define el modelo entero. Con una, la disponibilidad es una línea de tiempo; con varias hace falta una entidad `salas` y el choque se pregunta por sala. Cambiarlo después es rehacer el modelo, no agregar un campo |
+| ~~**D20**~~ | ✅ **RESPONDIDA** (2026-09-12): *"por el momento una sola sala, posteriormente podrían haber varias"* | Se modela **para N y se muestra para 1**: existe `salas` con una fila, cada clase y bloqueo dicen en cuál están, el choque se pregunta por sala, y el selector aparece recién con la segunda |
 | **Alcance** | ¿Paso 5 completo, o **validación mínima de choque** dentro de 2D primero? | Lo segundo destraba a Natalia mucho antes; la agenda visual queda después sobre la misma base |
 | **Diseño** | Particulares es pantalla nueva: ¿Design-first o código v1? | Regla de proceso 3: avisar antes de construir |
 
