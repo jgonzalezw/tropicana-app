@@ -108,6 +108,11 @@ export default function BarraLateral({
           mostrar: puedeConfig,
         },
         {
+          href: "/precios",
+          etiqueta: "Precios y paquetes",
+          mostrar: puedeConfig,
+        },
+        {
           href: "/administracion/parametros",
           etiqueta: "Parámetros",
           mostrar: puedeConfig,
