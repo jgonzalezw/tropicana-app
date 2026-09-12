@@ -385,16 +385,36 @@ O sea que atender el pedido implica **adelantar el Paso 5**, entero o en una
 versión mínima (solo la validación de choque, sin la agenda visual completa).
 Eso es una decisión de Javier, no una lectura del plan.
 
-**Tres decisiones postergadas cumplen acá su disparador** (regla de proceso 9):
+**Las tres decisiones que se destrabaron acá** (D5, D6 y D7) quedaron
+**respondidas el mismo día** — ver `docs/DECISIONES.md` §1.b:
 
-- **D6** — `cursos.duracion_min` no existe, y sin duración no hay bloque que
-  validar. Disparador textual: *"al arrancar la agenda de sala"*. **Cumplido.**
-- **D7** — *¿puede existir una reserva de sala sin paquete vendido?* Está
-  **sin responder**, y es lo primero que hay que decidir: define si la agenda es
-  un calendario libre o solo el reflejo de lo vendido. **Cumplido, y bloquea.**
-- **D5** — clasificar mejor el motivo del cobro en el recibo. Disparador:
-  *"cuando entren los otros tipos de servicio — Paso 2D"*. **Cumplido**: en
-  cuanto se venda un particular, el catálogo de motivos se queda corto solo.
+- **D7 — la sala se puede bloquear sin venta.** Javier: *"aplica motivos de
+  capacitaciones internas, preparación de coreografías de los profesores,
+  mantenimiento, etc."* Eso convierte la agenda en un **calendario real**, no en
+  el reflejo de lo vendido: un bloqueo existe **sin dueño comercial**, necesita
+  motivo de catálogo, y ocupa la sala igual que una clase.
+- **D6 — duración de la clase.** ✅ **Construida y en producción** (0034).
+- **D5 — motivos del cobro.** Confirmada; se construye junto con particulares.
+
+### Lo que todavía falta para poder arrancar
+
+Tres respuestas, las tres de Javier:
+
+| | Qué | Por qué bloquea |
+| --- | --- | --- |
+| ~~**D20**~~ | ✅ **RESPONDIDA** (2026-09-12): *"por el momento una sola sala, posteriormente podrían haber varias"* | Se modela **para N y se muestra para 1**: existe `salas` con una fila, cada clase y bloqueo dicen en cuál están, el choque se pregunta por sala, y el selector aparece recién con la segunda |
+| **Alcance** | ¿Paso 5 completo, o **validación mínima de choque** dentro de 2D primero? | Lo segundo destraba a Natalia mucho antes; la agenda visual queda después sobre la misma base |
+| **Diseño** | Particulares es pantalla nueva: ¿Design-first o código v1? | Regla de proceso 3: avisar antes de construir |
+
+**Lo que ya está listo para apoyarse:** `src/lib/horarios.ts` con `seSolapan` y
+el criterio de choque fijado —intervalo medio abierto, así que una clase que
+termina 20:00 y otra que empieza 20:00 **no** chocan—, y `cursos.duracion_min`
+en las dos bases.
+
+**Un dato medido que orienta el modelo** (producción, 2026-09-12): con 60
+minutos **ningún par de cursos se pisa** — los que comparten hora no comparten
+día. La grilla es **consistente con una sola sala**, pero eso no prueba que haya
+una: lo tiene que decir Javier (D20).
 
 ## 0sexies. Mejora transversal — abrir la ficha de cualquier entidad (2026-09-10)
 
@@ -1282,3 +1302,38 @@ Los que comparten hora (Danza Comercial y Ladies a las 17:30; Heels, Zumba y
 Domingo Salsa y Bachata a las 18:30) **no comparten día**. O sea que la grilla
 actual es consistente con **una sola sala** — dato que importa para diseñar el
 Paso 5.
+
+---
+
+## Pase a producción de la migración 0034 · 2026-09-12
+
+**OK explícito de Javier**: *"ok 0034"*.
+
+**Verificación previa (solo lectura):** producción en `20260912093915`;
+`cursos.duracion_min`, el parámetro `duracion_clase_min` y la constraint
+`cursos_duracion_valida` **no existían**; 9 cursos, **ninguno sin hora**; y el
+grupo de parámetros "Cursos" **ya existía con esa grafía exacta** (lo usa
+`medio_mes_factor`), así que no se abre un grupo duplicado — el antecedente de
+"Liquidación" / "Liquidaciones" ya costó una vez.
+
+**Aplicada sin error.** El backfill dejó los 9 cursos en 60 minutos; ningún otro
+dato se modificó.
+
+**Controles: todos OK.** Se corrieron los del bloque 1–8 y los individuales 9,
+10, 11, 12, 13, 19, 20 y 21.
+
+> **Nota de método, porque la primera corrida estuvo mal.** Al abreviar la
+> consulta de los controles, el 19 quedó escrito como `where false`, que siempre
+> devuelve 0: no verificaba nada y lo habría reportado como OK. Se detectó,
+> se corrió el control real —con su CTE de días de clase— y **ahí sí** dio 0.
+> Un control que no puede fallar no es un control.
+
+**Medido después de aplicar**, con 60 minutos: **ningún par de cursos se pisa**.
+Los que comparten hora no comparten día — 17:30 Ladies y Danza Comercial; 18:30
+Zumba, Heels y Domingo Salsa y Bachata; 19:30 Contemporáneo y Salsa y Bachata
+Inicial. La grilla de producción es consistente con **una sola sala**, dato que
+importa para diseñar el Paso 5.
+
+**El código todavía NO está desplegado.** `main` sigue en `2c29cf1`: el campo
+existe en la base pero la pantalla de Cursos no lo muestra. Es el estado seguro
+del orden de §3, y el merge espera su propio OK.
