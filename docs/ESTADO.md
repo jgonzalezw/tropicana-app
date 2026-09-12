@@ -1238,3 +1238,47 @@ Dev sigue en 1, que es un desvío propio de dev.
 quedó con **esquema nuevo y código viejo**, que es el estado seguro del orden de
 §3: las columnas nuevas simplemente no se leen. El merge a `main` —que es lo que
 dispara Vercel— espera su propio OK.
+
+---
+
+## D6 — la duración de la clase, y con ella la hora de fin · 2026-09-12 (dev)
+
+Decisión de Javier: *"Debes implementar la duración de las sesiones de cursos en
+el maestro de cursos, con eso se obtiene la hora de fin."*
+
+**Por qué ahora.** Natalia necesita validar la disponibilidad de la sala, y sin
+duración no hay nada que validar: una clase "a las 19:00" no choca con ninguna
+otra si no se sabe cuánto ocupa. `cursos.hora` existía desde la 0005 y dice
+cuándo **empieza**; faltaba la otra mitad.
+
+**Migración 0034** (aplicada **solo en dev**): `cursos.duracion_min` (not null,
+default 60, check entre 1 y 600) y el parámetro `duracion_clase_min` con su
+lista de opciones — el default que la pantalla propone para un curso nuevo sale
+del **dato**, no del código (regla de negocio 13), y nace en la migración (regla
+de calidad 7).
+
+**La hora de fin se calcula, no se guarda.** Guardar inicio y fin sería tener el
+mismo hecho en dos campos que pueden contradecirse — que es exactamente la
+confusión más cara de este proyecto: dos campos llamados "fin de ciclo". El
+cálculo vive en `src/lib/horarios.ts`, en un solo lugar: `horaFin`,
+`rangoHorario`, `etiquetaDuracion` y `seSolapan`.
+
+**`seSolapan` ya está escrito, y con su criterio definido**: intervalo medio
+abierto `[inicio, fin)`, así que una clase que termina 20:00 y otra que empieza
+20:00 **no** chocan — es el cambio de turno normal de una sala, no un conflicto.
+Está acá y no en la pantalla para que haya un solo criterio cuando llegue la
+agenda.
+
+**Lo que se ve.** La ficha del curso pide hora de inicio y duración, y muestra
+debajo *"La clase ocupa la sala de 19:30 → 20:30"*. La lista muestra el rango en
+vez de solo la hora de inicio.
+
+**El backfill es de 60 minutos para los 9 cursos**, que es lo único que se puede
+suponer sin inventar un dato. Javier corrige el que no sea, igual que la
+vigencia.
+
+**Medido después de aplicar**: con 60 minutos, **ningún par de cursos se pisa**.
+Los que comparten hora (Danza Comercial y Ladies a las 17:30; Heels, Zumba y
+Domingo Salsa y Bachata a las 18:30) **no comparten día**. O sea que la grilla
+actual es consistente con **una sola sala** — dato que importa para diseñar el
+Paso 5.

@@ -12,12 +12,18 @@ export default async function PaginaCursos() {
 
   const supabase = await createClient();
 
-  const [{ data: cursos }, { data: tarifasRows }, { data: asigRows }, especialidadesParam] =
-    await Promise.all([
+  const [
+    { data: cursos },
+    { data: tarifasRows },
+    { data: asigRows },
+    especialidadesParam,
+    duracionParam,
+  ] = await Promise.all([
       supabase.from("cursos").select("*").order("nombre"),
       supabase.from("curso_tarifas").select("curso_id, modalidad, precio"),
       supabase.from("asignaciones").select("curso_id"),
       obtenerParametro("especialidades"),
+      obtenerParametro("duracion_clase_min"),
     ]);
 
   const tarifas: Record<number, TarifasCurso> = {};
@@ -39,6 +45,9 @@ export default async function PaginaCursos() {
     deps[a.curso_id] = (deps[a.curso_id] ?? 0) + 1;
   }
 
+  // Duración propuesta para un curso nuevo: del parámetro, no del código.
+  const duracionPorDefecto = Math.max(1, Number(duracionParam) || 60);
+
   const especialidades = (especialidadesParam ?? "Salsa,Bachata,Zumba,Urbano,Heels")
     .split(",")
     .map((s) => s.trim())
@@ -55,6 +64,7 @@ export default async function PaginaCursos() {
         tarifas={tarifas}
         deps={deps}
         especialidades={especialidades}
+        duracionPorDefecto={duracionPorDefecto}
       />
     </div>
   );

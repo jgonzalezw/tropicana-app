@@ -112,6 +112,8 @@ export type Curso = {
   nivel: string | null;
   dias_semana: number[];
   hora: string | null;
+  /** Cuánto dura una clase, en minutos. La hora de fin se calcula (0034). */
+  duracion_min: number;
   precio_mensual: number;
   activo: boolean;
   /** Desde cuándo corre el curso: el calendario no genera clases antes (0033). */
@@ -179,6 +181,7 @@ export type DatosCurso = {
   nivel: string;
   dias_semana: number[];
   hora: string | null;
+  duracion_min: number;
   precio_mensual: number;
   /** Vigencia del curso (0033). La baja es opcional: null = sigue corriendo. */
   vigente_desde: string;

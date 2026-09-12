@@ -23,6 +23,10 @@ function validar(d: DatosCurso): string | null {
   if (!d.nombre.trim()) return "El nombre del curso es obligatorio.";
   if (d.dias_semana.length === 0) return "Elegí al menos un día de la semana.";
   if (!(d.precio_mensual >= 0)) return "El precio mensual no puede ser negativo.";
+  // Duración (0034): de acá sale la hora de fin, y con ella el bloque que la
+  // sala valida. Sin duración no hay nada que chocar.
+  if (!Number.isInteger(d.duracion_min) || d.duracion_min <= 0 || d.duracion_min > 600)
+    return "La duración de la clase tiene que ser un número de minutos entre 1 y 600.";
   // Vigencia (0033): de estas fechas depende cuántas clases pone el curso en el
   // prorrateo y qué asistencias se exigen, así que el servidor las valida.
   if (!ISO.test(d.vigente_desde ?? "")) return "Cargá desde cuándo corre el curso.";
@@ -223,6 +227,7 @@ export async function crearCurso(d: DatosCurso): Promise<Resultado> {
       nivel: d.nivel.trim() || null,
       dias_semana: d.dias_semana,
       hora: d.hora,
+      duracion_min: d.duracion_min,
       precio_mensual: d.precio_mensual,
       vigente_desde: d.vigente_desde,
       vigente_hasta: d.vigente_hasta,
@@ -258,6 +263,7 @@ export async function actualizarCurso(id: number, d: DatosCurso): Promise<Result
       nivel: d.nivel.trim() || null,
       dias_semana: d.dias_semana,
       hora: d.hora,
+      duracion_min: d.duracion_min,
       precio_mensual: d.precio_mensual,
       vigente_desde: d.vigente_desde,
       vigente_hasta: d.vigente_hasta,

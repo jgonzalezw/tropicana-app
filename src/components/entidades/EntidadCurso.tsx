@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import type { Curso, TarifasCurso, DatosCurso } from "@/lib/tipos";
+import { rangoHorario } from "@/lib/horarios";
 
 export const DIAS: { n: number; label: string }[] = [
   { n: 1, label: "Lun" },
@@ -28,6 +29,7 @@ export default function EntidadCurso({
   padron,
   tarifasDe,
   especialidades,
+  duracionPorDefecto,
   permitirBaja = false,
   valor = null,
   depsDe,
@@ -38,6 +40,9 @@ export default function EntidadCurso({
   padron: Curso[];
   tarifasDe?: (id: number) => TarifasCurso | undefined;
   especialidades: string[];
+  /** Duración que se propone para un curso nuevo. Sale del parámetro
+   *  `duracion_clase_min`, no del código (regla de negocio 13). */
+  duracionPorDefecto: number;
   permitirBaja?: boolean;
   valor?: Curso | null;
   depsDe?: (id: number) => number | undefined;
@@ -58,6 +63,7 @@ export default function EntidadCurso({
         inicial={ficha === "nuevo" ? null : ficha}
         tarifasIniciales={ficha !== "nuevo" && tarifasDe ? tarifasDe(ficha.id) : undefined}
         especialidades={especialidades}
+        duracionPorDefecto={duracionPorDefecto}
         permitirBaja={permitirBaja}
         deps={ficha !== "nuevo" && depsDe ? depsDe(ficha.id) : undefined}
         onGuardar={onGuardar}
@@ -103,6 +109,7 @@ function FichaCurso({
   inicial,
   tarifasIniciales,
   especialidades,
+  duracionPorDefecto,
   permitirBaja,
   deps,
   onGuardar,
@@ -112,6 +119,7 @@ function FichaCurso({
   inicial: Curso | null;
   tarifasIniciales?: TarifasCurso;
   especialidades: string[];
+  duracionPorDefecto: number;
   permitirBaja: boolean;
   deps?: number;
   onGuardar?: (datos: DatosCurso, id: number | null) => Promise<{ error?: string }>;
@@ -123,6 +131,7 @@ function FichaCurso({
   const [nivel, setNivel] = useState(inicial?.nivel ?? "");
   const [dias, setDias] = useState<number[]>(inicial?.dias_semana ?? []);
   const [hora, setHora] = useState(inicial?.hora?.slice(0, 5) ?? "");
+  const [duracion, setDuracion] = useState(String(inicial?.duracion_min ?? duracionPorDefecto));
   const [precio, setPrecio] = useState(inicial ? String(inicial.precio_mensual) : "");
   const [desde, setDesde] = useState(inicial?.vigente_desde?.slice(0, 10) ?? hoyISO());
   const [hasta, setHasta] = useState(inicial?.vigente_hasta?.slice(0, 10) ?? "");
@@ -153,6 +162,7 @@ function FichaCurso({
           nivel,
           dias_semana: dias,
           hora: hora ? hora : null,
+          duracion_min: Math.round(parse(duracion) ?? 0),
           precio_mensual: parse(precio) ?? 0,
           vigente_desde: desde,
           vigente_hasta: hasta ? hasta : null,
@@ -236,14 +246,29 @@ function FichaCurso({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Campo etiqueta="Hora (opcional)">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Campo etiqueta="Hora de inicio (opcional)">
           <input type="time" value={hora} onChange={(e) => setHora(e.target.value)} className="entrada" />
+        </Campo>
+        {/* La hora de FIN no se pide: se calcula (0034). Pedir las dos seria
+            tener el mismo hecho en dos campos que pueden contradecirse. */}
+        <Campo etiqueta="Duración (minutos)">
+          <input
+            value={duracion}
+            onChange={(e) => setDuracion(e.target.value)}
+            inputMode="numeric"
+            className="entrada"
+          />
         </Campo>
         <Campo etiqueta="Precio mensual (Bs.)">
           <input value={precio} onChange={(e) => setPrecio(e.target.value)} inputMode="decimal" className="entrada" />
         </Campo>
       </div>
+      <p className="text-sm text-[var(--texto-tenue)] -mt-2">
+        {rangoHorario(hora || null, Math.round(parse(duracion) ?? 0))
+          ? `La clase ocupa la sala de ${rangoHorario(hora || null, Math.round(parse(duracion) ?? 0))}.`
+          : "Cargá la hora de inicio para ver hasta cuándo ocupa la sala."}
+      </p>
 
       {/* Vigencia (0033). No es cosmética: el calendario del curso no genera
           clases fuera de estas fechas, así que de acá depende cuántas clases

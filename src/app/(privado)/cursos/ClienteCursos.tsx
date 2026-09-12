@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { Curso, TarifasCurso, DatosCurso } from "@/lib/tipos";
 import EntidadCurso, { etiquetaDias } from "@/components/entidades/EntidadCurso";
 import { etiquetaVigencia } from "@/lib/vigencia";
+import { rangoHorario } from "@/lib/horarios";
 import { crearCurso, actualizarCurso, eliminarODesactivarCurso, activarCurso } from "./acciones";
 
 export default function ClienteCursos({
@@ -12,11 +13,13 @@ export default function ClienteCursos({
   tarifas,
   deps,
   especialidades,
+  duracionPorDefecto,
 }: {
   cursos: Curso[];
   tarifas: Record<number, TarifasCurso>;
   deps: Record<number, number>;
   especialidades: string[];
+  duracionPorDefecto: number;
 }) {
   const router = useRouter();
   const [editSel, setEditSel] = useState<Curso | null>(null);
@@ -77,6 +80,7 @@ export default function ClienteCursos({
           padron={cursos}
           tarifasDe={(id) => tarifas[id]}
           especialidades={especialidades}
+          duracionPorDefecto={duracionPorDefecto}
           permitirBaja
           valor={editSel}
           depsDe={(id) => deps[id]}
@@ -109,7 +113,9 @@ export default function ClienteCursos({
                     <div className="font-medium">{c.nombre}</div>
                     <div className="text-sm text-[var(--texto-tenue)]">
                       {[c.linea, c.nivel].filter(Boolean).join(" · ") || "—"}
-                      {c.hora ? ` · ${c.hora.slice(0, 5)}` : ""}
+                      {rangoHorario(c.hora, c.duracion_min)
+                        ? ` · ${rangoHorario(c.hora, c.duracion_min)}`
+                        : ""}
                     </div>
                   </td>
                   <td className="py-3 px-4 text-[var(--texto-tenue)]">{etiquetaDias(c.dias_semana) || "—"}</td>
