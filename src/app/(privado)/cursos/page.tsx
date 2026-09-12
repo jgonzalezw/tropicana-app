@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { tienePermiso, obtenerParametro } from "@/lib/sesion";
+import { exigir } from "@/lib/datos";
 import EncabezadoPagina from "@/components/EncabezadoPagina";
 import SinAcceso from "@/components/SinAcceso";
 import ClienteCursos from "./ClienteCursos";
@@ -14,12 +15,22 @@ export default async function PaginaCursos() {
 
   const [
     { data: cursos },
+    salas,
     { data: tarifasRows },
     { data: asigRows },
     especialidadesParam,
     duracionParam,
   ] = await Promise.all([
       supabase.from("cursos").select("*").order("nombre"),
+      // Las salas son necesarias para asignarle una al curso: un fallo acá se
+      // muestra, no se convierte en "no hay salas" (regla de calidad 1).
+      supabase
+        .from("salas")
+        .select("id, nombre")
+        .eq("activa", true)
+        .order("orden")
+        .order("id")
+        .then((r) => exigir(r, "las salas")),
       supabase.from("curso_tarifas").select("curso_id, modalidad, precio"),
       supabase.from("asignaciones").select("curso_id"),
       obtenerParametro("especialidades"),
@@ -65,6 +76,7 @@ export default async function PaginaCursos() {
         deps={deps}
         especialidades={especialidades}
         duracionPorDefecto={duracionPorDefecto}
+        salas={salas as { id: number; nombre: string }[]}
       />
     </div>
   );

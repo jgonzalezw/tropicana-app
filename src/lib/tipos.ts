@@ -114,6 +114,9 @@ export type Curso = {
   hora: string | null;
   /** Cuánto dura una clase, en minutos. La hora de fin se calcula (0034). */
   duracion_min: number;
+  /** En qué sala se dicta (0037). De acá sale qué clases ocupan cada sala;
+   *  `null` = sin asignar, y entonces no ocupa ninguna. */
+  sala_id: number | null;
   precio_mensual: number;
   activo: boolean;
   /** Desde cuándo corre el curso: el calendario no genera clases antes (0033). */
@@ -182,6 +185,7 @@ export type DatosCurso = {
   dias_semana: number[];
   hora: string | null;
   duracion_min: number;
+  sala_id: number | null;
   precio_mensual: number;
   /** Vigencia del curso (0033). La baja es opcional: null = sigue corriendo. */
   vigente_desde: string;

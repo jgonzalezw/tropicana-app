@@ -30,6 +30,7 @@ export default function EntidadCurso({
   tarifasDe,
   especialidades,
   duracionPorDefecto,
+  salas,
   permitirBaja = false,
   valor = null,
   depsDe,
@@ -43,6 +44,8 @@ export default function EntidadCurso({
   /** Duración que se propone para un curso nuevo. Sale del parámetro
    *  `duracion_clase_min`, no del código (regla de negocio 13). */
   duracionPorDefecto: number;
+  /** Salas activas. Con una sola, el curso se le asigna sin preguntar (D20). */
+  salas: { id: number; nombre: string }[];
   permitirBaja?: boolean;
   valor?: Curso | null;
   depsDe?: (id: number) => number | undefined;
@@ -64,6 +67,7 @@ export default function EntidadCurso({
         tarifasIniciales={ficha !== "nuevo" && tarifasDe ? tarifasDe(ficha.id) : undefined}
         especialidades={especialidades}
         duracionPorDefecto={duracionPorDefecto}
+        salas={salas}
         permitirBaja={permitirBaja}
         deps={ficha !== "nuevo" && depsDe ? depsDe(ficha.id) : undefined}
         onGuardar={onGuardar}
@@ -110,6 +114,7 @@ function FichaCurso({
   tarifasIniciales,
   especialidades,
   duracionPorDefecto,
+  salas,
   permitirBaja,
   deps,
   onGuardar,
@@ -120,6 +125,7 @@ function FichaCurso({
   tarifasIniciales?: TarifasCurso;
   especialidades: string[];
   duracionPorDefecto: number;
+  salas: { id: number; nombre: string }[];
   permitirBaja: boolean;
   deps?: number;
   onGuardar?: (datos: DatosCurso, id: number | null) => Promise<{ error?: string }>;
@@ -132,6 +138,10 @@ function FichaCurso({
   const [dias, setDias] = useState<number[]>(inicial?.dias_semana ?? []);
   const [hora, setHora] = useState(inicial?.hora?.slice(0, 5) ?? "");
   const [duracion, setDuracion] = useState(String(inicial?.duracion_min ?? duracionPorDefecto));
+  // Con una sola sala se asigna sola: elegir entre una opción es ruido (D20).
+  const [salaId, setSalaId] = useState<number | null>(
+    inicial?.sala_id ?? (salas.length === 1 ? salas[0].id : null)
+  );
   const [precio, setPrecio] = useState(inicial ? String(inicial.precio_mensual) : "");
   const [desde, setDesde] = useState(inicial?.vigente_desde?.slice(0, 10) ?? hoyISO());
   const [hasta, setHasta] = useState(inicial?.vigente_hasta?.slice(0, 10) ?? "");
@@ -163,6 +173,7 @@ function FichaCurso({
           dias_semana: dias,
           hora: hora ? hora : null,
           duracion_min: Math.round(parse(duracion) ?? 0),
+          sala_id: salaId,
           precio_mensual: parse(precio) ?? 0,
           vigente_desde: desde,
           vigente_hasta: hasta ? hasta : null,
@@ -263,12 +274,39 @@ function FichaCurso({
         <Campo etiqueta="Precio mensual (Bs.)">
           <input value={precio} onChange={(e) => setPrecio(e.target.value)} inputMode="decimal" className="entrada" />
         </Campo>
+        {/* En qué sala se dicta (0037). De acá sale qué clases ocupan cada sala:
+            con más de una, un curso sin sala no bloquea ninguna. Se elige de una
+            lista (regla de calidad 6). */}
+        {salas.length > 1 && (
+          <Campo etiqueta="Sala">
+            <select
+              value={salaId == null ? "" : String(salaId)}
+              onChange={(e) => setSalaId(e.target.value ? Number(e.target.value) : null)}
+              className="entrada"
+            >
+              <option value="">Sin asignar</option>
+              {salas.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.nombre}
+                </option>
+              ))}
+            </select>
+          </Campo>
+        )}
       </div>
       <p className="text-sm text-[var(--texto-tenue)] -mt-2">
         {rangoHorario(hora || null, Math.round(parse(duracion) ?? 0))
           ? `La clase ocupa la sala de ${rangoHorario(hora || null, Math.round(parse(duracion) ?? 0))}.`
           : "Cargá la hora de inicio para ver hasta cuándo ocupa la sala."}
       </p>
+      {/* Regla de calidad 5: la consecuencia de que falte se dice acá, no se
+          descubre cuando una reserva se superponga con la clase. */}
+      {salas.length > 1 && salaId == null && (
+        <p className="text-sm text-[var(--primario)] -mt-1">
+          Sin sala asignada, este curso <strong>no ocupa ninguna</strong>: se puede reservar
+          encima de su clase sin que el sistema avise.
+        </p>
+      )}
 
       {/* Vigencia (0033). No es cosmética: el calendario del curso no genera
           clases fuera de estas fechas, así que de acá depende cuántas clases

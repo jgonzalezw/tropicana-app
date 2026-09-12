@@ -686,6 +686,9 @@ function BloqueSala({
     paquete && tamanoSim
       ? costoDeSala(
           preciosEd.map((p) => ({
+            // Esta pantalla edita la tarifa general, la que vale para todas las
+            // salas (0037): por eso `sala_id: null`.
+            sala_id: null,
             categoria: p.categoria as CategoriaSala,
             tamano: p.tamano as ClaveTamano,
             horas: p.horas,

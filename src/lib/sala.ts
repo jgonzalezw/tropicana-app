@@ -45,8 +45,16 @@ export type TamanoSala = {
   orden: number;
 };
 
-/** Una celda de la matriz del bloque E. `precio: null` = sin tarifa cargada. */
+/**
+ * Una celda de la matriz del bloque E. `precio: null` = sin tarifa cargada.
+ *
+ * `sala_id: null` es la tarifa **general**, la que vale para todas las salas —
+ * el caso normal, porque hoy las dos salas cuestan lo mismo. Una fila con sala
+ * **manda sobre la general** para esa sala (0037), y existe para no obligar a
+ * cargar la matriz entera dos veces cuando dice lo mismo.
+ */
 export type TarifaSala = {
+  sala_id: number | null;
   categoria: CategoriaSala;
   tamano: ClaveTamano;
   horas: number;
@@ -109,16 +117,23 @@ export function costoDeSala(
   tarifas: TarifaSala[],
   categoria: CategoriaSala,
   tamano: TamanoSala,
-  horas: number
+  horas: number,
+  /** En qué sala. Si esa sala tiene tarifa propia, manda sobre la general. */
+  salaId?: number | null
 ): CostoSala {
   const ruta = `Alquiler de sala → ${ETIQUETA_CATEGORIA[categoria]} × ${tamano.etiqueta} (hasta ${tamano.max_personas}) × ${horas} h`;
 
-  const fila = tarifas.find(
-    (t) =>
-      t.categoria === categoria &&
-      t.tamano === tamano.clave &&
-      Number(t.horas) === Number(horas)
-  );
+  const coincideCoordenada = (t: TarifaSala) =>
+    t.categoria === categoria &&
+    t.tamano === tamano.clave &&
+    Number(t.horas) === Number(horas);
+
+  // Lo específico gana a lo general: primero la tarifa propia de la sala, y si
+  // no hay, la que vale para todas. El orden es la regla entera.
+  const fila =
+    (salaId != null
+      ? tarifas.find((t) => t.sala_id === salaId && coincideCoordenada(t))
+      : undefined) ?? tarifas.find((t) => t.sala_id == null && coincideCoordenada(t));
 
   if (!fila)
     return {
@@ -160,29 +175,39 @@ export type CursoOcupa = VigenciaCurso & {
   dias_semana: number[] | null;
   hora: string | null;
   duracion_min: number | null;
+  /** En qué sala se dicta (0037). `null` = sin asignar. */
+  sala_id: number | null;
 };
 
 /**
- * Las clases de cursos regulares que ocupan la sala una fecha dada.
+ * Las clases de cursos regulares que ocupan **una sala** una fecha dada.
  *
  * Cuenta una clase cuando el curso corre ese día de la semana **y** la fecha
  * cae dentro de su vigencia. Una sesión **suspendida** no ocupa: la clase no se
  * dictó, la sala estaba libre (regla de negocio 19 — una suspensión libera la
  * sala aunque corra el ciclo del alumno).
  *
- * Un curso sin hora cargada no puede ocupar un rango —no se sabe cuál— así que
- * no genera bloque. No es un dato que se pueda suponer.
+ * **Se pregunta por sala** desde que hay más de una (0037): un curso ocupa la
+ * sala donde se dicta, no todas. Un curso **sin sala asignada no ocupa ninguna**
+ * —bloquear la equivocada sería peor que no bloquear— y la pantalla de Cursos lo
+ * muestra como lo que es: un dato que falta cargar.
+ *
+ * Un curso sin hora cargada tampoco genera bloque: no se sabe qué rango ocupa, y
+ * no es algo que se pueda suponer.
  */
 export function ocupacionDeCursos(
   cursos: CursoOcupa[],
   fechaISO: string,
   /** Claves `cursoId` de las sesiones suspendidas **de esa fecha**. */
-  cursosSuspendidos: Set<number>
+  cursosSuspendidos: Set<number>,
+  /** Qué sala se está mirando. Omitirlo cuenta todas — solo útil con una sala. */
+  salaId?: number | null
 ): BloqueOcupado[] {
   const dia = diaIso(new Date(fechaISO + "T00:00:00"));
 
   return cursos
     .filter((c) => (c.dias_semana ?? []).includes(dia))
+    .filter((c) => (salaId == null ? true : c.sala_id === salaId))
     .filter((c) => enVigencia(c, fechaISO))
     .filter((c) => !cursosSuspendidos.has(c.id))
     .filter((c) => aMinutos(c.hora) != null && Number(c.duracion_min) > 0)
@@ -230,8 +255,14 @@ export function choquesCon(
 
 export type FranjaPatron = { dia_semana: number; desde: string; hasta: string };
 
+/**
+ * Una excepción cubre un **rango de fechas** (0037): "vacaciones del 24/12 al
+ * 5/1" es un hecho, no trece. Un día suelto es un rango de un día
+ * (`fecha === hasta_fecha`), así que no hay dos formas de expresar lo mismo.
+ */
 export type ExcepcionHorario = {
   fecha: string;
+  hasta_fecha: string;
   cerrado: boolean;
   desde: string | null;
   hasta: string | null;
@@ -261,7 +292,13 @@ export function ventanasDelDia(
   fechaISO: string
 ): { ventanas: Ventana[]; excepcion: ExcepcionHorario | null } {
   const f = fechaISO.slice(0, 10);
-  const exc = excepciones.find((e) => e.fecha.slice(0, 10) === f) ?? null;
+  // La fecha cae dentro del rango, con los dos extremos incluidos. La base
+  // garantiza que dos excepciones de la misma sala no se pisen, así que como
+  // mucho hay una que la cubra.
+  const exc =
+    excepciones.find(
+      (e) => e.fecha.slice(0, 10) <= f && f <= e.hasta_fecha.slice(0, 10)
+    ) ?? null;
 
   if (exc) {
     if (exc.cerrado) return { ventanas: [], excepcion: exc };

@@ -29,13 +29,67 @@ export type FranjaEdit = { dia_semana: number; desde: string; hasta: string };
 export type ExcepcionEdit = {
   /** null = fila nueva. */
   id: number | null;
+  /** Primer día del rango. */
   fecha: string;
+  /** Último día, inclusive. Igual a `fecha` en una excepción de un solo día. */
+  hasta_fecha: string;
   cerrado: boolean;
   desde: string | null;
   hasta: string | null;
   motivo: string | null;
   glosa: string | null;
 };
+
+export type SalaEdit = {
+  /** null = sala nueva. */
+  id: number | null;
+  nombre: string;
+  orden: number;
+  activa: boolean;
+};
+
+/**
+ * Alta y edición de las salas.
+ *
+ * **El orden no es cosmético**: la de menor orden es la que se ofrece primero al
+ * vender, y la siguiente entra cuando esa está ocupada (Javier, 2026-09-12).
+ * Por eso se edita acá y no se deduce del id.
+ */
+export async function guardarSalas(salas: SalaEdit[]): Promise<Resultado> {
+  if (!(await tienePermiso("administracion", "editar")))
+    return { error: "Sin permiso para editar las salas." };
+
+  if (salas.length === 0) return { error: "Tiene que haber al menos una sala." };
+
+  for (const s of salas) {
+    if (!s.nombre.trim())
+      return { error: "Una sala sin nombre no se puede distinguir de otra: poné el nombre." };
+  }
+
+  const nombres = salas.map((s) => s.nombre.trim().toLowerCase());
+  const repetido = nombres.find((n, i) => nombres.indexOf(n) !== i);
+  if (repetido)
+    return {
+      error: `Hay dos salas con el mismo nombre ("${repetido}"). Con nombres iguales no se puede saber en cuál se reservó.`,
+    };
+
+  if (!salas.some((s) => s.activa))
+    return { error: "Tiene que quedar al menos una sala activa: si no, no se puede reservar nada." };
+
+  const a = admin();
+
+  for (const s of salas) {
+    const fila = { nombre: s.nombre.trim(), orden: s.orden, activa: s.activa };
+    const { error } = s.id
+      ? await a.from("salas").update(fila).eq("id", s.id)
+      : await a.from("salas").insert(fila);
+    if (error) return { error: `No se pudo guardar la sala: ${error.message}` };
+  }
+
+  revalidatePath("/administracion/sala");
+  revalidatePath("/cursos");
+  return { ok: true };
+}
 
 const DIAS: Record<number, string> = {
   1: "lunes", 2: "martes", 3: "miércoles", 4: "jueves",
@@ -91,6 +145,9 @@ export async function guardarHorarioSala(
 
   for (const e of excepciones) {
     if (!e.fecha) return { error: "Una excepción sin fecha no significa nada: poné la fecha." };
+    if (!e.hasta_fecha) return { error: `La excepción del ${e.fecha} no tiene fecha de fin.` };
+    if (e.hasta_fecha < e.fecha)
+      return { error: `La excepción del ${e.fecha} termina antes de empezar.` };
     if (!e.cerrado) {
       const d = aMinutos(e.desde ?? "");
       const h = aMinutos(e.hasta ?? "");
@@ -134,6 +191,7 @@ export async function guardarHorarioSala(
     const fila = {
       sala_id: salaId,
       fecha: e.fecha,
+      hasta_fecha: e.hasta_fecha,
       cerrado: e.cerrado,
       desde: e.cerrado ? null : e.desde,
       hasta: e.cerrado ? null : e.hasta,
@@ -144,8 +202,15 @@ export async function guardarHorarioSala(
       ? await a.from("sala_horario_excepciones").update(fila).eq("id", e.id)
       : await a.from("sala_horario_excepciones").insert(fila);
     if (error) {
-      if (error.code === "23505")
-        return { error: `Ya hay una excepción cargada para el ${e.fecha}: editá esa, no agregues otra.` };
+      // `23P01` = exclusion_violation: el rango se pisa con otra excepción.
+      // No se puede permitir, porque una fecha tendría dos horarios distintos
+      // y no habría forma de elegir cuál vale.
+      if (error.code === "23P01" || error.code === "23505")
+        return {
+          error:
+            `El período ${e.fecha} → ${e.hasta_fecha} se pisa con otra excepción ya cargada ` +
+            `de esta sala. Editá la que existe o ajustá las fechas para que no se superpongan.`,
+        };
       return { error: `No se pudo guardar la excepción del ${e.fecha}: ${error.message}` };
     }
   }

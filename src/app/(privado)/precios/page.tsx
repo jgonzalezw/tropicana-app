@@ -62,6 +62,10 @@ export default async function PaginaPrecios() {
     sb
       .from("sala_tarifas")
       .select("categoria, tamano, precio, horas_paquete_id")
+      // Solo la tarifa general —la que vale para todas las salas—. Una tarifa
+      // propia de una sala (0037) manda sobre ésta, y se edita aparte: mostrar
+      // las dos mezcladas en una sola grilla no diría cuál está viendo.
+      .is("sala_id", null)
       .then((r) => exigir(r, "la matriz de alquiler de sala")),
     sb
       .from("paquetes_particular")

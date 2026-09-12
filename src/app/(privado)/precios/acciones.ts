@@ -221,9 +221,13 @@ export async function guardarPrecios(c: CambiosPrecios): Promise<Resultado> {
       if (precio == null) {
         // Vacío = sin tarifa. Se borra la celda en vez de guardarla en 0: un
         // cero diría "la sala es gratis" y se liquidaría como tal.
+        // `sala_id is null` = la tarifa general, la que vale para todas las
+        // salas (0037). Esta pantalla edita esa; una tarifa propia de una sala
+        // se cargaría aparte y mandaría sobre la general.
         const { error } = await a
           .from("sala_tarifas")
           .delete()
+          .is("sala_id", null)
           .eq("categoria", p.categoria)
           .eq("tamano", p.tamano)
           .eq("horas_paquete_id", horasId);
@@ -231,13 +235,14 @@ export async function guardarPrecios(c: CambiosPrecios): Promise<Resultado> {
       } else {
         const { error } = await a.from("sala_tarifas").upsert(
           {
+            sala_id: null,
             categoria: p.categoria,
             tamano: p.tamano,
             horas_paquete_id: horasId,
             precio,
             actualizado_en: new Date().toISOString(),
           },
-          { onConflict: "categoria,tamano,horas_paquete_id" }
+          { onConflict: "sala_id,categoria,tamano,horas_paquete_id" }
         );
         if (error) return { error: `No se pudo guardar una tarifa de sala: ${error.message}` };
       }
