@@ -283,6 +283,18 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
    opciones… el que dejes algunos para escritura manual es baja calidad de
    desarrollo e inconsistente."*
 
+7. **Todo parámetro o valor de catálogo que el código lea nace en una
+   migración.** Cargarlo a mano en dev —con SQL suelto o desde la pantalla—
+   lo deja fuera de producción **para siempre**: el pase lleva migraciones, no
+   filas sueltas. Y no hay control que lo note, porque cada base se mira sola.
+   El síntoma es engañoso: sin el parámetro el código cae a su default y no
+   falla nada visible, pero la configuración **no existe** y por lo tanto no se
+   puede cambiar — una capacidad que no está y no lo dice (regla 5).
+   *Costó una vez: `liquidacion_reparto_pantalla` y `_impreso` se crearon a
+   mano en dev; la migración 0028 los daba por existentes y solo los
+   actualizaba. El pase del 2026-09-12 no los llevó, y la pantalla de
+   Parámetros mostró 4 en dev y 2 en producción. Lo corrigió la **0031**.*
+
 ## 5. Controles
 
 `scripts/control_migracion.sql` — controles de solo lectura que verifican
