@@ -1446,9 +1446,34 @@ Validado en dev por Javier (*"veo todo ok"*). `tsc` y `eslint` limpios.
 **Solo en dev**: la 0035 no está en producción y el código no está en `main`.
 Espera el OK del pase (regla de proceso 1).
 
-### Lo que sigue
+### Lo que sigue — la cola C1→C5 (Javier, 2026-09-12, documento de instrucciones)
 
-**Vender servicio** (2D): los dos caminos del mockup de agosto, más la pieza que
-ese mockup no tiene — **elegir fecha y hora al vender**, validando la sala. Es
-lo que une los dos ejes que planteó Javier. Después, la **agenda visual**, que
-no tiene mockup y es la que Natalia pide por su vista.
+**El orden cambió, y conviene entender por qué**: el motor de disponibilidad va
+**antes** que la venta. El reencuadre que lo justifica es de Javier: *"la unidad
+atómica no es «la venta con horario» sino «la reserva de una franja de sala».
+Vender un paquete crea un saldo de horas; reservar consume ese saldo ocupando la
+sala — son actos distintos que pueden ocurrir juntos o separados en el tiempo."*
+Si la venta se construyera primero, la reserva quedaría colgada de la venta y
+habría que desacoplarla después.
+
+| | Qué | Estado |
+| --- | --- | --- |
+| **C1** | **Horario base de la sala**: patrón semanal de apertura + excepciones por fecha. Es el lienzo — fuera de él no se puede reservar. **Vacío significa cerrado, no abierto** (confirmado por Javier): si valiera "24 h", olvidarse de configurarlo produce justo el bug que C1 evita | En curso |
+| **C2** | Disponibilidad + reserva mínima: validar contra horario base + cursos + otras reservas, y **lista textual** de lo ocupado ese día (*"Lu 15: ocupado 9-10, 11-12:30; resto libre"*). **Sin grilla visual todavía** — 80% del beneficio, 20% del costo | Pendiente |
+| **C3** | Venta de particulares/alquiler apoyada en la disponibilidad. Los dos caminos del mockup de agosto, más lo que ese mockup no tiene: elegir fecha y hora al vender | Pendiente |
+| **C4** | Agenda visual (grilla día/semana/mes). **Pasa por Claude Design** | Pendiente → `ROADMAP.md` R2 |
+| **C5** | Conflicto bloqueo-vs-agendado: el sistema junta los conflictos y **el humano decide**, nunca cancelación automática silenciosa | Pendiente → `ROADMAP.md` R1 |
+
+**Lo que Javier definió para C1** (2026-09-12): el motivo de una reserva o
+bloqueo se **clasifica** desde una lista, y el responsable o la aclaración van en
+una **glosa abierta**. Los motivos que administra el **patrón** —feriado, fuera
+de horario— no se eligen a mano: salen del horario base. Y una reserva lleva
+**notas**, que no son un memo sino *"instrucciones o recomendaciones para el
+asistente coordinador de la sala"*, así que tienen que verse donde se opera.
+
+**El horario puede cambiar con el tiempo**, y las reservas ya hechas fuera del
+horario nuevo **se respetan** —son hechos, no se reescriben—. Los conflictos que
+eso genere los resuelve un humano: es C5.
+
+**Desde 2026-09-12 existe `docs/ROADMAP.md`**, donde van las mejoras y deudas que
+no son del hito en curso, para no perderlas ni meterlas a la fuerza.
