@@ -100,14 +100,13 @@ migración — D8 incluida.
 Lo que está **solo en dev** y espera el OK explícito de Javier (regla de
 proceso 1). No es un backlog de decisiones: es el estado del release.
 
-- Migraciones **0023** (clase de prueba), **0024** (fecha por curso), **0025**
-  (comisión por curso), **0026** (reparto guardado), **0027** (un profesor
-  puede devengar dos cursos) y **0028** (parámetros con lista de opciones).
-- **Criterio de conteo de clases**: calendario menos suspendidas (regla 10) y
-  su contrapeso, el bloqueo por sesiones sin registrar (regla 17).
-- Padrón resuelto por `inscripcion_cursos` — **bloqueante** antes de que se
-  cree el primer plan multi-curso en producción.
-- `exigir()` + `error.tsx`, precio de referencia por tramos, configuración y
-  venta de la clase de prueba, Paso D del padrón.
-- Script de refresh corregido (copia `plan_cursos` / `inscripcion_cursos` y
-  sincroniza catálogos y parámetros).
+- **Migraciones 0023–0030: APLICADAS EN PRODUCCIÓN el 2026-09-12**, con el OK
+  explícito de Javier. Ningún dato de dominio se modificó (detalle y controles
+  en `docs/ESTADO.md`).
+- **Falta el deploy del código**: Vercel publica al mergear a `main`. Mientras
+  tanto producción corre el esquema nuevo con el código viejo — seguro, porque
+  todo lo agregado es aditivo.
+- **Pendiente de decisión**: el control 3 da **2** en producción (membresías 23
+  y 24, contadores de clases desactualizados desde el 10/09, anteriores al
+  pase). Se corrige volviendo a guardar esas dos asistencias, pero es un cambio
+  de datos en producción y necesita el OK de Javier (regla de proceso 5).

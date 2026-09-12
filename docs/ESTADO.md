@@ -971,3 +971,49 @@ descuento de lo pagado al reemplazante es **D17b**, sin construir.
 
 **Una clase suspendida** deja de llevar profesor: `profesor_id` null y los
 campos de reemplazo limpios. No la dictó nadie.
+
+---
+
+## Pase a producción de las migraciones 0023–0030 · 2026-09-12
+
+**OK explícito de Javier** (regla de proceso 1). Se siguió el orden de
+`DECISIONES.md` §3: migraciones primero, código después.
+
+**Verificación previa, antes de tocar nada** (solo lectura sobre producción):
+
+| Chequeo | Resultado |
+| --- | --- |
+| Producción estaba en | `0022` |
+| Comisiones devengadas / liquidaciones | **0 y 0** — la reescritura del motor de comisiones no toca nada existente |
+| `curso_tarifas` con modalidad fuera de la lista nueva | 0 — la restricción ampliada no rechaza ninguna fila |
+| `inscripciones.membresia_anterior_id`, `inscripcion_cursos.dias` | existen (0023 y 0024 los necesitan) |
+| Choques de nombre (catálogo `motivo_reemplazo`, parámetro `prueba_plazo_dias`) | ninguno |
+
+**Las ocho aplicadas sin error**: 0023 clase de prueba · 0024 fecha por curso ·
+0025 comisión por curso · 0026 reparto guardado · 0027 un profesor dos cursos ·
+0028 parámetros con opciones · 0029 comisión por curso y profesor · 0030 quién
+dictó la clase.
+
+**Ningún dato de dominio se modificó.** Los dos `update` de la 0024 tocaron
+**0 filas**: `es_prueba` nace en `false`, así que ninguna membresía de
+producción califica. Verificado después de aplicar — 0 membresías `es_prueba`,
+0 `inscripcion_cursos.fecha` cargadas, 0 filas con `actualizado_en` de hoy.
+
+**Controles posteriores.** Todos OK salvo el **3 (contadores de clases
+desactualizados), que da 2** — y **no lo causó este pase**:
+
+| Membresía | Alumno | Contador guardado | Presencias reales | Última modificación |
+| --- | --- | ---: | ---: | --- |
+| 23 | Escalante, Vania (Zumba) | 6 | 5 | **2026-09-10** |
+| 24 | Salek, Charo (Zumba) | 7 | 5 | **2026-09-10** |
+
+Las dos se modificaron por última vez el 10/09, dos días antes del pase. **Dev
+tiene el mismo control en 1**, así que es un desvío preexistente y no una
+consecuencia de las migraciones. Queda **pendiente de decisión de Javier**: el
+motor recalcula el contador al guardar asistencia, así que se corrige solo
+volviendo a tocar esas dos clases, pero es un cambio de datos en producción y
+no se hace sin su OK (regla de proceso 5).
+
+**Falta el deploy del código**: Vercel publica al mergear a `main`. Hasta
+entonces producción corre el esquema nuevo con el código viejo — que es
+seguro, porque todo lo agregado es aditivo y el código viejo no lo lee.
