@@ -30,18 +30,30 @@ pierden y se vuelven a discutir, o peor, se contradicen sin que nadie lo note.
 > **D5, D6 y D7 ya están decididas** (2026-09-12) y salieron del backlog: ver
 > §1.b. D6 además ya está construida y en producción.
 >
-> **Faltaban tres respuestas; queda una y media (2026-09-12):**
-> 1. ~~D20 — ¿una sala o varias?~~ **RESPONDIDA** el 2026-09-12: una hoy,
->    varias después; se modela para N y se muestra para 1 (ver §1.b).
-> 2. **Alcance** — ¿Paso 5 completo (agenda visual de sala) o **validación
->    mínima de choque** dentro de 2D primero? Lo segundo destraba a Natalia
->    mucho antes y la agenda queda después sobre la misma base.
-> 3. **Diseño** — particulares es pantalla nueva: ¿Design-first o código v1 y
->    Design refina? (regla de proceso 3: avisar antes de construir).
+> **Las tres respuestas están dadas (2026-09-12). Ninguna queda abierta:**
+> 1. ~~D20 — ¿una sala o varias?~~ **RESPONDIDA**: una hoy, varias después; se
+>    modela para N y se muestra para 1 (ver §1.b).
+> 2. ~~**Alcance**~~ **RESPONDIDA**: **validación mínima de choque primero**, y
+>    la agenda visual después sobre la misma base. Javier agregó el encuadre que
+>    la gobierna: son **dos ejes** —la venta de paquetes de horas con sus
+>    contadores, y un motor de calendario de sala— y *"podemos partir por el eje
+>    de las ventas y contadores… y algún mecanismo de confirmación de sesiones
+>    que luego lo integramos al eje visual"*. **La agenda visual no es opcional
+>    ni lejana**: *"es una herramienta fundamental para Natalia por su vista.
+>    Debe ir, ya es hoy un problema para ella."*
+> 3. ~~**Diseño**~~ **RESPONDIDA**: **código v1 y Design refina**. Y se descubrió
+>    que la pregunta era más chica de lo que parecía: *Vender servicio* y
+>    *Confirmar sesión* **ya tienen diseño aprobado** en `docs/design/` desde el
+>    30 ago 2026. Lo único sin mockup es la agenda de sala.
+>
+> **Lo que el diseño de agosto NO cubre, y hay que construir igual:** reservar
+> una sesión **a futuro** (elegir fecha y hora al vender). *Confirmar sesión*
+> solo registra que una sesión **ya ocurrió**. Es la pieza que une los dos ejes.
 >
 > Lo que ya está listo para apoyarse: `src/lib/horarios.ts` tiene `seSolapan`
 > con el criterio de choque ya fijado (intervalo medio abierto: una clase que
-> termina 20:00 y otra que empieza 20:00 **no** chocan).
+> termina 20:00 y otra que empieza 20:00 **no** chocan), y `src/lib/sala.ts` +
+> la migración **0035** ya resuelven el costo de sala y la ocupación.
 
 
 | # | Decisión | Estado | Por qué se postergó | Disparador: cuándo hacerla |
