@@ -42,6 +42,7 @@ export async function crearProfesor(d: DatosProfesor): Promise<Resultado> {
     whatsapp: d.whatsapp.trim(),
     tipo: d.tipo,
     especialidades: d.especialidades,
+    tarifa_reemplazo: d.tarifa_reemplazo,
     usuario_id: d.usuario_id,
   });
   if (error) return { error: mapearError(error) };
@@ -66,6 +67,7 @@ export async function actualizarProfesor(
       whatsapp: d.whatsapp.trim(),
       tipo: d.tipo,
       especialidades: d.especialidades,
+      tarifa_reemplazo: d.tarifa_reemplazo,
       usuario_id: d.usuario_id,
       actualizado_en: new Date().toISOString(),
     })

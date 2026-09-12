@@ -148,6 +148,9 @@ function FichaProfesor({
   const [tipo, setTipo] = useState<TipoProfesor>(inicial?.tipo ?? "activo");
   const [esp, setEsp] = useState<Set<string>>(new Set(inicial?.especialidades ?? []));
   const [usuarioId, setUsuarioId] = useState<string | null>(inicial?.usuario_id ?? null);
+  const [tarifaRee, setTarifaRee] = useState(
+    inicial?.tarifa_reemplazo == null ? "" : String(inicial.tarifa_reemplazo)
+  );
   const [error, setError] = useState<string | null>(null);
   const [pendiente, startTransition] = useTransition();
 
@@ -179,6 +182,8 @@ function FichaProfesor({
           tipo,
           especialidades: [...esp],
           usuario_id: usuarioId,
+          tarifa_reemplazo:
+            tarifaRee.trim() === "" ? null : Number(tarifaRee.replace(/[^\d.]/g, "")) || 0,
         },
         inicial?.id ?? null
       );
@@ -227,6 +232,24 @@ function FichaProfesor({
           <input value={apellido} onChange={(e) => setApellido(e.target.value)} className="entrada" />
         </Campo>
       </div>
+
+      {/* Lo que cobra por dictar una clase como reemplazante (regla 20): el
+          suplente no entra en el prorrateo, cobra por tarifa. Es la referencia
+          que se ofrece al registrar la asistencia; el monto de esa clase se
+          confirma ahí. */}
+      <Campo etiqueta="Tarifa por clase como reemplazante">
+        <input
+          value={tarifaRee}
+          onChange={(e) => setTarifaRee(e.target.value)}
+          inputMode="decimal"
+          placeholder="Sin cargar"
+          className="entrada"
+        />
+        <p className="text-sm text-[var(--texto-tenue)] mt-1">
+          Referencia: al registrar una clase dictada por él como reemplazante se propone este
+          monto, y ahí se confirma.
+        </p>
+      </Campo>
 
       <Campo etiqueta="WhatsApp">
         <input

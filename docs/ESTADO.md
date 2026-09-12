@@ -923,3 +923,45 @@ coincidir con la parte del curso.
 **Control 20** pasa a ser de verificación, no de deuda: lo devengado antes de
 esta corrección puede seguir marcado (regla 12, no se reescribe); lo que importa
 es que no aparezcan filas nuevas.
+
+---
+
+## D17a — quién dictó la clase deja de ser una suposición · 2026-09-12
+
+**Migración 0030** + código. Solo en dev.
+
+**El punto de partida.** `sesiones.profesor_id` ya existía y se llenaba **por
+inferencia**: al guardar la asistencia se estampaba el profesor de la asignación
+**abierta**, sin mirar la fecha de la clase, y nadie lo leía. El campo donde
+debía estar el hecho se completaba con una conjetura — y encima con la
+equivocada: si el titular había cambiado, quedaba el de hoy en una clase de hace
+dos meses.
+
+**Qué se registra ahora**, al tomar asistencia:
+
+| Campo | Qué es |
+| --- | --- |
+| `sesiones.profesor_id` | **Quién dictó**. Elegido, no inferido. |
+| `sesiones.titular_id` | El titular vigente **ese día**, como snapshot (regla 12): de él depende a quién se le descuenta un reemplazo. |
+| `sesiones.reemplazo_motivo` | Catálogo `motivo_reemplazo`. NULL = la dictó el titular. |
+| `sesiones.reemplazo_costo` | Lo que se le paga al reemplazante por esa clase. |
+| `profesores.tarifa_reemplazo` | La **referencia** por clase. El monto real se confirma al registrar. |
+
+**La pantalla.** Arriba del padrón, siempre visible: *"Profesor titular esta
+fecha: …"*. Si el curso estaba **desasignado** ese día, lo dice en rojo y el
+bloque de reemplazo se abre solo — y el servidor **no deja guardar** sin él
+(regla 20). Al elegir el motivo, la pantalla dice qué hace con la plata, porque
+es la decisión que se está tomando en ese momento.
+
+**El criterio del titular vive en un solo lugar**, `src/lib/asignaciones.ts`: lo
+usan la pantalla de asistencia y el reparto de la liquidación. Si cada una lo
+resolviera por su cuenta, la pantalla podría mostrar un nombre y pagarle a otro.
+Incluye el desempate ante asignaciones solapadas —gana la que empezó después,
+después la abierta, después el id más alto— porque de ahí sale a quién se le paga.
+
+**El prorrateo honra el motivo** (regla 20): `administrativo` deja la parte de
+esa clase en Tropicana; `titular` se la cuenta a él y la cobra normal — el
+descuento de lo pagado al reemplazante es **D17b**, sin construir.
+
+**Una clase suspendida** deja de llevar profesor: `profesor_id` null y los
+campos de reemplazo limpios. No la dictó nadie.

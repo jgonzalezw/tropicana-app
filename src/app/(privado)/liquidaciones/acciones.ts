@@ -8,6 +8,12 @@ import { exigir } from "@/lib/datos";
 import { diaIso, isoFecha } from "@/lib/inscripcion";
 import type { TarifasDeCurso } from "@/lib/precios";
 import type { Curso } from "@/lib/tipos";
+import {
+  COLUMNAS_ASIGNACION,
+  asignacionEnFecha,
+  titularVigente,
+  type AsignacionVigencia,
+} from "@/lib/asignaciones";
 
 function admin() {
   const a = createAdminClient();
@@ -269,18 +275,28 @@ async function calcularPendientes(
   const sesiones = exigir(
     await sb
       .from("sesiones")
-      .select("curso_id, fecha, estado")
+      .select("curso_id, fecha, estado, reemplazo_motivo")
       .in("curso_id", cursoIds)
       .gte("fecha", desde)
       .lte("fecha", hastaISO),
     "las clases del período"
-  ) as { curso_id: number; fecha: string; estado: string }[];
+  ) as { curso_id: number; fecha: string; estado: string; reemplazo_motivo: string | null }[];
   const suspendidas = new Set(
     sesiones.filter((s) => s.estado === "suspendida").map((s) => `${s.curso_id}|${s.fecha}`)
   );
   // Registrada = tiene sesión, cualquiera sea su estado. Sin fila, nadie tocó
   // esa clase: ni se tomó asistencia ni se suspendió.
   const registradas = new Set(sesiones.map((s) => `${s.curso_id}|${s.fecha}`));
+  // Clases dictadas con reemplazo **por causa administrativa** (regla 20b): la
+  // clase cuenta para el conteo —se dictó— pero su parte no es del titular,
+  // queda para Tropicana. El otro motivo, `titular` (regla 20a), no entra acá:
+  // ahí la clase le cuenta y la cobra normal, y lo pagado al reemplazante se
+  // le descuenta del total (D17b, sin construir).
+  const reemplazoAdmin = new Set(
+    sesiones
+      .filter((s) => s.reemplazo_motivo === "administrativo")
+      .map((s) => `${s.curso_id}|${s.fecha}`)
+  );
 
   // 6. Precio de una clase de cada curso. Para la prueba es su tarifa de
   //    prueba; para el resto, el valor de una clase según el tramo (regla 9).
@@ -309,44 +325,21 @@ async function calcularPendientes(
   // el mes entero al titular actual: el anterior no cobraba las clases que sí
   // dictó. *(Javier, 2026-09-12: "es parte del diseño desde el inicio".)*
   const asig = exigir(
-    await sb
-      .from("asignaciones")
-      .select("id, curso_id, profesor_id, pct_ingresos, desde, hasta")
-      .in("curso_id", cursoIds),
+    await sb.from("asignaciones").select(COLUMNAS_ASIGNACION).in("curso_id", cursoIds),
     "las asignaciones de profesores"
-  ) as {
-    id: number; curso_id: number; profesor_id: number;
-    pct_ingresos: number; desde: string; hasta: string | null;
-  }[];
-  const asigPorCurso = new Map<number, typeof asig>();
+  ) as AsignacionVigencia[];
+  const asigPorCurso = new Map<number, AsignacionVigencia[]>();
   for (const r of asig) {
     const ya = asigPorCurso.get(r.curso_id);
     if (ya) ya.push(r);
     else asigPorCurso.set(r.curso_id, [r]);
   }
-  /**
-   * Quién tenía el curso el día `f`. Si varias filas cubren esa fecha —dato
-   * solapado, que existe— gana la que empezó después, y entre esas la abierta
-   * y después la de id más alto: hace falta que sea **determinista**, porque
-   * de acá sale a quién se le paga.
-   */
-  const asignacionEn = (cursoId: number, f: string) => {
-    const cubren = (asigPorCurso.get(cursoId) ?? []).filter(
-      (a) => a.desde <= f && (a.hasta == null || a.hasta >= f)
-    );
-    if (!cubren.length) return null;
-    cubren.sort(
-      (a, b) =>
-        b.desde.localeCompare(a.desde) ||
-        Number(b.hasta == null) - Number(a.hasta == null) ||
-        b.id - a.id
-    );
-    return cubren[0];
-  };
+  /** Quién tenía el curso el día `f`. El criterio vive en `@/lib/asignaciones`
+   *  para que la pantalla de asistencia y esta cuenta no puedan discrepar. */
+  const asignacionEn = (cursoId: number, f: string) =>
+    asignacionEnFecha(asigPorCurso.get(cursoId) ?? [], f);
   /** El titular de hoy: solo para decir de quién es una membresía trabada. */
-  const titularHoy = (cursoId: number) =>
-    (asigPorCurso.get(cursoId) ?? []).filter((a) => a.hasta == null)
-      .sort((a, b) => b.desde.localeCompare(a.desde) || b.id - a.id)[0] ?? null;
+  const titularHoy = (cursoId: number) => titularVigente(asigPorCurso.get(cursoId) ?? []);
 
   // 8. Nombres.
   const al = exigir(
@@ -463,6 +456,9 @@ async function calcularPendientes(
     const repartoProf = porCurso.map((x) => {
       const conteo = new Map<number, { pct: Map<number, number>; clases: number }>();
       for (const f of x.fechas) {
+        // Reemplazo administrativo: la parte de esa clase no es de nadie más
+        // que de Tropicana, aunque el curso tuviera titular ese día.
+        if (reemplazoAdmin.has(`${x.ic.curso_id}|${f}`)) continue;
         const a = asignacionEn(x.ic.curso_id, f);
         if (!a) continue;
         const ya = conteo.get(a.profesor_id) ?? { pct: new Map<number, number>(), clases: 0 };

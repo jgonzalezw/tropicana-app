@@ -84,6 +84,12 @@ export type Profesor = {
   whatsapp: string | null;
   tipo: TipoProfesor;
   especialidades: string[];
+  /**
+   * Lo que se le paga por clase cuando dicta como **reemplazante** (0030).
+   * Es una **referencia**: el monto real se confirma al registrar la
+   * asistencia, y ese es el que manda (regla 12). `null` = sin cargar.
+   */
+  tarifa_reemplazo: number | null;
   /** Cuenta de login vinculada (perfiles.id), uno a uno. */
   usuario_id: string | null;
   activo: boolean;
@@ -120,6 +126,8 @@ export type DatosProfesor = {
   tipo: TipoProfesor;
   especialidades: string[];
   usuario_id: string | null;
+  /** Referencia de pago por clase como reemplazante. null = sin cargar. */
+  tarifa_reemplazo: number | null;
 };
 
 export type Alumno = {
@@ -402,6 +410,13 @@ export type EntradaAsistencia = {
   /** Fecha de la sesión, ISO local YYYY-MM-DD. */
   fecha: string;
   marcas: MarcaAsistencia[];
+  /**
+   * La clase la dictó alguien distinto del titular (regla de negocio 20).
+   * `motivo` sale del catálogo `motivo_reemplazo` y es el que decide la plata:
+   * `titular` se la descuenta a él, `administrativo` la deja en Tropicana.
+   * Obligatorio si el curso no tenía titular esa fecha y la clase se dictó.
+   */
+  reemplazo?: { profesorId: number; motivo: string; costo: number } | null;
 };
 
 export const MODULOS = [

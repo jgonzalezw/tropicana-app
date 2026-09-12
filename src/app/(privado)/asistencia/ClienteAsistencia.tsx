@@ -66,6 +66,14 @@ export default function ClienteAsistencia({
   const [formSusp, setFormSusp] = useState(false);
   const [motivoInput, setMotivoInput] = useState("");
   const [recarga, setRecarga] = useState(0);
+  // Quién tenía el curso ESA fecha, y el reemplazo si lo hubo (regla 20).
+  const [titular, setTitular] = useState<{ id: number; nombre: string } | null>(null);
+  const [profesores, setProfesores] = useState<{ id: number; nombre: string; tarifa: number | null }[]>([]);
+  const [motivosRee, setMotivosRee] = useState<{ valor: string; etiqueta: string }[]>([]);
+  const [hayRee, setHayRee] = useState(false);
+  const [reeProf, setReeProf] = useState<number | null>(null);
+  const [reeMotivo, setReeMotivo] = useState<string>("");
+  const [reeCosto, setReeCosto] = useState("");
 
   const curso = cursos.find((c) => c.id === cursoId) ?? null;
   const fechas = fechasDelCurso(cursoId);
@@ -91,6 +99,15 @@ export default function ClienteAsistencia({
         setEditando(false);
         setFormSusp(false);
         setMotivoInput("");
+        setTitular(r.titular);
+        setProfesores(r.profesores);
+        setMotivosRee(r.motivosReemplazo);
+        // Si el curso no tenía titular ese día, el reemplazo es obligatorio
+        // (regla 20): se abre solo, en vez de esperar que alguien se acuerde.
+        setHayRee(r.reemplazo != null || r.titular == null);
+        setReeProf(r.reemplazo?.profesorId ?? null);
+        setReeMotivo(r.reemplazo?.motivo ?? (r.titular == null ? "administrativo" : ""));
+        setReeCosto(r.reemplazo ? String(r.reemplazo.costo) : "");
       })
       .catch((e: unknown) => {
         // Un padrón que no se pudo leer nunca puede verse como una clase sin
@@ -166,7 +183,18 @@ export default function ClienteAsistencia({
         conLicencia: marcas[f.alumnoId] === "ausente" && !!licencias[f.alumnoId],
       }));
     startTransition(async () => {
-      const res = await guardarAsistencia({ cursoId, fecha, marcas: payload });
+      const res = await guardarAsistencia({
+        cursoId,
+        fecha,
+        marcas: payload,
+        reemplazo: hayRee
+          ? {
+              profesorId: reeProf ?? 0,
+              motivo: reeMotivo,
+              costo: Number(reeCosto.replace(/[^\d.]/g, "")) || 0,
+            }
+          : null,
+      });
       if (res.error) setError(res.error);
       else {
         setAviso(res.resumen ?? "Asistencia guardada.");
@@ -367,6 +395,129 @@ export default function ClienteAsistencia({
             Es un error al leer los datos, no que no haya alumnos. No tomes asistencia hasta
             resolverlo: {errorPadron}
           </p>
+        </div>
+      )}
+
+      {/* Quién dicta esta clase (regla de negocio 20). Va ARRIBA del padrón y
+          siempre visible: quien toma asistencia tiene que saber a nombre de
+          quién la está registrando, y si el curso quedó desasignado ese día,
+          enterarse antes de marcar y no al intentar guardar. */}
+      {cursoId != null && fechas.length > 0 && !suspendida && (
+        <div className="mb-4 p-4 rounded-[var(--radio-panel)] border border-[var(--borde)] bg-[var(--fondo-panel)]">
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-base">
+            <span className="text-[var(--texto-tenue)]">Profesor titular esta fecha:</span>
+            {titular ? (
+              <span className="font-semibold">{titular.nombre}</span>
+            ) : (
+              <span className="font-semibold text-[var(--peligro-texto)]">
+                sin asignar — hay que registrar quién la dictó
+              </span>
+            )}
+          </div>
+
+          {editable && (
+            <label className="flex items-center gap-2 mt-2 text-base">
+              <input
+                type="checkbox"
+                checked={hayRee}
+                disabled={!titular}
+                onChange={(e) => {
+                  setHayRee(e.target.checked);
+                  if (!e.target.checked) {
+                    setReeProf(null);
+                    setReeMotivo("");
+                    setReeCosto("");
+                  }
+                }}
+              />
+              <span>La dictó un reemplazante</span>
+              {!titular && (
+                <span className="text-sm text-[var(--texto-tenue)]">(obligatorio: no hay titular)</span>
+              )}
+            </label>
+          )}
+
+          {hayRee && editable && (
+            <div className="mt-3 grid gap-3 sm:grid-cols-3">
+              <label className="text-sm">
+                <span className="block text-[var(--texto-tenue)] mb-1">Quién la dictó</span>
+                <select
+                  value={reeProf ?? ""}
+                  onChange={(e) => {
+                    const id = Number(e.target.value) || null;
+                    setReeProf(id);
+                    // La tarifa del profesor es la REFERENCIA; el monto se
+                    // confirma acá y es el que manda (regla 12).
+                    const t = profesores.find((p) => p.id === id)?.tarifa;
+                    if (t != null && !reeCosto) setReeCosto(String(t));
+                  }}
+                  className="entrada w-full"
+                >
+                  <option value="">Elegí…</option>
+                  {profesores
+                    .filter((p) => p.id !== titular?.id)
+                    .map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.nombre}
+                        {p.tarifa != null ? ` · ${gs(p.tarifa)}/clase` : ""}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <label className="text-sm">
+                <span className="block text-[var(--texto-tenue)] mb-1">Motivo</span>
+                <select
+                  value={reeMotivo}
+                  onChange={(e) => setReeMotivo(e.target.value)}
+                  className="entrada w-full"
+                >
+                  <option value="">Elegí…</option>
+                  {motivosRee.map((m) => (
+                    <option key={m.valor} value={m.valor}>
+                      {m.etiqueta}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-sm">
+                <span className="block text-[var(--texto-tenue)] mb-1">Se le paga</span>
+                <input
+                  value={reeCosto}
+                  onChange={(e) => setReeCosto(e.target.value)}
+                  inputMode="decimal"
+                  placeholder="0"
+                  className="entrada w-full"
+                />
+              </label>
+              {/* Qué hace cada motivo con la plata, dicho acá y no en un manual:
+                  es la decisión que se está tomando al elegirlo. */}
+              {reeMotivo === "titular" && (
+                <p className="sm:col-span-3 text-sm text-[var(--texto-tenue)]">
+                  La clase le cuenta a <span className="font-medium">{titular?.nombre}</span> y la
+                  cobra normal; lo que se le paga al reemplazante se le descuenta de su
+                  liquidación.
+                </p>
+              )}
+              {reeMotivo === "administrativo" && (
+                <p className="sm:col-span-3 text-sm text-[var(--texto-tenue)]">
+                  La parte de esta clase queda para Tropicana, de donde sale el costo del
+                  reemplazo. No se le descuenta a nadie.
+                </p>
+              )}
+            </div>
+          )}
+
+          {hayRee && !editable && (
+            <div className="mt-2 text-sm text-[var(--texto-tenue)]">
+              Dictada por{" "}
+              <span className="font-medium">
+                {profesores.find((p) => p.id === reeProf)?.nombre ?? "un reemplazante"}
+              </span>
+              {" · "}
+              {motivosRee.find((m) => m.valor === reeMotivo)?.etiqueta ?? reeMotivo}
+              {Number(reeCosto) > 0 ? ` · ${gs(Number(reeCosto))}` : ""}
+            </div>
+          )}
         </div>
       )}
 

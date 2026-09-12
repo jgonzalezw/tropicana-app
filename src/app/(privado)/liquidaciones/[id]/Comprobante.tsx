@@ -77,7 +77,7 @@ function repartoHTML(it: ItemComprobante, modo: "completo" | "compacto"): string
   const encabezado = `<tr class="muted">
       <th style="text-align:left">Curso</th>
       <th style="text-align:right">Clases</th>
-      <th style="text-align:right">Valor de 1 clase</th>
+      <th style="text-align:right">Ponderacion</th>
       <th style="text-align:right">Le toca</th>
       <th style="text-align:right">%</th>
       <th></th></tr>`;
@@ -102,7 +102,7 @@ function repartoHTML(it: ItemComprobante, modo: "completo" | "compacto"): string
       return `<tr${esEste ? ' class="b"' : ' class="muted"'}>
         <td>${esc2(r.curso)}</td>
         <td style="text-align:right">${r.clases === 0 ? "ninguna" : r.clases}</td>
-        <td style="text-align:right">${gs(r.precioClase)}</td>
+        <td style="text-align:right">${r.precioClase}</td>
         <td style="text-align:right">${gs(parteDe(it, r))}</td>
         <td style="text-align:right">${pct}%</td>
         <td style="text-align:right">${esEste ? "este curso" : ""}</td></tr>${supl}${sub}`;
@@ -114,7 +114,8 @@ function repartoHTML(it: ItemComprobante, modo: "completo" | "compacto"): string
   return `<div class="small" style="margin-top:6px;border-top:1px solid #ddd;padding-top:4px">
       <div class="k">Como se reparte lo cobrado entre los cursos del plan</div>
       <div class="muted">De los ${gs(it.cobrado)} cobrados, cada curso se lleva
-        lo proporcional a <b>sus clases &times; el valor de una clase suya</b>.
+        lo proporcional a <b>sus clases &times; su ponderacion</b> (el valor de una
+        clase del curso).
         ${esc2(LEYENDA_CLASES)}</div>
       <table style="width:100%;font-size:11px">${encabezado}${filas}</table>
     </div>`;
@@ -190,15 +191,16 @@ function Reparto({ it, modo }: { it: ItemComprobante; modo: "completo" | "compac
           seguir no se puede discutir — que es para lo que existe el papel. */}
       <p className="text-xs text-[var(--texto-tenue)] mb-1.5">
         De los <span className="font-semibold">{gs(it.cobrado)}</span> cobrados, cada curso se
-        lleva lo proporcional a <span className="font-semibold">sus clases × el valor de una
-        clase suya</span>. {LEYENDA_CLASES}
+        lleva lo proporcional a{" "}
+        <span className="font-semibold">sus clases × su ponderación</span> (el valor de una
+        clase del curso). {LEYENDA_CLASES}
       </p>
       <table className="w-full text-xs">
         <thead>
           <tr className="text-[var(--texto-tenue)]">
             <th className="py-0.5 text-left font-normal">Curso</th>
             <th className="py-0.5 text-right font-normal">Clases</th>
-            <th className="py-0.5 text-right font-normal">Valor de 1 clase</th>
+            <th className="py-0.5 text-right font-normal">Ponderación</th>
             <th className="py-0.5 text-right font-normal">Le toca</th>
             <th className="py-0.5 text-right font-normal w-12">%</th>
             <th />
@@ -213,7 +215,7 @@ function Reparto({ it, modo }: { it: ItemComprobante; modo: "completo" | "compac
                 <td className="py-0.5 text-right tabular-nums">
                   {r.clases === 0 ? "ninguna" : r.clases}
                 </td>
-                <td className="py-0.5 text-right tabular-nums">{gs(r.precioClase)}</td>
+                <td className="py-0.5 text-right tabular-nums">{r.precioClase}</td>
                 <td className="py-0.5 text-right tabular-nums">{gs(parteDe(it, r))}</td>
                 <td className="py-0.5 text-right tabular-nums w-12">
                   {it.pesoTotal > 0 ? Math.round((r.peso / it.pesoTotal) * 100) : 0}%

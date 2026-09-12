@@ -7,6 +7,11 @@ import { tienePermiso, obtenerParametro, obtenerPerfilActual } from "@/lib/sesio
 import { compararPorApellido } from "@/lib/texto";
 import { diaIso } from "@/lib/inscripcion";
 import { cargarCongelador, claseCongelada, motivoCongelada } from "@/lib/periodos";
+import {
+  COLUMNAS_ASIGNACION,
+  asignacionEnFecha,
+  type AsignacionVigencia,
+} from "@/lib/asignaciones";
 import type { EntradaAsistencia, FilaAsistencia } from "@/lib/tipos";
 import { recalcularFinDeCiclo, recalcularMembresia } from "@/lib/membresias";
 import { revertirDevengosAbiertos } from "../liquidaciones/acciones";
@@ -168,6 +173,19 @@ export async function cargarPadron(
   /** Estado por fecha (ISO) del curso dentro de la ventana: para el selector. */
   estadosPorFecha: Record<string, EstadoFecha>;
   /**
+   * **Quién tenía el curso ESE día.** `null` = el curso estaba desasignado, y
+   * entonces registrar un reemplazo es obligatorio si la clase se dictó
+   * (regla de negocio 20). Se muestra siempre: quien toma asistencia tiene que
+   * saber a nombre de quién la está registrando.
+   */
+  titular: { id: number; nombre: string } | null;
+  /** El reemplazo ya registrado en esta clase, si lo hubo. */
+  reemplazo: { profesorId: number; motivo: string; costo: number } | null;
+  /** Para elegir reemplazante, con su tarifa de referencia. */
+  profesores: { id: number; nombre: string; tarifa: number | null }[];
+  /** Catálogo `motivo_reemplazo` (regla 13: los motivos no se hardcodean). */
+  motivosReemplazo: { valor: string; etiqueta: string }[];
+  /**
    * Falló la lectura del padrón. Un padrón vacío y un padrón que no se pudo
    * leer se ven igual, y confundirlos hace que la clase se tome sin nadie
    * (regla de calidad 1). Con esto la pantalla puede decir cuál de los dos es.
@@ -183,6 +201,10 @@ export async function cargarPadron(
     completada: false,
     incompleta: false,
     estadosPorFecha: {} as Record<string, EstadoFecha>,
+    titular: null,
+    reemplazo: null,
+    profesores: [] as { id: number; nombre: string; tarifa: number | null }[],
+    motivosReemplazo: [] as { valor: string; etiqueta: string }[],
     error: null,
   };
   if (!(await tienePermiso("asistencia", "ver"))) return vacio;
@@ -452,7 +474,7 @@ export async function cargarPadron(
   let motivoSuspension: string | null = null;
   const { data: sesion } = await sb
     .from("sesiones")
-    .select("id, estado, motivo")
+    .select("id, estado, motivo, reemplazo_motivo, reemplazo_costo, profesor_id")
     .eq("curso_id", cursoId)
     .eq("fecha", fecha)
     .maybeSingle();
@@ -575,6 +597,40 @@ export async function cargarPadron(
       };
     });
 
+  // Quién tenía el curso ESE día, y con qué se puede registrar un reemplazo.
+  // El titular se resuelve con el mismo criterio que usa la liquidación para
+  // repartir la plata (`@/lib/asignaciones`): si discreparan, la pantalla
+  // diría un nombre y se le pagaría a otro.
+  const { data: asigRows } = await sb
+    .from("asignaciones")
+    .select(COLUMNAS_ASIGNACION)
+    .eq("curso_id", cursoId);
+  const asigDelDia = asignacionEnFecha((asigRows as AsignacionVigencia[]) ?? [], fecha);
+
+  const { data: profRows } = await sb
+    .from("profesores")
+    .select("id, nombre, apellido, tarifa_reemplazo")
+    .eq("activo", true);
+  const profesores = ((profRows as {
+    id: number; nombre: string; apellido: string; tarifa_reemplazo: number | null;
+  }[]) ?? [])
+    .map((p) => ({
+      id: p.id,
+      nombre: `${p.apellido}, ${p.nombre}`,
+      tarifa: p.tarifa_reemplazo == null ? null : Number(p.tarifa_reemplazo),
+    }))
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+
+  const { data: motRows } = await sb
+    .from("catalogo_valores")
+    .select("valor, etiqueta, orden, catalogo:catalogos!inner(clave)")
+    .eq("catalogo.clave", "motivo_reemplazo")
+    .eq("activo", true)
+    .order("orden");
+  const motivosReemplazo = ((motRows as unknown as { valor: string; etiqueta: string }[]) ?? []).map(
+    (m) => ({ valor: m.valor, etiqueta: m.etiqueta })
+  );
+
   return {
     filas: [...filas, ...extras].sort(compararPorApellido),
     marcas,
@@ -584,6 +640,24 @@ export async function cargarPadron(
     completada: estadosPorFecha[fecha] === "completada",
     incompleta: estadosPorFecha[fecha] === "incompleta",
     estadosPorFecha,
+    titular: asigDelDia
+      ? {
+          id: asigDelDia.profesor_id,
+          nombre:
+            profesores.find((p) => p.id === asigDelDia.profesor_id)?.nombre ??
+            `#${asigDelDia.profesor_id}`,
+        }
+      : null,
+    reemplazo:
+      sesion?.reemplazo_motivo != null
+        ? {
+            profesorId: (sesion.profesor_id as number) ?? 0,
+            motivo: sesion.reemplazo_motivo as string,
+            costo: Number(sesion.reemplazo_costo ?? 0),
+          }
+        : null,
+    profesores,
+    motivosReemplazo,
     error: null,
   };
 }
@@ -653,12 +727,42 @@ export async function guardarAsistencia(
     .maybeSingle();
   if (!curso) return { error: "El curso no existe." };
 
-  const { data: asig } = await a
+  // **Quién dictó la clase** (regla de negocio 20). Antes acá se estampaba el
+  // profesor de la asignación ABIERTA, sin mirar la fecha de la clase: una
+  // suposición, y encima la equivocada — si el titular cambió, quedaba el de
+  // hoy en una clase de hace dos meses.
+  const { data: asigRows } = await a
     .from("asignaciones")
-    .select("profesor_id")
-    .eq("curso_id", e.cursoId)
-    .is("hasta", null)
-    .maybeSingle();
+    .select(COLUMNAS_ASIGNACION)
+    .eq("curso_id", e.cursoId);
+  const titular = asignacionEnFecha((asigRows as AsignacionVigencia[]) ?? [], e.fecha);
+
+  const r = e.reemplazo ?? null;
+  if (r) {
+    if (!r.profesorId) return { error: "Elegí quién dictó la clase como reemplazante." };
+    if (r.profesorId === titular?.profesor_id)
+      return { error: "El reemplazante no puede ser el mismo titular del curso." };
+    // El motivo decide la plata (regla 20), así que sale de un catálogo y lo
+    // valida el servidor — el desplegable ayuda, no decide (calidad 6).
+    const { data: mot } = await a
+      .from("catalogo_valores")
+      .select("valor, catalogo:catalogos!inner(clave)")
+      .eq("catalogo.clave", "motivo_reemplazo")
+      .eq("valor", r.motivo)
+      .eq("activo", true)
+      .maybeSingle();
+    if (!mot) return { error: "El motivo del reemplazo no es válido." };
+    if (!(Number(r.costo) >= 0)) return { error: "El monto del reemplazo no es válido." };
+  } else if (!titular) {
+    // Regla 20: alguien la dictó. Si el curso no tenía titular ese día y la
+    // clase no se cancela, hay que decir quién la dio — si no, la plata de esa
+    // clase se va a Tropicana sin que nadie lo haya decidido.
+    return {
+      error:
+        "Este curso no tenía profesor asignado esa fecha. Registrá quién la dictó como " +
+        "reemplazante, o suspendé la clase si no se dio.",
+    };
+  }
 
   // Guardar asistencia = la clase se dictó (revierte una suspensión previa).
   const { data: sesion, error: errSesion } = await a
@@ -669,7 +773,10 @@ export async function guardarAsistencia(
         fecha: e.fecha,
         estado: "dictada",
         motivo: null,
-        profesor_id: asig?.profesor_id ?? null,
+        profesor_id: r ? r.profesorId : titular?.profesor_id ?? null,
+        titular_id: titular?.profesor_id ?? null,
+        reemplazo_motivo: r ? r.motivo : null,
+        reemplazo_costo: r ? Number(r.costo) : null,
         registrado_por: perfil?.id ?? null,
         actualizado_en: new Date().toISOString(),
       },
@@ -773,12 +880,12 @@ export async function suspenderClase(args: {
     .maybeSingle();
   if (!curso) return { error: "El curso no existe." };
 
-  const { data: asig } = await a
+  // Una clase suspendida no la dictó nadie: no lleva profesor ni reemplazo.
+  const { data: asigSusp } = await a
     .from("asignaciones")
-    .select("profesor_id")
-    .eq("curso_id", args.cursoId)
-    .is("hasta", null)
-    .maybeSingle();
+    .select(COLUMNAS_ASIGNACION)
+    .eq("curso_id", args.cursoId);
+  const titularSusp = asignacionEnFecha((asigSusp as AsignacionVigencia[]) ?? [], args.fecha);
 
   const { data: sesion, error: errSesion } = await a
     .from("sesiones")
@@ -788,7 +895,13 @@ export async function suspenderClase(args: {
         fecha: args.fecha,
         estado: "suspendida",
         motivo: args.motivo.trim() || null,
-        profesor_id: asig?.profesor_id ?? null,
+        // Nadie la dictó: sin profesor y sin reemplazo. Si la clase venía
+        // registrada con reemplazante, suspenderla lo borra — es lo correcto,
+        // porque la clase deja de haber existido.
+        profesor_id: null,
+        titular_id: titularSusp?.profesor_id ?? null,
+        reemplazo_motivo: null,
+        reemplazo_costo: null,
         registrado_por: perfil?.id ?? null,
         actualizado_en: new Date().toISOString(),
       },
