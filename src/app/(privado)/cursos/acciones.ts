@@ -13,10 +13,20 @@ function admin() {
   return a;
 }
 
+const ISO = /^\d{4}-\d{2}-\d{2}$/;
+
 function validar(d: DatosCurso): string | null {
   if (!d.nombre.trim()) return "El nombre del curso es obligatorio.";
   if (d.dias_semana.length === 0) return "Elegí al menos un día de la semana.";
   if (!(d.precio_mensual >= 0)) return "El precio mensual no puede ser negativo.";
+  // Vigencia (0033): de estas fechas depende cuántas clases pone el curso en el
+  // prorrateo y qué asistencias se exigen, así que el servidor las valida.
+  if (!ISO.test(d.vigente_desde ?? "")) return "Cargá desde cuándo corre el curso.";
+  if (d.vigente_hasta) {
+    if (!ISO.test(d.vigente_hasta)) return "La fecha de baja no es válida.";
+    if (d.vigente_hasta < d.vigente_desde)
+      return "La fecha de baja no puede ser anterior a la de activación.";
+  }
   return null;
 }
 
@@ -141,6 +151,8 @@ export async function crearCurso(d: DatosCurso): Promise<Resultado> {
       dias_semana: d.dias_semana,
       hora: d.hora,
       precio_mensual: d.precio_mensual,
+      vigente_desde: d.vigente_desde,
+      vigente_hasta: d.vigente_hasta,
     })
     .select("id")
     .single();
@@ -171,6 +183,8 @@ export async function actualizarCurso(id: number, d: DatosCurso): Promise<Result
       dias_semana: d.dias_semana,
       hora: d.hora,
       precio_mensual: d.precio_mensual,
+      vigente_desde: d.vigente_desde,
+      vigente_hasta: d.vigente_hasta,
       actualizado_en: new Date().toISOString(),
     })
     .eq("id", id);
@@ -214,9 +228,23 @@ export async function eliminarODesactivarCurso(id: number): Promise<Resultado> {
     return { ok: true, accion: "eliminado" };
   }
 
+  // Desactivar es dar de baja: se le estampa la fecha de hoy si no tenía una.
+  // **Hacia adelante, nunca hacia atrás** — ponerle una fecha pasada cambiaría
+  // el conteo de clases de membresías ya devengadas, que es justo lo que la
+  // regla de negocio 5 prohíbe hacer en silencio. Si la baja fue antes, Javier
+  // corrige la fecha en la ficha, a la vista.
+  const hoy = new Date();
+  const hoyISO = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}-${String(hoy.getDate()).padStart(2, "0")}`;
+  const { data: vig } = await a.from("cursos").select("vigente_hasta").eq("id", id).maybeSingle();
   const { error } = await a
     .from("cursos")
-    .update({ activo: false, actualizado_en: new Date().toISOString() })
+    .update({
+      activo: false,
+      ...(vig && (vig as { vigente_hasta: string | null }).vigente_hasta == null
+        ? { vigente_hasta: hoyISO }
+        : {}),
+      actualizado_en: new Date().toISOString(),
+    })
     .eq("id", id);
   if (error) return { error: error.message };
   // El plan sigue la vigencia del curso.
@@ -232,9 +260,12 @@ export async function eliminarODesactivarCurso(id: number): Promise<Resultado> {
 export async function activarCurso(id: number): Promise<Resultado> {
   if (!(await tienePermiso("cursos", "editar"))) return { error: "Sin permiso." };
   const a = admin();
+  // Reactivar borra la fecha de baja: un curso "activo" con baja vencida no
+  // generaría ninguna clase y quedaría activo sin poder usarse — dos señales
+  // que se contradicen y ninguna lo dice (regla de calidad 5).
   const { error } = await a
     .from("cursos")
-    .update({ activo: true, actualizado_en: new Date().toISOString() })
+    .update({ activo: true, vigente_hasta: null, actualizado_en: new Date().toISOString() })
     .eq("id", id);
   if (error) return { error: error.message };
   await a

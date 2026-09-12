@@ -1069,3 +1069,63 @@ para evitar.
 ninguna lista — se puede pagar a mano con el motivo `otro_pago_profesor`, pero
 hay que acordarse. `lineasPorCobrar` arma solo el bucket `cuotas`; la lista
 "Por pagar" es el paso 2F y no arrancó.
+
+---
+
+## Vigencia del curso · 2026-09-12 (dev)
+
+Construye la decisión que Javier había dado por tomada el mismo día: *"Un curso
+tiene fecha de activación y de baja… No lo veo como backlog. Es así como se debe
+trabajar."*
+
+**El agujero que cierra.** Desde que las clases se cuentan por **calendario
+menos suspendidas** (regla de negocio 10), el calendario de un curso no tenía
+principio: `dias_semana` dice "martes y jueves" y el conteo los genera hacia
+atrás hasta donde llegue el ciclo, existiera el curso o no. Esas clases
+inventadas pesan en el prorrateo y traban liquidaciones por sesiones "sin
+registrar" (regla 17) que nunca ocurrieron.
+
+**Migración 0033** (aplicada **solo en dev**): `cursos.vigente_desde` (not null,
+default `current_date`) y `cursos.vigente_hasta` (null = sigue corriendo), más
+un check de coherencia.
+
+**El backfill es deliberadamente conservador, y esto importa.** `vigente_desde`
+se llenó con la **evidencia más vieja** de que el curso corría: la primera
+sesión, la primera asignación de profesor, la primera membresía que lo toca; y
+si no hay nada, su fecha de creación. El motivo es la **regla de negocio 5**:
+una membresía ya devengada no cambia sus números en silencio. Una fecha más
+tardía le habría cambiado el conteo a membresías viejas y movido plata ya
+repartida.
+
+**Verificado, no supuesto**: después de aplicar, **0** membresías quedan fuera
+de la vigencia de su curso — ni por el ciclo ni por la fecha de una prueba, ni
+las que solo tienen el `curso_id` legado. O sea **ningún conteo existente
+cambió**. Queda como **control 21** del script.
+
+`vigente_hasta` **no** se backfilleó, ni siquiera en cursos ya inactivos:
+inventarle una fecha de baja sería el cambio silencioso que la regla 5 prohíbe.
+De ahora en más, desactivar un curso desde la pantalla le estampa la fecha de
+**hoy** (hacia adelante, nunca hacia atrás), y reactivarlo la borra — un curso
+"activo" con baja vencida no generaría ninguna clase y las dos señales se
+contradirían sin decirlo (regla de calidad 5).
+
+**Dónde muerde la regla**, todo a través de un helper único (`src/lib/vigencia.ts`):
+
+| Lugar | Qué cambia |
+| --- | --- |
+| `clasesDelCiclo` (liquidaciones) | Un día fuera de vigencia no es una clase: no cuenta para el reparto **ni** se exige registrarlo |
+| `cargarCongelador` (`periodos.ts`) | No congela días que nunca entraron en ningún conteo |
+| Asistencia | El desplegable no ofrece esas fechas, y `validarFecha` las rechaza en el servidor con el motivo |
+| Venta y clase de prueba | No se vende un curso que no corría en la fecha del ciclo o de la clase |
+| Cursos | Los dos campos en la ficha, y la vigencia en la lista |
+
+**Lo que la migración NO hace**: no limpia sola ningún ruido de calendario. Crea
+el campo donde Javier corrige la fecha real de cada curso. Mientras
+`vigente_desde` sea la evidencia más vieja, el comportamiento es idéntico al de
+antes.
+
+**Un dato que estaba mal en la documentación y se corrigió**: `DECISIONES.md`
+afirmaba que "Salsa y Bachata Inicial tiene su primera sesión el 31/08 y el
+conteo le atribuye 8 clases de agosto". Medido contra dev: el 31/08 es su fecha
+de **creación**; su primera sesión y su primera asignación son del **03/08**. El
+curso sí corría en agosto. El agujero era real, el ejemplo no.

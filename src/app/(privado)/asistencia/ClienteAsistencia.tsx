@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { Curso, FilaAsistencia, MarcaAsistencia } from "@/lib/tipos";
 import { ETIQUETA_MODALIDAD, diaIso, fechaLarga, gs, isoFecha } from "@/lib/inscripcion";
+import { enVigencia, etiquetaVigencia } from "@/lib/vigencia";
 import { cargarPadron, guardarAsistencia, suspenderClase, reabrirSesion } from "./acciones";
 
 type Estado = "presente" | "ausente";
@@ -29,6 +30,9 @@ export default function ClienteAsistencia({
   const hoyIso = isoFecha(new Date());
 
   // Fechas en que se dicta el curso elegido, dentro de la ventana, hoy→atrás.
+  // Se saltean las que caen fuera de la **vigencia del curso** (0033): ese día
+  // el curso no corría, así que no hay nada que registrar. El servidor valida
+  // lo mismo — el desplegable ayuda, no decide.
   const fechasDelCurso = (cid: number | null) => {
     const c = cursos.find((x) => x.id === cid);
     const dias = c?.dias_semana ?? [];
@@ -39,7 +43,8 @@ export default function ClienteAsistencia({
     while (d >= start) {
       if (dias.includes(diaIso(d))) {
         const iso = isoFecha(d);
-        out.push({ iso, label: (iso === hoyIso ? "Hoy · " : "") + fechaLarga(d) });
+        if (enVigencia(c, iso))
+          out.push({ iso, label: (iso === hoyIso ? "Hoy · " : "") + fechaLarga(d) });
       }
       d.setDate(d.getDate() - 1);
     }
@@ -360,8 +365,17 @@ export default function ClienteAsistencia({
       {cursoId == null && (
         <p className="text-[var(--texto-tenue)]">Elegí un curso.</p>
       )}
+      {/* Sin fechas hay dos causas muy distintas y se dicen distinto: el curso
+          no tiene días cargados, o la ventana no toca su vigencia. Un mensaje
+          único mandaría a buscar el problema donde no está (calidad 1 y 5). */}
       {cursoId != null && fechas.length === 0 && (
-        <p className="text-[var(--texto-tenue)]">Este curso no tiene días de clase cargados.</p>
+        <p className="text-[var(--texto-tenue)]">
+          {curso && (curso.dias_semana ?? []).length === 0
+            ? "Este curso no tiene días de clase cargados."
+            : `Ninguna fecha de la ventana cae dentro de la vigencia de este curso (${
+                curso ? etiquetaVigencia(curso) : "sin vigencia cargada"
+              }). Si el curso sí se dictaba, corregí su fecha de activación en Cursos.`}
+        </p>
       )}
 
       {/* Clase suspendida */}

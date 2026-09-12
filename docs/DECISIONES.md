@@ -45,14 +45,15 @@ que no se pierdan hasta que el código las alcance.
 
 | # | Decisión | Estado |
 | --- | --- | --- |
-| **Vigencia del curso** (ex D15) | Un curso tiene **fecha de activación y de baja**. El registro de asistencia es exigible **solo** entre esas fechas: fuera de ellas nunca se pide y nada queda "sin registrar". No se pueden vender planes ni pruebas con un curso inactivo — eso **inactiva el plan**. Si aparecen clases retroactivas, la fecha de activación **se corrige** (el usuario la ajusta antes de inscribir y la revalida): que haya clase retroactiva significa que sí había profesor, alumno y clase. Javier (2026-09-12): *"No lo veo como backlog. Es así como se debe trabajar."* Y el marco general: **todo lo retroactivo es una excepción de la operativa, no el día a día.** | **Decidida, sin construir.** Javier: hacerla **después** de esta tanda. Mientras tanto, restringir las acciones que puedan romper la consistencia. |
+| **Vigencia del curso** (ex D15) | Un curso tiene **fecha de activación y de baja**. El registro de asistencia es exigible **solo** entre esas fechas: fuera de ellas nunca se pide y nada queda "sin registrar". No se pueden vender planes ni pruebas con un curso inactivo — eso **inactiva el plan**. Si aparecen clases retroactivas, la fecha de activación **se corrige** (el usuario la ajusta antes de inscribir y la revalida): que haya clase retroactiva significa que sí había profesor, alumno y clase. Javier (2026-09-12): *"No lo veo como backlog. Es así como se debe trabajar."* Y el marco general: **todo lo retroactivo es una excepción de la operativa, no el día a día.** | **CONSTRUIDA** en dev el 2026-09-12 (migración 0033 + `src/lib/vigencia.ts`). Falta que Javier valide y dé el OK del pase. |
 
-**Mientras la vigencia del curso no exista**, el riesgo es que el calendario
-invente días de clase en meses donde el curso no corría (en dev, "Salsa y
-Bachata Inicial" tiene su primera sesión el 31/08 y el conteo le atribuye 8
-clases de agosto). Lo que hoy contiene ese riesgo: una clase sin alumnos no
-cuenta ni traba nada (regla 18), y solo las membresías con prorrateo esperan
-(regla 17). El resto queda a la vista en la pantalla, no escondido.
+**El ejemplo que estaba acá era falso, y conviene decirlo:** se afirmaba que
+"Salsa y Bachata Inicial tiene su primera sesión el 31/08 y el conteo le
+atribuye 8 clases de agosto". Medido el 2026-09-12 contra dev: el **31/08 es su
+fecha de creación en el sistema**; su primera sesión y su primera asignación son
+del **03/08**. Ese curso sí corría en agosto. El agujero que la vigencia cierra
+es real —el calendario no tenía principio— pero no se demostraba con ese caso.
+*(Regla de calidad 3: antes de dar por hecho un diagnóstico, mirar el dato.)*
 
 ## 2. Decisiones vigentes que ya se violaron una vez
 
@@ -115,3 +116,9 @@ proceso 1). No es un backlog de decisiones: es el estado del release.
   fila nace sola y `total_descuentos` arranca en 0, así que no toca ninguna
   liquidación existente. Espera validación de Javier en dev y después su OK
   explícito (regla de proceso 1).
+- **Migración 0033** (vigencia del curso: `cursos.vigente_desde` / `vigente_hasta`)
+  — **aplicada solo en dev**. Backfillea `vigente_desde` con la **evidencia más
+  vieja** de que el curso corría, para no cambiarle el conteo a ninguna
+  membresía ya devengada (regla de negocio 5). Verificado en dev: **0
+  membresías** quedan fuera de la vigencia de su curso (**control 21**), o sea
+  ningún conteo se movió. Espera validación y OK.

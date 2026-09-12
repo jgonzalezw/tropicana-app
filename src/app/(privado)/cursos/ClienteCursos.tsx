@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { Curso, TarifasCurso, DatosCurso } from "@/lib/tipos";
 import EntidadCurso, { etiquetaDias } from "@/components/entidades/EntidadCurso";
+import { etiquetaVigencia } from "@/lib/vigencia";
 import { crearCurso, actualizarCurso, eliminarODesactivarCurso, activarCurso } from "./acciones";
 
 export default function ClienteCursos({
@@ -93,6 +94,7 @@ export default function ClienteCursos({
             <tr className="text-sm uppercase tracking-wider text-[var(--texto-tenue)]">
               <th className="py-3 px-4 font-medium">Curso</th>
               <th className="py-3 px-4 font-medium">Días</th>
+              <th className="py-3 px-4 font-medium">Vigencia</th>
               <th className="py-3 px-4 font-medium text-right">Mensual</th>
               <th className="py-3 px-4 font-medium">Tarifas parciales</th>
               <th className="py-3 px-4"></th>
@@ -111,6 +113,9 @@ export default function ClienteCursos({
                     </div>
                   </td>
                   <td className="py-3 px-4 text-[var(--texto-tenue)]">{etiquetaDias(c.dias_semana) || "—"}</td>
+                  {/* La vigencia decide qué clases existen: va a la vista, no
+                      escondida en la ficha. */}
+                  <td className="py-3 px-4 text-sm text-[var(--texto-tenue)]">{etiquetaVigencia(c)}</td>
                   <td className="py-3 px-4 text-right">Bs. {c.precio_mensual}</td>
                   <td className="py-3 px-4 text-sm text-[var(--texto-tenue)]">{tarifaTxt(tarifas[c.id])}</td>
                   <td className="py-3 px-4">
@@ -153,7 +158,7 @@ export default function ClienteCursos({
             })}
             {ordenado.length === 0 && (
               <tr>
-                <td colSpan={5} className="py-4 px-4 text-[var(--texto-tenue)]">
+                <td colSpan={6} className="py-4 px-4 text-[var(--texto-tenue)]">
                   Todavía no hay cursos.
                 </td>
               </tr>

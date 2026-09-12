@@ -124,6 +124,8 @@ function FichaCurso({
   const [dias, setDias] = useState<number[]>(inicial?.dias_semana ?? []);
   const [hora, setHora] = useState(inicial?.hora?.slice(0, 5) ?? "");
   const [precio, setPrecio] = useState(inicial ? String(inicial.precio_mensual) : "");
+  const [desde, setDesde] = useState(inicial?.vigente_desde?.slice(0, 10) ?? hoyISO());
+  const [hasta, setHasta] = useState(inicial?.vigente_hasta?.slice(0, 10) ?? "");
   const [tClase, setTClase] = useState(numOrEmpty(tarifasIniciales?.clase));
   const [tSemana, setTSemana] = useState(numOrEmpty(tarifasIniciales?.semana));
   const [tMedio, setTMedio] = useState(numOrEmpty(tarifasIniciales?.medio_mes));
@@ -150,6 +152,8 @@ function FichaCurso({
           dias_semana: dias,
           hora: hora ? hora : null,
           precio_mensual: parse(precio) ?? 0,
+          vigente_desde: desde,
+          vigente_hasta: hasta ? hasta : null,
           tarifas: {
             clase: parse(tClase),
             semana: parse(tSemana),
@@ -237,6 +241,26 @@ function FichaCurso({
         </Campo>
       </div>
 
+      {/* Vigencia (0033). No es cosmética: el calendario del curso no genera
+          clases fuera de estas fechas, así que de acá depende cuántas clases
+          pone el curso en el prorrateo y qué asistencias se exigen. */}
+      <div>
+        <span className="block text-base font-medium mb-1.5">Vigencia del curso</span>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Campo etiqueta="Corre desde">
+            <input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} className="entrada" />
+          </Campo>
+          <Campo etiqueta="Fecha de baja (opcional)">
+            <input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} className="entrada" />
+          </Campo>
+        </div>
+        <p className="text-sm text-[var(--texto-tenue)] mt-1.5">
+          Fuera de estas fechas el curso no genera clases: no se pide registrar asistencia, no cuenta
+          para el reparto de comisiones y no se puede vender. Si aparece una clase retroactiva —hubo
+          profesor, alumno y clase— lo que se corrige es la fecha de acá.
+        </p>
+      </div>
+
       <div>
         <span className="block text-base font-medium mb-1.5">
           Tarifas parciales (opcional — sin cargar, esa modalidad cae al mensual)
@@ -319,6 +343,11 @@ function FichaCurso({
 
 function numOrEmpty(n: number | null | undefined): string {
   return n == null ? "" : String(n);
+}
+
+function hoyISO(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function Campo({ etiqueta, children }: { etiqueta: string; children: React.ReactNode }) {

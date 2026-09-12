@@ -36,6 +36,7 @@
  */
 
 import type { createClient } from "@/lib/supabase/server";
+import { COLS_VIGENCIA, enVigencia, type VigenciaCurso } from "@/lib/vigencia";
 
 type Cliente = Awaited<ReturnType<typeof createClient>>;
 
@@ -112,11 +113,15 @@ export async function cargarCongelador(sb: Cliente): Promise<Congelador> {
     .select("id, fecha_inicio, fecha_fin, alumno:alumnos(nombre, apellido)")
     .in("id", conProrrateo);
   const cursos = new Map<number, number[]>();
+  const vigencias = new Map<number, VigenciaCurso>();
   const { data: cur } = await sb
     .from("cursos")
-    .select("id, dias_semana")
+    .select(`id, dias_semana, ${COLS_VIGENCIA}`)
     .in("id", [...new Set(filas.map((f) => f.curso_id))]);
-  for (const c of (cur as { id: number; dias_semana: number[] }[]) ?? []) cursos.set(c.id, c.dias_semana ?? []);
+  for (const c of (cur as unknown as ({ id: number; dias_semana: number[] } & VigenciaCurso)[]) ?? []) {
+    cursos.set(c.id, c.dias_semana ?? []);
+    vigencias.set(c.id, { vigente_desde: c.vigente_desde, vigente_hasta: c.vigente_hasta });
+  }
 
   for (const m of (insc as unknown as {
     id: number;
@@ -128,7 +133,8 @@ export async function cargarCongelador(sb: Cliente): Promise<Congelador> {
     const quien = m.alumno ? `${m.alumno.apellido}, ${m.alumno.nombre}` : `#${m.id}`;
     for (const f of porInsc.get(m.id) ?? []) {
       if (f.fecha) {
-        clases.set(`${f.curso_id}|${f.fecha.slice(0, 10)}`, quien);
+        if (enVigencia(vigencias.get(f.curso_id), f.fecha))
+          clases.set(`${f.curso_id}|${f.fecha.slice(0, 10)}`, quien);
         continue;
       }
       const dias = f.dias?.length ? f.dias : cursos.get(f.curso_id) ?? [];
@@ -139,6 +145,9 @@ export async function cargarCongelador(sb: Cliente): Promise<Congelador> {
         const dia = d.getDay() === 0 ? 7 : d.getDay();
         if (!dias.includes(dia)) continue;
         const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        // Fuera de la vigencia del curso no hay clase que congelar: ese día no
+        // entró en ningún conteo, así que tocarlo no mueve plata (0033).
+        if (!enVigencia(vigencias.get(f.curso_id), iso)) continue;
         clases.set(`${f.curso_id}|${iso}`, quien);
       }
     }

@@ -17,6 +17,12 @@ import {
 import { recalcularFinDeCiclo, recalcularMembresia, registrarCorrimientosPendientes } from "@/lib/membresias";
 import { exigir } from "@/lib/datos";
 import { cargarCongelador, claseCongelada, motivoCongelada } from "@/lib/periodos";
+import {
+  COLS_VIGENCIA,
+  enVigencia,
+  motivoFueraDeVigencia,
+  type VigenciaCurso,
+} from "@/lib/vigencia";
 
 const DIAS_ROTULO = ["", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"];
 /** "martes y jueves" — para decirle a la persona qué días sí tiene el curso. */
@@ -163,24 +169,27 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
     .eq("plan_id", e.planId);
   const seleccionados = new Set(((pcRows as { curso_id: number }[]) ?? []).map((r) => r.curso_id));
 
+  type CursoVenta = { id: number; nombre: string; dias_semana: number[] } & VigenciaCurso;
+  const COLS_CURSO = `id, nombre, dias_semana, ${COLS_VIGENCIA}`;
   const diasValidos = new Map<number, number[]>();
+  const cursoDeVenta = new Map<number, CursoVenta>();
   if (acceso === "todas" || acceso === "excepto") {
-    const { data: cursoRows } = await sb
-      .from("cursos")
-      .select("id, dias_semana")
-      .eq("activo", true);
-    for (const r of (cursoRows as { id: number; dias_semana: number[] }[]) ?? []) {
+    const { data: cursoRows } = await sb.from("cursos").select(COLS_CURSO).eq("activo", true);
+    for (const r of (cursoRows as unknown as CursoVenta[]) ?? []) {
       if (acceso === "excepto" && seleccionados.has(r.id)) continue;
       diasValidos.set(r.id, r.dias_semana ?? []);
+      cursoDeVenta.set(r.id, r);
     }
   } else {
     if (seleccionados.size === 0) return { error: "El plan no tiene cursos asociados." };
     const { data: cursoRows } = await sb
       .from("cursos")
-      .select("id, dias_semana")
+      .select(COLS_CURSO)
       .in("id", [...seleccionados]);
-    for (const r of (cursoRows as { id: number; dias_semana: number[] }[]) ?? [])
+    for (const r of (cursoRows as unknown as CursoVenta[]) ?? []) {
       diasValidos.set(r.id, r.dias_semana ?? []);
+      cursoDeVenta.set(r.id, r);
+    }
   }
   if (diasValidos.size === 0) return { error: "El plan no tiene cursos disponibles." };
 
@@ -190,6 +199,12 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
   for (const s of seleccion) {
     const validos = diasValidos.get(s.cursoId);
     if (!validos) return { error: "Un curso elegido no pertenece al plan." };
+    // **Vigencia del curso** (0033): no se vende un plan con un curso que no
+    // corría al empezar el ciclo. Javier: si la clase retroactiva existió, lo
+    // que se corrige es la fecha de activación del curso, no la venta.
+    const cv = cursoDeVenta.get(s.cursoId);
+    if (cv && !enVigencia(cv, e.fechaInicio))
+      return { error: motivoFueraDeVigencia(cv.nombre, cv, e.fechaInicio) };
     for (const d of s.dias) {
       if (!validos.includes(d)) return { error: "Un día elegido no corresponde al curso." };
       diasConteo.push(d);
@@ -571,9 +586,9 @@ export async function venderPrueba(
   // no liquida. La pantalla ya solo ofrece clases reales; esto lo sostiene
   // aunque la pantalla cambie.
   const cursoRows = exigir(
-    await sb.from("cursos").select("id, nombre, dias_semana").in("id", cursoIds),
+    await sb.from("cursos").select(`id, nombre, dias_semana, ${COLS_VIGENCIA}`).in("id", cursoIds),
     "los cursos de la prueba"
-  ) as { id: number; nombre: string; dias_semana: number[] }[];
+  ) as unknown as ({ id: number; nombre: string; dias_semana: number[] } & VigenciaCurso)[];
   const suspendidasPrueba = exigir(
     await sb
       .from("sesiones")
@@ -596,6 +611,8 @@ export async function venderPrueba(
     // Una clase suspendida no se dictó: no se puede probar en ella.
     if (suspSet.has(`${cu.id}|${f}`))
       return { error: `La clase de ${cu.nombre} de ese día está suspendida: elegí otra.` };
+    // Y fuera de la vigencia del curso esa clase directamente no existe (0033).
+    if (!enVigencia(cu, f!)) return { error: motivoFueraDeVigencia(cu.nombre, cu, f!) };
   }
 
   const acompanantes = Math.max(0, Math.trunc(Number(e.acompanantes) || 0));

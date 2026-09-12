@@ -114,6 +114,10 @@ export type Curso = {
   hora: string | null;
   precio_mensual: number;
   activo: boolean;
+  /** Desde cuándo corre el curso: el calendario no genera clases antes (0033). */
+  vigente_desde: string | null;
+  /** Fecha de baja; null = sigue corriendo. */
+  vigente_hasta: string | null;
   creado_en: string;
   actualizado_en: string;
 };
@@ -176,6 +180,9 @@ export type DatosCurso = {
   dias_semana: number[];
   hora: string | null;
   precio_mensual: number;
+  /** Vigencia del curso (0033). La baja es opcional: null = sigue corriendo. */
+  vigente_desde: string;
+  vigente_hasta: string | null;
   tarifas: TarifasCurso;
 };
 

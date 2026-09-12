@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { tienePermiso, obtenerParametro, obtenerPerfilActual } from "@/lib/sesion";
 import { exigir } from "@/lib/datos";
 import { diaIso, isoFecha } from "@/lib/inscripcion";
+import { enVigencia } from "@/lib/vigencia";
 import type { TarifasDeCurso } from "@/lib/precios";
 import type { Curso } from "@/lib/tipos";
 import {
@@ -663,6 +664,13 @@ async function calcularPendientes(
  * suspensión. Son los que bloquean la liquidación (regla de negocio 17): con
  * este criterio esas clases cuentan, así que liquidar sin registrarlas es
  * pagar por clases que quizá no ocurrieron.
+ *
+ * **El calendario tiene principio y fin** (vigencia del curso, 0033). Un día
+ * fuera de la vigencia no es una clase: no cuenta para el reparto y tampoco se
+ * exige registrarlo. Sin esto, `dias_semana` genera clases hacia atrás sin
+ * límite y un curso que arrancó el 31 de agosto igual "pone" ocho clases de
+ * agosto — que pesan en el prorrateo y traban la liquidación por sesiones que
+ * nunca existieron.
  */
 function clasesDelCiclo(
   ic: { curso_id: number; dias: number[] | null; fecha: string | null },
@@ -675,6 +683,7 @@ function clasesDelCiclo(
 
   if (ic.fecha) {
     if (suspendidas.has(clave(ic.fecha))) return { fechas: [], faltan: [] };
+    if (!enVigencia(curso, ic.fecha)) return { fechas: [], faltan: [] };
     return { fechas: [ic.fecha], faltan: registradas.has(clave(ic.fecha)) ? [] : [ic.fecha] };
   }
   if (!m.fecha_fin) return { fechas: [], faltan: [] };
@@ -691,6 +700,7 @@ function clasesDelCiclo(
   for (let i = 0; i < 400 && d <= fin; i++, d.setDate(d.getDate() + 1)) {
     if (!dias.includes(diaIso(d))) continue;
     const iso = isoFecha(d);
+    if (!enVigencia(curso, iso)) continue; // el curso no corría: no hay clase
     if (suspendidas.has(clave(iso))) continue; // no consume ciclo: lo corre
     fechas.push(iso);
     if (!registradas.has(clave(iso))) faltan.push(iso);

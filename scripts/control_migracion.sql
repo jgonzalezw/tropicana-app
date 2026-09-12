@@ -438,6 +438,31 @@ select '15. nombres distintos para la llave a inscripciones' as control,
    and ccu.column_name = 'id';
 
 -- ---------------------------------------------------------------------
+-- 21. MEMBRESIA QUE SE SALE DE LA VIGENCIA DE SU CURSO
+--     Vigencia del curso (0033). El calendario de un curso no genera clases
+--     fuera de [vigente_desde, vigente_hasta]: esos dias no cuentan para el
+--     prorrateo (regla 10) ni se exige registrarlos (regla 17).
+--
+--     Si una membresia VIEJA queda parcialmente afuera, su conteo de clases
+--     cambio sin que nadie lo pidiera, y con eso se movio el peso del reparto
+--     - que es justo lo que la regla de negocio 5 prohibe hacer en silencio.
+--     La causa tipica es haber corregido `vigente_desde` hacia adelante
+--     despues de vender. Se arregla ampliando la vigencia del curso, no
+--     tocando la membresia.
+-- ---------------------------------------------------------------------
+select '21. membresias que se salen de la vigencia de su curso' as control,
+       count(*) as n,
+       case when count(*) = 0 then 'OK' else 'REVISAR' end as estado
+  from inscripcion_cursos ic
+  join inscripciones i on i.id = ic.inscripcion_id
+  join cursos c on c.id = ic.curso_id
+ where i.fecha_inicio < c.vigente_desde
+    or (c.vigente_hasta is not null and i.fecha_fin > c.vigente_hasta)
+    or (ic.fecha is not null
+        and (ic.fecha < c.vigente_desde
+             or (c.vigente_hasta is not null and ic.fecha > c.vigente_hasta)));
+
+-- ---------------------------------------------------------------------
 -- Detalle, por si algun control da REVISAR:
 -- ---------------------------------------------------------------------
 -- select id, alumno_id, curso_id, estado, fecha_inicio, fecha_fin,

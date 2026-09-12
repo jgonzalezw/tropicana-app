@@ -8,6 +8,12 @@ import { compararPorApellido } from "@/lib/texto";
 import { diaIso } from "@/lib/inscripcion";
 import { cargarCongelador, claseCongelada, motivoCongelada } from "@/lib/periodos";
 import {
+  COLS_VIGENCIA,
+  enVigencia,
+  motivoFueraDeVigencia,
+  type VigenciaCurso,
+} from "@/lib/vigencia";
+import {
   COLUMNAS_ASIGNACION,
   asignacionEnFecha,
   type AsignacionVigencia,
@@ -62,6 +68,18 @@ async function validarFecha(cursoId: number, fecha: string): Promise<string | nu
   if (!ISO.test(fecha)) return "Fecha inválida.";
   const hoy = hoyISO();
   if (fecha > hoy) return "No se puede operar una fecha futura.";
+
+  // **Vigencia del curso** (0033). Fuera de sus fechas el curso no corría, así
+  // que no hay clase que registrar ni que suspender. El desplegable ya no
+  // ofrece esas fechas, pero el que decide es el servidor.
+  const sbVig = await createClient();
+  const { data: cVig } = await sbVig
+    .from("cursos")
+    .select(`nombre, ${COLS_VIGENCIA}`)
+    .eq("id", cursoId)
+    .maybeSingle();
+  const vig = cVig as unknown as ({ nombre: string } & VigenciaCurso) | null;
+  if (vig && !enVigencia(vig, fecha)) return motivoFueraDeVigencia(vig.nombre, vig, fecha);
 
   // Regla de negocio 16 (revisada 2026-09-12): lo que no se puede tocar es una
   // clase de la que depende una comisión **con prorrateo** que ya se pagó.
