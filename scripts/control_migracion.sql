@@ -389,13 +389,15 @@ select '19. membresias devengadas con clases sin registrar' as control,
 --     curso, toda la comision del mes se le atribuye al nuevo y el anterior
 --     no cobra las clases que si dicto. Es D18 en docs/DECISIONES.md — un
 --     bug conocido, no una mejora.
+--     CORREGIDO el 2026-09-12: el reparto usa el historial de asignaciones.
 --     El control marca las comisiones cuyo profesor no tenia ese curso
---     asignado durante el periodo liquidado. Hoy puede dar REVISAR: esta
---     para que la deuda no se olvide y para medir cuanta plata toca.
+--     asignado durante el periodo liquidado. Lo devengado ANTES de la
+--     correccion puede seguir marcado: no se reescribe (regla 12). Lo que
+--     importa es que no aparezcan filas NUEVAS.
 -- ---------------------------------------------------------------------
 select '20. comisiones de un profesor sin la asignacion vigente en el periodo' as control,
        count(*) as n,
-       case when count(*) = 0 then 'OK' else 'REVISAR (D18)' end as estado
+       case when count(*) = 0 then 'OK' else 'REVISAR (ver fecha: lo previo a 2026-09-12 es historico)' end as estado
   from public.comisiones_devengadas cd
   join public.inscripciones i on i.id = cd.membresia_id
  where cd.curso_id is not null

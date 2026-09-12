@@ -53,8 +53,10 @@ export type DevengoPendiente = {
   base: number;
   pct: number;
   monto: number;
-  /** Clases que ese curso dictó para esta membresía: el peso del reparto. */
+  /** Clases que ESTE profesor dictó de ese curso para esta membresía. */
   clases: number;
+  /** Clases que puso el curso entero: si difiere, el curso lo dictó más de uno. */
+  clasesDelCurso: number;
   /** Personas cubiertas (1, salvo prueba grupal). */
   personas: number;
   /** Cuánto de lo cobrado le tocó a este curso, sobre el total de la venta. */
@@ -115,6 +117,11 @@ export type LineaReparto = {
   peso: number;
   /** La plata que le tocó a este curso. Las partes suman lo cobrado. */
   parte: number;
+  /**
+   * Cómo se dividió la parte del curso cuando lo dictó **más de un profesor**
+   * (un cambio de titular a mitad de ciclo). Ausente en el caso normal.
+   */
+  profesores?: { profesorId: number; profesor: string; clases: number; parte: number }[];
 };
 
 type InscLiq = {
@@ -171,15 +178,35 @@ async function calcularPendientes(
   //    nulo se devengó con el modelo anterior, por la membresía entera: esa
   //    membresía queda afuera completa (regla 12: no se reescribe lo devengado).
   const comis = exigir(
-    await sb.from("comisiones_devengadas").select("membresia_id, curso_id").in("membresia_id", inscIds),
+    await sb
+      .from("comisiones_devengadas")
+      .select("membresia_id, curso_id, profesor_id, base")
+      .in("membresia_id", inscIds),
     "las comisiones ya devengadas"
-  ) as { membresia_id: number | null; curso_id: number | null }[];
+  ) as { membresia_id: number | null; curso_id: number | null; profesor_id: number; base: number }[];
   const devengadoEntero = new Set<number>();
+  // Por (membresía, curso, PROFESOR): desde que un curso puede repartirse entre
+  // dos profesores, la llave vieja por curso daba por devengado al segundo.
   const devengadoCurso = new Set<string>();
+  /**
+   * Cuánta plata del curso ya está devengada, sumando a todos sus profesores.
+   *
+   * Hace falta porque la liquidación se genera **de a un profesor por vez**: la
+   * llave por profesor sola no alcanza. Una comisión vieja, de cuando el curso
+   * se pagaba en una sola línea, tiene la parte ENTERA del curso; si después el
+   * cálculo nuevo dijera que hubo un segundo profesor, su línea se sumaría
+   * encima y el curso se pagaría de más. Con la suma se ve: lo que ya está
+   * devengado topea lo que todavía se puede devengar.
+   */
+  const baseDevengadaCurso = new Map<string, number>();
   for (const c of comis) {
     if (c.membresia_id == null) continue;
     if (c.curso_id == null) devengadoEntero.add(c.membresia_id);
-    else devengadoCurso.add(`${c.membresia_id}|${c.curso_id}`);
+    else {
+      devengadoCurso.add(`${c.membresia_id}|${c.curso_id}|${c.profesor_id}`);
+      const k = `${c.membresia_id}|${c.curso_id}`;
+      baseDevengadaCurso.set(k, (baseDevengadaCurso.get(k) ?? 0) + Number(c.base));
+    }
   }
 
   // 4. Cuotas y pagos → saldo y plata efectivamente cobrada por membresía.
@@ -262,20 +289,53 @@ async function calcularPendientes(
     tarifaDe.set(t.curso_id, actual);
   }
 
-  // 7. Asignación vigente por curso (profesor + %).
+  // 7. **Historial** de asignaciones por curso, no solo la vigente.
+  //
+  // La comisión es de quien **dictó** la clase, no de quien figura hoy al
+  // frente del curso (regla de negocio 10). Si a mitad de período se cambia el
+  // titular, las clases de antes son del anterior y las de después del nuevo.
+  // Antes esto leía solo las asignaciones abiertas (`hasta is null`) y le daba
+  // el mes entero al titular actual: el anterior no cobraba las clases que sí
+  // dictó. *(Javier, 2026-09-12: "es parte del diseño desde el inicio".)*
   const asig = exigir(
     await sb
       .from("asignaciones")
-      .select("curso_id, profesor_id, pct_ingresos, desde")
-      .in("curso_id", cursoIds)
-      .is("hasta", null)
-      .order("desde", { ascending: false }),
+      .select("id, curso_id, profesor_id, pct_ingresos, desde, hasta")
+      .in("curso_id", cursoIds),
     "las asignaciones de profesores"
-  ) as { curso_id: number; profesor_id: number; pct_ingresos: number }[];
-  const asigPorCurso = new Map<number, { profesor_id: number; pct: number }>();
-  for (const r of asig)
-    if (!asigPorCurso.has(r.curso_id))
-      asigPorCurso.set(r.curso_id, { profesor_id: r.profesor_id, pct: Number(r.pct_ingresos) });
+  ) as {
+    id: number; curso_id: number; profesor_id: number;
+    pct_ingresos: number; desde: string; hasta: string | null;
+  }[];
+  const asigPorCurso = new Map<number, typeof asig>();
+  for (const r of asig) {
+    const ya = asigPorCurso.get(r.curso_id);
+    if (ya) ya.push(r);
+    else asigPorCurso.set(r.curso_id, [r]);
+  }
+  /**
+   * Quién tenía el curso el día `f`. Si varias filas cubren esa fecha —dato
+   * solapado, que existe— gana la que empezó después, y entre esas la abierta
+   * y después la de id más alto: hace falta que sea **determinista**, porque
+   * de acá sale a quién se le paga.
+   */
+  const asignacionEn = (cursoId: number, f: string) => {
+    const cubren = (asigPorCurso.get(cursoId) ?? []).filter(
+      (a) => a.desde <= f && (a.hasta == null || a.hasta >= f)
+    );
+    if (!cubren.length) return null;
+    cubren.sort(
+      (a, b) =>
+        b.desde.localeCompare(a.desde) ||
+        Number(b.hasta == null) - Number(a.hasta == null) ||
+        b.id - a.id
+    );
+    return cubren[0];
+  };
+  /** El titular de hoy: solo para decir de quién es una membresía trabada. */
+  const titularHoy = (cursoId: number) =>
+    (asigPorCurso.get(cursoId) ?? []).filter((a) => a.hasta == null)
+      .sort((a, b) => b.desde.localeCompare(a.desde) || b.id - a.id)[0] ?? null;
 
   // 8. Nombres.
   const al = exigir(
@@ -283,6 +343,16 @@ async function calcularPendientes(
     "los alumnos"
   ) as { id: number; nombre: string; apellido: string }[];
   const alNombre = new Map(al.map((a) => [a.id, `${a.apellido}, ${a.nombre}`]));
+  // Los profesores hacen falta por nombre: cuando un curso lo dictó más de uno,
+  // el comprobante tiene que poder decir quién se llevó qué parte.
+  const profs = exigir(
+    await sb
+      .from("profesores")
+      .select("id, nombre, apellido")
+      .in("id", [...new Set(asig.map((a) => a.profesor_id))]),
+    "los profesores"
+  ) as { id: number; nombre: string; apellido: string }[];
+  const profNombre = new Map(profs.map((p) => [p.id, `${p.apellido}, ${p.nombre}`]));
 
   // 9. Repartir.
   const out: DevengoPendiente[] = [];
@@ -299,9 +369,10 @@ async function calcularPendientes(
     // Peso de cada curso = precio de una clase × clases del ciclo × personas.
     const pesos = propios.map((ic) => {
       const curso = cursoPorId.get(ic.curso_id);
-      const { clases, faltan } = clasesDelCiclo(ic, m, curso, suspendidas, registradas);
+      const { fechas, faltan } = clasesDelCiclo(ic, m, curso, suspendidas, registradas);
       const precio = precioDeUnaClase(curso, tarifaDe.get(ic.curso_id) ?? {}, m.es_prueba === true);
-      return { ic, curso, clases, faltan, peso: clases > 0 ? precio * clases * personas : 0 };
+      const clases = fechas.length;
+      return { ic, curso, clases, fechas, faltan, peso: clases > 0 ? precio * clases * personas : 0 };
     });
 
     // **Regla de negocio 17 (revisada 2026-09-12): solo bloquea el prorrateo.**
@@ -333,7 +404,7 @@ async function calcularPendientes(
         profesorIds: [
           ...new Set(
             pesos
-              .map((x) => asigPorCurso.get(x.ic.curso_id)?.profesor_id)
+              .map((x) => titularHoy(x.ic.curso_id)?.profesor_id)
               .filter((x): x is number => x != null)
           ),
         ],
@@ -354,10 +425,53 @@ async function calcularPendientes(
       mayor.cent += sobra;
     }
 
+    // **Segundo nivel del reparto: dentro del curso, entre sus profesores.**
+    //
+    // La parte de un curso se divide por las clases que dictó cada uno. Un
+    // cambio de titular a mitad de ciclo deja dos líneas para ese curso, cada
+    // una con su profesor, su % y sus clases. En el caso normal —un solo
+    // titular todo el ciclo— da una sola línea con la parte entera, idéntico
+    // a como era antes.
+    //
+    // Las clases **sin ninguna asignación** ese día no se pagan: su plata no
+    // se devenga y queda sin reclamar, igual que un curso entero sin profesor.
+    // Repartirla entre los demás sería pagarle a alguien por una clase que no
+    // dio.
+    const repartoProf = porCurso.map((x) => {
+      const conteo = new Map<number, { pct: Map<number, number>; clases: number }>();
+      for (const f of x.fechas) {
+        const a = asignacionEn(x.ic.curso_id, f);
+        if (!a) continue;
+        const ya = conteo.get(a.profesor_id) ?? { pct: new Map<number, number>(), clases: 0 };
+        ya.clases++;
+        const p = Number(a.pct_ingresos);
+        ya.pct.set(p, (ya.pct.get(p) ?? 0) + 1);
+        conteo.set(a.profesor_id, ya);
+      }
+      // Si el % del profesor cambió dentro del mismo ciclo, manda el que rigió
+      // en más clases suyas: es un solo número por (curso, profesor) y tiene
+      // que ser el que explica la mayor parte de su plata.
+      const lineas = [...conteo.entries()].map(([profesorId, v]) => ({
+        profesorId,
+        clases: v.clases,
+        pct: [...v.pct.entries()].sort((a, b) => b[1] - a[1] || b[0] - a[0])[0][0],
+        cent: x.clases > 0 ? Math.floor((x.cent * v.clases) / x.clases) : 0,
+      }));
+      // El centavo que sobra va al que más clases dio, y solo si TODAS las
+      // clases del curso tenían profesor: si alguna no lo tenía, esa plata no
+      // le corresponde a nadie.
+      const clasesConProfesor = lineas.reduce((t, l) => t + l.clases, 0);
+      if (lineas.length && clasesConProfesor === x.clases) {
+        const sobra = x.cent - lineas.reduce((t, l) => t + l.cent, 0);
+        if (sobra > 0) lineas.reduce((a, b) => (b.clases > a.clases ? b : a)).cent += sobra;
+      }
+      return { x, lineas };
+    });
+
     // La foto del reparto: va igual en cada comisión de esta membresía, con
     // TODOS los cursos —también los de otros profesores y los que no dictaron—
     // porque es lo que permite verificar que los pesos suman el total.
-    const reparto: LineaReparto[] = porCurso.map((x) => ({
+    const reparto: LineaReparto[] = repartoProf.map(({ x, lineas }) => ({
       cursoId: x.ic.curso_id,
       curso: x.curso?.nombre ?? `#${x.ic.curso_id}`,
       clases: x.clases,
@@ -366,28 +480,50 @@ async function calcularPendientes(
       // La parte en plata, con el mismo reparto en centavos que se devenga:
       // así lo que muestra el comprobante suma EXACTAMENTE lo cobrado.
       parte: x.cent / 100,
+      // Solo cuando el curso lo dictó más de uno: si no, la línea del curso ya
+      // lo dice todo y abrirla sería ruido.
+      profesores:
+        lineas.length > 1
+          ? lineas.map((l) => ({
+              profesorId: l.profesorId,
+              profesor: profNombre.get(l.profesorId) ?? `#${l.profesorId}`,
+              clases: l.clases,
+              parte: l.cent / 100,
+            }))
+          : undefined,
     }));
 
-    for (const x of porCurso) {
+    for (const { x, lineas } of repartoProf) {
       if (x.peso <= 0) continue;
-      if (devengadoCurso.has(`${m.id}|${x.ic.curso_id}`)) continue;
-      const a = asigPorCurso.get(x.ic.curso_id);
-      if (!a) continue; // sin profesor asignado
-      const base = x.cent / 100;
-      out.push({
-        membresiaId: m.id,
-        profesorId: a.profesor_id,
-        cursoId: x.ic.curso_id,
-        alumno: alNombre.get(m.alumno_id) ?? `#${m.alumno_id}`,
-        curso: x.curso?.nombre ?? `#${x.ic.curso_id}`,
-        base,
-        pct: a.pct,
-        monto: Math.round(base * a.pct) / 100,
-        clases: x.clases,
-        personas,
-        cobradoTotal: cobrado,
-        reparto,
-      });
+      // Tope: nunca se puede devengar más que la parte del curso. Es lo que
+      // impide pagarle al segundo profesor sobre una comisión vieja que ya se
+      // llevó el curso entero (regla 12: lo devengado no se reescribe — pero
+      // tampoco se le suma encima).
+      let disponible = x.cent / 100 - (baseDevengadaCurso.get(`${m.id}|${x.ic.curso_id}`) ?? 0);
+      for (const l of lineas) {
+        if (devengadoCurso.has(`${m.id}|${x.ic.curso_id}|${l.profesorId}`)) continue;
+        const base = l.cent / 100;
+        if (base <= 0) continue;
+        if (base > disponible + 0.005) continue; // ya está pagado por otro
+        disponible -= base;
+        out.push({
+          membresiaId: m.id,
+          profesorId: l.profesorId,
+          cursoId: x.ic.curso_id,
+          alumno: alNombre.get(m.alumno_id) ?? `#${m.alumno_id}`,
+          curso: x.curso?.nombre ?? `#${x.ic.curso_id}`,
+          base,
+          pct: l.pct,
+          monto: Math.round(base * l.pct) / 100,
+          clases: l.clases,
+          // Cuántas clases puso el curso en total: sin esto no se entiende por
+          // qué su base es menor que la parte del curso.
+          clasesDelCurso: x.clases,
+          personas,
+          cobradoTotal: cobrado,
+          reparto,
+        });
+      }
     }
   }
   return { pendientes: out, bloqueadas };
@@ -404,6 +540,10 @@ async function calcularPendientes(
  *
  * Una prueba es una sola clase, en su fecha elegida (0024).
  *
+ * Devuelve las **fechas**, no un total: el reparto entre profesores necesita
+ * saber en qué día cayó cada clase para atribuirla a quien tenía el curso ese
+ * día (regla 10).
+ *
  * `faltan` son los días de clase **sin sesión**: ni asistencia cargada ni
  * suspensión. Son los que bloquean la liquidación (regla de negocio 17): con
  * este criterio esas clases cuentan, así que liquidar sin registrarlas es
@@ -415,21 +555,21 @@ function clasesDelCiclo(
   curso: Curso | undefined,
   suspendidas: Set<string>,
   registradas: Set<string>
-): { clases: number; faltan: string[] } {
+): { fechas: string[]; faltan: string[] } {
   const clave = (f: string) => `${ic.curso_id}|${f}`;
 
   if (ic.fecha) {
-    if (suspendidas.has(clave(ic.fecha))) return { clases: 0, faltan: [] };
-    return { clases: 1, faltan: registradas.has(clave(ic.fecha)) ? [] : [ic.fecha] };
+    if (suspendidas.has(clave(ic.fecha))) return { fechas: [], faltan: [] };
+    return { fechas: [ic.fecha], faltan: registradas.has(clave(ic.fecha)) ? [] : [ic.fecha] };
   }
-  if (!m.fecha_fin) return { clases: 0, faltan: [] };
+  if (!m.fecha_fin) return { fechas: [], faltan: [] };
 
   // Los días que el alumno eligió; si la fila no los tiene (dato viejo), los
   // del curso. Sin ninguno de los dos no hay calendario que recorrer.
   const dias = ic.dias?.length ? ic.dias : curso?.dias_semana ?? [];
-  if (!dias.length) return { clases: 0, faltan: [] };
+  if (!dias.length) return { fechas: [], faltan: [] };
 
-  let clases = 0;
+  const fechas: string[] = [];
   const faltan: string[] = [];
   const d = new Date(m.fecha_inicio + "T00:00:00");
   const fin = new Date(m.fecha_fin + "T00:00:00");
@@ -437,10 +577,10 @@ function clasesDelCiclo(
     if (!dias.includes(diaIso(d))) continue;
     const iso = isoFecha(d);
     if (suspendidas.has(clave(iso))) continue; // no consume ciclo: lo corre
-    clases++;
+    fechas.push(iso);
     if (!registradas.has(clave(iso))) faltan.push(iso);
   }
-  return { clases, faltan };
+  return { fechas, faltan };
 }
 
 /**
@@ -726,6 +866,11 @@ export async function generarLiquidacion(profesorId: number): Promise<{ ok?: tru
             ? ` — parte de ${p.cobradoTotal} cobrado, a prorrata por ${p.clases} ${
                 p.clases === 1 ? "clase" : "clases"
               }${p.personas > 1 ? ` x ${p.personas} personas` : ""}`
+            : "") +
+          // El curso lo dictó más de uno: sin esto, la base parece mal
+          // calculada contra la parte del curso que muestra el reparto.
+          (p.clases !== p.clasesDelCurso
+            ? ` — ${p.clases} de las ${p.clasesDelCurso} clases del curso (cambio de titular en el ciclo)`
             : ""),
         liquidacion_id: liquidacionId,
       })
@@ -738,7 +883,8 @@ export async function generarLiquidacion(profesorId: number): Promise<{ ok?: tru
       membresia_id: p.membresiaId,
       descripcion:
         `${p.alumno} — ${p.curso} (${p.pct}% de ${p.base})` +
-        (p.base !== p.cobradoTotal ? ` · parte de ${p.cobradoTotal}` : ""),
+        (p.base !== p.cobradoTotal ? ` · parte de ${p.cobradoTotal}` : "") +
+        (p.clases !== p.clasesDelCurso ? ` · ${p.clases}/${p.clasesDelCurso} clases` : ""),
       monto: p.monto,
     });
   }

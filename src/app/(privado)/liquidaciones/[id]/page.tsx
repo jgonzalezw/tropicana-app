@@ -50,7 +50,7 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
 
   const [{ data: prof }, { data: comis }, { data: pagosLiq }] = await Promise.all([
     sb.from("profesores").select("nombre, apellido, whatsapp").eq("id", liq.profesor_id).maybeSingle(),
-    sb.from("comisiones_devengadas").select("id, membresia_id, curso_id, base, monto, reparto").eq("liquidacion_id", liquidacionId).order("id"),
+    sb.from("comisiones_devengadas").select("id, membresia_id, curso_id, profesor_id, base, monto, reparto").eq("liquidacion_id", liquidacionId).order("id"),
     sb.from("pagos").select("fecha, monto, medio, motivo").eq("tipo", "pago").eq("liquidacion_id", liquidacionId).order("fecha"),
   ]);
 
@@ -61,6 +61,7 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
       curso_id: number | null;
       base: number;
       monto: number;
+      profesor_id: number;
       reparto: LineaReparto[] | null;
     }[]) ?? [];
   const membresiaIds = [...new Set(comisiones.map((c) => c.membresia_id).filter((x): x is number => x != null))];
@@ -227,6 +228,11 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
       pesoTotal,
       pesoCurso: reparto.find((r) => r.cursoId === cursoId)?.peso ?? 0,
       clasesCurso: reparto.find((r) => r.cursoId === cursoId)?.clases ?? null,
+      // Para saber CUÁL línea del reparto es la de esta comisión sin tener que
+      // adivinarla comparando pesos, y cuál sub-línea es la de este profesor
+      // cuando el curso lo dictó más de uno.
+      cursoId,
+      profesorId: c.profesor_id,
     };
   });
 

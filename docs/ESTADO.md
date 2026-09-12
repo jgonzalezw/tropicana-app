@@ -875,3 +875,51 @@ que es lo que la regla 16 permite.
 2. **Vigencia del curso** (§1.b de `DECISIONES.md`): decidida, sin construir.
 3. Validaciones pendientes de Javier sobre lo de arriba, y **D10** (volver
    `asistencia_semanas_retro` a 2 en dev).
+
+---
+
+## D18 — la comisión es de quien dictó, no de quien está asignado hoy · 2026-09-12
+
+**Migración 0029** + código. Solo en dev.
+
+**El bug.** El reparto leía únicamente las asignaciones abiertas
+(`asignaciones.hasta is null`) y se quedaba con la más reciente. Si a mitad de
+ciclo se cambiaba el titular de un curso, **toda** la comisión del período se le
+atribuía al nuevo y el anterior no cobraba las clases que sí dictó. La tabla ya
+tenía `desde` / `hasta`: el modelo lo soportaba y el cálculo lo ignoraba. Lo
+detectó Javier al revisar D16.
+
+**Qué se hizo.** `clasesDelCiclo` ahora devuelve las **fechas** de las clases, no
+un total, y cada fecha se atribuye a quien tenía el curso **ese día**
+(`asignacionEn`, determinista ante asignaciones solapadas: gana la que empezó
+después, luego la abierta, luego el id más alto). La parte del curso se divide
+por las clases de cada uno. Un curso dictado por dos deja **dos líneas**.
+
+- **Clases sin asignación ese día**: no se pagan. Su plata no se devenga —
+  repartirla sería pagarle a alguien por una clase que no dio.
+- **`%` que cambió dentro del ciclo**: manda el que rigió en más clases suyas.
+  Es un solo número por (curso, profesor) y tiene que explicar la mayor parte.
+
+**El tope que evita el sobrepago.** La liquidación se genera **de a un profesor
+por vez**, así que la llave por profesor sola no alcanza: una comisión vieja
+—cuando el curso se pagaba en una sola línea— tiene la parte **entera** del
+curso, y la línea del segundo profesor se le habría sumado encima. Se suma lo ya
+devengado por (membresía, curso) y eso **topea** lo que todavía se puede
+devengar. Es la regla 12 llevada hasta el final: lo devengado no se reescribe, y
+tampoco se le suma encima.
+
+**Migración 0029.** El índice único era `(membresia_id, curso_id)` — hacía
+imposible justamente dos profesores en un curso. Pasa a
+`(membresia_id, curso_id, profesor_id)`. Verificado en dev: acepta dos
+profesores del mismo curso y **sigue rechazando** el duplicado real (mismo
+profesor, mismo curso).
+
+**Comprobante.** Cuando un curso lo dictó más de uno, su línea del reparto se
+abre en sub-líneas con las clases y la parte de cada profesor, y marca "usted"
+en la del titular del comprobante. La glosa dice "N de las M clases del curso
+(cambio de titular en el ciclo)". Sin eso, la base de la comisión parece no
+coincidir con la parte del curso.
+
+**Control 20** pasa a ser de verificación, no de deuda: lo devengado antes de
+esta corrección puede seguir marcado (regla 12, no se reescribe); lo que importa
+es que no aparezcan filas nuevas.

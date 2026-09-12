@@ -95,6 +95,14 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
     profesor dicta dos cursos del mismo plan y el alumno fue a los dos, su
     liquidación lleva **dos líneas**, una por curso, cada una con su parte.
     *(Javier, 2026-09-11.)*
+    **Y es de quien DICTÓ, no de quien está asignado hoy.** Si el titular de un
+    curso cambia a mitad de ciclo, las clases de antes son del anterior y las de
+    después del nuevo: ese curso deja **dos líneas**, una por profesor, cada una
+    con sus clases y su %. La parte del curso se divide por las clases que puso
+    cada uno. Una clase que ese día no tenía a nadie asignado **no se paga**:
+    su plata no se devenga, repartirla sería pagarle a alguien por una clase que
+    no dio. *(Javier, 2026-09-12: "puede haber más de un profesor que dictó la
+    misma clase… es parte del diseño desde el inicio.")*
 11. **La clase de prueba es una membresía preliminar de un plan regular**, no
     un plan aparte. El plan regula si la acepta, en cuántos cursos distintos
     se puede probar, si el fee se acredita al convertir y por cuántos días.

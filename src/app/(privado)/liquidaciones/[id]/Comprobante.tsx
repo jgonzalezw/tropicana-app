@@ -35,10 +35,16 @@ export type ItemComprobante = {
     peso: number;
     /** La plata de este curso. Las partes suman lo cobrado. */
     parte?: number;
+    /** Presente solo si el curso lo dictó más de un profesor (0029). */
+    profesores?: { profesorId: number; profesor: string; clases: number; parte: number }[];
   }[];
   pesoTotal: number;
   pesoCurso: number;
   clasesCurso: number | null;
+  /** El curso de esta comisión: identifica su línea en el reparto. */
+  cursoId: number | null;
+  /** El profesor de esta comisión: identifica su sub-línea si el curso se repartió. */
+  profesorId: number;
 };
 
 /**
@@ -55,7 +61,13 @@ function repartoHTML(it: ItemComprobante, modo: "completo" | "compacto"): string
   const esc2 = (t: string) => t.replace(/[&<>]/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[m]!);
   if (modo === "compacto") {
     const linea = it.reparto
-      .map((r) => `${esc2(r.curso)} ${r.peso === 0 ? "no dictó" : gs(parteDe(it, r))}`)
+      .map(
+        (r) =>
+          `${esc2(r.curso)} ${r.peso === 0 ? "no dictó" : gs(parteDe(it, r))}` +
+          (r.profesores?.length
+            ? ` (${r.profesores.map((pr) => `${esc2(pr.profesor)} ${pr.clases}`).join(" / ")})`
+            : "")
+      )
       .join(" · ");
     return `<div class="small muted">Reparto: ${linea} (suman ${gs(it.cobrado)})</div>`;
   }
@@ -68,15 +80,23 @@ function repartoHTML(it: ItemComprobante, modo: "completo" | "compacto"): string
       <th></th></tr>`;
   const filas = it.reparto
     .map((r) => {
-      const esEste = r.peso === it.pesoCurso && r.clases === it.clasesCurso;
+      const esEste = r.cursoId === it.cursoId;
       const pct = it.pesoTotal > 0 ? Math.round((r.peso / it.pesoTotal) * 100) : 0;
+      const sub = (r.profesores ?? [])
+        .map(
+          (pr) => `<tr class="muted"><td style="padding-left:10px">&mdash; ${esc2(pr.profesor)}</td>
+            <td style="text-align:right">${pr.clases}</td><td></td>
+            <td style="text-align:right">${gs(pr.parte)}</td><td></td>
+            <td style="text-align:right">${pr.profesorId === it.profesorId ? "usted" : ""}</td></tr>`
+        )
+        .join("");
       return `<tr${esEste ? ' class="b"' : ' class="muted"'}>
         <td>${esc2(r.curso)}</td>
         <td style="text-align:right">${r.clases === 0 ? "ninguna" : r.clases}</td>
         <td style="text-align:right">${gs(r.precioClase)}</td>
         <td style="text-align:right">${gs(parteDe(it, r))}</td>
         <td style="text-align:right">${pct}%</td>
-        <td style="text-align:right">${esEste ? "este curso" : ""}</td></tr>`;
+        <td style="text-align:right">${esEste ? "este curso" : ""}</td></tr>${sub}`;
     })
     .join("") +
     `<tr><td colspan="3" style="border-top:1px solid #ddd">Suma de las partes = lo cobrado</td>
@@ -122,13 +142,19 @@ function pctPeso(it: ItemComprobante): number {
  * la regla de negocio 10 a la vista, no un olvido.
  */
 function Reparto({ it, modo }: { it: ItemComprobante; modo: "completo" | "compacto" }) {
-  const suEl = it.reparto.find((r) => r.peso === it.pesoCurso && r.clases === it.clasesCurso);
+  const suEl = it.reparto.find((r) => r.cursoId === it.cursoId);
   if (modo === "compacto") {
     return (
       <div className="text-xs text-[var(--texto-tenue)] mt-1.5">
         Reparto:{" "}
         {it.reparto
-          .map((r) => `${r.curso} ${r.peso === 0 ? "no dictó" : gs(parteDe(it, r))}`)
+          .map(
+            (r) =>
+              `${r.curso} ${r.peso === 0 ? "no dictó" : gs(parteDe(it, r))}` +
+              (r.profesores?.length
+                ? ` (${r.profesores.map((pr) => `${pr.profesor} ${pr.clases}`).join(" / ")})`
+                : "")
+          )
           .join(" · ")}{" "}
         (suman {gs(it.cobrado)})
       </div>
@@ -176,6 +202,30 @@ function Reparto({ it, modo }: { it: ItemComprobante; modo: "completo" | "compac
               </tr>
             );
           })}
+          {/* Un curso que dictó más de un profesor: sin abrirlo, la base de la
+              comisión parece no coincidir con la parte del curso. Cada
+              sub-línea dice cuántas clases puso cada uno y cuánto le tocó. */}
+          {it.reparto.flatMap((r) =>
+            (r.profesores ?? []).map((pr) => (
+              <tr
+                key={`${r.cursoId}-${pr.profesorId}`}
+                className={
+                  pr.profesorId === it.profesorId
+                    ? "font-semibold"
+                    : "text-[var(--texto-tenue)]"
+                }
+              >
+                <td className="py-0.5 pl-4">— {pr.profesor}</td>
+                <td className="py-0.5 text-right tabular-nums">{pr.clases}</td>
+                <td />
+                <td className="py-0.5 text-right tabular-nums">{gs(pr.parte)}</td>
+                <td />
+                <td className="py-0.5 text-right whitespace-nowrap">
+                  {pr.profesorId === it.profesorId ? "usted" : ""}
+                </td>
+              </tr>
+            ))
+          )}
           <tr className="border-t border-[var(--borde)]">
             <td className="py-0.5" colSpan={3}>
               Suma de las partes = lo cobrado
