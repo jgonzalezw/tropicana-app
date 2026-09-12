@@ -385,16 +385,36 @@ O sea que atender el pedido implica **adelantar el Paso 5**, entero o en una
 versión mínima (solo la validación de choque, sin la agenda visual completa).
 Eso es una decisión de Javier, no una lectura del plan.
 
-**Tres decisiones postergadas cumplen acá su disparador** (regla de proceso 9):
+**Las tres decisiones que se destrabaron acá** (D5, D6 y D7) quedaron
+**respondidas el mismo día** — ver `docs/DECISIONES.md` §1.b:
 
-- **D6** — `cursos.duracion_min` no existe, y sin duración no hay bloque que
-  validar. Disparador textual: *"al arrancar la agenda de sala"*. **Cumplido.**
-- **D7** — *¿puede existir una reserva de sala sin paquete vendido?* Está
-  **sin responder**, y es lo primero que hay que decidir: define si la agenda es
-  un calendario libre o solo el reflejo de lo vendido. **Cumplido, y bloquea.**
-- **D5** — clasificar mejor el motivo del cobro en el recibo. Disparador:
-  *"cuando entren los otros tipos de servicio — Paso 2D"*. **Cumplido**: en
-  cuanto se venda un particular, el catálogo de motivos se queda corto solo.
+- **D7 — la sala se puede bloquear sin venta.** Javier: *"aplica motivos de
+  capacitaciones internas, preparación de coreografías de los profesores,
+  mantenimiento, etc."* Eso convierte la agenda en un **calendario real**, no en
+  el reflejo de lo vendido: un bloqueo existe **sin dueño comercial**, necesita
+  motivo de catálogo, y ocupa la sala igual que una clase.
+- **D6 — duración de la clase.** ✅ **Construida y en producción** (0034).
+- **D5 — motivos del cobro.** Confirmada; se construye junto con particulares.
+
+### Lo que todavía falta para poder arrancar
+
+Tres respuestas, las tres de Javier:
+
+| | Qué | Por qué bloquea |
+| --- | --- | --- |
+| **D20** | **¿Una sala o varias?** | Define el modelo entero. Con una, la disponibilidad es una línea de tiempo; con varias hace falta una entidad `salas` y el choque se pregunta por sala. Cambiarlo después es rehacer el modelo, no agregar un campo |
+| **Alcance** | ¿Paso 5 completo, o **validación mínima de choque** dentro de 2D primero? | Lo segundo destraba a Natalia mucho antes; la agenda visual queda después sobre la misma base |
+| **Diseño** | Particulares es pantalla nueva: ¿Design-first o código v1? | Regla de proceso 3: avisar antes de construir |
+
+**Lo que ya está listo para apoyarse:** `src/lib/horarios.ts` con `seSolapan` y
+el criterio de choque fijado —intervalo medio abierto, así que una clase que
+termina 20:00 y otra que empieza 20:00 **no** chocan—, y `cursos.duracion_min`
+en las dos bases.
+
+**Un dato medido que orienta el modelo** (producción, 2026-09-12): con 60
+minutos **ningún par de cursos se pisa** — los que comparten hora no comparten
+día. La grilla es **consistente con una sola sala**, pero eso no prueba que haya
+una: lo tiene que decir Javier (D20).
 
 ## 0sexies. Mejora transversal — abrir la ficha de cualquier entidad (2026-09-10)
 
