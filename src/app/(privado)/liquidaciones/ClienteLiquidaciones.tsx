@@ -132,7 +132,7 @@ export default function ClienteLiquidaciones({
 
   function abrirPago(l: FilaLiquidacion) {
     setPagoDe(l.id);
-    setMonto(String(Math.max(0, l.totalDevengado - l.totalPagado)));
+    setMonto(String(Math.max(0, l.totalDevengado - l.totalDescuentos - l.totalPagado)));
     setMedio(null);
     setError(null);
     setErrorPago(null);
@@ -223,6 +223,7 @@ export default function ClienteLiquidaciones({
                 <th className="py-3 px-4 font-medium">Período</th>
                 <th className="py-3 px-4 font-medium">Estado</th>
                 <th className="py-3 px-4 font-medium text-right">Devengado</th>
+                <th className="py-3 px-4 font-medium text-right">Descuentos</th>
                 <th className="py-3 px-4 font-medium text-right">Pagado</th>
                 <th className="py-3 px-4 font-medium text-right">Neto</th>
                 <th className="py-3 px-4"></th>
@@ -230,7 +231,8 @@ export default function ClienteLiquidaciones({
             </thead>
             <tbody>
               {liquidaciones.map((l) => {
-                const restante = Math.max(0, l.totalDevengado - l.totalPagado);
+                // El neto resta también lo que se le descuenta (regla 20a).
+                const restante = Math.max(0, l.totalDevengado - l.totalDescuentos - l.totalPagado);
                 // Quedaron comisiones fuera de esta liquidación: o nunca
                 // entraron, o se dieron de baja porque alguien corrigió una
                 // clase del período (regla de negocio 16). Hay que regenerarla,
@@ -265,6 +267,9 @@ export default function ClienteLiquidaciones({
                     </td>
                     <td className="py-3 px-4">{ESTADO_LABEL[l.estado] ?? l.estado}</td>
                     <td className="py-3 px-4 text-right">{gs(l.totalDevengado)}</td>
+                    <td className="py-3 px-4 text-right">
+                      {l.totalDescuentos > 0 ? `− ${gs(l.totalDescuentos)}` : "—"}
+                    </td>
                     <td className="py-3 px-4 text-right">{gs(l.totalPagado)}</td>
                     <td className="py-3 px-4 text-right font-bold">{gs(restante)}</td>
                     <td className="py-3 px-4">
@@ -348,7 +353,7 @@ export default function ClienteLiquidaciones({
               })}
               {liquidaciones.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="py-4 px-4 text-[var(--texto-tenue)]">
+                  <td colSpan={8} className="py-4 px-4 text-[var(--texto-tenue)]">
                     Todavía no hay liquidaciones.
                   </td>
                 </tr>

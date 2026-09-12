@@ -50,6 +50,12 @@ export type ItemComprobante = {
   profesorId: number;
 };
 
+/** Cómo se lee cada motivo de descuento, en pantalla y en el papel. */
+const ETIQUETA_DESCUENTO: Record<string, string> = {
+  reemplazo: "Reemplazo por su ausencia",
+  multa: "Multa",
+};
+
 /**
  * Qué se cuenta como "clase" del ciclo. Va escrito en el comprobante porque es
  * la pregunta que se hace el profesor al mirar el número, y la respuesta no se
@@ -288,6 +294,14 @@ export type DatosComprobante = {
   periodicidad: string;
   estado: string;
   totalDevengado: number;
+  /**
+   * Lo que se le descuenta (regla de negocio 20a): el costo del reemplazante
+   * cuando faltó sin justificar, y las multas. **No es una comisión** — por eso
+   * va aparte y no restado del devengado: el profesor tiene que poder ver su
+   * comisión entera y el descuento por separado para poder discutir cada uno.
+   */
+  totalDescuentos: number;
+  descuentos: { motivo: string; monto: number; detalle: string }[];
   totalPagado: number;
   neto: number;
   creadoEn: string;
@@ -344,7 +358,7 @@ export default function Comprobante({ datos }: { datos: DatosComprobante }) {
    */
   const [vista, setVista] = useState<"completo" | "compacto">(datos.repartoPantalla);
   const hayAlgunReparto = datos.items.some(hayReparto);
-  const neto = Math.max(0, datos.totalDevengado - datos.totalPagado);
+  const neto = Math.max(0, datos.totalDevengado - datos.totalDescuentos - datos.totalPagado);
 
   // Imprime SOLO el recibo: abre una ventana nueva con un documento limpio
   // (sin app shell) y dispara la impresion. Evita la pagina en blanco que
@@ -536,6 +550,18 @@ export default function Comprobante({ datos }: { datos: DatosComprobante }) {
         {/* Totales */}
         <div className="border-t-2 border-[var(--borde)] pt-3 space-y-1">
           <Fila etiqueta="Total devengado" valor={gs(datos.totalDevengado)} />
+          {/* Cada descuento con su porqué: un total sin detalle no se puede
+              discutir, y un descuento es justo lo que un profesor discute. */}
+          {datos.descuentos.map((d, i) => (
+            <Fila
+              key={i}
+              etiqueta={`− ${ETIQUETA_DESCUENTO[d.motivo] ?? d.motivo}${d.detalle ? ` · ${d.detalle}` : ""}`}
+              valor={`− ${gs(d.monto)}`}
+            />
+          ))}
+          {datos.totalDescuentos > 0 && (
+            <Fila etiqueta="Total descuentos" valor={`− ${gs(datos.totalDescuentos)}`} />
+          )}
           <Fila etiqueta="Total pagado" valor={gs(datos.totalPagado)} />
           <div className="flex justify-between items-baseline pt-2">
             <span className="titulo text-lg">Neto a pagar</span>
@@ -636,7 +662,7 @@ function construirHTMLImpresion(d: DatosComprobante): string {
       </table>`
     : "";
 
-  const neto = Math.max(0, d.totalDevengado - d.totalPagado);
+  const neto = Math.max(0, d.totalDevengado - d.totalDescuentos - d.totalPagado);
 
   return `<!doctype html><html lang="es"><head><meta charset="utf-8">
     <title>Comprobante de liquidación N° ${d.id}</title>
@@ -699,6 +725,23 @@ function construirHTMLImpresion(d: DatosComprobante): string {
       ${filasItems || '<div class="muted small">Sin ítems.</div>'}
       <div class="tot">
         <div class="row"><span class="muted">Total devengado</span><span>${gs(d.totalDevengado)}</span></div>
+        ${d.descuentos
+          .map(
+            (x) =>
+              `<div class="row"><span class="muted">&minus; ${esc(
+                ETIQUETA_DESCUENTO[x.motivo] ?? x.motivo
+              )}${x.detalle ? ` &middot; ${esc(x.detalle)}` : ""}</span><span>&minus; ${gs(
+                x.monto
+              )}</span></div>`
+          )
+          .join("")}
+        ${
+          d.totalDescuentos > 0
+            ? `<div class="row"><span class="muted">Total descuentos</span><span>&minus; ${gs(
+                d.totalDescuentos
+              )}</span></div>`
+            : ""
+        }
         ${filasPagos}
         <div class="row mt8"><span class="muted">Total pagado</span><span>${gs(d.totalPagado)}</span></div>
         <div class="neto"><span class="b">Neto a pagar</span><span class="big">${gs(neto)}</span></div>

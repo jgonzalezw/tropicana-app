@@ -29,13 +29,13 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
   const liq = exigirUno(
     await sb
       .from("liquidaciones")
-      .select("id, profesor_id, periodo, periodicidad, estado, total_devengado, total_pagado, neto, creado_en")
+      .select("id, profesor_id, periodo, periodicidad, estado, total_devengado, total_descuentos, total_pagado, neto, creado_en")
       .eq("id", liquidacionId)
       .maybeSingle(),
     "la liquidación"
   ) as {
     id: number; profesor_id: number; periodo: string; periodicidad: string; estado: string;
-    total_devengado: number; total_pagado: number; neto: number; creado_en: string;
+    total_devengado: number; total_descuentos: number; total_pagado: number; neto: number; creado_en: string;
   } | null;
   if (!liq)
     return (
@@ -48,10 +48,11 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
       </div>
     );
 
-  const [{ data: prof }, { data: comis }, { data: pagosLiq }] = await Promise.all([
+  const [{ data: prof }, { data: comis }, { data: pagosLiq }, { data: descLiq }] = await Promise.all([
     sb.from("profesores").select("nombre, apellido, whatsapp").eq("id", liq.profesor_id).maybeSingle(),
     sb.from("comisiones_devengadas").select("id, membresia_id, curso_id, profesor_id, base, monto, reparto").eq("liquidacion_id", liquidacionId).order("id"),
     sb.from("pagos").select("fecha, monto, medio, motivo").eq("tipo", "pago").eq("liquidacion_id", liquidacionId).order("fecha"),
+    sb.from("descuentos_liquidacion").select("motivo, monto, origen").eq("liquidacion_id", liquidacionId).order("id"),
   ]);
 
   const comisiones =
@@ -249,6 +250,16 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
     periodicidad: liq.periodicidad as string,
     estado: liq.estado as string,
     totalDevengado: Number(liq.total_devengado),
+    totalDescuentos: Number(liq.total_descuentos ?? 0),
+    // Qué se le descuenta y por qué. Un total sin el detalle no se puede
+    // discutir, y un descuento es justamente lo que un profesor discute.
+    descuentos: ((descLiq as {
+      motivo: string; monto: number; origen: string | null;
+    }[]) ?? []).map((d) => ({
+      motivo: d.motivo,
+      monto: Number(d.monto),
+      detalle: d.origen ?? "",
+    })),
     totalPagado: Number(liq.total_pagado),
     neto: Number(liq.neto),
     creadoEn: liq.creado_en as string,

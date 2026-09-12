@@ -60,6 +60,24 @@ export type Congelador = {
 export async function cargarCongelador(sb: Cliente): Promise<Congelador> {
   const clases = new Map<string, string>();
 
+  // 0. Una clase cuyo DESCUENTO ya se pagó también está congelada: si se
+  //    pudiera editar el costo del reemplazo después de pagarlo, el número que
+  //    salió de la caja dejaría de coincidir con el dato (regla 20a + 16).
+  //    Esta es directa —el descuento apunta a la sesión— y no pasa por el
+  //    prorrateo.
+  const { data: desc } = await sb
+    .from("descuentos_liquidacion")
+    .select("sesion_id, sesion:sesiones(curso_id, fecha), liquidacion:liquidaciones(estado)");
+  for (const d of (desc as unknown as {
+    sesion_id: number | null;
+    sesion: { curso_id: number; fecha: string } | null;
+    liquidacion: { estado: string } | null;
+  }[]) ?? []) {
+    if (!d.sesion) continue;
+    if (d.liquidacion?.estado !== "pagada" && d.liquidacion?.estado !== "cerrada") continue;
+    clases.set(`${d.sesion.curso_id}|${d.sesion.fecha.slice(0, 10)}`, "un descuento ya pagado");
+  }
+
   // 1. Comisiones que ya tienen plata encima: su liquidación cobró algo.
   const { data: com } = await sb
     .from("comisiones_devengadas")
@@ -137,9 +155,15 @@ export function claseCongelada(c: Congelador, cursoId: number, fechaISO: string)
  * El mensaje que ve la persona. Dice **por qué** no se puede y **qué hacer**:
  * un "no se puede" a secas manda a buscar el problema donde no está.
  */
-export function motivoCongelada(fechaISO: string, alumno: string): string {
+export function motivoCongelada(fechaISO: string, quien: string): string {
+  if (quien === "un descuento ya pagado")
+    return (
+      `Esa clase (${fechaISO}) tiene un descuento al profesor que ya se pagó. ` +
+      `Cambiarla movería plata que ya salió de la caja. ` +
+      `Si hay que corregirlo, se hace con un ajuste con fecha de hoy.`
+    );
   return (
-    `Esa clase (${fechaISO}) entra en el ciclo de una membresía multi-curso de ${alumno} ` +
+    `Esa clase (${fechaISO}) entra en el ciclo de una membresía multi-curso de ${quien} ` +
     `cuya comisión ya se pagó a los profesores. Cambiarla movería el reparto de plata que ya salió. ` +
     `Si hay que corregirlo, se hace con un ajuste con fecha de hoy.`
   );

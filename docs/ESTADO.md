@@ -1017,3 +1017,55 @@ no se hace sin su OK (regla de proceso 5).
 **Deploy del código**: `main` actualizado `31da6ae..ed44fbd` (fast-forward, 47
 commits) con el OK explícito de Javier. Vercel publica solo al mergear.
 Verificado antes de pushear: typecheck, lint y build limpios.
+
+---
+
+## D17b — el descuento del reemplazante en la liquidación · 2026-09-12 (dev)
+
+Cierra la regla de negocio **20a**: cuando la clase la dictó un suplente porque
+el **titular** faltó, la liquidación del titular va **normal** —esa clase le
+cuenta y la cobra— y al **total** se le descuenta lo que se le pagó al
+reemplazante. Javier, textual: *"El descuento es un concepto aparte en la
+liquidación: no es una comisión."*
+
+**Migración 0032** (aplicada **solo en dev**, aditiva):
+
+- `descuentos_liquidacion` — un descuento por clase, idempotente por
+  `sesion_id` (índice único parcial). `sesion_id` es nullable a propósito, para
+  que una multa cargada a mano entre en la misma tabla el día que se defina
+  cómo se carga. `monto` siempre positivo: el signo lo pone la cuenta, no el
+  dato.
+- `liquidaciones.total_descuentos` — separa las dos platas. Lo devengado sigue
+  siendo lo devengado y el neto pasa a ser
+  `total_devengado - total_descuentos - total_pagado`. Si el descuento se
+  restara del devengado, el comprobante ya no podría mostrar la comisión
+  completa, que es justo lo que el profesor tiene derecho a discutir.
+- Catálogo `motivo_descuento` (`reemplazo`, `multa`) — regla de negocio 13, y
+  nace en la migración (regla de calidad 7).
+
+**No vive en `comisiones_devengadas`** y el motivo no es estético: esa tabla es
+de devengos —membresía, base, criterio— y su `tipo` está restringido a
+`comision` / `referido`. Un descuento cuelga de una **sesión**, no de una venta.
+Meterlo ahí con monto negativo sería repetir la confusión que el glosario existe
+para evitar.
+
+**Código**:
+
+- `calcularDescuentos()` lee las sesiones con `reemplazo_motivo = 'titular'` y
+  `reemplazo_costo > 0`, excluye las que ya tienen descuento, y los inserta
+  **dentro de `generarLiquidacion`** — en la misma corrida, para que no exista
+  una liquidación pagable antes de que el descuento entre.
+- `registrarPagoLiquidacion` topea el pago con los descuentos ya restados: no
+  se puede pagar de más.
+- El comprobante (pantalla e impreso) muestra cada descuento con su motivo y
+  una línea **Total descuentos**; la lista de liquidaciones gana su columna.
+- `cargarCongelador` suma un paso 0: una clase **cuyo descuento ya se pagó**
+  queda congelada. Es directo —el descuento apunta a la sesión— y no pasa por
+  el prorrateo: si se pudiera editar el costo del reemplazo después de pagarlo,
+  el número que salió de la caja dejaría de coincidir con el dato.
+
+**Lo que D17b NO hace, y quedó anotado como D19**: le descuenta al titular pero
+**no genera la contrapartida**. Lo que hay que pagarle al suplente no aparece en
+ninguna lista — se puede pagar a mano con el motivo `otro_pago_profesor`, pero
+hay que acordarse. `lineasPorCobrar` arma solo el bucket `cuotas`; la lista
+"Por pagar" es el paso 2F y no arrancó.

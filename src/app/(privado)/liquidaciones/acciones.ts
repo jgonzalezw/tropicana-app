@@ -113,6 +113,97 @@ function porCurso(bloqueadas: MembresiaBloqueada[]): CursoSinRegistrar[] {
     .sort((a, b) => a.curso.localeCompare(b.curso, "es"));
 }
 
+/**
+ * Lo que se le **descuenta** a un profesor de su liquidación.
+ *
+ * **No es una comisión** (Javier, 2026-09-12): la liquidación va normal —esas
+ * clases le cuentan y las cobra— y el costo del reemplazante se resta del
+ * total. Por eso vive en su propia tabla y en su propio total: si se restara
+ * del devengado, el comprobante ya no podría mostrar la comisión completa, que
+ * es justo lo que el profesor tiene derecho a discutir.
+ */
+export type DescuentoPendiente = {
+  sesionId: number;
+  profesorId: number;
+  periodo: string;
+  motivo: string;
+  monto: number;
+  curso: string;
+  fecha: string;
+  reemplazante: string;
+};
+
+/**
+ * Los descuentos que todavía no entraron en ninguna liquidación.
+ *
+ * Sale de las clases dictadas **con reemplazo atribuible al titular** (regla
+ * 20a). El otro motivo, `administrativo`, no descuenta a nadie: esa plata la
+ * pone la academia (regla 20b).
+ */
+async function calcularDescuentos(
+  sb: Awaited<ReturnType<typeof createClient>>,
+  hastaISO: string
+): Promise<DescuentoPendiente[]> {
+  const ses = exigir(
+    await sb
+      .from("sesiones")
+      .select("id, curso_id, fecha, titular_id, profesor_id, reemplazo_motivo, reemplazo_costo")
+      .eq("estado", "dictada")
+      .eq("reemplazo_motivo", "titular")
+      .lte("fecha", hastaISO),
+    "las clases con reemplazo"
+  ) as {
+    id: number; curso_id: number; fecha: string; titular_id: number | null;
+    profesor_id: number | null; reemplazo_motivo: string | null; reemplazo_costo: number | null;
+  }[];
+  // Sin titular no hay a quién descontarle, y sin costo no hay qué descontar.
+  const candidatas = ses.filter((s) => s.titular_id != null && Number(s.reemplazo_costo) > 0);
+  if (!candidatas.length) return [];
+
+  // Lo ya descontado no se vuelve a descontar (regla 12: no se reescribe).
+  const ya = exigir(
+    await sb
+      .from("descuentos_liquidacion")
+      .select("sesion_id")
+      .in("sesion_id", candidatas.map((s) => s.id)),
+    "los descuentos ya aplicados"
+  ) as { sesion_id: number | null }[];
+  const aplicados = new Set(ya.map((d) => d.sesion_id).filter((x): x is number => x != null));
+
+  const pendientes = candidatas.filter((s) => !aplicados.has(s.id));
+  if (!pendientes.length) return [];
+
+  const cursos = exigir(
+    await sb.from("cursos").select("id, nombre").in("id", [...new Set(pendientes.map((s) => s.curso_id))]),
+    "los cursos"
+  ) as { id: number; nombre: string }[];
+  const cuNombre = new Map(cursos.map((c) => [c.id, c.nombre]));
+  const profIds = [
+    ...new Set(pendientes.flatMap((s) => [s.titular_id, s.profesor_id]).filter((x): x is number => x != null)),
+  ];
+  const profs = exigir(
+    await sb.from("profesores").select("id, nombre, apellido").in("id", profIds),
+    "los profesores"
+  ) as { id: number; nombre: string; apellido: string }[];
+  const prNombre = new Map(profs.map((p) => [p.id, `${p.apellido}, ${p.nombre}`]));
+
+  return pendientes.map((s) => {
+    const curso = cuNombre.get(s.curso_id) ?? `#${s.curso_id}`;
+    const reemplazante = s.profesor_id != null ? prNombre.get(s.profesor_id) ?? `#${s.profesor_id}` : "—";
+    return {
+      sesionId: s.id,
+      profesorId: s.titular_id as number,
+      // El período es el del MES de la clase, igual que una comisión.
+      periodo: `${s.fecha.slice(0, 7)}-01`,
+      motivo: "reemplazo",
+      monto: Number(s.reemplazo_costo),
+      curso,
+      fecha: s.fecha,
+      reemplazante,
+    };
+  });
+}
+
 /** Una línea del reparto: qué peso tuvo un curso y por qué. */
 export type LineaReparto = {
   cursoId: number;
@@ -660,6 +751,8 @@ export type FilaLiquidacion = {
   periodicidad: string;
   estado: string;
   totalDevengado: number;
+  /** Lo que se le descuenta (regla 20a). El neto ya lo resta. */
+  totalDescuentos: number;
   totalPagado: number;
   neto: number;
   /**
@@ -718,7 +811,7 @@ export async function cargarLiquidaciones(): Promise<{
 
   const { data: liqs } = await sb
     .from("liquidaciones")
-    .select("id, profesor_id, periodo, periodicidad, estado, total_devengado, total_pagado, neto")
+    .select("id, profesor_id, periodo, periodicidad, estado, total_devengado, total_descuentos, total_pagado, neto")
     .order("periodo", { ascending: false });
   const profNombre = new Map(
     ((profs as { id: number; nombre: string; apellido: string }[]) ?? []).map((p) => [p.id, `${p.apellido}, ${p.nombre}`])
@@ -730,6 +823,7 @@ export async function cargarLiquidaciones(): Promise<{
     periodicidad: string;
     estado: string;
     total_devengado: number;
+    total_descuentos: number;
     total_pagado: number;
     neto: number;
   }[]) ?? []).map((l) => ({
@@ -740,6 +834,7 @@ export async function cargarLiquidaciones(): Promise<{
     periodicidad: l.periodicidad,
     estado: l.estado,
     totalDevengado: Number(l.total_devengado),
+    totalDescuentos: Number(l.total_descuentos ?? 0),
     totalPagado: Number(l.total_pagado),
     neto: Number(l.neto),
     // Solo la del período que se está liquidando puede quedar desactualizada:
@@ -913,6 +1008,26 @@ export async function generarLiquidacion(profesorId: number): Promise<{ ok?: tru
     });
   }
 
+  // Los descuentos del profesor (regla 20a). Van en la misma corrida: si se
+  // generaran aparte, una liquidación podría pagarse antes de que el descuento
+  // entre, y esa plata ya no se recupera.
+  for (const d of (await calcularDescuentos(sb, finMesVencidoISO())).filter(
+    (d) => d.profesorId === profesorId && d.periodo === periodo
+  )) {
+    const { error: errDesc } = await a.from("descuentos_liquidacion").insert({
+      profesor_id: d.profesorId,
+      sesion_id: d.sesionId,
+      periodo: d.periodo,
+      motivo: d.motivo,
+      monto: d.monto,
+      origen: `Reemplazo de ${d.curso} del ${d.fecha}, dictada por ${d.reemplazante}`,
+      liquidacion_id: liquidacionId,
+    });
+    // Si otra corrida ya lo tomó, el índice único lo rechaza: no es un error.
+    if (errDesc && errDesc.code !== "23505")
+      return { error: "Falló registrar un descuento: " + errDesc.message };
+  }
+
   await recomputarTotales(a, liquidacionId);
   revalidatePath("/liquidaciones");
   return { ok: true, liquidacionId };
@@ -971,7 +1086,7 @@ export async function registrarPagoLiquidacion(args: {
 
   const { data: liq } = await a
     .from("liquidaciones")
-    .select("id, profesor_id, periodo, total_devengado, total_pagado")
+    .select("id, profesor_id, periodo, total_devengado, total_descuentos, total_pagado")
     .eq("id", args.liquidacionId)
     .maybeSingle();
   if (!liq) return { error: "La liquidación no existe." };
@@ -980,7 +1095,10 @@ export async function registrarPagoLiquidacion(args: {
   // revisada): el pago congela solo las clases de las que depende un prorrateo
   // que este pago hace efectivo, no el mes entero. La membresía que espera
   // sigue pudiendo registrarse y se cobra después, como complemento.
-  const restante = Math.max(0, Number(liq.total_devengado) - Number(liq.total_pagado));
+  const restante = Math.max(
+    0,
+    Number(liq.total_devengado) - Number(liq.total_descuentos ?? 0) - Number(liq.total_pagado)
+  );
   if (monto > restante) return { error: `El pago supera el neto pendiente (${restante}).` };
 
   const glosa = args.medio && /otro/i.test(args.medio) && args.notaMedio?.trim() ? args.notaMedio.trim() : null;
@@ -1017,12 +1135,22 @@ async function recomputarTotales(a: Admin, liquidacionId: number): Promise<void>
     .eq("liquidacion_id", liquidacionId);
   const pagado = ((pagos as { monto: number }[]) ?? []).reduce((s, r) => s + Number(r.monto), 0);
 
-  const neto = devengado - pagado;
+  // Lo devengado sigue siendo lo devengado: el descuento va aparte y se resta
+  // del neto (regla 20a). Así el comprobante puede mostrar la comisión entera,
+  // que es lo que el profesor tiene derecho a discutir.
+  const { data: descs } = await a
+    .from("descuentos_liquidacion")
+    .select("monto")
+    .eq("liquidacion_id", liquidacionId);
+  const descuentos = ((descs as { monto: number }[]) ?? []).reduce((s, r) => s + Number(r.monto), 0);
+
+  const neto = devengado - descuentos - pagado;
   const estado = pagado <= 0 ? "abierta" : neto <= 0 ? "pagada" : "cerrada";
   await a
     .from("liquidaciones")
     .update({
       total_devengado: devengado,
+      total_descuentos: descuentos,
       total_pagado: pagado,
       neto,
       estado,
