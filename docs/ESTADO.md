@@ -6,7 +6,12 @@
 > `docs/design/README.md` (fuente de verdad del **diseño**), `docs/CONTEXTO_AVANCE.md`
 > (bitácora larga de Etapa 0), `docs/DESIGN_SYNC.md` (cómo entran los handoffs).
 >
-> **Última actualización:** 2026-09-10 — Consolidación de estado a pedido de
+> **Última actualización:** 2026-09-12 — Liquidación a prorrata (Paso E), las
+> reglas de negocio 16 a 19 y el bug del padrón: ver el bloque final
+> **"Liquidación a prorrata — cierre de E, y las reglas 16 a 19"**. Todo en dev,
+> pendiente del OK para producción.
+>
+> **2026-09-10 — Consolidación de estado a pedido de
 > Javier: ver **§0bis** (tabla de los 7 pasos) para la foto completa. **Motor
 > de Planes y Membresías en PRODUCCIÓN.** 1B.2 y 1C-core cerrados (liquidación
 > criterio 1 de punta a
@@ -786,3 +791,87 @@ son las de sus clases). Los cuatro (9, 11, 12, 13, 14) en OK en dev.
 
 **Pendiente de la clase de prueba:** E (liquidación a prorrata), F (crédito al
 convertir), G (reparar inscripciones 17/18/19).
+
+---
+
+## Liquidación a prorrata — cierre de E, y las reglas 16 a 19 · 2026-09-11/12
+
+**Rama:** `claude/tropicana-app-context-d5zjt8` · commits `4e526c7`, `e98dc8e`,
+`5a6900c`. Todo **solo en dev**: falta el OK explícito de Javier (regla de
+proceso 1).
+
+### Lo que se decidió, y por qué
+
+**1. Las clases se cuentan por calendario menos suspendidas** (regla de negocio
+10). Antes se contaban solo las sesiones con estado `dictada`, así que una clase
+que ocurrió pero cuya asistencia nadie cargó pesaba cero: el profesor cobraba de
+menos por un trámite pendiente, no por algo que pasó en la sala. Es lo que hacía
+que un ilimitado multicurso de Bs. 800 con 40 clases de calendario liquidara
+"1 clase".
+
+**2. Su contrapeso, la regla 17**: una membresía **con prorrateo (2+ cursos)** no
+se liquida mientras alguna clase de su ciclo no tenga ni asistencia ni
+suspensión. Una **mono-curso se liquida igual** — con un solo curso el reparto
+da `cobrado` siempre, el conteo no decide plata. El bloqueo es **de esa
+membresía**, no del profesor ni del período.
+
+**3. La regla 16 se angostó** (12/09, sobre la decisión original del 11/09).
+Antes congelaba el mes entero para todos apenas alguien cobrara. Ahora congela
+**una clase**, y solo si de ella depende una membresía con prorrateo **ya
+pagada**. Dos motivos medidos en el código: *(a)* una mono-curso no depende del
+conteo; *(b)* agregar una membresía no toca lo ya repartido. Por eso la **venta
+retroactiva ya no se bloquea** y una liquidación pagada **acepta complemento**.
+`src/lib/periodos.ts` pasó de `cierreLiquidado` (un tope de fecha global) a
+`cargarCongelador` / `claseCongelada` (un mapa `curso|fecha`).
+
+**4. Reglas 18 y 19, nuevas.** Una clase sin alumnos no existe para nadie: no
+cuenta, no traba, no obliga. Y el motivo de una suspensión dice a quién se le
+atribuye, pero la plata no cambia por eso — el profesor no cobra una clase que
+no dictó.
+
+### El bug que apareció en el camino (y el que más importa)
+
+**El padrón filtraba por `estado === "activa"`**, contra la regla de negocio 2.
+Una membresía `completada` —agotada y cobrada, o sea el final normal de toda
+venta— desaparecía del padrón de sus propias clases pasadas. Al volver a una
+fecha vieja la clase se veía **vacía**, y una clase que parece vacía se suspende
+"sin alumnos": eso le borra al profesor el peso de esa clase. Pasó con Heels en
+agosto — los cinco sábados tenían alumno y el padrón mostraba ninguno.
+
+Segunda capa: `cicloAgotado` comparaba contra los totales de **hoy**. Ahora se
+pregunta **al día que se mira** (`cicloAgotadoAl`), contando solo las clases
+anteriores a esa fecha.
+
+### Lo demás
+
+- **Migración 0028**: `parametros.opciones` — un valor con alternativas se elige
+  de una lista, nunca se escribe a mano (regla de calidad 6). Los parámetros del
+  reparto y `periodicidad_liquidacion` volvieron al grupo "Liquidación" que ya
+  existía.
+- **Comprobante**: la tabla del reparto tenía cuatro columnas sin encabezado.
+  Ahora dice la cuenta en palabras y nombra cada columna.
+- **Pantalla de liquidaciones**: las clases sin registrar se muestran
+  comprimidas por profesor, con el detalle **por curso** al expandir.
+- **Controles**: 19 (prorrateo devengado con clases sin registrar) y 20 (D18).
+
+### Cambio de datos en dev, con el antes/después
+
+Se revirtieron los devengos de la **membresía 37** para poder recalcular con el
+criterio nuevo. Las tres liquidaciones estaban `abierta`, sin un peso pagado —
+que es lo que la regla 16 permite.
+
+| | Antes | Después |
+| --- | --- | --- |
+| Comisiones de la membresía 37 | 3 (Zumba 120, Tropicoreográfico 100, Salsa 100) | 0 |
+| Liq. 2 — Isabel Góngora | 120, 1 ítem | 0, sin ítems |
+| Liq. 3 — Natalia Salek | 305, 4 ítems | 105, 2 ítems |
+
+### Lo que sigue, en orden
+
+1. **D18 — la comisión sigue a quién dictó, no a quién está asignado hoy.** Es
+   un **bug**, no una mejora: el cálculo lee solo las asignaciones vigentes
+   (`hasta is null`), así que si cambia el titular a mitad de mes toda la
+   comisión va al nuevo. El **control 20 ya detecta 1 caso en dev**.
+2. **Vigencia del curso** (§1.b de `DECISIONES.md`): decidida, sin construir.
+3. Validaciones pendientes de Javier sobre lo de arriba, y **D10** (volver
+   `asistencia_semanas_retro` a 2 en dev).
