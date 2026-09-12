@@ -113,6 +113,11 @@ export default function BarraLateral({
           mostrar: puedeConfig,
         },
         {
+          href: "/administracion/sala",
+          etiqueta: "Sala y horarios",
+          mostrar: puedeConfig,
+        },
+        {
           href: "/administracion/parametros",
           etiqueta: "Parámetros",
           mostrar: puedeConfig,

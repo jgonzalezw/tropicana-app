@@ -20,7 +20,7 @@
  */
 
 import { diaIso } from "@/lib/inscripcion";
-import { aMinutos, etiquetaDuracion, seSolapan } from "@/lib/horarios";
+import { aHora, aMinutos, etiquetaDuracion, seSolapan } from "@/lib/horarios";
 import { enVigencia, type VigenciaCurso } from "@/lib/vigencia";
 import type { TipoProfesor } from "@/lib/tipos";
 
@@ -208,6 +208,154 @@ export function choquesCon(
   duracionMin: number
 ): BloqueOcupado[] {
   return ocupados.filter((b) => seSolapan(hora, duracionMin, b.hora, b.duracionMin));
+}
+
+// ── El horario base: cuándo la sala está abierta (C1) ────────────────────
+
+/**
+ * El lienzo del motor de disponibilidad. **Dos piezas distintas**, y no se
+ * mezclan (Javier, 2026-09-12):
+ *
+ * - **El patrón** — la regla semanal recurrente. Una franja por fila, así un
+ *   día con corte al mediodía son dos franjas y no necesita un caso especial.
+ * - **Las excepciones** — por fecha. Un feriado que cierra, o un día que abre
+ *   distinto. Un feriado **no** es un bloqueo cargado a mano: es una excepción
+ *   del horario, y por eso vive acá y no en `reservas_sala`.
+ *
+ * **Vacío significa cerrado, no abierto.** Un día sin franjas está cerrado, y
+ * una sala sin horario cargado no se puede reservar. El default contrario
+ * —"si no se cargó, está abierto"— produce justo el problema que esto viene a
+ * evitar: la sala vendible a cualquier hora porque nadie la configuró.
+ */
+
+export type FranjaPatron = { dia_semana: number; desde: string; hasta: string };
+
+export type ExcepcionHorario = {
+  fecha: string;
+  cerrado: boolean;
+  desde: string | null;
+  hasta: string | null;
+  motivo: string | null;
+  glosa: string | null;
+};
+
+export type Ventana = { desde: string; hasta: string };
+
+const DIAS_PLURAL: Record<number, string> = {
+  1: "lunes", 2: "martes", 3: "miércoles", 4: "jueves",
+  5: "viernes", 6: "sábados", 7: "domingos",
+};
+
+/** `HH:MM` limpio, para comparar y para mostrar. */
+const hhmm = (t: string) => t.slice(0, 5);
+
+/**
+ * Las ventanas en que la sala abre esa fecha, y de dónde salen.
+ *
+ * Una excepción **reemplaza** al patrón ese día: si el 25/12 está marcado como
+ * feriado, no importa que el patrón diga que los jueves abre.
+ */
+export function ventanasDelDia(
+  patron: FranjaPatron[],
+  excepciones: ExcepcionHorario[],
+  fechaISO: string
+): { ventanas: Ventana[]; excepcion: ExcepcionHorario | null } {
+  const f = fechaISO.slice(0, 10);
+  const exc = excepciones.find((e) => e.fecha.slice(0, 10) === f) ?? null;
+
+  if (exc) {
+    if (exc.cerrado) return { ventanas: [], excepcion: exc };
+    return {
+      ventanas: [{ desde: hhmm(exc.desde!), hasta: hhmm(exc.hasta!) }],
+      excepcion: exc,
+    };
+  }
+
+  const dia = diaIso(new Date(f + "T00:00:00"));
+  const ventanas = patron
+    .filter((p) => p.dia_semana === dia)
+    .map((p) => ({ desde: hhmm(p.desde), hasta: hhmm(p.hasta) }))
+    .sort((a, b) => (aMinutos(a.desde) ?? 0) - (aMinutos(b.desde) ?? 0));
+
+  return { ventanas, excepcion: null };
+}
+
+export type ResultadoHorario = { ok: true } | { ok: false; motivo: string };
+
+/**
+ * ¿Entra este rango dentro del horario de la sala?
+ *
+ * Tiene que caber **entero dentro de una sola ventana**: una reserva que
+ * empieza antes del corte del mediodía y termina después no es válida, porque
+ * en el medio la sala está cerrada.
+ *
+ * Cuando no entra **dice por qué y dónde se arregla**. Un "no se puede" a secas
+ * manda a buscar el problema donde no está (regla de calidad 1 y 5).
+ */
+export function dentroDelHorario(
+  patron: FranjaPatron[],
+  excepciones: ExcepcionHorario[],
+  fechaISO: string,
+  hora: string,
+  duracionMin: number,
+  /** Cómo se lee el motivo de la excepción, del catálogo. */
+  etiquetaMotivo?: (valor: string) => string
+): ResultadoHorario {
+  const ini = aMinutos(hora);
+  if (ini == null || !(duracionMin > 0))
+    return { ok: false, motivo: "La hora o la duración de la reserva no son válidas." };
+  const fin = ini + duracionMin;
+
+  // Sin horario cargado la sala no se reserva, y se dice dónde cargarlo: si
+  // callara, "todavía no lo configuré" y "algo se rompió" se verían igual.
+  if (patron.length === 0 && excepciones.length === 0)
+    return {
+      ok: false,
+      motivo:
+        "Todavía no está cargado el horario de la sala, así que no se puede reservar nada. " +
+        "Se carga en Administración → Sala y horarios.",
+    };
+
+  const { ventanas, excepcion } = ventanasDelDia(patron, excepciones, fechaISO);
+
+  if (excepcion && excepcion.cerrado) {
+    const etiqueta = excepcion.motivo
+      ? etiquetaMotivo?.(excepcion.motivo) ?? excepcion.motivo
+      : null;
+    const detalle = [etiqueta, excepcion.glosa].filter(Boolean).join(" · ");
+    return {
+      ok: false,
+      motivo: `El ${fechaISO.slice(0, 10)} la sala no abre${detalle ? ` (${detalle})` : ""}.`,
+    };
+  }
+
+  if (ventanas.length === 0) {
+    const dia = diaIso(new Date(fechaISO.slice(0, 10) + "T00:00:00"));
+    return { ok: false, motivo: `La sala no abre los ${DIAS_PLURAL[dia]}.` };
+  }
+
+  const entra = ventanas.some((v) => {
+    const vi = aMinutos(v.desde);
+    const vf = aMinutos(v.hasta);
+    return vi != null && vf != null && ini >= vi && fin <= vf;
+  });
+  if (entra) return { ok: true };
+
+  const abre = ventanas.map((v) => `${v.desde}–${v.hasta}`).join(" y ");
+  const pedido = `${aHora(ini)}–${aHora(fin)}`;
+  return {
+    ok: false,
+    motivo:
+      ventanas.length > 1
+        ? `La sala abre ${abre} y la reserva pedida (${pedido}) no entra en ninguna de las dos franjas.`
+        : `La sala abre ${abre} y la reserva pedida (${pedido}) queda fuera.`,
+  };
+}
+
+/** "08:00–12:00 y 15:00–22:00", o "cerrado" — para mostrar un día de un vistazo. */
+export function describirVentanas(ventanas: Ventana[]): string {
+  if (ventanas.length === 0) return "cerrado";
+  return ventanas.map((v) => `${v.desde}–${v.hasta}`).join(" y ");
 }
 
 /** "Salsa Inicial (19:00 → 20:00)" — para nombrar el choque en un mensaje. */
