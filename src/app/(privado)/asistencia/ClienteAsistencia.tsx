@@ -446,10 +446,12 @@ export default function ClienteAsistencia({
                   onChange={(e) => {
                     const id = Number(e.target.value) || null;
                     setReeProf(id);
-                    // La tarifa del profesor es la REFERENCIA; el monto se
-                    // confirma acá y es el que manda (regla 12).
+                    // Al cambiar de profesor se propone SU tarifa, siempre.
+                    // Antes solo se proponía con el campo vacío, así que al
+                    // cambiar de reemplazante quedaba el monto del anterior y
+                    // se guardaba así, sin que nada lo dijera.
                     const t = profesores.find((p) => p.id === id)?.tarifa;
-                    if (t != null && !reeCosto) setReeCosto(String(t));
+                    setReeCosto(t == null ? "" : String(t));
                   }}
                   className="entrada w-full"
                 >
@@ -479,8 +481,13 @@ export default function ClienteAsistencia({
                   ))}
                 </select>
               </label>
+              {/* El monto se CONFIRMA acá y es el que se guarda con la clase
+                  (regla 12: el snapshot manda sobre la tabla). La tarifa del
+                  profesor es solo la referencia, y se muestra al lado para
+                  poder ver de un vistazo si lo que se va a guardar es la
+                  tarifa o un monto distinto que alguien decidió. */}
               <label className="text-sm">
-                <span className="block text-[var(--texto-tenue)] mb-1">Se le paga</span>
+                <span className="block text-[var(--texto-tenue)] mb-1">Se le paga por esta clase</span>
                 <input
                   value={reeCosto}
                   onChange={(e) => setReeCosto(e.target.value)}
@@ -488,6 +495,36 @@ export default function ClienteAsistencia({
                   placeholder="0"
                   className="entrada w-full"
                 />
+                {(() => {
+                  const ref = profesores.find((p) => p.id === reeProf)?.tarifa ?? null;
+                  if (reeProf == null) return null;
+                  // Sin tarifa cargada se dice; no se deja el campo mudo
+                  // (regla de calidad 5).
+                  if (ref == null)
+                    return (
+                      <span className="block mt-1 text-[var(--texto-tenue)]">
+                        Sin tarifa de referencia cargada para este profesor.
+                      </span>
+                    );
+                  const distinto = Number(reeCosto.replace(/[^\d.]/g, "") || 0) !== ref;
+                  return (
+                    <span className="block mt-1 text-[var(--texto-tenue)]">
+                      Referencia: {gs(ref)}
+                      {distinto && (
+                        <>
+                          {" · "}
+                          <button
+                            type="button"
+                            onClick={() => setReeCosto(String(ref))}
+                            className="underline"
+                          >
+                            usar la referencia
+                          </button>
+                        </>
+                      )}
+                    </span>
+                  );
+                })()}
               </label>
               {/* Qué hace cada motivo con la plata, dicho acá y no en un manual:
                   es la decisión que se está tomando al elegirlo. */}
