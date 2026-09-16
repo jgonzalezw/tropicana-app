@@ -13,10 +13,30 @@
 
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { tienePermiso } from "@/lib/sesion";
+import { tienePermiso, obtenerPerfilActual } from "@/lib/sesion";
 import { aMinutos } from "@/lib/horarios";
+import { COLS_VIGENCIA } from "@/lib/vigencia";
+import {
+  clasesAfectadasPorCierre,
+  type ClaseAfectada,
+  type CursoOcupa,
+  type MembresiaCobertura,
+} from "@/lib/sala";
+import { ejecutarSuspension, validarFecha } from "../../asistencia/acciones";
+import { fechaLarga } from "@/lib/inscripcion";
 
-type Resultado = { ok?: true; error?: string };
+/** Un aviso listo para mandar a un alumno afectado por el cierre. */
+export type AvisoAlumno = {
+  alumnoId: number;
+  nombre: string;
+  whatsapp: string | null;
+  mensaje: string;
+};
+
+type ResultadoSimple = { ok?: true; error?: string; mensaje?: string };
+type Resultado =
+  | (ResultadoSimple & { avisos?: AvisoAlumno[] })
+  | { requiereConfirmacion: true; afectadas: ClaseAfectada[] };
 
 function admin() {
   const a = createAdminClient();
@@ -55,7 +75,7 @@ export type SalaEdit = {
  * vender, y la siguiente entra cuando esa está ocupada (Javier, 2026-09-12).
  * Por eso se edita acá y no se deduce del id.
  */
-export async function guardarSalas(salas: SalaEdit[]): Promise<Resultado> {
+export async function guardarSalas(salas: SalaEdit[]): Promise<ResultadoSimple> {
   if (!(await tienePermiso("administracion", "editar")))
     return { error: "Sin permiso para editar las salas." };
 
@@ -131,11 +151,77 @@ function validarPatron(patron: FranjaEdit[]): string | null {
   return null;
 }
 
+/**
+ * Qué clases con membresía activa quedan afectadas por las excepciones que se
+ * están por guardar. Es el impacto de C5, acotado a cursos regulares: sin
+ * ventas de particulares/alquiler todavía, del otro lado no hay nada que
+ * revisar (Javier, 2026-09-16).
+ */
+async function calcularImpacto(
+  a: ReturnType<typeof admin>,
+  salaId: number,
+  excepciones: ExcepcionEdit[]
+): Promise<ClaseAfectada[]> {
+  const cierres = excepciones.filter((e) => e.cerrado);
+  if (!cierres.length) return [];
+
+  const { data: cursosRows } = await a
+    .from("cursos")
+    .select(`id, nombre, dias_semana, hora, duracion_min, sala_id, ${COLS_VIGENCIA}`)
+    .eq("sala_id", salaId)
+    .eq("activo", true);
+  const cursos = (cursosRows as unknown as CursoOcupa[]) ?? [];
+  if (!cursos.length) return [];
+  const cursoIds = cursos.map((c) => c.id);
+
+  const desde = cierres.reduce((m, e) => (e.fecha < m ? e.fecha : m), cierres[0].fecha);
+  const hasta = cierres.reduce((m, e) => (e.hasta_fecha > m ? e.hasta_fecha : m), cierres[0].hasta_fecha);
+
+  // Membresías: por `inscripcion_cursos`, que es donde el glosario dice que
+  // vive qué cursos toca una membresía — no `inscripciones.curso_id`, que es
+  // un resabio mono-curso.
+  const { data: icRows } = await a
+    .from("inscripcion_cursos")
+    .select("curso_id, inscripcion:inscripciones!inner(alumno_id, estado, fecha_inicio, fecha_fin)")
+    .in("curso_id", cursoIds);
+  const membresias: MembresiaCobertura[] = (
+    (icRows as unknown as {
+      curso_id: number;
+      inscripcion: { alumno_id: number; estado: string; fecha_inicio: string; fecha_fin: string | null };
+    }[]) ?? []
+  )
+    .filter((r) => r.inscripcion.estado === "activa")
+    .map((r) => ({
+      alumno_id: r.inscripcion.alumno_id,
+      curso_id: r.curso_id,
+      fecha_inicio: r.inscripcion.fecha_inicio,
+      fecha_fin: r.inscripcion.fecha_fin,
+    }));
+
+  const { data: susRows } = await a
+    .from("sesiones")
+    .select("curso_id, fecha")
+    .in("curso_id", cursoIds)
+    .eq("estado", "suspendida")
+    .gte("fecha", desde)
+    .lte("fecha", hasta);
+  const yaSuspendidas = new Set(
+    ((susRows as { curso_id: number; fecha: string }[]) ?? []).map((s) => `${s.curso_id}|${s.fecha}`)
+  );
+
+  // Se calcula por el rango completo y se filtra a las fechas que de verdad
+  // caen dentro de algún cierre — más simple que recortar por cada excepción
+  // y da el mismo resultado porque las excepciones de una sala no se pisan.
+  const todas = clasesAfectadasPorCierre(cursos, membresias, desde, hasta, yaSuspendidas);
+  return todas.filter((c) => cierres.some((e) => e.fecha <= c.fecha && c.fecha <= e.hasta_fecha));
+}
+
 export async function guardarHorarioSala(
   salaId: number,
   patron: FranjaEdit[],
   excepciones: ExcepcionEdit[],
-  excepcionesEliminadas: number[]
+  excepcionesEliminadas: number[],
+  confirmarCierres = false
 ): Promise<Resultado> {
   if (!(await tienePermiso("administracion", "editar")))
     return { error: "Sin permiso para editar el horario de la sala." };
@@ -159,6 +245,12 @@ export async function guardarHorarioSala(
   }
 
   const a = admin();
+
+  // Antes de tocar la base: si algún cierre nuevo pisa clases con membresía
+  // activa, se avisa y se pide confirmación explícita — nunca se suspende
+  // nada en silencio (regla de proceso: el humano decide, no C5 solo).
+  const afectadas = await calcularImpacto(a, salaId, excepciones);
+  if (afectadas.length && !confirmarCierres) return { requiereConfirmacion: true, afectadas };
 
   // El patrón se reemplaza entero. Es una tabla de configuración chica (a lo
   // sumo unas pocas franjas por día) y el diff no compraría nada.
@@ -215,6 +307,135 @@ export async function guardarHorarioSala(
     }
   }
 
+  // El cierre ya está guardado: ahora sí se suspenden las clases que caían
+  // adentro. Se usa el mismo núcleo que la asistencia del día a día
+  // (`ejecutarSuspension`), con `permitirFutura` porque acá se sabe con
+  // anticipación que la sala no va a estar disponible — un feriado de la
+  // semana que viene no puede esperar a que llegue la fecha.
+  let suspendidas = 0;
+  const bloqueadas: string[] = [];
+  // Por alumno: cada clase suya que quedó suspendida en este cierre, con el
+  // motivo tal como lo va a leer (etiqueta del catálogo + la glosa entre
+  // paréntesis) y a qué fecha le quedó el ciclo si se corrió. Un alumno con
+  // dos clases dentro del mismo feriado recibe un solo aviso con las dos.
+  const porAlumno = new Map<
+    number,
+    { curso: string; fecha: string; finCicloNuevo: string | null; motivoTexto: string }[]
+  >();
+
+  if (afectadas.length) {
+    const perfil = await obtenerPerfilActual();
+
+    // Etiqueta legible del motivo (regla de calidad 6: el valor guardado es
+    // la clave del catálogo, "feriado"; lo que se lee es su etiqueta).
+    const { data: catRow } = await a
+      .from("catalogos")
+      .select("id")
+      .eq("clave", "motivo_excepcion_horario")
+      .maybeSingle();
+    const { data: valRows } = catRow
+      ? await a.from("catalogo_valores").select("valor, etiqueta").eq("catalogo_id", catRow.id)
+      : { data: [] };
+    const etiquetaDe = new Map(
+      ((valRows as { valor: string; etiqueta: string }[]) ?? []).map((v) => [v.valor, v.etiqueta])
+    );
+
+    for (const c of afectadas) {
+      const exc = excepciones.find((e) => e.fecha <= c.fecha && c.fecha <= e.hasta_fecha);
+      // Lo que va al campo `motivo` de la sesión (auditoría interna, texto
+      // libre) sigue siendo explícito sobre que viene de un cierre de sala.
+      const motivo = ["Cierre de sala", exc?.motivo, exc?.glosa].filter(Boolean).join(" — ");
+      // Lo que lee el alumno: el motivo tal cual lo elige quien carga la
+      // excepción, con la glosa como aclaración entre paréntesis — sin hablar
+      // de "sala" ni de mecánica interna (Javier, 2026-09-16).
+      const motivoTexto = exc?.motivo
+        ? `${etiquetaDe.get(exc.motivo) ?? exc.motivo}${exc.glosa ? ` (${exc.glosa})` : ""}`
+        : exc?.glosa ?? "un cierre";
+      const errFecha = await validarFecha(c.cursoId, c.fecha, { permitirFutura: true });
+      if (errFecha) {
+        // Regla de negocio 16: una clase de la que depende una comisión ya
+        // pagada no se toca, ni siquiera por un feriado. La sala queda
+        // cerrada igual; esa clase puntual necesita una corrección manual.
+        bloqueadas.push(`${c.cursoNombre} (${c.fecha}): ${errFecha}`);
+        continue;
+      }
+      const r = await ejecutarSuspension(a, {
+        cursoId: c.cursoId,
+        fecha: c.fecha,
+        motivo,
+        registradoPor: perfil?.id ?? null,
+      });
+      suspendidas++;
+
+      const finPorAlumno = new Map(r.alumnosCorridos.map((x) => [x.alumnoId, x.finCicloNuevo]));
+      for (const alumnoId of r.alumnosAfectados) {
+        const lista = porAlumno.get(alumnoId) ?? [];
+        lista.push({
+          curso: c.cursoNombre,
+          fecha: c.fecha,
+          finCicloNuevo: finPorAlumno.get(alumnoId) ?? null,
+          motivoTexto,
+        });
+        porAlumno.set(alumnoId, lista);
+      }
+    }
+  }
+
+  // El aviso, listo para copiar y pegar por WhatsApp — pedido de Javier
+  // (2026-09-16): mientras no haya envío automático, al menos poder pasarlo a
+  // mano a cada alumno hoy mismo.
+  const avisos: AvisoAlumno[] = [];
+  if (porAlumno.size) {
+    const { data: alRows } = await a
+      .from("alumnos")
+      .select("id, nombre, apellido, whatsapp")
+      .in("id", [...porAlumno.keys()]);
+    const datos = new Map(
+      ((alRows as { id: number; nombre: string; apellido: string; whatsapp: string | null }[]) ?? []).map((x) => [
+        x.id,
+        x,
+      ])
+    );
+    for (const [alumnoId, clases] of porAlumno) {
+      const al = datos.get(alumnoId);
+      const nombre = al ? `${al.nombre} ${al.apellido}` : `Alumno #${alumnoId}`;
+      const detalle = clases
+        .map((cl) => `${cl.curso} del ${fmtLarga(cl.fecha)}`)
+        .join(clases.length > 1 ? ", " : "");
+      const finCiclo = clases.find((cl) => cl.finCicloNuevo)?.finCicloNuevo;
+      // El motivo que se lee es el de la primera clase: en el uso real se
+      // guarda una excepción por vez, así que las clases de un mismo aviso
+      // comparten motivo. Si alguna vez difieren, queda pendiente mostrar más
+      // de uno — anotado en el ROADMAP junto con el resto de notificaciones.
+      const motivoTexto = clases[0].motivoTexto;
+      const partesMsg = [
+        `Hola ${al?.nombre ?? nombre}! Te avisamos que tu clase de ${detalle} qued${
+          clases.length > 1 ? "aron suspendidas" : "ó suspendida"
+        } por ${motivoTexto}.`,
+      ];
+      if (finCiclo) partesMsg.push(`Tu ciclo se corrió: ahora vence el ${fmtLarga(finCiclo)}.`);
+      partesMsg.push("Cualquier duda, escribinos por acá. ¡Gracias!");
+      avisos.push({ alumnoId, nombre, whatsapp: al?.whatsapp ?? null, mensaje: partesMsg.join(" ") });
+    }
+    avisos.sort((x, y) => x.nombre.localeCompare(y.nombre, "es"));
+  }
+
   revalidatePath("/administracion/sala");
-  return { ok: true };
+  revalidatePath("/asistencia");
+
+  const plu = (n: number, s: string, p: string) => `${n} ${n === 1 ? s : p}`;
+  const partes = ["Horario guardado."];
+  if (suspendidas > 0)
+    partes.push(`Se suspendieron ${plu(suspendidas, "clase", "clases")} que tenían membresías activas.`);
+  if (bloqueadas.length)
+    partes.push(
+      `${plu(bloqueadas.length, "clase queda", "clases quedan")} sin suspender porque ya tienen comisión ` +
+        `pagada — corregilas a mano: ${bloqueadas.join("; ")}.`
+    );
+
+  return { ok: true, mensaje: partes.join(" "), avisos };
+}
+
+function fmtLarga(iso: string): string {
+  return fechaLarga(new Date(iso.slice(0, 10) + "T00:00:00"));
 }

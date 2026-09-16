@@ -236,6 +236,24 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
    se cumple un disparador, se avisa aunque nadie haya preguntado.
    *Costó tres veces: se reintrodujo una decisión ya tomada por no tenerla a
    mano, y el retrabajo lo pagó Javier en horas y en tokens.*
+11. **Toda pantalla o paso nuevo incluye su opción de permisos por rol, antes
+    de darse por concluido.** No es un paso aparte para después: si la pantalla
+    o la operación no tiene su módulo en `Roles y Permisos` (o usa uno que no
+    le corresponde), no está terminada.
+    *Costó una vez: Planes, Liquidaciones y Precios y paquetes se construyeron
+    usando el permiso de otro módulo (`cursos`, `comisiones`, `administracion`)
+    porque no existía uno propio. Un asistente con permiso de `cursos` veía
+    Planes sin que hubiera forma de evitarlo — encontrado por Javier ya con el
+    asistente operando la aplicación, 2026-09-16.*
+12. **Toda notificación que entrega una pantalla lleva su mecanismo de
+    copiar, para poder mandarla al cliente.** Vale para cualquier aviso que
+    nombre a una persona y algo que le pasó o le va a pasar (una clase
+    suspendida, un cobro, un vencimiento) — no para los banners de éxito
+    genéricos que no hablan de nadie en particular. Sin envío automático
+    todavía, el mínimo es poder copiar el texto ya armado en vez de tener que
+    redactarlo a mano por cada persona.
+    *(Javier, 2026-09-16, al construir el aviso de C5.)* La revisión retroactiva
+    de las pantallas existentes con notificación queda en `ROADMAP.md` (R21).
 
 ## 4. Calidad del código
 

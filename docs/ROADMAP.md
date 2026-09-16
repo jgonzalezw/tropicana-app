@@ -29,7 +29,7 @@ Tamaño: **S** = un rato · **M** = un hito chico · **L** = un hito propio.
 
 | # | Qué es | Rebanada | Tamaño |
 | --- | --- | --- | --- |
-| R1 | **Conflicto bloqueo-vs-agendado (C5).** Cuando un bloqueo o un cierre cae sobre clases o reservas ya agendadas, el sistema **junta los conflictos y el humano decide** caso por caso — nunca una cancelación automática silenciosa. Para un curso regular, un bloqueo que pisa una clase **es una suspensión** (corre el fin de ciclo, regla de negocio 4). **Alcance del lado de cursos regulares** (Javier, 2026-09-16): el choque se pregunta contra **membresías activas que efectivamente toman esa clase esa fecha**, no contra el calendario del curso a secas — una clase sin nadie inscripto vigente no genera aviso ni confirmación (regla de negocio 18: una clase sin alumnos no existe para nadie). Del lado de particulares/alquiler no aplica el filtro: una reserva ya es un compromiso real por definición. Conecta con notificaciones. El modelo se prevé desde C1; se construye después. | C5 | L |
+| R1 | **Conflicto bloqueo-vs-agendado (C5).** Cuando un bloqueo o un cierre cae sobre clases o reservas ya agendadas, el sistema **junta los conflictos y el humano decide** caso por caso — nunca una cancelación automática silenciosa. Para un curso regular, un bloqueo que pisa una clase **es una suspensión** (corre el fin de ciclo, regla de negocio 4). **Alcance del lado de cursos regulares** (Javier, 2026-09-16): el choque se pregunta contra **membresías activas que efectivamente toman esa clase esa fecha**, no contra el calendario del curso a secas — una clase sin nadie inscripto vigente no genera aviso ni confirmación (regla de negocio 18: una clase sin alumnos no existe para nadie). Del lado de particulares/alquiler no aplica el filtro: una reserva ya es un compromiso real por definición. **Lado de cursos regulares: CONSTRUIDO en dev el 2026-09-16** — al guardar un cierre, se detectan las clases afectadas, se pide confirmación explícita, y al confirmar se suspenden con aviso por alumno (ver `docs/ESTADO.md`). Lado de particulares/alquiler sigue sin construir — no hay reservas todavía (C2/C3). | C5 | L |
 | R17 | **Copiar el horario de una sala a otra.** Pedido de Javier (2026-09-12): *"que haya una forma de duplicar los valores… en horarios, de una sala a otra"*. Hoy cada sala se carga de cero, y la alterna suele abrir igual que la principal: se parte de la copia y se ajusta solo lo que difiere. La copia es **un punto de partida, no un vínculo** — después son horarios independientes. | Paso 5 | S |
 | R18 | **Copiar las tarifas de alquiler de una sala a otra.** La otra mitad del mismo pedido. Hoy no hace falta porque las tarifas son generales (valen para todas las salas), pero en cuanto se diferencie una sala (R19) va a hacer falta partir de la copia en vez de cargar 48 celdas a mano. | Precios | S |
 | R19 | **Editar la tarifa de alquiler propia de una sala.** El modelo ya lo soporta desde la 0037 —una fila con `sala_id` manda sobre la general— pero **desde la pantalla no hay forma de cargarla**: *Precios y paquetes* edita solo la general. Javier lo eligió así a propósito (2026-09-12: hoy las dos salas cuestan lo mismo), y la pantalla ahora **dice** que esos precios valen para todas las salas en vez de callarlo. Lo que falta es el selector de sala en la pestaña de alquiler. | Precios | M |
@@ -68,6 +68,20 @@ Tamaño: **S** = un rato · **M** = un hito chico · **L** = un hito propio.
 | # | Qué es | Rebanada | Tamaño |
 | --- | --- | --- | --- |
 | R16 | **Alumnos: fecha de nacimiento y sexo.** Migración aditiva + los dos campos en la ficha (sexo desde catálogo, no hardcodeado). Surgió de una revisión de uso. | Alumnos | S |
+
+---
+
+## 6. Notificaciones
+
+Surgió al construir el aviso de C5 (feriado → alumnos afectados, 2026-09-16):
+armar el mensaje a mano ahí mostró que el patrón se va a repetir, y sin
+modelarlo cada pantalla lo va a resolver distinto.
+
+| # | Qué es | Rebanada | Tamaño |
+| --- | --- | --- | --- |
+| R20 | **Modelar el sistema de notificaciones — sin hardcodear.** Javier (2026-09-16): *"ya se ve la necesidad de modelar el sistema de notificaciones, para no hardcodear nada"*. Hoy el mensaje de C5 (motivo + glosa + qué cambió) está armado a mano en `administracion/sala/acciones.ts`. Con más de un caso (asistencia, cobros, sala…) hace falta una plantilla por tipo de evento — catálogo o parámetro, regla de negocio 13 — no una función de texto por pantalla. | transversal | M |
+| R21 | **"Copiar para enviar" en toda notificación de pantalla — regla nueva, hacia adelante.** Javier (2026-09-16): *"en adelante toda notificación que entregue una pantalla, que tenga el mecanismo de copiar para poder mandarla al cliente."* Pasa a `REGLAS.md` como regla de calidad — ver ahí el texto exacto. Esta fila es el trabajo de **volver hacia atrás**: revisar todas las pantallas que hoy terminan en un banner verde de éxito (asistencia guardada, inscripción confirmada, cobro registrado…) y decidir, una por una, cuáles necesitan el botón de copiar. | transversal | M |
+| R22 | **Eliminar una excepción de horario no revierte las suspensiones que generó.** Encontrado al probar C5 (2026-09-16): guardar el cierre suspende las clases correspondientes, pero borrar la excepción después **no** las reabre — hoy hay que hacerlo a mano por `Tomar asistencia → Reabrir`, curso por curso. Falta el camino simétrico: si la excepción que las causó se borra, ofrecer reabrirlas. | Paso 5 / C5 | S |
 
 ---
 

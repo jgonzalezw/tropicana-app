@@ -403,3 +403,85 @@ export function describirBloque(b: BloqueOcupado): string {
     `${String(Math.floor(m / 60) % 24).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
   return `${b.etiqueta} (${hhmm(ini)} → ${hhmm(fin)})`;
 }
+
+// ── Impacto de un cierre de sala sobre clases regulares (C5, alcance acotado) ─
+
+/**
+ * Lo mínimo de una membresía para saber si cubre un curso una fecha: cuándo
+ * empezó y cuándo termina (`null` = sigue corriendo).
+ */
+export type MembresiaCobertura = {
+  alumno_id: number;
+  curso_id: number;
+  fecha_inicio: string;
+  fecha_fin: string | null;
+};
+
+export type ClaseAfectada = {
+  cursoId: number;
+  cursoNombre: string;
+  fecha: string;
+  alumnosActivos: number;
+};
+
+/**
+ * Qué clases regulares con **membresía activa** caen dentro de un cierre de
+ * sala (feriado, vacaciones), fecha por fecha.
+ *
+ * **Alcance acotado a propósito** (Javier, 2026-09-16): se pregunta contra
+ * membresías activas que de verdad toman esa clase, no contra el calendario
+ * crudo del curso — una clase sin nadie inscripto vigente no genera nada que
+ * confirmar (regla de negocio 18, aplicada acá al calendario de sala en vez de
+ * a la asistencia). Del lado de particulares/alquiler no hay nada que revisar
+ * todavía: sin ventas no hay reservas que puedan chocar.
+ *
+ * Una clase **ya suspendida** esa fecha no se repite: ya no ocupa, y ya se le
+ * avisó a quien corresponda la primera vez.
+ */
+export function clasesAfectadasPorCierre(
+  cursos: CursoOcupa[],
+  membresias: MembresiaCobertura[],
+  fechaDesde: string,
+  fechaHasta: string,
+  /** Claves `"cursoId|fecha"` de sesiones ya suspendidas. */
+  yaSuspendidas: Set<string>
+): ClaseAfectada[] {
+  const afectadas: ClaseAfectada[] = [];
+  const porCurso = new Map<number, MembresiaCobertura[]>();
+  for (const m of membresias) {
+    const l = porCurso.get(m.curso_id) ?? [];
+    l.push(m);
+    porCurso.set(m.curso_id, l);
+  }
+
+  for (const d = parseISO(fechaDesde); fmtISO(d) <= fechaHasta; d.setDate(d.getDate() + 1)) {
+    const fecha = fmtISO(d);
+    const dia = diaIso(d);
+    for (const c of cursos) {
+      if (!(c.dias_semana ?? []).includes(dia)) continue;
+      if (!enVigencia(c, fecha)) continue;
+      if (yaSuspendidas.has(`${c.id}|${fecha}`)) continue;
+
+      const cubren = (porCurso.get(c.id) ?? []).filter(
+        (m) => m.fecha_inicio <= fecha && (m.fecha_fin == null || m.fecha_fin >= fecha)
+      );
+      if (!cubren.length) continue;
+
+      afectadas.push({
+        cursoId: c.id,
+        cursoNombre: c.nombre,
+        fecha,
+        alumnosActivos: new Set(cubren.map((m) => m.alumno_id)).size,
+      });
+    }
+  }
+  return afectadas;
+}
+
+function parseISO(iso: string): Date {
+  const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+function fmtISO(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}

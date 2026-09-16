@@ -1649,3 +1649,86 @@ los tipos de Next y validar el build real) y recién entonces se pusheó a
 `main`. El resto del trabajo acumulado (D8, C1, la segunda sala) sigue
 intacto en `claude/tropicana-app-context-d5zjt8`, sin tocar, esperando su
 propio OK.
+
+---
+
+## C5 (lado de cursos regulares): un cierre de sala avisa y suspende · 2026-09-16
+
+Javier reportó varios bugs juntos; este es el que más creció en el camino —
+arrancó como "revisar Roles y Permisos" y terminó siendo la mitad de C5.
+
+### Qué pedía, y por qué se adelantó
+
+Al reportarlo: *"al poner un feriado en el calendario, se debe validar el
+impacto en la planificación de la sala y resolverlo — notificar clases o
+reservas que chocan, notificar y pedir confirmaciones."* Es exactamente **R1
+del ROADMAP (C5)**, que estaba anotado para "después de C2/C3". Se adelantó
+porque **Natalia necesita cargar feriados de la semana que viene ya**, y para
+entonces sí importa: hoy `sala_horario_excepciones` no valida nada contra lo
+ya agendado.
+
+**Alcance acotado, con precisión de Javier**: el choque se pregunta contra
+**membresías activas que efectivamente toman esa clase esa fecha** — no contra
+el calendario crudo del curso (regla de negocio 18, aplicada acá). Del lado de
+particulares/alquiler no hay nada que revisar todavía: sin ventas (C2/C3 sin
+construir) no hay reservas que puedan chocar.
+
+### Cómo quedó
+
+1. **Al guardar un cierre** (`guardarHorarioSala`), se calculan las clases
+   regulares afectadas — cursos de esa sala, en vigencia, con alumnos con
+   membresía activa vía `inscripcion_cursos` (no `curso_id`, ver más abajo) —
+   y si hay alguna, **se pide confirmación explícita antes de guardar nada**.
+2. **Al confirmar**, se guarda el cierre y se suspenden esas clases con el
+   mismo mecanismo que usa Asistencia día a día. Se extrajo el núcleo de
+   `suspenderClase` a una función compartida (`ejecutarSuspension`), para que
+   los dos caminos —asistencia real y cierre planificado— dejen exactamente el
+   mismo rastro (corrimientos, reversión de devengos, etc.). Lo único distinto
+   es que el cierre de sala puede tocar **fechas futuras** (`permitirFutura`),
+   porque un feriado de la semana que viene no puede esperar a que llegue.
+3. **Una clase de la que depende una comisión ya pagada no se toca**, ni por
+   un feriado (regla de negocio 16): si el congelador la bloquea, el cierre de
+   sala se guarda igual y esa clase puntual queda listada para corregir a
+   mano.
+4. **Aviso por alumno, listo para copiar** (pedido de Javier en el momento:
+   *"necesitamos... el detalle de alumnos afectados, su whatsapp y como queda
+   por la suspensión, que permita al menos por hoy copiar y pegar"*): nombre,
+   WhatsApp, y un mensaje armado con el motivo del cierre (la etiqueta del
+   catálogo + la glosa entre paréntesis — no "cierre de sala") y la nueva
+   fecha de vencimiento del ciclo si corrió. Un alumno con dos clases en el
+   mismo cierre recibe un solo aviso, no dos.
+
+### Un bug encontrado y corregido de paso
+
+`ejecutarSuspension` heredaba de `suspenderClase` una consulta que buscaba
+membresías por `inscripciones.curso_id` — el campo que el glosario dice que es
+un resabio mono-curso. Una membresía multi-curso que tomara esa clase por
+`inscripcion_cursos` **se habría quedado sin corrimiento y sin aviso, en
+silencio**. Se corrigió para las dos vías: la de asistencia real (ya estaba en
+producción) y la nueva de cierre de sala.
+
+*Verificado en dev*: probado con un cierre real sobre un martes con tres
+cursos (Bachata Conexión, Zumba, Contemporáneo) y 10 alumnos con membresía
+activa. El caso de Manuel Aguilar —que toma dos de esos tres cursos— salió
+**consolidado en un solo aviso**, confirmando que el arreglo de
+`inscripcion_cursos` funciona. La prueba quedó en dev (una sesión "Prueba C5"
+por curso, 2026-09-22): no se revirtió a mano para no tocar `fecha_fin` de
+alumnos reales con lógica improvisada fuera de su mecanismo — es dato
+descartable, se limpia solo con un refresh de dev cuando corresponda.
+
+### Encontrado en el camino, sin construir (ROADMAP)
+
+- **R20** — el mensaje de aviso está armado a mano; con más pantallas
+  notificando hace falta modelarlo (plantilla por tipo de evento), no
+  hardcodearlo pantalla por pantalla.
+- **R21** — nueva regla de proceso (`REGLAS.md` §3.12): toda notificación de
+  pantalla lleva su "copiar para enviar". Falta la revisión retroactiva de las
+  pantallas que ya notifican.
+- **R22** — borrar la excepción que causó una suspensión no la revierte
+  todavía; hay que reabrir a mano por Asistencia.
+
+### Estado
+
+Construido y probado en dev. `tsc`, `eslint` y `next build` limpios. **Solo en
+dev** — sin migración, pero cambia comportamiento de `suspenderClase` (ya en
+producción): espera su propio OK de pase, igual que 0035–0037.

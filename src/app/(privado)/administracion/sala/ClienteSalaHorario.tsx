@@ -18,9 +18,11 @@ import { describirVentanas } from "@/lib/sala";
 import {
   guardarHorarioSala,
   guardarSalas,
+  type AvisoAlumno,
   type ExcepcionEdit,
   type SalaEdit,
 } from "./acciones";
+import type { ClaseAfectada } from "@/lib/sala";
 
 type FilaPatron = { dia_semana: number; desde: string; hasta: string };
 
@@ -103,6 +105,12 @@ export default function ClienteSalaHorario({
   const [excBorradas, setExcBorradas] = useState<number[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // C5, alcance acotado (Javier, 2026-09-16): si el cierre pisa clases con
+  // membresía activa, no se guarda derecho — se pide confirmación explícita
+  // primero, mostrando qué se va a suspender.
+  const [porConfirmar, setPorConfirmar] = useState<ClaseAfectada[] | null>(null);
+  const [avisos, setAvisos] = useState<AvisoAlumno[] | null>(null);
+  const [copiado, setCopiado] = useState<number | null>(null);
 
   const sucio =
     JSON.stringify({ filas, exc, excBorradas }) !==
@@ -150,18 +158,35 @@ export default function ClienteSalaHorario({
     });
   }
 
-  function guardar() {
+  function guardar(confirmarCierres = false) {
     setMsg(null);
     setError(null);
+    if (confirmarCierres) setPorConfirmar(null);
     startTransition(async () => {
-      const r = await guardarHorarioSala(salaId, filas, exc, excBorradas);
+      const r = await guardarHorarioSala(salaId, filas, exc, excBorradas, confirmarCierres);
+      if ("requiereConfirmacion" in r) {
+        setPorConfirmar(r.afectadas);
+        return;
+      }
       if (r.error) setError(r.error);
       else {
-        setMsg("Horario guardado. Desde ahora, fuera de él la sala no se puede reservar.");
+        setMsg(r.mensaje ?? "Horario guardado. Desde ahora, fuera de él la sala no se puede reservar.");
+        setAvisos(r.avisos?.length ? r.avisos : null);
         setExcBorradas([]);
         router.refresh();
       }
     });
+  }
+
+  async function copiarAviso(a: AvisoAlumno) {
+    try {
+      await navigator.clipboard.writeText(a.mensaje);
+      setCopiado(a.alumnoId);
+      setTimeout(() => setCopiado((c) => (c === a.alumnoId ? null : c)), 2000);
+    } catch {
+      // El portapapeles puede fallar sin HTTPS o sin permiso; el mensaje sigue
+      // visible en la tarjeta para seleccionarlo a mano.
+    }
   }
 
   const delDia = (n: number) => filas.filter((f) => f.dia_semana === n);
@@ -581,6 +606,76 @@ export default function ClienteSalaHorario({
         </>
       )}
 
+      {/* Confirmación de impacto (C5, alcance acotado): el cierre pisa clases
+          con membresía activa. Nunca se suspende nada sin que esto se vea. */}
+      {porConfirmar && (
+        <div className="border border-[var(--primario)] bg-[color-mix(in_srgb,var(--primario)_12%,transparent)] rounded-[var(--radio-tarjeta)] p-5 space-y-3">
+          <div className="font-semibold text-base">
+            Este cierre va a suspender {porConfirmar.length === 1 ? "una clase" : `${porConfirmar.length} clases`}{" "}
+            con alumnos activos.
+          </div>
+          <ul className="text-base space-y-1">
+            {porConfirmar.map((c, i) => (
+              <li key={i}>
+                {c.cursoNombre} · {c.fecha} ·{" "}
+                {c.alumnosActivos === 1 ? "1 alumno" : `${c.alumnosActivos} alumnos`}
+              </li>
+            ))}
+          </ul>
+          <p className="text-sm text-[var(--texto-tenue)]">
+            Al confirmar, esas clases quedan suspendidas y el ciclo de cada alumno mensual se corre. Vas a
+            poder copiar un aviso para cada uno.
+          </p>
+          <div className="flex gap-3">
+            <button onClick={() => setPorConfirmar(null)} className={botonTenue}>
+              Cancelar
+            </button>
+            <button
+              onClick={() => guardar(true)}
+              className="px-4 py-2 text-base font-semibold rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)]"
+            >
+              Confirmar y suspender esas clases
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Avisos listos para copiar (pedido de Javier, 2026-09-16): mientras no
+          haya envío automático, al menos pasarlos a mano hoy mismo. */}
+      {avisos && (
+        <div className="bg-[var(--fondo-panel)] border border-[var(--borde)] rounded-[var(--radio-tarjeta)] p-6 space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold">
+              Avisos para los {avisos.length === 1 ? "alumnos" : `${avisos.length} alumnos`} afectados
+            </h2>
+            <button onClick={() => setAvisos(null)} className="text-sm text-[var(--texto-tenue)]">
+              Cerrar
+            </button>
+          </div>
+          <div className="space-y-2">
+            {avisos.map((a) => (
+              <div
+                key={a.alumnoId}
+                className="rounded-[var(--radio-panel)] border border-[var(--borde)] p-3 flex items-start gap-3 flex-wrap"
+              >
+                <div className="flex-1 min-w-[16rem]">
+                  <div className="font-medium">
+                    {a.nombre}{" "}
+                    <span className="text-sm text-[var(--texto-tenue)] font-normal">
+                      {a.whatsapp ? `· ${a.whatsapp}` : "· sin WhatsApp cargado"}
+                    </span>
+                  </div>
+                  <p className="text-sm mt-1 whitespace-pre-wrap">{a.mensaje}</p>
+                </div>
+                <button onClick={() => copiarAviso(a)} className={botonTenue}>
+                  {copiado === a.alumnoId ? "Copiado ✓" : "Copiar mensaje"}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Barra de acción fija, igual que en Precios y paquetes. */}
       {salaActual && (
         <div className="fixed left-0 right-0 bottom-0 bg-[var(--fondo-panel)] border-t border-[var(--borde)] px-6 py-3">
@@ -606,7 +701,7 @@ export default function ClienteSalaHorario({
               Descartar
             </button>
             <button
-              onClick={guardar}
+              onClick={() => guardar()}
               disabled={!sucio || pendiente}
               className="px-5 py-2 text-base font-semibold rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)] disabled:opacity-45"
             >
