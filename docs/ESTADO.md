@@ -6,10 +6,11 @@
 > `docs/design/README.md` (fuente de verdad del **diseño**), `docs/CONTEXTO_AVANCE.md`
 > (bitácora larga de Etapa 0), `docs/DESIGN_SYNC.md` (cómo entran los handoffs).
 >
-> **Última actualización:** 2026-09-16 — **bug de asistencia encontrado y
-> corregido en dev.** El bug ya estaba en producción (el código de `main`),
-> pero verificado **sin ningún caso real afectado** — corre el riesgo de que
-> aparezca cualquier día, no un incidente ya ocurrido. Espera el OK del pase.
+> **Última actualización:** 2026-09-16 — **bug de asistencia corregido y
+> PASADO A PRODUCCIÓN**, con el OK explícito de Javier ("pasalo"). `main` en
+> `11c37f9`, confirmado por el chip PROD de la app. **Pase acotado a
+> propósito**: solo los dos archivos del fix, sin arrastrar las migraciones
+> 0035–0037 ni sus pantallas, que siguen solo en dev esperando su propio OK.
 > Detalle en el bloque final **"Un alumno duplicado en el padrón de
 > asistencia"**.
 >
@@ -1629,5 +1630,22 @@ sigue en la base, simplemente el padrón ya no la ofrece como fila aparte.
 
 ### Estado
 
-**Solo en dev.** Espera el OK del pase — es un cambio de comportamiento en dos
-server actions, sin migración.
+**PASADO A PRODUCCIÓN el 2026-09-16**, con el OK explícito de Javier
+("pasalo"). Confirmado por el chip de la app: **PROD**, commit `#11c37f9`.
+
+**Cómo se hizo el pase, porque no fue el camino habitual.** "Pasalo" era
+ambiguo: en la rama había, además de este fix, tres migraciones sin pase
+(0035–0037) con sus pantallas. Antes de tocar nada se le preguntó a Javier
+qué alcance quería, y eligió **solo el arreglo de asistencia**. Un merge
+directo de la rama a `main` habría arrastrado todo junto — y si el código de
+Precios/Sala llega sin sus migraciones en producción, esas pantallas se caen
+enteras (orden del pase, `DECISIONES.md` §3).
+
+Se aisló el fix en un *worktree* aparte (rama `pase-asistencia-20260916`,
+creada desde `origin/main`), se le aplicó el diff de **solo** los dos
+archivos tocados —confirmado con `git diff origin/main HEAD --stat` antes de
+pushear—, se corrió `next build` completo ahí (no solo `tsc`, para generar
+los tipos de Next y validar el build real) y recién entonces se pusheó a
+`main`. El resto del trabajo acumulado (D8, C1, la segunda sala) sigue
+intacto en `claude/tropicana-app-context-d5zjt8`, sin tocar, esperando su
+propio OK.

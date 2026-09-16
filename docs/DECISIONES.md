@@ -164,12 +164,20 @@ proceso 1). No es un backlog de decisiones: es el estado del release.
 - **Código desplegado (D6)**: `main` `2c29cf1..650ae6d` el 2026-09-12, con el
   OK explícito de Javier (*"mergea y publica"*). Migraciones 0001–0034 en las
   dos bases.
-- **Migración 0035 + pantalla *Precios y paquetes* (D8) — SOLO EN DEV**
-  (2026-09-12, tarde). Aditiva: no modifica ni una fila de dominio existente.
-  Crea `salas`, `tarifas_particular`, la matriz de sala
-  (`sala_tamanos`/`sala_horas_paquete`/`sala_tarifas`), `paquetes_particular`,
-  `alquileres_sala` y `reservas_sala`, más `profesores.comision_particular_pct`,
-  el catálogo `motivo_bloqueo_sala` y dos columnas en `comisiones_devengadas`.
-  **Validada en dev por Javier** (*"veo todo ok"*). El código tampoco está en
-  `main`: vive en `claude/tropicana-app-context-d5zjt8`. **Espera el OK del
-  pase** (regla de proceso 1). Detalle en `docs/ESTADO.md`, bloque final.
+- **Migraciones 0035–0037 + pantallas *Precios y paquetes* (D8), *Sala y
+  horarios* (C1) y la segunda sala — SOLO EN DEV** (2026-09-12/16). Todas
+  aditivas: ninguna modifica una fila de dominio existente. 0035 crea `salas`,
+  `tarifas_particular`, la matriz de sala, `paquetes_particular`,
+  `alquileres_sala` y `reservas_sala`; 0036 el horario base (patrón +
+  excepciones); 0037 la segunda sala, el orden de preferencia y las
+  excepciones por rango. **Las tres validadas en dev por Javier** (*"veo todo
+  ok"*, *"probado ok"*). El código tampoco está en `main`: vive en
+  `claude/tropicana-app-context-d5zjt8`. **Espera su propio OK del pase**
+  (regla de proceso 1) — **distinto del pase de abajo**, que se hizo acotado a
+  propósito para no arrastrar esto. Detalle en `docs/ESTADO.md`.
+- **Bug de asistencia (padrón duplicado) — PASADO A PRODUCCIÓN el
+  2026-09-16**, con el OK explícito de Javier (*"pasalo"*). Alcance acotado
+  aposta: solo `asistencia/acciones.ts` e `inscribir/acciones.ts`, sin
+  arrastrar las migraciones de arriba. `main` `b0766ac..11c37f9`, confirmado
+  por el chip PROD de la app. Sin migración. Detalle en `docs/ESTADO.md`,
+  bloque *"Un alumno duplicado en el padrón de asistencia"*.
