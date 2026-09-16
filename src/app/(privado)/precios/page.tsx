@@ -31,6 +31,7 @@ export default async function PaginaPrecios() {
     tarifasSala,
     usoPaquetes,
     usoAlquiler,
+    salas,
     especialidadesParam,
   ] = await Promise.all([
     sb.from("cursos").select("*").order("nombre").then((r) => exigir(r, "los cursos")),
@@ -75,6 +76,13 @@ export default async function PaginaPrecios() {
       .from("alquileres_sala")
       .select("horas_total")
       .then((r) => exigir(r, "el uso de los paquetes de horas")),
+    sb
+      .from("salas")
+      .select("id, nombre")
+      .eq("activa", true)
+      .order("orden")
+      .order("id")
+      .then((r) => exigir(r, "las salas")),
     obtenerParametro("especialidades"),
   ]);
 
@@ -148,6 +156,7 @@ export default async function PaginaPrecios() {
         usoPorHoras={usoPorHoras}
         precios={precios}
         especialidades={especialidades}
+        salas={salas as { id: number; nombre: string }[]}
       />
     </div>
   );

@@ -81,6 +81,7 @@ export default function ClientePrecios({
   usoPorHoras,
   precios,
   especialidades,
+  salas,
 }: {
   cursos: Curso[];
   tarifas: TarifasPorCurso;
@@ -92,6 +93,8 @@ export default function ClientePrecios({
   usoPorHoras: Record<number, number>;
   precios: CeldaSala[];
   especialidades: string[];
+  /** Salas activas: la matriz de alquiler dice a cuántas se aplica (0037). */
+  salas: { id: number; nombre: string }[];
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<"a" | "b" | "c" | "d" | "e">("a");
@@ -490,6 +493,7 @@ export default function ClientePrecios({
           tamanosSala={tamanosSala}
           preciosEd={preciosEd}
           paquetes={paqEd}
+          salas={salas}
         />
       )}
 
@@ -658,6 +662,7 @@ function BloqueSala({
   tamanosSala,
   preciosEd,
   paquetes,
+  salas,
 }: {
   cat: CategoriaSala;
   setCat: (c: CategoriaSala) => void;
@@ -674,6 +679,8 @@ function BloqueSala({
   tamanosSala: TamanoSala[];
   preciosEd: CeldaSala[];
   paquetes: Paquete[];
+  /** Para decir a cuántas salas se aplican estos precios (0037). */
+  salas: { id: number; nombre: string }[];
 }) {
   // E.3 — el simulador: qué celda usa una particular y cuánto se descuenta.
   const [simPaquete, setSimPaquete] = useState(0);
@@ -711,6 +718,17 @@ function BloqueSala({
           horas</strong> y lo descuenta en la liquidación mensual del profesor. Cambiar un
           precio acá cambia los dos.
         </p>
+        {/* Regla de calidad 5: con más de una sala hay que decir a cuál se
+            aplican estos precios. Callarlo dejaría a quien los carga suponiendo
+            —y la suposición razonable, "son de la sala que estoy mirando", es
+            justamente la equivocada. */}
+        {salas.length > 1 && (
+          <p className="text-base max-w-[72ch] mt-3 pt-3 border-t border-[var(--borde)]">
+            <strong>Estos precios valen para las {salas.length} salas.</strong> Hoy el
+            alquiler no se cobra distinto según la sala; si alguna vez hiciera falta
+            diferenciarlo, se agrega acá y todavía no está construido.
+          </p>
+        )}
       </div>
 
       <Bloque

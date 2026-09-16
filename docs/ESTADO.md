@@ -6,7 +6,10 @@
 > `docs/design/README.md` (fuente de verdad del **diseño**), `docs/CONTEXTO_AVANCE.md`
 > (bitácora larga de Etapa 0), `docs/DESIGN_SYNC.md` (cómo entran los handoffs).
 >
-> **Última actualización:** 2026-09-12 (tarde) — **arrancó el Paso 2D y la base
+> **Última actualización:** 2026-09-12 (noche) — **C1 cerrado y validado**, y
+> apareció una **segunda sala** en la sede, que se modeló el mismo día. Detalle
+> en el bloque final **"La segunda sala, y las excepciones por rango"**. Antes,
+> ese mismo día: **arrancó el Paso 2D y la base
 > del Paso 5.** Se construyó *Precios y paquetes* (D8: el centro único de los
 > precios base, cinco pestañas) y la **migración 0035**, que agrega los precios
 > de particulares y la matriz de sala, las ventas con contador, y `reservas_sala`
@@ -1458,7 +1461,7 @@ habría que desacoplarla después.
 
 | | Qué | Estado |
 | --- | --- | --- |
-| **C1** | **Horario base de la sala**: patrón semanal de apertura + excepciones por fecha. Es el lienzo — fuera de él no se puede reservar. **Vacío significa cerrado, no abierto** (confirmado por Javier): si valiera "24 h", olvidarse de configurarlo produce justo el bug que C1 evita | En curso |
+| **C1** | **Horario base de la sala**: patrón semanal de apertura + excepciones por rango de fechas. Es el lienzo — fuera de él no se puede reservar. **Vacío significa cerrado, no abierto** (confirmado por Javier): si valiera "24 h", olvidarse de configurarlo produce justo el bug que C1 evita | ✅ **CERRADO y validado en dev por Javier** (2026-09-12). Migraciones **0036** y **0037**. Javier cargó el horario real de Tropicana |
 | **C2** | Disponibilidad + reserva mínima: validar contra horario base + cursos + otras reservas, y **lista textual** de lo ocupado ese día (*"Lu 15: ocupado 9-10, 11-12:30; resto libre"*). **Sin grilla visual todavía** — 80% del beneficio, 20% del costo | Pendiente |
 | **C3** | Venta de particulares/alquiler apoyada en la disponibilidad. Los dos caminos del mockup de agosto, más lo que ese mockup no tiene: elegir fecha y hora al vender | Pendiente |
 | **C4** | Agenda visual (grilla día/semana/mes). **Pasa por Claude Design** | Pendiente → `ROADMAP.md` R2 |
@@ -1477,3 +1480,90 @@ eso genere los resuelve un humano: es C5.
 
 **Desde 2026-09-12 existe `docs/ROADMAP.md`**, donde van las mejoras y deudas que
 no son del hito en curso, para no perderlas ni meterlas a la fuerza.
+
+---
+
+## La segunda sala, y las excepciones por rango · 2026-09-12 (dev)
+
+**C1 quedó cerrado y validado por Javier**, que además cargó el **horario real
+de Tropicana** (13 franjas). Sin excepciones por ahora.
+
+### Lo que pasó en el medio: apareció una sala
+
+Tropicana habilitó una **segunda sala en la misma sede**. Javier preguntó lo
+correcto —*"¿es más caro si lo dejo para pasos siguientes?"*— y la respuesta se
+midió antes de contestarla:
+
+| | Estado al preguntarlo |
+| --- | --- |
+| Excepciones de horario | 0 |
+| Reservas | 0 |
+| Precios de alquiler cargados | 0 |
+| Cursos | 9 activos, todos con hora, todos en la única sala |
+
+**Todo lo que habría encarecido el cambio estaba en cero.** Lo caro que D20
+evitaba ya estaba evitado —`salas` y `sala_id` en reservas, patrón y excepciones
+existían desde la 0035— y quedaba **un solo agujero**: `cursos` no decía en qué
+sala se dicta.
+
+**Y ese no es un agujero que se agrande: es uno que se cierra.** No es que
+después fuera más trabajo — es que **después ya no se puede saber** en qué sala
+estuvo la clase del martes pasado, y eso es justo lo que decide si la sala está
+libre. Por eso se hizo el mismo día (migración **0037**).
+
+### Las salas tienen orden, porque no son pares
+
+Javier (2026-09-12): *"la idea siempre es vender los espacios disponibles de la
+sala principal (default) y a menos que esté ocupada ofrecer la alterna"*.
+
+Eso convierte el orden en **un dato, no una convención**: es lo que después le
+permite al motor de disponibilidad **ofrecer la alterna** en vez de contestar
+"ocupado". Sin él, elegir cuál proponer sería arbitrario.
+
+### Las excepciones pasaron a ser un rango
+
+Pedido de Javier, y el momento era exacto: había **0 excepciones cargadas**, así
+que el cambio no migró nada. *"Vacaciones del 24/12 al 5/1"* es **un hecho, no
+trece filas**; partirlo en trece obliga a editar trece cosas para cambiar una
+decisión. Un día suelto es un rango de un día, así que no hay dos formas de
+expresar lo mismo.
+
+La base impide que dos excepciones de la misma sala se pisen — si no, una fecha
+tendría dos horarios y no habría forma de elegir cuál vale.
+
+### La tarifa de alquiler: sala opcional, con override
+
+`sala_tarifas.sala_id` es **nullable**: una fila sin sala vale para todas —el
+caso de hoy, porque las dos salas cuestan lo mismo— y una fila con sala manda
+sobre la general. Así se carga **un solo juego de precios** y se diferencia el
+día que haga falta, sin cargar 48 celdas dos veces para decir lo mismo.
+
+**Lo que todavía no se puede hacer, y ahora la pantalla lo dice:** cargar esa
+tarifa propia de una sala. *Precios y paquetes* edita solo la general. Javier lo
+eligió así a propósito, y la pestaña de alquiler ahora **declara** que esos
+precios valen para todas las salas — antes no decía nada, que con dos salas
+dejaba suponiendo. El selector quedó en `ROADMAP.md` (**R19**), junto con copiar
+horarios (**R17**) y tarifas (**R18**) de una sala a otra.
+
+### Un bug encontrado de paso
+
+El guardado de la matriz de alquiler apuntaba al índice único **viejo**, que la
+0037 reemplazó. Habría fallado al guardar un precio. Corregido y probado por
+Javier en la misma pasada.
+
+*Es la regla de calidad 2 en acción: una migración que toca índices o columnas
+rompe consultas que antes andaban, y no avisa hasta que alguien guarda.*
+
+### Estado
+
+Validado en dev por Javier: el alta de la sala, el horario, el guardado de
+precios y el cambio de sala de un curso (lo cambió y lo repuso). `tsc`, `eslint`
+y `next build` limpios. **Solo en dev**: las migraciones 0035, 0036 y 0037 no
+están en producción y el código no está en `main`.
+
+### Lo que sigue
+
+**C2 — disponibilidad + reserva.** Enchufar el motor que ya existe por dentro:
+validar una franja contra el horario base, los cursos regulares y las otras
+reservas, y mostrar la **lista textual** de lo ocupado ese día. Sin grilla
+visual todavía: eso es C4 y pasa por Design.
