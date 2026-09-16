@@ -73,7 +73,7 @@ async function guardarCursos(
 }
 
 export async function crearPlan(d: DatosPlan): Promise<Resultado> {
-  if (!(await tienePermiso("cursos", "crear"))) return { error: "Sin permiso." };
+  if (!(await tienePermiso("planes", "crear"))) return { error: "Sin permiso." };
   const err = validar(d);
   if (err) return { error: err };
 
@@ -112,7 +112,7 @@ export async function crearPlan(d: DatosPlan): Promise<Resultado> {
 }
 
 export async function actualizarPlan(id: number, d: DatosPlan): Promise<Resultado> {
-  if (!(await tienePermiso("cursos", "editar"))) return { error: "Sin permiso." };
+  if (!(await tienePermiso("planes", "editar"))) return { error: "Sin permiso." };
   const err = validar(d);
   if (err) return { error: err };
 
@@ -155,7 +155,7 @@ async function contarMembresias(a: ReturnType<typeof admin>, id: number): Promis
 }
 
 export async function eliminarODesactivarPlan(id: number): Promise<Resultado> {
-  if (!(await tienePermiso("cursos", "eliminar"))) return { error: "Sin permiso." };
+  if (!(await tienePermiso("planes", "eliminar"))) return { error: "Sin permiso." };
 
   const a = admin();
   const membresias = await contarMembresias(a, id);
@@ -177,7 +177,7 @@ export async function eliminarODesactivarPlan(id: number): Promise<Resultado> {
 }
 
 export async function activarPlan(id: number): Promise<Resultado> {
-  if (!(await tienePermiso("cursos", "editar"))) return { error: "Sin permiso." };
+  if (!(await tienePermiso("planes", "editar"))) return { error: "Sin permiso." };
   const { error } = await admin()
     .from("planes")
     .update({ activo: true, actualizado_en: new Date().toISOString() })

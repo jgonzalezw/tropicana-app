@@ -440,7 +440,6 @@ export const MODULOS = [
   "inscripciones",
   "asistencia",
   "pagos",
-  "comisiones",
   "costos",
   "particulares",
   "inventario",
@@ -448,6 +447,15 @@ export const MODULOS = [
   "dashboard",
   "usuarios",
   "administracion",
+  // Los cuatro de acá abajo se separaron el 2026-09-16 (regla de proceso 11):
+  // vivían gateados con el permiso de otro módulo (cursos, comisiones,
+  // administracion) y un asistente con ese permiso los veía sin poder
+  // restringírselo. Ver docs/REGLAS.md §3.11. "comisiones" se dio de baja en
+  // el mismo cambio: ninguna pantalla lo lee ya, lo reemplazó "liquidaciones".
+  "planes",
+  "liquidaciones",
+  "precios",
+  "sala",
 ] as const;
 
 export const ACCIONES = ["ver", "crear", "editar", "eliminar"] as const;
@@ -462,7 +470,6 @@ export const ETIQUETA_MODULO: Record<string, string> = {
   inscripciones: "Inscripciones",
   asistencia: "Asistencia",
   pagos: "Pagos",
-  comisiones: "Comisiones",
   costos: "Costos",
   particulares: "Particulares",
   inventario: "Inventario",
@@ -470,6 +477,10 @@ export const ETIQUETA_MODULO: Record<string, string> = {
   dashboard: "Dashboard",
   usuarios: "Usuarios",
   administracion: "Administración",
+  planes: "Planes",
+  liquidaciones: "Liquidaciones",
+  precios: "Precios y paquetes",
+  sala: "Sala y horarios",
 };
 
 export const ETIQUETA_ACCION: Record<string, string> = {

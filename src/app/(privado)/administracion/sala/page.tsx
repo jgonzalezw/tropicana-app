@@ -19,7 +19,7 @@ export const dynamic = "force-dynamic";
  * de nuevo algo que ya estaba (regla de calidad 1).
  */
 export default async function PaginaSalaHorario() {
-  if (!(await tienePermiso("administracion", "ver"))) return <SinAcceso />;
+  if (!(await tienePermiso("sala", "ver"))) return <SinAcceso />;
 
   const sb = await createClient();
 

@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
  * rompió (regla de calidad 1).
  */
 export default async function PaginaPrecios() {
-  if (!(await tienePermiso("administracion", "ver"))) return <SinAcceso />;
+  if (!(await tienePermiso("precios", "ver"))) return <SinAcceso />;
 
   const sb = await createClient();
 

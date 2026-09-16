@@ -9,7 +9,7 @@ import type { TarifasDeCurso } from "@/lib/precios";
 export const dynamic = "force-dynamic";
 
 export default async function PaginaPlanes() {
-  if (!(await tienePermiso("cursos", "ver"))) return <SinAcceso />;
+  if (!(await tienePermiso("planes", "ver"))) return <SinAcceso />;
 
   const supabase = await createClient();
 

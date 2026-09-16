@@ -76,7 +76,7 @@ export type SalaEdit = {
  * Por eso se edita acá y no se deduce del id.
  */
 export async function guardarSalas(salas: SalaEdit[]): Promise<ResultadoSimple> {
-  if (!(await tienePermiso("administracion", "editar")))
+  if (!(await tienePermiso("sala", "editar")))
     return { error: "Sin permiso para editar las salas." };
 
   if (salas.length === 0) return { error: "Tiene que haber al menos una sala." };
@@ -223,7 +223,7 @@ export async function guardarHorarioSala(
   excepcionesEliminadas: number[],
   confirmarCierres = false
 ): Promise<Resultado> {
-  if (!(await tienePermiso("administracion", "editar")))
+  if (!(await tienePermiso("sala", "editar")))
     return { error: "Sin permiso para editar el horario de la sala." };
 
   const err = validarPatron(patron);

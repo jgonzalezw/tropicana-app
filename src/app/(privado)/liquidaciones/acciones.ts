@@ -787,7 +787,7 @@ export async function cargarLiquidaciones(): Promise<{
   profesores: FilaProfesor[];
   liquidaciones: FilaLiquidacion[];
 }> {
-  if (!(await tienePermiso("comisiones", "ver"))) return { profesores: [], liquidaciones: [] };
+  if (!(await tienePermiso("liquidaciones", "ver"))) return { profesores: [], liquidaciones: [] };
   const sb = await createClient();
 
   const periodoVencido = primerDiaMesVencidoISO();
@@ -918,7 +918,7 @@ export async function revertirDevengosAbiertos(
 }
 
 export async function generarLiquidacion(profesorId: number): Promise<{ ok?: true; liquidacionId?: number; error?: string }> {
-  if (!(await tienePermiso("comisiones", "crear"))) return { error: "Sin permiso." };
+  if (!(await tienePermiso("liquidaciones", "crear"))) return { error: "Sin permiso." };
   const a = admin();
   const sb = await createClient();
 
@@ -1056,7 +1056,7 @@ export async function generarLiquidacion(profesorId: number): Promise<{ ok?: tru
 export async function eliminarLiquidacionVacia(
   liquidacionId: number
 ): Promise<{ ok?: true; error?: string }> {
-  if (!(await tienePermiso("comisiones", "crear"))) return { error: "Sin permiso." };
+  if (!(await tienePermiso("liquidaciones", "crear"))) return { error: "Sin permiso." };
   const a = admin();
 
   const { data: items } = await a
@@ -1086,7 +1086,7 @@ export async function registrarPagoLiquidacion(args: {
   medio: string | null;
   notaMedio?: string;
 }): Promise<{ ok?: true; error?: string }> {
-  if (!(await tienePermiso("comisiones", "crear"))) return { error: "Sin permiso." };
+  if (!(await tienePermiso("liquidaciones", "crear"))) return { error: "Sin permiso." };
   const a = admin();
   const perfil = await obtenerPerfilActual();
 

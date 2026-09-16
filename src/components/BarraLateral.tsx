@@ -19,8 +19,11 @@ export default function BarraLateral({
   puedeCursos,
   puedeInscribir,
   puedeAsistencia,
-  puedeComisiones,
   puedeCaja,
+  puedePlanes,
+  puedeLiquidaciones,
+  puedePrecios,
+  puedeSala,
   temas,
   temaActual,
   infoRelease,
@@ -33,8 +36,11 @@ export default function BarraLateral({
   puedeCursos: boolean;
   puedeInscribir: boolean;
   puedeAsistencia: boolean;
-  puedeComisiones: boolean;
   puedeCaja: boolean;
+  puedePlanes: boolean;
+  puedeLiquidaciones: boolean;
+  puedePrecios: boolean;
+  puedeSala: boolean;
   temas: OpcionTema[];
   temaActual: string;
   infoRelease: InfoRelease;
@@ -75,7 +81,7 @@ export default function BarraLateral({
         {
           href: "/planes",
           etiqueta: "Planes",
-          mostrar: puedeCursos,
+          mostrar: puedePlanes,
         },
         {
           href: "/profesores",
@@ -85,7 +91,7 @@ export default function BarraLateral({
         {
           href: "/liquidaciones",
           etiqueta: "Liquidaciones",
-          mostrar: puedeComisiones,
+          mostrar: puedeLiquidaciones,
         },
         {
           href: "/caja",
@@ -110,12 +116,12 @@ export default function BarraLateral({
         {
           href: "/precios",
           etiqueta: "Precios y paquetes",
-          mostrar: puedeConfig,
+          mostrar: puedePrecios,
         },
         {
           href: "/administracion/sala",
           etiqueta: "Sala y horarios",
-          mostrar: puedeConfig,
+          mostrar: puedeSala,
         },
         {
           href: "/administracion/parametros",

@@ -1732,3 +1732,37 @@ descartable, se limpia solo con un refresh de dev cuando corresponda.
 Construido y probado en dev. `tsc`, `eslint` y `next build` limpios. **Solo en
 dev** — sin migración, pero cambia comportamiento de `suspenderClase` (ya en
 producción): espera su propio OK de pase, igual que 0035–0037.
+
+---
+
+## Roles y Permisos: Planes, Liquidaciones, Precios y Sala separados · 2026-09-16
+
+Javier lo marcó urgente antes del pase: *"el usuario asistente ya está
+trabajando... y no se le puede permitir acceso a módulos donde debe estar
+restringido"*. No eran configurables porque no existían como módulo propio:
+
+| Pantalla | Antes vivía gateada con | Ahora |
+| --- | --- | --- |
+| `/planes` | `cursos` | `planes` |
+| `/liquidaciones` (+ `[id]`) | `comisiones` | `liquidaciones` |
+| `/precios` | `administracion` | `precios` |
+| `/administracion/sala` | `administracion` | `sala` |
+
+`administracion/sala` se sumó de oficio (mismo problema: Precios y Sala no se
+podían separar entre sí), aunque Javier no lo nombró.
+
+**Migración 0038**: le da a cada módulo nuevo el mismo permiso que ya tenía el
+módulo prestado, **por rol** — nadie pierde ni gana acceso el día del pase; a
+partir de ahí Javier ajusta desde la pantalla. `comisiones` quedó huérfano
+(ninguna pantalla ya lo lee) y se dio de baja de `MODULOS`.
+
+**Verificado en dev**: Administrador con los 17 módulos en `✓` completo.
+**Asistente** —el caso real— quedó con **solo "ver" en Planes** (heredado de
+`cursos`) y **sin ningún permiso en Liquidaciones, Precios ni Sala**: exactamente
+lo que Javier pedía poder controlar.
+
+Nueva regla permanente (`REGLAS.md` §3.11): toda pantalla o paso nuevo incluye
+su módulo de permisos antes de darse por concluido.
+
+`tsc`, `eslint` y `next build` limpios. **Solo en dev** — migración aditiva
+sobre `rol_permisos`, sin tocar datos de dominio.

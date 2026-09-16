@@ -74,7 +74,7 @@ export type CambiosPrecios = {
 };
 
 export async function guardarPrecios(c: CambiosPrecios): Promise<Resultado> {
-  if (!(await tienePermiso("administracion", "editar")))
+  if (!(await tienePermiso("precios", "editar")))
     return { error: "Sin permiso para editar precios." };
 
   const a = admin();

@@ -52,8 +52,11 @@ export default async function LayoutPrivado({
     puedeCursos,
     puedeInscribir,
     puedeAsistencia,
-    puedeComisiones,
     puedeCaja,
+    puedePlanes,
+    puedeLiquidaciones,
+    puedePrecios,
+    puedeSala,
     temas,
   ] = await Promise.all([
     tienePermiso("usuarios", "ver"),
@@ -63,8 +66,13 @@ export default async function LayoutPrivado({
     tienePermiso("cursos", "ver"),
     tienePermiso("inscripciones", "ver"),
     tienePermiso("asistencia", "ver"),
-    tienePermiso("comisiones", "ver"),
     tienePermiso("caja", "ver"),
+    // Separados el 2026-09-16 (regla de proceso 11): antes viajaban
+    // gateados con cursos/comisiones/administracion — ver docs/REGLAS.md §3.11.
+    tienePermiso("planes", "ver"),
+    tienePermiso("liquidaciones", "ver"),
+    tienePermiso("precios", "ver"),
+    tienePermiso("sala", "ver"),
     obtenerTemas(),
   ]);
 
@@ -79,8 +87,11 @@ export default async function LayoutPrivado({
         puedeCursos={puedeCursos}
         puedeInscribir={puedeInscribir}
         puedeAsistencia={puedeAsistencia}
-        puedeComisiones={puedeComisiones}
         puedeCaja={puedeCaja}
+        puedePlanes={puedePlanes}
+        puedeLiquidaciones={puedeLiquidaciones}
+        puedePrecios={puedePrecios}
+        puedeSala={puedeSala}
         temas={temas.map((t) => ({ clave: t.clave, nombre: t.nombre }))}
         temaActual={perfil.tema ?? TEMA_DEFECTO}
         infoRelease={obtenerInfoRelease()}
