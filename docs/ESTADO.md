@@ -6,7 +6,14 @@
 > `docs/design/README.md` (fuente de verdad del **diseño**), `docs/CONTEXTO_AVANCE.md`
 > (bitácora larga de Etapa 0), `docs/DESIGN_SYNC.md` (cómo entran los handoffs).
 >
-> **Última actualización:** 2026-09-12 (noche) — **C1 cerrado y validado**, y
+> **Última actualización:** 2026-09-16 — **bug de asistencia encontrado y
+> corregido en dev.** El bug ya estaba en producción (el código de `main`),
+> pero verificado **sin ningún caso real afectado** — corre el riesgo de que
+> aparezca cualquier día, no un incidente ya ocurrido. Espera el OK del pase.
+> Detalle en el bloque final **"Un alumno duplicado en el padrón de
+> asistencia"**.
+>
+> **2026-09-12 (noche)** — **C1 cerrado y validado**, y
 > apareció una **segunda sala** en la sede, que se modeló el mismo día. Detalle
 > en el bloque final **"La segunda sala, y las excepciones por rango"**. Antes,
 > ese mismo día: **arrancó el Paso 2D y la base
@@ -1567,3 +1574,60 @@ están en producción y el código no está en `main`.
 validar una franja contra el horario base, los cursos regulares y las otras
 reservas, y mostrar la **lista textual** de lo ocupado ese día. Sin grilla
 visual todavía: eso es C4 y pasa por Design.
+
+---
+
+## Un alumno duplicado en el padrón de asistencia · 2026-09-16
+
+**Lo que Javier vio:** un aviso rojo abajo a la izquierda al tomar asistencia
+en dev, en *Bachata Conexión*. Era un warning de React (*"Encountered two
+children with the same key"*), pero no era cosmético.
+
+### La causa: se le vendió una prueba de un curso donde ya era socio
+
+Con datos de dev, a **Aguilar Manuel** se le vendió una **clase de prueba** de
+*Bachata Conexión* el 11/09, con fecha exacta 15/09 — el mismo curso en el que
+ya tenía una **membresía regular activa** desde el 1/09. El padrón de esa
+sesión traía sus dos inscripciones, así que Manuel aparecía **dos veces**.
+
+### Por qué no era solo un warning
+
+`asistencias` tiene `unique(sesion_id, alumno_id)` (0007): **solo puede haber
+una marca por persona y sesión**, sin importar cuántas inscripciones tenga. La
+pantalla (`ClienteAsistencia.tsx`) guarda las marcas y arma el payload
+indexando por `alumnoId` — con dos filas del mismo alumno, marcar una marcaba
+las dos a la vez, y al guardar, un `Map` alumnoId→inscripcionId se quedaba con
+**una sola** de las dos inscripciones. La otra perdía su registro **en
+silencio**: sin error, sin aviso, solo una asistencia que nunca se guardó.
+
+### Medido antes de tocar nada (regla de calidad 3)
+
+- **Producción, hoy: 0 casos.** Ningún alumno real está en esta situación.
+- **El código con el bug SÍ está en producción** (`origin/main`, el mismo que
+  sirve `tropicana-app.vercel.app`): es un riesgo latente, no un incidente
+  ocurrido. Cualquier venta de prueba futura sobre un curso ya inscripto lo
+  habría disparado.
+
+### Dos arreglos, uno por capa
+
+1. **La causa raíz — `venderPrueba` (`inscribir/acciones.ts`).** Ahora
+   rechaza vender una prueba de un curso donde el alumno ya es socio regular
+   (`es_prueba = false`, no dado de baja), buscando por `inscripcion_cursos`
+   para no perderse membresías multi-curso. Mensaje: *"El alumno ya es socio
+   regular de [curso]: no se le puede vender una prueba de un curso donde ya
+   está inscripto."*
+2. **La red de contención — `cargarPadron` (`asistencia/acciones.ts`).** El
+   padrón nunca devuelve dos filas para el mismo alumno: si colisionan, se
+   queda con la membresía **regular** (la prueba redundante no aporta nada).
+   Protege contra este mismo caso con datos anteriores al arreglo 1, y contra
+   cualquier otro camino que produzca la misma colisión que hoy no se conoce.
+
+Verificado en dev: Manuel pasó de aparecer 2 veces (7 filas totales) a 1 (4
+filas), consola limpia en una pestaña sin historial acumulado. `tsc` y
+`eslint` limpios. No se tocó ningún dato: la prueba redundante de Manuel
+sigue en la base, simplemente el padrón ya no la ofrece como fila aparte.
+
+### Estado
+
+**Solo en dev.** Espera el OK del pase — es un cambio de comportamiento en dos
+server actions, sin migración.

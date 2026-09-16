@@ -649,8 +649,30 @@ export async function cargarPadron(
     (m) => ({ valor: m.valor, etiqueta: m.etiqueta })
   );
 
+  // Un alumno no puede tener dos filas en el mismo padrón. `asistencias` tiene
+  // unique(sesion_id, alumno_id) (0007): solo puede haber UNA marca por persona
+  // y sesión, así que dos filas para el mismo alumno no son "dos cosas para
+  // registrar" — son un choque. Sin este filtro, la pantalla mostraba las dos
+  // (mismo `key` de React) y **guardar perdía una silenciosamente**: el Map
+  // alumnoId→inscripcionId de la pantalla se queda con la última que procesa.
+  //
+  // Pasa cuando a un alumno se le vende una prueba de un curso en el que ya es
+  // socio regular (detectado 2026-09-14 con datos de prueba: Aguilar Manuel,
+  // inscripción 35 sobre el curso de la inscripción 4). `venderPrueba` ya lo
+  // bloquea de acá en más; esto es la red de contención para lo anterior a ese
+  // chequeo, o cualquier otro camino que produzca el mismo choque.
+  //
+  // Se queda con la membresía REGULAR: una prueba redundante sobre un curso ya
+  // pagado no aporta nada, y es la fila que de verdad consume el ciclo del
+  // alumno.
+  const filasPorAlumno = new Map<number, FilaAsistencia>();
+  for (const f of filas) {
+    const previa = filasPorAlumno.get(f.alumnoId);
+    if (!previa || (previa.esPrueba && !f.esPrueba)) filasPorAlumno.set(f.alumnoId, f);
+  }
+
   return {
-    filas: [...filas, ...extras].sort(compararPorApellido),
+    filas: [...filasPorAlumno.values(), ...extras].sort(compararPorApellido),
     marcas,
     licencias,
     suspendida,

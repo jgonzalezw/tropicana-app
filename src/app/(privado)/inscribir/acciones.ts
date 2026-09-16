@@ -564,6 +564,38 @@ export async function venderPrueba(
   const fuera = cursoIds.filter((c) => !permitidos.has(c));
   if (fuera.length) return { error: "Un curso elegido no pertenece al plan." };
 
+  // No se vende una prueba de un curso donde el alumno YA es socio regular.
+  // Sin este chequeo entró un caso real en dev (Aguilar Manuel, 2026-09-14):
+  // una prueba se sumó a su membresía activa del mismo curso, y las dos
+  // cubrían la misma sesión — cargarPadron no puede mostrar dos filas para un
+  // alumno (`asistencias` tiene unique sesion_id+alumno_id, regla de negocio
+  // 11: la prueba es preliminar de un plan regular, no algo que conviva con
+  // uno ya vendido). La prueba existe para decidir si alguien se inscribe, no
+  // para alguien que ya decidió y ya paga.
+  const { data: yaSocioRows } = await sb
+    .from("inscripciones")
+    .select("id, curso_id, inscripcion_cursos(curso_id)")
+    .eq("alumno_id", e.alumnoId)
+    .eq("es_prueba", false)
+    .neq("estado", "baja");
+  const cursosYaSocio = new Set(
+    ((yaSocioRows as { curso_id: number | null; inscripcion_cursos: { curso_id: number }[] }[]) ?? []).flatMap(
+      (r) => [r.curso_id, ...r.inscripcion_cursos.map((ic) => ic.curso_id)].filter((x): x is number => x != null)
+    )
+  );
+  const yaInscripto = cursoIds.find((c) => cursosYaSocio.has(c));
+  if (yaInscripto != null) {
+    const nombre = (
+      exigir(
+        await sb.from("cursos").select("id, nombre").eq("id", yaInscripto).maybeSingle(),
+        "el curso"
+      ) as { nombre: string } | null
+    )?.nombre;
+    return {
+      error: `El alumno ya es socio regular de ${nombre ?? "ese curso"}: no se le puede vender una prueba de un curso donde ya está inscripto.`,
+    };
+  }
+
   // Precio de prueba de cada curso. Sin precio no se vende: no se inventa 0.
   const { data: tarifas } = await sb
     .from("curso_tarifas")
