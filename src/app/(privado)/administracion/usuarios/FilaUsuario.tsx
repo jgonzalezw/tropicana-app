@@ -6,6 +6,7 @@ import { estadoAcceso } from "@/lib/acceso";
 import CampoContrasena from "@/components/CampoContrasena";
 import {
   actualizarUsuario,
+  actualizarEmail,
   resetearContrasena,
   desbloquearUsuario,
   bloquearUsuario,
@@ -170,6 +171,7 @@ function SeccionAcceso({
   perfil: PerfilConRol;
   estadoEtiqueta: string;
 }) {
+  const [emailNuevo, setEmailNuevo] = useState(perfil.email ?? "");
   const [pwNueva, setPwNueva] = useState("");
   const [pendiente, startTransition] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
@@ -193,6 +195,37 @@ function SeccionAcceso({
           Estado: {estadoEtiqueta}
           {perfil.intentos_fallidos > 0 &&
             ` · ${perfil.intentos_fallidos} intento(s) fallido(s) de login`}
+        </div>
+      </div>
+
+      {/* Correo de acceso — vive en auth.users; la copia en perfiles.email
+          (0042) es la que lee el resto de la app. Las dos se actualizan
+          juntas en `actualizarEmail`. */}
+      <div className="space-y-2">
+        <span className="block text-base font-medium">Correo de acceso</span>
+        <div className="flex items-center gap-3">
+          <input
+            type="email"
+            value={emailNuevo}
+            onChange={(e) => setEmailNuevo(e.target.value)}
+            className="entrada"
+          />
+          <button
+            type="button"
+            disabled={
+              pendiente ||
+              emailNuevo.trim().toLowerCase() === (perfil.email ?? "").toLowerCase()
+            }
+            onClick={() =>
+              correr(
+                () => actualizarEmail(perfil.id, emailNuevo),
+                "Correo actualizado. Ya se puede ingresar con el nuevo."
+              )
+            }
+            className="shrink-0 px-4 py-2 text-base font-semibold rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)] disabled:opacity-40"
+          >
+            Guardar correo
+          </button>
         </div>
       </div>
 

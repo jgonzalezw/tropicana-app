@@ -90,6 +90,51 @@ export async function resetearContrasena(id: string, password: string) {
 }
 
 /**
+ * Editar el correo de acceso. Vive en dos lugares —`auth.users` (lo que se
+ * usa para iniciar sesión) y `perfiles.email` (la copia denormalizada que
+ * lee el resto de la app, 0042)— y los dos se actualizan juntos: si alguno
+ * falla, no puede quedar uno con el correo viejo y el otro con el nuevo.
+ */
+export async function actualizarEmail(id: string, email: string) {
+  if (!(await tienePermiso("usuarios", "editar"))) {
+    return { error: "Sin permiso." };
+  }
+  const limpio = email.trim().toLowerCase();
+  if (!limpio) return { error: "El correo es obligatorio." };
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(limpio))
+    return { error: "El correo no tiene un formato válido." };
+
+  const admin = createAdminClient();
+  if (!admin) return { error: "Falta configurar service_role en el servidor." };
+
+  const { error: errAuth } = await admin.auth.admin.updateUserById(id, {
+    email: limpio,
+    email_confirm: true,
+  });
+  if (errAuth) {
+    const msg = /already been registered|already exists/i.test(errAuth.message)
+      ? "Ya existe otra cuenta con ese correo."
+      : errAuth.message;
+    return { error: msg };
+  }
+
+  const { error: errPerfil } = await admin
+    .from("perfiles")
+    .update({ email: limpio, actualizado_en: new Date().toISOString() })
+    .eq("id", id);
+  if (errPerfil) {
+    return {
+      error:
+        "El correo se cambió en el acceso, pero no se pudo actualizar el perfil: " +
+        errPerfil.message,
+    };
+  }
+
+  revalidatePath("/administracion/usuarios");
+  return { ok: true };
+}
+
+/**
  * Acción 2 — Desbloquear sin cambiar la contraseña. Levanta el bloqueo y
  * reinicia el contador, dejando intacta la clave actual. No toca `activo`
  * (desbloquear no revierte una baja).
@@ -189,15 +234,16 @@ export async function crearUsuario(formData: FormData) {
   if (!nuevoId) return { error: "No se pudo crear la cuenta." };
 
   // 2) El trigger creó el perfil con rol por defecto. Ajustamos el rol
-  //    elegido (y garantizamos nombre/apellido/whatsapp por si el trigger
-  //    corrió antes que los metadatos). Usamos el cliente admin para no
-  //    depender de las políticas RLS en este paso.
+  //    elegido (y garantizamos nombre/apellido/whatsapp/email por si el
+  //    trigger corrió antes que los metadatos). Usamos el cliente admin para
+  //    no depender de las políticas RLS en este paso.
   const { error: errPerfil } = await admin
     .from("perfiles")
     .update({
       nombre,
       apellido,
       whatsapp,
+      email,
       rol_id,
       activo: true,
       actualizado_en: new Date().toISOString(),
