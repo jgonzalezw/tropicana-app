@@ -6,7 +6,18 @@
 > `docs/design/README.md` (fuente de verdad del **diseño**), `docs/CONTEXTO_AVANCE.md`
 > (bitácora larga de Etapa 0), `docs/DESIGN_SYNC.md` (cómo entran los handoffs).
 >
-> **Última actualización:** 2026-09-16 — **pase completo a producción**, con
+> **Última actualización:** 2026-09-17 — **C2 pasado a producción**, con el OK
+> explícito de Javier (*"avanza. ok"*, tras validar en dev y confirmar
+> corregidos dos bugs que encontró probando). Disponibilidad de sala + bloqueos
+> como pantalla operativa propia (`/sala`, grupo Gestión), separada de
+> Administración → Sala y horarios. Migraciones **0040** (glosa/notas en
+> `reservas_sala`) y **0041** (rol Profesor ve la disponibilidad) aplicadas en
+> `pnvhpbxjbdmbktpwebtx`; `main` `65aa8d9..accaa70`; controles en OK (control 15
+> REVISAR a propósito, deuda D1). Detalle en el bloque **"C2 — Disponibilidad +
+> reserva mínima de sala"**. Sigue C3 (venta de particulares/alquiler), sin
+> empezar todavía.
+>
+> **2026-09-16** — **pase completo a producción**, con
 > el OK explícito de Javier (*"pasa todo"*), de la secuencia de bugs en su
 > orden de prioridad (1, 5, 4 cerrados; 3 y 2 pendientes) más lo que ya
 > estaba validado en dev desde el 12/09 esperando su turno: **Roles y
@@ -1487,7 +1498,7 @@ habría que desacoplarla después.
 | | Qué | Estado |
 | --- | --- | --- |
 | **C1** | **Horario base de la sala**: patrón semanal de apertura + excepciones por rango de fechas. Es el lienzo — fuera de él no se puede reservar. **Vacío significa cerrado, no abierto** (confirmado por Javier): si valiera "24 h", olvidarse de configurarlo produce justo el bug que C1 evita | ✅ **CERRADO y validado en dev por Javier** (2026-09-12). Migraciones **0036** y **0037**. Javier cargó el horario real de Tropicana |
-| **C2** | Disponibilidad + reserva mínima: validar contra horario base + cursos + otras reservas, y **lista textual** de lo ocupado ese día (*"Lu 15: ocupado 9-10, 11-12:30; resto libre"*). **Sin grilla visual todavía** — 80% del beneficio, 20% del costo | 🟡 **Construido en dev el 2026-09-17**, validado contra el horario real (migración 0040). Solo bloqueos (D7) — sin C3 todavía no hay otra reserva posible. Pendiente el OK de Javier para producción |
+| **C2** | Disponibilidad + reserva mínima: validar contra horario base + cursos + otras reservas, y **lista textual** de lo ocupado ese día (*"Lu 15: ocupado 9-10, 11-12:30; resto libre"*). **Sin grilla visual todavía** — 80% del beneficio, 20% del costo | ✅ **EN PRODUCCIÓN desde el 2026-09-17.** Pantalla operativa propia (`/sala`, grupo Gestión), separada de Administración → Sala y horarios. Solo bloqueos (D7) — sin C3 todavía no hay otra reserva posible |
 | **C3** | Venta de particulares/alquiler apoyada en la disponibilidad. Los dos caminos del mockup de agosto, más lo que ese mockup no tiene: elegir fecha y hora al vender | Pendiente |
 | **C4** | Agenda visual (grilla día/semana/mes). **Pasa por Claude Design** | Pendiente → `ROADMAP.md` R2 |
 | **C5** | Conflicto bloqueo-vs-agendado: el sistema junta los conflictos y **el humano decide**, nunca cancelación automática silenciosa | Pendiente → `ROADMAP.md` R1 |
@@ -2190,7 +2201,15 @@ todo el proyecto.
 
 ### Estado
 
-**Solo en dev** (migración 0040 aplicada en `hyhijzuomqpylcmrzdvw`). Pendiente
-de que Javier lo pruebe y dé el OK explícito para producción (regla de proceso
-1). Sin mockup — construido Código v1, como el resto de la cola C1→C5; Design
+**PASADO A PRODUCCIÓN el 2026-09-17**, con el OK explícito de Javier ("avanza.
+ok", tras confirmar los dos bugs corregidos). Orden del pase seguido tal cual
+`DECISIONES.md §3`: migraciones 0040 y 0041 aplicadas en `pnvhpbxjbdmbktpwebtx`
+(verificadas por columna/permiso), después commit y push a `main`
+(`65aa8d9..accaa70`) — Vercel desplegó solo, chip **PROD · #accaa70**
+confirmado. `scripts/control_migracion.sql` en producción: todos los controles
+relevantes en **OK**, control 15 en REVISAR a propósito (deuda D1 conocida,
+igual que en dev). `/sala` responde y redirige a login sin autenticar (sin
+error 500) — la verificación visual con sesión real la hace Javier.
+
+Sin mockup — construido Código v1, como el resto de la cola C1→C5; Design
 refina si Javier lo pide.

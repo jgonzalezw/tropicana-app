@@ -206,3 +206,21 @@ proceso 1). No es un backlog de decisiones: es el estado del release.
   descartables (antes y después del merge a `main`). Sin migración. `main`
   `78e19a8`. Con esto, la cola completa de bugs (1, 5, 4, 3, 2) y R23 quedan
   cerrados y en producción.
+- **C2 (disponibilidad de sala + bloqueos) — PASADO A PRODUCCIÓN el
+  2026-09-17**, con el OK explícito de Javier (*"avanza. ok"*), después de que
+  probara en dev y se corrigieran dos bugs que encontró (el botón "Cancelar"
+  no funcionaba — usaba `confirm()` nativo, fácil de confundir con el propio
+  diálogo — y el formulario de bloqueo quedaba "invitando a repetir" tras
+  grabar, con un mensaje de una acción anterior pegado). Javier además corrigió
+  la ubicación: la disponibilidad es "totalmente cotidiana" y no debía vivir
+  solo bajo Administración — pasó a pantalla propia `/sala`, grupo Gestión del
+  menú, mostrando todas las salas activas a la vez. Migraciones **0040**
+  (`glosa`/`notas` en `reservas_sala`) y **0041** (rol Profesor ve la
+  disponibilidad — `es_sistema=true`, migrado; Asistente y Gerente son roles
+  configurables y ESE ajuste queda para que Javier lo haga desde Roles y
+  Permisos, no por migración) aplicadas en `pnvhpbxjbdmbktpwebtx` antes del
+  código, siguiendo el orden de §3. Controles de `scripts/control_migracion.sql`
+  en **OK** en producción (control 15 en REVISAR a propósito, deuda D1).
+  `main` `65aa8d9..accaa70`, confirmado por el chip PROD `#accaa70`. Detalle
+  completo en `docs/ESTADO.md`, bloque *"C2 — Disponibilidad + reserva mínima
+  de sala"*.
