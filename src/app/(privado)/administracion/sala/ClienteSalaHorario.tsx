@@ -78,6 +78,16 @@ export default function ClienteSalaHorario({
   const [salasEd, setSalasEd] = useState<SalaEdit[]>(salasIniciales);
   const [msgSalas, setMsgSalas] = useState<string | null>(null);
   const [errSalas, setErrSalas] = useState<string | null>(null);
+  // Resincroniza cuando llega una `salas` fresca del servidor (después de
+  // guardar, `router.refresh()` trae el `id` real de una sala nueva, que acá
+  // había quedado en `null`). Ajustado durante el render, no en un efecto:
+  // sin esto, "Guardar salas" quedaba activo para siempre después de crear
+  // una sala, porque el `id: null` local nunca iba a coincidir con el real.
+  const [salasVistas, setSalasVistas] = useState(salas);
+  if (salas !== salasVistas) {
+    setSalasVistas(salas);
+    setSalasEd(salasIniciales);
+  }
   const salasSucio = JSON.stringify(salasEd) !== JSON.stringify(salasIniciales);
 
   // ── Horario de la sala elegida ─────────────────────────────────────
@@ -111,6 +121,20 @@ export default function ClienteSalaHorario({
   const [porConfirmar, setPorConfirmar] = useState<ClaseAfectada[] | null>(null);
   const [avisos, setAvisos] = useState<AvisoAlumno[] | null>(null);
   const [copiado, setCopiado] = useState<number | null>(null);
+
+  // Mismo problema que con las salas, y mismo arreglo: al guardar una
+  // excepción nueva, la base le asigna un `id`, pero el estado local se
+  // quedaba con `id: null` — "Guardar horario" nunca volvía a apagarse
+  // después de un guardado exitoso (Javier, 2026-09-16: "no debería
+  // mantenerse el botón guardar... te invita a repetir"). Resincroniza contra
+  // `patron`/`excepciones` frescos, ajustado durante el render.
+  const [propsVistas, setPropsVistas] = useState({ patron, excepciones });
+  if (propsVistas.patron !== patron || propsVistas.excepciones !== excepciones) {
+    setPropsVistas({ patron, excepciones });
+    setFilas(patronInicial);
+    setExc(excInicial);
+    setExcBorradas([]);
+  }
 
   const sucio =
     JSON.stringify({ filas, exc, excBorradas }) !==

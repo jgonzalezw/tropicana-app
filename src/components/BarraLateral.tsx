@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { PerfilConRol } from "@/lib/tipos";
@@ -46,6 +47,29 @@ export default function BarraLateral({
   infoRelease: InfoRelease;
 }) {
   const pathname = usePathname();
+
+  // Corte a celular en 900px, evaluado en JS (no en CSS): el sidebar y el
+  // drawer son el mismo elemento en dos posiciones, así la lista de
+  // navegación existe una sola vez — mismo criterio que el App Shell
+  // diseñado (`docs/design/App Shell.dc.html`).
+  const [esMovil, setEsMovil] = useState(false);
+  const [drawerAbierto, setDrawerAbierto] = useState(false);
+  useEffect(() => {
+    const medir = () => setEsMovil(window.innerWidth < 900);
+    medir();
+    window.addEventListener("resize", medir);
+    return () => window.removeEventListener("resize", medir);
+  }, []);
+  // Cambiar de pantalla cierra el drawer: nadie quiere seguir viendo el menú
+  // abierto sobre la pantalla nueva. Ajustado durante el render (no en un
+  // efecto aparte) comparando contra el pathname anterior — es el patrón que
+  // React recomienda para "resetear estado cuando cambia algo", y evita el
+  // repintado en cascada de hacerlo en un `useEffect`.
+  const [pathnameAnterior, setPathnameAnterior] = useState(pathname);
+  if (pathname !== pathnameAnterior) {
+    setPathnameAnterior(pathname);
+    setDrawerAbierto(false);
+  }
 
   const nombreMostrado =
     [perfil.nombre, perfil.apellido].filter(Boolean).join(" ") || "Usuario";
@@ -137,8 +161,11 @@ export default function BarraLateral({
     },
   ];
 
-  return (
-    <aside className="w-64 shrink-0 bg-[var(--fondo-panel)] border-r border-[var(--borde)] flex flex-col">
+  // El contenido es el mismo elemento en las dos posiciones (sidebar fija en
+  // desktop, drawer en celular): una sola lista de navegación, nunca dos que
+  // puedan desincronizarse.
+  const contenido = (
+    <>
       <div className="p-6 border-b border-[var(--borde)]">
         <div className="flex items-center justify-between gap-2">
           <div className="titulo text-2xl text-[var(--primario)]">Tropicana</div>
@@ -200,6 +227,55 @@ export default function BarraLateral({
           </button>
         </form>
       </div>
-    </aside>
+    </>
+  );
+
+  if (!esMovil) {
+    return (
+      <aside className="w-64 shrink-0 bg-[var(--fondo-panel)] border-r border-[var(--borde)] flex flex-col">
+        {contenido}
+      </aside>
+    );
+  }
+
+  // Celular: barra superior con hamburguesa + logo, y el mismo contenido
+  // corrido a un drawer que se abre encima. Retraído por defecto para no
+  // robarle espacio a la pantalla — es lo que pidió Javier al probar en
+  // celular con el App Shell actual.
+  return (
+    <>
+      <div className="fixed top-0 left-0 right-0 z-30 h-14 flex items-center gap-3 px-3 bg-[var(--fondo-panel)] border-b border-[var(--borde)]">
+        <button
+          onClick={() => setDrawerAbierto(true)}
+          aria-label="Abrir menú"
+          className="w-11 h-11 -ml-1 flex items-center justify-center rounded-[var(--radio-control)] hover:bg-[var(--fondo-elevado)]"
+        >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <line x1="4" y1="6" x2="20" y2="6" />
+            <line x1="4" y1="12" x2="20" y2="12" />
+            <line x1="4" y1="18" x2="20" y2="18" />
+          </svg>
+        </button>
+        <div className="titulo text-xl text-[var(--primario)]">Tropicana</div>
+        <div className="ml-auto">
+          <InfoReleaseChip info={infoRelease} />
+        </div>
+      </div>
+
+      {drawerAbierto && (
+        <button
+          aria-label="Cerrar menú"
+          onClick={() => setDrawerAbierto(false)}
+          className="fixed inset-0 z-40 bg-black/60"
+        />
+      )}
+      <aside
+        className={`fixed top-0 bottom-0 left-0 z-50 w-[min(300px,86vw)] bg-[var(--fondo-panel)] border-r border-[var(--borde)] flex flex-col transition-transform duration-200 ease-out ${
+          drawerAbierto ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        {contenido}
+      </aside>
+    </>
   );
 }

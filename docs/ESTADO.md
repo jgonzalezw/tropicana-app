@@ -1766,3 +1766,52 @@ su módulo de permisos antes de darse por concluido.
 
 `tsc`, `eslint` y `next build` limpios. **Solo en dev** — migración aditiva
 sobre `rol_permisos`, sin tocar datos de dominio.
+
+---
+
+## Dos correcciones de UI encontradas probando en celular · 2026-09-16
+
+Javier las reportó mirando el App Shell actual (3 grupos, no el de 7 diseñado)
+en la vista de celular del navegador de dev.
+
+### 1. El menú lateral no se retraía en celular
+
+No existía ningún corte responsive: `BarraLateral` era un `<aside>` fijo de
+264px siempre visible, sin importar el ancho de pantalla. En celular eso le
+comía la mitad del espacio a cualquier pantalla.
+
+**Ahora sigue el mismo criterio que ya estaba documentado** en el App Shell
+diseñado (`docs/design/App Shell.dc.html`, regla N24): corte a los **900px
+evaluado en JS**, no en CSS. Por debajo, el sidebar se convierte en una barra
+superior fija (hamburguesa + logo) y el contenido completo pasa a un *drawer*
+que se abre encima con backdrop, y se cierra solo al elegir un destino. Es el
+mismo elemento en dos posiciones, no dos listas de navegación.
+
+Un detalle de implementación: el primer intento resetear el drawer al cambiar
+de pantalla con un `useEffect` disparó el error de lint *"calling setState
+synchronously within an effect"* — se resolvió con el patrón que React
+recomienda (ajustar el estado durante el render, comparando contra el
+pathname anterior) en vez de un efecto aparte.
+
+### 2. "Guardar horario" quedaba activo después de guardar con éxito
+
+Javier: *"una vez guardada la excepción, no debería mantenerse el botón
+guardar. Es confuso, te invita a repetir."*
+
+**Causa medida, no supuesta**: al guardar una excepción **nueva**, la base le
+asigna un `id` real, pero el estado local de la pantalla se quedaba con
+`id: null` — la comparación de "¿hay cambios sin guardar?" nunca volvía a
+coincidir con lo recién guardado, así que el botón seguía activo para
+siempre. Mismo problema, mismo origen, en "Guardar salas" al crear una sala
+nueva.
+
+**Arreglo**: cuando llegan `salas` / `patron` / `excepciones` frescos del
+servidor (después de `router.refresh()`), el estado local se resincroniza
+contra esos datos reales — ajustado durante el render, mismo patrón que el
+punto 1.
+
+**Verificado en dev**: agregar una excepción, guardarla, confirmar que el
+botón queda apagado y dice "Sin cambios pendientes." Repetido para
+salas nuevas.
+
+`tsc`, `eslint` y `next build` limpios. Solo en dev, sin migración.

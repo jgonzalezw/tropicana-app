@@ -96,7 +96,10 @@ export default async function LayoutPrivado({
         temaActual={perfil.tema ?? TEMA_DEFECTO}
         infoRelease={obtenerInfoRelease()}
       />
-      <main className="flex-1 overflow-x-auto">{children}</main>
+      {/* En celular la barra lateral se retrae a una barra superior fija
+          (BarraLateral, corte en 900px): este padding le hace lugar, para
+          que no tape el arranque de la pantalla. */}
+      <main className="flex-1 overflow-x-auto max-[899px]:pt-14">{children}</main>
     </div>
   );
 }
