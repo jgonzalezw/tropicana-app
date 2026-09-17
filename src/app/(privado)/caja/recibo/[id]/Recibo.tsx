@@ -11,7 +11,13 @@ export type DatosRecibo = {
   titular: string | null;
   whatsapp: string | null;
   servicio: string | null;
+  /** Los cursos que toca la membresía, ya unidos en un texto — puede ser más
+   *  de uno (glosario de REGLAS.md: una membresía no tiene un "curso
+   *  principal", salvo que sea mono-curso). */
   curso: string | null;
+  /** Real si ya está calculada, o una estimación cuando el paquete termina
+   *  por consumo y no por fecha (`estimada: true`). */
+  finMembresia: { fecha: string; estimada: boolean } | null;
   periodo: string | null;
   monto: number;
   descuento: number;
@@ -118,6 +124,12 @@ export default function Recibo({ datos }: { datos: DatosRecibo }) {
           {datos.periodo && (
             <div className="text-sm text-[var(--texto-tenue)]">
               Período {periodoLargo(datos.periodo)}
+            </div>
+          )}
+          {datos.finMembresia && (
+            <div className="text-sm text-[var(--texto-tenue)]">
+              {datos.finMembresia.estimada ? "Vence (estimado)" : "Vence"}{" "}
+              {fechaCorta(datos.finMembresia.fecha)}
             </div>
           )}
         </div>
@@ -284,6 +296,13 @@ function construirHTMLImpresion(d: DatosRecibo): string {
         <div class="muted small">Concepto</div>
         <div>${esc(concepto(d))}</div>
         ${d.periodo ? `<div class="muted small">Per&iacute;odo ${periodoLargo(d.periodo)}</div>` : ""}
+        ${
+          d.finMembresia
+            ? `<div class="muted small">${
+                d.finMembresia.estimada ? "Vence (estimado)" : "Vence"
+              } ${fechaCorta(d.finMembresia.fecha)}</div>`
+            : ""
+        }
       </div>
       <div class="cuenta">${cuenta}</div>
       ${totalCaja}

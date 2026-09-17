@@ -18,6 +18,24 @@ export const DIAS_LARGOS: Record<number, string> = {
   5: "Viernes", 6: "Sábados", 7: "Domingos",
 };
 
+/** 1=lunes … 7=domingo, minúscula — para juntar en una frase. */
+const DIA_MIN: Record<number, string> = {
+  1: "lunes", 2: "martes", 3: "miércoles", 4: "jueves",
+  5: "viernes", 6: "sábados", 7: "domingos",
+};
+
+/**
+ * "martes y jueves" — para mostrar el horario de una membresía de un vistazo.
+ * Segura para cliente y servidor (a diferencia de `@/lib/cuentas`), la usan
+ * la pantalla de Cuenta del alumno y su versión imprimible.
+ */
+export function rotuloDiasMembresia(dias: number[]): string {
+  const nombres = [...new Set(dias)].sort((a, b) => a - b).map((d) => DIA_MIN[d]).filter(Boolean);
+  if (!nombres.length) return "";
+  if (nombres.length === 1) return nombres[0];
+  return `${nombres.slice(0, -1).join(", ")} y ${nombres[nombres.length - 1]}`;
+}
+
 export const ETIQUETA_MODALIDAD: Record<Modalidad, string> = {
   mensual: "Mensual completo",
   clase: "Una clase",

@@ -6,7 +6,16 @@
 > `docs/design/README.md` (fuente de verdad del **diseño**), `docs/CONTEXTO_AVANCE.md`
 > (bitácora larga de Etapa 0), `docs/DESIGN_SYNC.md` (cómo entran los handoffs).
 >
-> **Última actualización:** 2026-09-16 — **bug de asistencia corregido y
+> **Última actualización:** 2026-09-16 — secuencia de bugs de Javier, en su
+> orden de prioridad (1, 5, 4 cerrados; 3 y 2 pendientes): **Roles y Permisos**
+> de Planes/Liquidaciones/Precios/Sala, **C5** (cierre de sala avisa y
+> suspende con confirmación), **Cuenta del alumno** (multi-curso completo +
+> fecha de fin real o estimada, aplicada también al recibo), y dos
+> correcciones de UI (menú retráctil en celular, botón "Guardar" que dejaba de
+> invitar a repetir). Detalle en los bloques finales correspondientes. Todo
+> **solo en dev**, esperando el OK de pase.
+>
+> **2026-09-16 (antes)** — **bug de asistencia corregido y
 > PASADO A PRODUCCIÓN**, con el OK explícito de Javier ("pasalo"). `main` en
 > `11c37f9`, confirmado por el chip PROD de la app. **Pase acotado a
 > propósito**: solo los dos archivos del fix, sin arrastrar las migraciones
@@ -1813,5 +1822,87 @@ punto 1.
 **Verificado en dev**: agregar una excepción, guardarla, confirmar que el
 botón queda apagado y dice "Sin cambios pendientes." Repetido para
 salas nuevas.
+
+---
+
+## Cuenta del alumno: membresías multi-curso completas, y fecha de fin real o estimada · 2026-09-16
+
+Javier: *"corregir la cuenta del alumno para aclarar los paquetes múltiples,
+no sale completa. Se necesita dar mas info de la inscripción y horario"* — y
+después, al confirmar la secuencia de prioridades: *"asegurarte que tenga la
+fecha estimada de fin y se aplique también a la glosa de los recibos de
+pago."*
+
+### El bug: mismo error de glosario que C5, en otra pantalla
+
+`estadoDeCuenta` armaba el nombre de la membresía a partir de
+`inscripciones.curso_id` — el resabio mono-curso. Una membresía con varios
+cursos (`inscripcion_cursos`) mostraba solo uno, o ninguno si esa fila no tenía
+`curso_id` cargado. Mismo síntoma que el bug de C5, encontrado independiente:
+cualquier pantalla que lea `curso_id` en vez de `inscripcion_cursos` para "los
+cursos de la membresía" tiene este agujero.
+
+Además, `fecha_fin` es la fecha real **solo** en mensual/ilimitado: en
+"paquete por clase" (`modalidad='clase'`) el ciclo no tiene fecha, se agota por
+conteo — la pantalla no decía nada, dejando a Natalia sin poder anticipar
+cuándo vence.
+
+### Cómo quedó
+
+Dos piezas nuevas en `src/lib/cuentas.ts`, reutilizadas en las tres pantallas
+que necesitan esta info:
+
+- **`cursosDeMembresias`**: los cursos de un lote de membresías, vía
+  `inscripcion_cursos` con respaldo a `curso_id` para filas viejas sin junction
+  row (mismo criterio que C5, mismo glosario). Calculada **una sola vez** para
+  todas las membresías de la cuenta, no por membresía — evita repetir la
+  consulta que antes solo corría para las que tenían bono.
+- **`finDeMembresia`**: si hay `fecha_fin` real, esa. Si no (paquete por
+  clase), **estima** la fecha de la clase N-ésima (`fechaClaseN`, ya existente
+  para las clases de prueba) usando los días del primer curso con horario y el
+  total de clases compradas, marcada `estimada: true`.
+
+Aplicado en:
+
+1. **Cuenta del alumno** (`alumnos/[id]/cuenta`): cada membresía lista todos
+   sus cursos con sus días (`rotuloDiasMembresia`, movido a `src/lib/inscripcion.ts`
+   para poder usarse también en el cliente) y el rango
+   `fechaInicio → fechaFin` con "(estimado)" cuando corresponde.
+2. **Su versión imprimible** (`ImprimirCuenta.tsx`): mismo criterio, mismo
+   texto.
+3. **Recibo de pago** (`caja/recibo/[id]`): el concepto ahora suma los cursos
+   de la membresía (antes solo el nombre del plan) y una línea nueva "Vence" /
+   "Vence (estimado)" con la fecha — la glosa del recibo, pedida explícitamente.
+
+### Verificado en dev, con dato real y con dato de prueba descartado
+
+- **Multi-curso real**: Nadine Salek, membresía "Plan de Prueba Ili" con 5
+  cursos en `inscripcion_cursos`. Antes de la corrección mostraba uno; ahora:
+  *"Danza Comercial (lunes y miércoles) · Heels (sábados) · Salsa y Bachata
+  Inicial (lunes y miércoles) · Tropicoreografico (lunes y miércoles) · Zumba
+  (martes y jueves)"*.
+- **Fecha estimada**: sin ejemplo real disponible en dev (los únicos paquetes
+  por clase existentes eran las membresías sueltas que se dieron de baja, ver
+  abajo), se creó una membresía y un pago de prueba (Zumba, `modalidad='clase'`,
+  4 clases desde el 10/09) y se confirmó en pantalla: Cuenta mostró
+  *"10/09/2026 → 22/09/2026 (estimado)"*, coincidiendo con `fechaClaseN([2,4],
+  10/09, 4)`; el Recibo de ese pago mostró *"Vence (estimado) 22/09/2026"*.
+  **Datos de prueba borrados** después de verificar (inscripción 41, pago 42).
+
+`tsc`, `eslint` y `next build` limpios en los siete archivos tocados
+(`cuentas.ts`, `inscripcion.ts`, `tipos.ts`, `cuenta/page.tsx`,
+`ImprimirCuenta.tsx`, `caja/recibo/[id]/page.tsx`, `Recibo.tsx`). **Solo en
+dev** — sin migración, cambio de solo lectura.
+
+### Dato de dev limpiado de paso
+
+A pedido de Javier (*"elimina las mebresias sueltsas y sus dependencias. Son de
+unos niños que quedaron sueltos antes de cambios que hicimos a planes"*): se
+borraron las inscripciones 17, 18 y 19 (paquete por clase, sin
+`inscripcion_cursos`, dato huérfano previo al motor de planes actual) junto con
+sus pagos (15, 16, 17) y asistencias — verificado en cero después. **Los tres
+alumnos** ("karola urbari" y sus dos hijas, ids 31/32/33) **se dejaron
+intactos**: Javier no pidió borrarlos y no hay indicio de que sean ellos
+mismos el dato descartable, solo su membresía huérfana.
 
 `tsc`, `eslint` y `next build` limpios. Solo en dev, sin migración.

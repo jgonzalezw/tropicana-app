@@ -314,10 +314,19 @@ export type CuotaCuenta = {
 export type MembresiaCuenta = {
   id: number;
   plan: string | null;
+  /** @deprecated Resabio mono-curso — usar `cursos`, que cubre multi-curso. */
   curso: string | null;
+  /** Los cursos que toca la membresía, con sus días (por `inscripcion_cursos`,
+   *  con respaldo a `curso_id` para filas viejas). Vacío = no se pudo determinar. */
+  cursos: { nombre: string; dias: number[] }[];
   estado: string;
   fechaInicio: string;
+  /** Real si ya se calculó, o una estimación cuando el paquete termina por
+   *  consumo y no por fecha (ver `fechaFinEstimada`). */
   fechaFin: string | null;
+  /** `true` = `fechaFin` es una proyección (asistencia perfecta desde hoy),
+   *  no un compromiso. Un paquete por clase no tiene fecha de fin real. */
+  fechaFinEstimada: boolean;
   /** Plan con N: cuántas clases asistió de las N del ciclo. */
   progreso: { hechas: number; total: number } | null;
   /** Paquete por clase: cuántas le quedan. */
