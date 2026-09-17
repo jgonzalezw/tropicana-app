@@ -599,6 +599,11 @@ export async function cargarPadron(
       personas: 1,
     });
 
+  // Datos de desempate para cuando el mismo alumno aparece dos veces (más
+  // abajo, `filasPorAlumno`): si ya está agotada al día que se mira, y desde
+  // cuándo corre. No van en `FilaAsistencia` — son de uso interno acá nomás.
+  const desempatePorInsc = new Map<number, { agotada: boolean; fechaInicio: string }>();
+
   const filas: FilaAsistencia[] = inscripciones
     // Un ciclo agotado ya no toma clases, esté cobrado o no. Se pregunta **al
     // día que se está mirando**: el 25 de agosto un ciclo que terminó el 8 de
@@ -609,6 +614,7 @@ export async function cargarPadron(
       const esMensual = r.modalidad === "mensual";
       const restantes = esMensual ? null : Math.max(0, (r.clases_total ?? 0) - (consumidas[r.id] ?? 0));
       const progreso = r.clases_plan != null ? { hechas: consumidas[r.id] ?? 0, total: r.clases_plan } : null;
+      desempatePorInsc.set(r.id, { agotada: cicloAgotadoAl(r, fecha), fechaInicio: r.fecha_inicio });
       return {
         inscripcionId: r.id,
         alumnoId: r.alumno!.id,
@@ -678,10 +684,34 @@ export async function cargarPadron(
   // Se queda con la membresía REGULAR: una prueba redundante sobre un curso ya
   // pagado no aporta nada, y es la fila que de verdad consume el ciclo del
   // alumno.
+  //
+  // El MISMO choque pasa con dos membresías REGULARES (una renovación: el
+  // ciclo viejo ya completado + el nuevo activo) y acá el criterio de arriba
+  // no alcanza — ninguna es prueba. Sin desempate propio se quedaba con la
+  // PRIMERA que encontraba, sin mirar si seguía vigente (R23, encontrado con
+  // datos reales el 2026-09-17: a Yubinca, en Bachata Conexión, una clase de
+  // su ciclo nuevo quedó acreditada al viejo, ya cerrado). Gana la que sigue
+  // vigente sobre la agotada/completada; si las dos están igual (el límite
+  // exacto en que una termina y la otra empieza el mismo día), gana la que
+  // arrancó después — es la que de verdad corre hoy.
   const filasPorAlumno = new Map<number, FilaAsistencia>();
   for (const f of filas) {
     const previa = filasPorAlumno.get(f.alumnoId);
-    if (!previa || (previa.esPrueba && !f.esPrueba)) filasPorAlumno.set(f.alumnoId, f);
+    if (!previa) {
+      filasPorAlumno.set(f.alumnoId, f);
+      continue;
+    }
+    // Acá `inscripcionId` nunca es null: `filas` sale de `inscripciones`
+    // (siempre con `id`), y los "extras" (que sí pueden no tenerlo) se suman
+    // después de este desempate.
+    const dPrevia = desempatePorInsc.get(previa.inscripcionId!)!;
+    const dActual = desempatePorInsc.get(f.inscripcionId!)!;
+    const prefiereActual =
+      (previa.esPrueba && !f.esPrueba) ||
+      (previa.esPrueba === f.esPrueba &&
+        ((dPrevia.agotada && !dActual.agotada) ||
+          (dPrevia.agotada === dActual.agotada && dActual.fechaInicio > dPrevia.fechaInicio)));
+    if (prefiereActual) filasPorAlumno.set(f.alumnoId, f);
   }
 
   return {
@@ -842,6 +872,17 @@ export async function guardarAsistencia(
 
   await revertirCorrimientos(a, sesionId, "suspension");
 
+  // Quién tenía marcada esta sesión ANTES de guardar. El unique es
+  // (sesion_id, alumno_id) — no incluye la membresía —, así que si el padrón
+  // ahora resuelve a otra inscripción para el mismo alumno (R23: dos
+  // membresías regulares, se prefiere la vigente), el upsert de abajo le
+  // saca la marca a la vieja en silencio. Sin recalcularla también, se queda
+  // con un contador que ya no corresponde a ninguna asistencia real.
+  const { data: previas } = await a.from("asistencias").select("inscripcion_id").eq("sesion_id", sesionId);
+  const inscIdsPrevias = ((previas as { inscripcion_id: number | null }[]) ?? [])
+    .map((r) => r.inscripcion_id)
+    .filter((x): x is number => x != null);
+
   const filas = e.marcas.map((m) => ({
     sesion_id: sesionId,
     alumno_id: m.alumnoId,
@@ -857,10 +898,17 @@ export async function guardarAsistencia(
   // no corre nada. Solo limpiamos corrimientos 'falta' heredados de la sesión.
   await revertirCorrimientos(a, sesionId, "falta");
 
-  // Motor: recalcular contador/"completada"/bono de las membresías tocadas.
-  const inscIds = [...new Set(e.marcas.map((m) => m.inscripcionId).filter((x): x is number => x != null))];
+  // Motor: recalcular contador/"completada"/bono de las membresías tocadas —
+  // las nuevas Y las que tenían la marca antes de este guardado (arriba). El
+  // resumen de "completadas" solo cuenta las nuevas: una vieja que ya estaba
+  // completada y solo se resincroniza no es una completación que reportar.
+  const inscIdsNuevas = new Set(e.marcas.map((m) => m.inscripcionId).filter((x): x is number => x != null));
+  const inscIds = new Set([...inscIdsNuevas, ...inscIdsPrevias]);
   let completadas = 0;
-  for (const id of inscIds) if (await recalcularMembresia(a, id)) completadas++;
+  for (const id of inscIds) {
+    const cerrada = await recalcularMembresia(a, id);
+    if (cerrada && inscIdsNuevas.has(id)) completadas++;
+  }
 
   const presentes = e.marcas.filter((m) => m.estado === "presente").length;
   const ausentes = e.marcas.filter((m) => m.estado === "ausente").length;
