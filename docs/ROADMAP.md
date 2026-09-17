@@ -25,18 +25,11 @@ Tamaño: **S** = un rato · **M** = un hito chico · **L** = un hito propio.
 
 ---
 
-## 0. PRIORITARIO — bug de corrección abierto
+## 0. Bugs de corrección — cerrados
 
-> **Orden de cola (Javier, 2026-09-17):** *"siendo latente, debemos evitar que
-> se repita. Dejalo para detrás del ítem 3"* — es decir, después del intervalo
-> estándar de tiempo (parámetro de minutos). El ítem 2 (tramos de precio) ya
-> cerró — Javier probó crear y modificar un plan y la tarifa por tramo calcula
-> bien — así que R23 es lo próximo de la cola de bugs. Mientras tanto,
-> mitigación por auditoría manual: ver el caso Aguilar más abajo.
-
-| # | Qué es | Rebanada | Tamaño |
-| --- | --- | --- | --- |
-| R23 | **El padrón puede acreditar una clase a la membresía equivocada cuando un alumno tiene DOS membresías regulares del mismo curso (renovación: ciclo viejo completado + ciclo nuevo activo).** Javier lo pidió analizar **con prioridad** (2026-09-17), en la cola detrás del ítem 3. **Caso real medido en producción:** Yubinca, Bachata Conexión — la clase del 15/09 quedó acreditada a la membresía #22 (ciclo anterior, completada, terminó el 08/09) en vez de la #28 (activa, empezó el 10/09). La cuenta mostraba 1/9 en vez de 2/9. **El dato se corrigió a mano en producción el 2026-09-17** (asistencia 131 movida de #22 a #28, contadores recalculados, respaldo del antes en `ESTADO.md`), pero **el bug de código sigue vivo**. **Causa medida:** en `cargarPadron` (`asistencia/acciones.ts`) el desempate `filasPorAlumno` solo resuelve el choque **regular-vs-prueba** (se queda con la regular); con **dos regulares** se queda con la primera del Map, sin preferir la activa. Y el filtro de "ciclo agotado" deja pasar a la membresía vieja si ya tiene una marca en esa sesión (`!cicloAgotadoAl \|\| marcas[...] != null`), así que una vez que una clase cae en la membresía equivocada **se queda pegada ahí** y se re-elige sola en cada re-guardado. Es la clase de bug del "padrón duplicado" (11c37f9) que ese arreglo **no cubre**. **Fix a diseñar:** cuando un alumno tiene una membresía completada/agotada y una activa cubriendo la misma fecha, el padrón y el desempate deben preferir siempre la **activa**. Revisar también si conviene que `guardarAsistencia` recalcule la membresía **anterior** de la que se despega una marca, no solo la nueva (hoy dejó `clases_hechas` desincronizado en #28). **Auditoría del 2026-09-17 (solo lectura) contra producción**: un solo caso más con el mismo patrón de riesgo — Manuel Aguilar, Tropicoreografico (lunes y miércoles): membresía vieja #7 `completada` termina el 16/09, membresía nueva #38 `activa` empieza el mismo 16/09. La clase del lunes 14/09 ya está bien acreditada a la vieja; **la del miércoles 16/09 todavía no se registró** — es el punto ciego exacto (ambas membresías se tocan ese día). Verificar a mano, al tomarla, que caiga en la #38. | Asistencia | M |
+| # | Qué era | Estado |
+| --- | --- | --- |
+| R23 | **El padrón podía acreditar una clase a la membresía equivocada cuando un alumno tenía DOS membresías regulares del mismo curso** (renovación: ciclo viejo completado + ciclo nuevo activo). Caso real: Yubinca, Bachata Conexión, la clase del 15/09 quedó acreditada a la #22 (vieja) en vez de la #28 (activa). Causa: `filasPorAlumno` (`cargarPadron`, `asistencia/acciones.ts`) solo resolvía el choque regular-vs-prueba, no dos regulares — se quedaba con la primera del Map en vez de preferir la vigente. **CORREGIDO**: el desempate ahora prefiere la activa sobre la agotada/completada (empate exacto por fecha de inicio, la más nueva gana), y `guardarAsistencia` recalcula también la membresía que pierde la marca. Verificado en dev con datos descartables (alumno de prueba, curso Heels, renovación simulada) antes y después del guardado — el padrón ya ofrece la activa, y tras guardar la asistencia queda en la membresía correcta con ambas recalculadas. **PASADO A PRODUCCIÓN el 2026-09-17** (`main` `78e19a8`), con el OK explícito de Javier. Sin migración. | ✅ Cerrado |
 
 ---
 

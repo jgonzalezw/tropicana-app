@@ -196,3 +196,13 @@ proceso 1). No es un backlog de decisiones: es el estado del release.
   **Código desplegado**: `main` `11c37f9..7003295` (merge, no fast-forward,
   porque el bug de asistencia se había pasado por separado con alcance
   acotado — ver el punto de arriba). Detalle completo en `docs/ESTADO.md`.
+- **Ítem 3 (intervalo estándar de tiempo, migración 0039) — PASADO A
+  PRODUCCIÓN el 2026-09-17**, con el OK explícito de Javier, después de dos
+  correcciones que encontró probando en dev (mensaje de error deformaba un
+  campo de Parámetros; selector de hora de Sala con `step` confuso, revertido
+  a simple). `main` `7f2f4e1`.
+- **R23 (bug del padrón con renovaciones) — PASADO A PRODUCCIÓN el
+  2026-09-17**, con el OK explícito de Javier, verificado dos veces con datos
+  descartables (antes y después del merge a `main`). Sin migración. `main`
+  `78e19a8`. Con esto, la cola completa de bugs (1, 5, 4, 3, 2) y R23 quedan
+  cerrados y en producción.

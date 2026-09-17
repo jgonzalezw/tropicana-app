@@ -2030,7 +2030,54 @@ que cuando se construya, reusa este mismo parámetro.
 
 ### Estado
 
-`tsc`, `eslint` y `next build` limpios (20 rutas). **Solo en dev** — migración
-0039 aditiva (no toca cursos existentes: los 9 activos siguen en 60 min,
-múltiplo de las dos opciones). Espera el OK de Javier tras revisar el plan y
-validar en dev.
+`tsc`, `eslint` y `next build` limpios (20 rutas). Migración 0039 aditiva (no
+tocó cursos existentes: los 9 activos siguen en 60 min, múltiplo de las dos
+opciones). **PASADO A PRODUCCIÓN el 2026-09-17**, con el OK explícito de
+Javier, tras dos correcciones que encontró probando en dev: el mensaje de
+error de un parámetro deformaba el campo (bug de layout, corregido) y el
+selector de hora de Sala con `step` resultaba confuso y no forzaba el
+incremento de forma confiable (revertido a `<input type="time">` simple —
+"no inventes un objeto raro... basta con la validación" — la validación
+server-side, que sí funciona, queda sin cambios). `main` `7f2f4e1`.
+
+---
+
+## R23 corregido y pasado a producción · 2026-09-17
+
+El bug del padrón con renovaciones (ver más arriba, "Corrección de datos en
+producción: la clase de Yubinca...") se cerró del todo. Quedó anotado en
+`ROADMAP.md` con prioridad, detrás del ítem 3 (Javier: *"siendo latente,
+debemos evitar que se repita"*).
+
+### El fix
+
+En `cargarPadron` (`asistencia/acciones.ts`), el desempate `filasPorAlumno`
+—que decide qué membresía representa a un alumno cuando aparece dos veces en
+el padrón— solo sabía resolver el choque prueba-vs-regular. Con **dos
+membresías regulares** (una renovación: ciclo viejo completado + nuevo
+activo) se quedaba con la primera que encontraba, sin mirar cuál seguía
+vigente. Ahora:
+1. Gana la **activa** sobre la agotada/completada.
+2. En empate exacto (una termina y la otra empieza el mismo día, como el caso
+   Aguilar detectado en la auditoría), gana la que **arrancó después**.
+
+Además, `guardarAsistencia` ahora recalcula también la membresía que
+**pierde** una marca cuando el padrón corregido la reasigna a otra (el
+`unique` de `asistencias` es sesión+alumno, no incluye la membresía) — antes
+solo recalculaba la nueva, dejando a la vieja con el contador desincronizado.
+
+### Verificado dos veces con datos descartables
+
+Con un alumno de prueba y una renovación simulada sobre Heels (membresía vieja
+completada + nueva activa, con la clase ya mal puesta en la vieja — el estado
+exacto en que había quedado Yubinca): el padrón mostró la activa (no "2/1", la
+combinación imposible que delataba el bug antes del fix) y, tras guardar, la
+asistencia quedó en la membresía correcta con las dos recalculadas. Repetido
+una segunda vez tras el merge a `main`, mismo resultado. Datos de prueba
+borrados las dos veces.
+
+### Estado
+
+`tsc` y `eslint` limpios. Sin migración — cambia comportamiento de
+`guardarAsistencia`/`cargarPadron`, ya en producción. **PASADO A PRODUCCIÓN el
+2026-09-17**, con el OK explícito de Javier, `main` `78e19a8`.
