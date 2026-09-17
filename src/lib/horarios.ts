@@ -59,6 +59,28 @@ export function etiquetaDuracion(duracionMin: number | null | undefined): string
   return m === 0 ? `${h} h` : `${h} h ${m}`;
 }
 
+/** ¿`min` es un múltiplo positivo de `incrementoMin`? El criterio único de
+ *  incrementos (ítem 3, Javier 2026-09-16): duración de curso, horario de
+ *  sala y —en adelante— uso de paquetes se cargan en el mismo paso. */
+export function esMultiploDe(min: number, incrementoMin: number): boolean {
+  return Number.isInteger(min) && min > 0 && incrementoMin > 0 && min % incrementoMin === 0;
+}
+
+/**
+ * Duraciones elegibles: múltiplos de `incrementoMin`, desde el mayor entre
+ * el incremento y `minimoMin` hasta `topeMin` inclusive. Se **calcula**, no
+ * se guarda como una lista aparte — una lista fija se desincroniza en cuanto
+ * el incremento o el mínimo cambian (era el problema de `duracion_clase_min`,
+ * dado de baja en la 0039: proponía 45 y 75, que no son múltiplos de nada).
+ */
+export function opcionesDuracion(incrementoMin: number, minimoMin: number, topeMin = 240): number[] {
+  const paso = incrementoMin > 0 ? incrementoMin : 30;
+  const piso = Math.max(paso, Math.ceil(Math.max(1, minimoMin) / paso) * paso);
+  const out: number[] = [];
+  for (let m = piso; m <= topeMin; m += paso) out.push(m);
+  return out.length ? out : [piso];
+}
+
 /**
  * ¿Se pisan dos bloques? Medio abierto `[inicio, fin)`: una clase que termina
  * 20:00 y otra que empieza 20:00 **no** chocan — es el cambio de turno normal

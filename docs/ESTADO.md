@@ -1971,3 +1971,66 @@ tiene una marca, así que la clase equivocada se queda pegada. Es la misma
 familia del "padrón duplicado" (11c37f9), en un caso que ese arreglo no cubre.
 Queda en `ROADMAP.md` como **R23 (prioritario)**, a pedido de Javier
 (*"anota esto para analizarlo a detalle luego, con prioridad"*).
+
+---
+
+## Ítem 3: intervalo estándar de tiempo (parámetro único de incrementos) · 2026-09-17
+
+Javier: *"usar siempre y como estándar el intervalo en minutos en parámetro:
+Tiempos en Incrementos en minutos... default 30 min, opciones 30min (default)
+y 1hr... a) Intervalos en minutos para establecer duraciones; b) Duración
+Mínima de un curso; c) Crear cualquier otro parámetro de tiempos de sala o
+duración de clases/sesiones o uso de paquetes que se requiera manteniendo el
+criterio de incrementos establecido."*
+
+### El problema que cerraba
+
+La duración de un curso era **texto libre** (1 a 600 minutos, sin lista), y el
+único parámetro relacionado (`duracion_clase_min`, el valor que se proponía al
+crear un curso) ofrecía {45, 60, 75, 90, 120} — **45 y 75 no son múltiplos de
+30 ni de 60**: exactamente la inconsistencia que Javier pedía cerrar. El
+horario de sala tampoco tenía ningún criterio de paso: se podía cargar
+cualquier minuto (8:07, 14:23...).
+
+### Cómo quedó
+
+**Migración 0039**, dos parámetros nuevos (grupo "Tiempos"):
+- `tiempos_incremento_min` — el paso: 30 (default) o 60 minutos, con lista
+  cerrada (regla de calidad 6).
+- `duracion_minima_curso_min` — el piso: ninguna clase dura menos. Se valida
+  al guardar que sea múltiplo del incremento vigente.
+
+**La duración de un curso deja de escribirse a mano** y pasa a una lista
+desplegable de múltiplos del incremento, calculada en el código
+(`opcionesDuracion` en `src/lib/horarios.ts`) a partir de esos dos
+parámetros — no guardada como una tercera lista aparte, que es justo lo que
+había desincronizado a `duracion_clase_min`. Por eso ese parámetro **queda
+de baja** (opciones vaciadas, descripción actualizada; la fila no se borra,
+por las dudas de que algo la mire).
+
+**Horario de sala** (patrón semanal y excepciones): los selectores de hora
+ahora tienen el `step` del incremento vigente, y el servidor valida que
+desde/hasta caigan justo en un múltiplo — el desplegable ayuda, decide el
+servidor (regla de calidad 6).
+
+**Validación en dos capas, en los tres lugares** (Cursos, Parámetros al
+guardar `duracion_minima_curso_min`, Sala): el cliente ofrece solo valores
+válidos, y el servidor los vuelve a chequear contra el parámetro vigente —
+nunca confía en lo que mandó el navegador.
+
+**Un curso ya cargado con una duración que hoy no es múltiplo** (si el
+incremento cambia después) no se le cambia solo al abrir su ficha para
+editar: se agrega igual a la lista para que no se le reescriba en silencio
+(regla de calidad 1), y desaparece de las opciones recién si alguien la
+cambia a mano.
+
+**"Uso de paquetes"** (particulares/alquiler, C2/C3) todavía no tiene
+pantalla — no había nada que tocar hoy. Queda anotado en `DECISIONES.md`
+que cuando se construya, reusa este mismo parámetro.
+
+### Estado
+
+`tsc`, `eslint` y `next build` limpios (20 rutas). **Solo en dev** — migración
+0039 aditiva (no toca cursos existentes: los 9 activos siguen en 60 min,
+múltiplo de las dos opciones). Espera el OK de Javier tras revisar el plan y
+validar en dev.

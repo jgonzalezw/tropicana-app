@@ -13,14 +13,14 @@ export default function ClienteCursos({
   tarifas,
   deps,
   especialidades,
-  duracionPorDefecto,
+  opcionesDuracion,
   salas,
 }: {
   cursos: Curso[];
   tarifas: Record<number, TarifasCurso>;
   deps: Record<number, number>;
   especialidades: string[];
-  duracionPorDefecto: number;
+  opcionesDuracion: number[];
   salas: { id: number; nombre: string }[];
 }) {
   const router = useRouter();
@@ -82,7 +82,7 @@ export default function ClienteCursos({
           padron={cursos}
           tarifasDe={(id) => tarifas[id]}
           especialidades={especialidades}
-          duracionPorDefecto={duracionPorDefecto}
+          opcionesDuracion={opcionesDuracion}
           salas={salas}
           permitirBaja
           valor={editSel}

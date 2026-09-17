@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { tienePermiso, obtenerParametro } from "@/lib/sesion";
 import { exigir } from "@/lib/datos";
+import { opcionesDuracion } from "@/lib/horarios";
 import EncabezadoPagina from "@/components/EncabezadoPagina";
 import SinAcceso from "@/components/SinAcceso";
 import ClienteCursos from "./ClienteCursos";
@@ -19,7 +20,8 @@ export default async function PaginaCursos() {
     { data: tarifasRows },
     { data: asigRows },
     especialidadesParam,
-    duracionParam,
+    incrementoParam,
+    duracionMinimaParam,
   ] = await Promise.all([
       supabase.from("cursos").select("*").order("nombre"),
       // Las salas son necesarias para asignarle una al curso: un fallo acá se
@@ -34,7 +36,8 @@ export default async function PaginaCursos() {
       supabase.from("curso_tarifas").select("curso_id, modalidad, precio"),
       supabase.from("asignaciones").select("curso_id"),
       obtenerParametro("especialidades"),
-      obtenerParametro("duracion_clase_min"),
+      obtenerParametro("tiempos_incremento_min"),
+      obtenerParametro("duracion_minima_curso_min"),
     ]);
 
   const tarifas: Record<number, TarifasCurso> = {};
@@ -56,8 +59,12 @@ export default async function PaginaCursos() {
     deps[a.curso_id] = (deps[a.curso_id] ?? 0) + 1;
   }
 
-  // Duración propuesta para un curso nuevo: del parámetro, no del código.
-  const duracionPorDefecto = Math.max(1, Number(duracionParam) || 60);
+  // Duraciones elegibles: múltiplos del incremento vigente, desde el mínimo
+  // (ítem 3, Javier 2026-09-16). Se calculan acá, no se guardan aparte —
+  // cambiar el incremento o el mínimo las actualiza solas.
+  const incrementoMin = Math.max(1, Number(incrementoParam) || 30);
+  const duracionMinimaMin = Math.max(1, Number(duracionMinimaParam) || 30);
+  const opcionesDuracionMin = opcionesDuracion(incrementoMin, duracionMinimaMin);
 
   const especialidades = (especialidadesParam ?? "Salsa,Bachata,Zumba,Urbano,Heels")
     .split(",")
@@ -75,7 +82,7 @@ export default async function PaginaCursos() {
         tarifas={tarifas}
         deps={deps}
         especialidades={especialidades}
-        duracionPorDefecto={duracionPorDefecto}
+        opcionesDuracion={opcionesDuracionMin}
         salas={salas as { id: number; nombre: string }[]}
       />
     </div>

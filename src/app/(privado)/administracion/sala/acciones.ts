@@ -13,7 +13,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { tienePermiso, obtenerPerfilActual } from "@/lib/sesion";
+import { tienePermiso, obtenerPerfilActual, obtenerParametro } from "@/lib/sesion";
 import { aMinutos } from "@/lib/horarios";
 import { COLS_VIGENCIA } from "@/lib/vigencia";
 import {
@@ -125,7 +125,7 @@ const DIAS: Record<number, string> = {
  * —fin posterior al inicio, y franjas que no se pisen— se chequean acá primero,
  * con el mismo criterio, para que ese caso no pueda ocurrir.
  */
-function validarPatron(patron: FranjaEdit[]): string | null {
+function validarPatron(patron: FranjaEdit[], incrementoMin: number): string | null {
   for (const f of patron) {
     const d = aMinutos(f.desde);
     const h = aMinutos(f.hasta);
@@ -133,6 +133,15 @@ function validarPatron(patron: FranjaEdit[]): string | null {
       return `Hay una franja del ${DIAS[f.dia_semana]} sin hora de inicio o de fin.`;
     if (h <= d)
       return `El ${DIAS[f.dia_semana]} tiene una franja que termina antes de empezar (${f.desde}–${f.hasta}).`;
+    // Item 3 (Javier, 2026-09-16): mismo incremento que Cursos, para que el
+    // calendario de sala no quede con minutos sueltos (8:07, 14:23...). Es
+    // hora del día, no una duración: 00:00 (d=0) es un múltiplo válido, por
+    // eso el resto se mira directo en vez de `esMultiploDe` (que exige > 0).
+    if (d % incrementoMin !== 0 || h % incrementoMin !== 0)
+      return (
+        `El ${DIAS[f.dia_semana]} tiene una franja (${f.desde}–${f.hasta}) que no cae en el ` +
+        `incremento de ${incrementoMin} minutos.`
+      );
   }
 
   for (let dia = 1; dia <= 7; dia++) {
@@ -226,7 +235,10 @@ export async function guardarHorarioSala(
   if (!(await tienePermiso("sala", "editar")))
     return { error: "Sin permiso para editar el horario de la sala." };
 
-  const err = validarPatron(patron);
+  // Item 3 (Javier, 2026-09-16): mismo incremento que gobierna Cursos.
+  const incrementoMin = Math.max(1, Number(await obtenerParametro("tiempos_incremento_min")) || 30);
+
+  const err = validarPatron(patron, incrementoMin);
   if (err) return { error: err };
 
   for (const e of excepciones) {
@@ -241,6 +253,10 @@ export async function guardarHorarioSala(
         return { error: `El ${e.fecha} abre en otro horario: cargá desde y hasta.` };
       if (h <= d)
         return { error: `El horario del ${e.fecha} termina antes de empezar.` };
+      if (d % incrementoMin !== 0 || h % incrementoMin !== 0)
+        return {
+          error: `El horario del ${e.fecha} (${e.desde}–${e.hasta}) no cae en el incremento de ${incrementoMin} minutos.`,
+        };
     }
   }
 

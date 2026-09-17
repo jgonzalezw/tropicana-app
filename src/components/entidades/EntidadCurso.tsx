@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import type { Curso, TarifasCurso, DatosCurso } from "@/lib/tipos";
-import { rangoHorario } from "@/lib/horarios";
+import { rangoHorario, etiquetaDuracion } from "@/lib/horarios";
 
 export const DIAS: { n: number; label: string }[] = [
   { n: 1, label: "Lun" },
@@ -29,7 +29,7 @@ export default function EntidadCurso({
   padron,
   tarifasDe,
   especialidades,
-  duracionPorDefecto,
+  opcionesDuracion,
   salas,
   permitirBaja = false,
   valor = null,
@@ -41,9 +41,10 @@ export default function EntidadCurso({
   padron: Curso[];
   tarifasDe?: (id: number) => TarifasCurso | undefined;
   especialidades: string[];
-  /** Duración que se propone para un curso nuevo. Sale del parámetro
-   *  `duracion_clase_min`, no del código (regla de negocio 13). */
-  duracionPorDefecto: number;
+  /** Múltiplos del incremento vigente, desde la duración mínima (ítem 3):
+   *  de acá sale la lista de la que se elige, no del código (regla de
+   *  negocio 13) ni escrita a mano (regla de calidad 6). */
+  opcionesDuracion: number[];
   /** Salas activas. Con una sola, el curso se le asigna sin preguntar (D20). */
   salas: { id: number; nombre: string }[];
   permitirBaja?: boolean;
@@ -66,7 +67,7 @@ export default function EntidadCurso({
         inicial={ficha === "nuevo" ? null : ficha}
         tarifasIniciales={ficha !== "nuevo" && tarifasDe ? tarifasDe(ficha.id) : undefined}
         especialidades={especialidades}
-        duracionPorDefecto={duracionPorDefecto}
+        opcionesDuracion={opcionesDuracion}
         salas={salas}
         permitirBaja={permitirBaja}
         deps={ficha !== "nuevo" && depsDe ? depsDe(ficha.id) : undefined}
@@ -113,7 +114,7 @@ function FichaCurso({
   inicial,
   tarifasIniciales,
   especialidades,
-  duracionPorDefecto,
+  opcionesDuracion,
   salas,
   permitirBaja,
   deps,
@@ -124,7 +125,7 @@ function FichaCurso({
   inicial: Curso | null;
   tarifasIniciales?: TarifasCurso;
   especialidades: string[];
-  duracionPorDefecto: number;
+  opcionesDuracion: number[];
   salas: { id: number; nombre: string }[];
   permitirBaja: boolean;
   deps?: number;
@@ -137,7 +138,15 @@ function FichaCurso({
   const [nivel, setNivel] = useState(inicial?.nivel ?? "");
   const [dias, setDias] = useState<number[]>(inicial?.dias_semana ?? []);
   const [hora, setHora] = useState(inicial?.hora?.slice(0, 5) ?? "");
-  const [duracion, setDuracion] = useState(String(inicial?.duracion_min ?? duracionPorDefecto));
+  // Si el curso ya tenía una duración que hoy no es múltiplo del incremento
+  // vigente (cambió el parámetro después de cargarlo), se agrega igual a la
+  // lista: editar el curso no le puede cambiar la duración en silencio por
+  // no aparecer en el desplegable (regla de calidad 1).
+  const opciones =
+    inicial && !opcionesDuracion.includes(inicial.duracion_min)
+      ? [...opcionesDuracion, inicial.duracion_min].sort((a, b) => a - b)
+      : opcionesDuracion;
+  const [duracion, setDuracion] = useState(String(inicial?.duracion_min ?? opciones[0]));
   // Con una sola sala se asigna sola: elegir entre una opción es ruido (D20).
   const [salaId, setSalaId] = useState<number | null>(
     inicial?.sala_id ?? (salas.length === 1 ? salas[0].id : null)
@@ -263,13 +272,14 @@ function FichaCurso({
         </Campo>
         {/* La hora de FIN no se pide: se calcula (0034). Pedir las dos seria
             tener el mismo hecho en dos campos que pueden contradecirse. */}
-        <Campo etiqueta="Duración (minutos)">
-          <input
-            value={duracion}
-            onChange={(e) => setDuracion(e.target.value)}
-            inputMode="numeric"
-            className="entrada"
-          />
+        <Campo etiqueta="Duración">
+          <select value={duracion} onChange={(e) => setDuracion(e.target.value)} className="entrada">
+            {opciones.map((m) => (
+              <option key={m} value={m}>
+                {etiquetaDuracion(m)}
+              </option>
+            ))}
+          </select>
         </Campo>
         <Campo etiqueta="Precio mensual (Bs.)">
           <input value={precio} onChange={(e) => setPrecio(e.target.value)} inputMode="decimal" className="entrada" />

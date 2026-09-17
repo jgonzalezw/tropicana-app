@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { tienePermiso } from "@/lib/sesion";
+import { tienePermiso, obtenerParametro } from "@/lib/sesion";
+import { esMultiploDe } from "@/lib/horarios";
 import type { DatosCurso } from "@/lib/tipos";
 
 type Resultado = {
@@ -19,7 +20,7 @@ function admin() {
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
-function validar(d: DatosCurso): string | null {
+async function validar(d: DatosCurso): Promise<string | null> {
   if (!d.nombre.trim()) return "El nombre del curso es obligatorio.";
   if (d.dias_semana.length === 0) return "Elegí al menos un día de la semana.";
   if (!(d.precio_mensual >= 0)) return "El precio mensual no puede ser negativo.";
@@ -27,6 +28,16 @@ function validar(d: DatosCurso): string | null {
   // sala valida. Sin duración no hay nada que chocar.
   if (!Number.isInteger(d.duracion_min) || d.duracion_min <= 0 || d.duracion_min > 600)
     return "La duración de la clase tiene que ser un número de minutos entre 1 y 600.";
+  // Item 3 (Javier, 2026-09-16): la duración respeta el mismo incremento que
+  // gobierna toda la app, y no baja del mínimo — el desplegable de la
+  // pantalla ya solo ofrece valores válidos, pero el que decide es el
+  // servidor (regla de calidad 6).
+  const incremento = Math.max(1, Number(await obtenerParametro("tiempos_incremento_min")) || 30);
+  const minimo = Math.max(1, Number(await obtenerParametro("duracion_minima_curso_min")) || 30);
+  if (d.duracion_min < minimo)
+    return `La duración de la clase no puede ser menor a ${minimo} minutos.`;
+  if (!esMultiploDe(d.duracion_min, incremento))
+    return `La duración de la clase tiene que ser múltiplo de ${incremento} minutos.`;
   // Vigencia (0033): de estas fechas depende cuántas clases pone el curso en el
   // prorrateo y qué asistencias se exigen, así que el servidor las valida.
   if (!ISO.test(d.vigente_desde ?? "")) return "Cargá desde cuándo corre el curso.";
@@ -215,7 +226,7 @@ async function sincronizarPlanRegular(
 
 export async function crearCurso(d: DatosCurso): Promise<Resultado> {
   if (!(await tienePermiso("cursos", "crear"))) return { error: "Sin permiso." };
-  const err = validar(d);
+  const err = await validar(d);
   if (err) return { error: err };
 
   const a = admin();
@@ -249,7 +260,7 @@ export async function crearCurso(d: DatosCurso): Promise<Resultado> {
 
 export async function actualizarCurso(id: number, d: DatosCurso): Promise<Resultado> {
   if (!(await tienePermiso("cursos", "editar"))) return { error: "Sin permiso." };
-  const err = validar(d);
+  const err = await validar(d);
   if (err) return { error: err };
 
   const a = admin();
