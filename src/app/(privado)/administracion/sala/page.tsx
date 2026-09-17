@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { tienePermiso, obtenerParametro } from "@/lib/sesion";
+import { tienePermiso } from "@/lib/sesion";
 import { exigir, exigirUno } from "@/lib/datos";
 import EncabezadoPagina from "@/components/EncabezadoPagina";
 import SinAcceso from "@/components/SinAcceso";
@@ -23,7 +23,7 @@ export default async function PaginaSalaHorario() {
 
   const sb = await createClient();
 
-  const [salas, patron, excepciones, catalogo, incrementoParam] = await Promise.all([
+  const [salas, patron, excepciones, catalogo] = await Promise.all([
     sb
       .from("salas")
       .select("id, nombre, orden, activa")
@@ -47,12 +47,7 @@ export default async function PaginaSalaHorario() {
       .eq("clave", "motivo_excepcion_horario")
       .maybeSingle()
       .then((r) => exigirUno(r, "el catálogo de motivos de excepción")),
-    obtenerParametro("tiempos_incremento_min"),
   ]);
-
-  // Item 3 (Javier, 2026-09-16): mismo incremento que Cursos — ayuda a
-  // cargar en el paso correcto (`step` del selector de hora).
-  const incrementoMin = Math.max(1, Number(incrementoParam) || 30);
 
   const motivos = catalogo
     ? (exigir(
@@ -97,7 +92,6 @@ export default async function PaginaSalaHorario() {
           }[]
         }
         motivos={motivos}
-        incrementoMin={incrementoMin}
       />
     </div>
   );

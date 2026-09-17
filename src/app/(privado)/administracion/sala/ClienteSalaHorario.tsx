@@ -49,7 +49,6 @@ export default function ClienteSalaHorario({
   patron,
   excepciones,
   motivos,
-  incrementoMin,
 }: {
   salas: { id: number; nombre: string; orden: number; activa: boolean }[];
   patron: { id: number; sala_id: number; dia_semana: number; desde: string; hasta: string }[];
@@ -65,10 +64,7 @@ export default function ClienteSalaHorario({
     glosa: string | null;
   }[];
   motivos: { valor: string; etiqueta: string }[];
-  /** Item 3 (Javier, 2026-09-16): paso del selector de hora, en minutos. */
-  incrementoMin: number;
 }) {
-  const pasoSeg = Math.max(1, incrementoMin) * 60;
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
 
@@ -381,7 +377,6 @@ export default function ClienteSalaHorario({
                           <div key={i} className="flex items-center gap-2 flex-wrap">
                             <input
                               type="time"
-                              step={pasoSeg}
                               value={f.desde}
                               onChange={(e) =>
                                 setFilas((p) =>
@@ -395,7 +390,6 @@ export default function ClienteSalaHorario({
                             <span className="text-[var(--texto-tenue)]">a</span>
                             <input
                               type="time"
-                              step={pasoSeg}
                               value={f.hasta}
                               onChange={(e) =>
                                 setFilas((p) =>
@@ -535,7 +529,6 @@ export default function ClienteSalaHorario({
                           <div className="flex items-center gap-2">
                             <input
                               type="time"
-                              step={pasoSeg}
                               value={e.desde ?? ""}
                               onChange={(ev) =>
                                 setExc((p) =>
@@ -549,7 +542,6 @@ export default function ClienteSalaHorario({
                             <span className="text-[var(--texto-tenue)]">a</span>
                             <input
                               type="time"
-                              step={pasoSeg}
                               value={e.hasta ?? ""}
                               onChange={(ev) =>
                                 setExc((p) =>
