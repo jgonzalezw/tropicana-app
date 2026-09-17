@@ -6,14 +6,21 @@
 > `docs/design/README.md` (fuente de verdad del **diseño**), `docs/CONTEXTO_AVANCE.md`
 > (bitácora larga de Etapa 0), `docs/DESIGN_SYNC.md` (cómo entran los handoffs).
 >
-> **Última actualización:** 2026-09-16 — secuencia de bugs de Javier, en su
-> orden de prioridad (1, 5, 4 cerrados; 3 y 2 pendientes): **Roles y Permisos**
-> de Planes/Liquidaciones/Precios/Sala, **C5** (cierre de sala avisa y
-> suspende con confirmación), **Cuenta del alumno** (multi-curso completo +
-> fecha de fin real o estimada, aplicada también al recibo), y dos
-> correcciones de UI (menú retráctil en celular, botón "Guardar" que dejaba de
-> invitar a repetir). Detalle en los bloques finales correspondientes. Todo
-> **solo en dev**, esperando el OK de pase.
+> **Última actualización:** 2026-09-16 — **pase completo a producción**, con
+> el OK explícito de Javier (*"pasa todo"*), de la secuencia de bugs en su
+> orden de prioridad (1, 5, 4 cerrados; 3 y 2 pendientes) más lo que ya
+> estaba validado en dev desde el 12/09 esperando su turno: **Roles y
+> Permisos** de Planes/Liquidaciones/Precios/Sala (migración 0038), **C5**
+> (cierre de sala avisa y suspende con confirmación), **Cuenta del alumno**
+> (multi-curso completo + fecha de fin real o estimada, aplicada también al
+> recibo), dos correcciones de UI (menú retráctil en celular, botón
+> "Guardar" que dejaba de invitar a repetir), y **Precios y paquetes** (D8) +
+> **Sala y horarios** (C1) + la segunda sala (migraciones 0035–0037).
+> Migraciones aplicadas una por una en `pnvhpbxjbdmbktpwebtx` (0035→0038,
+> en orden, antes del código); controles de `scripts/control_migracion.sql`
+> en **OK** (control 15 en REVISAR a propósito, deuda D1 conocida). `main`
+> `11c37f9..7003295`. Detalle en los bloques finales correspondientes y en
+> `docs/DECISIONES.md` §4.
 >
 > **2026-09-16 (antes)** — **bug de asistencia corregido y
 > PASADO A PRODUCCIÓN**, con el OK explícito de Javier ("pasalo"). `main` en
@@ -1463,8 +1470,9 @@ entre reservas vive en la base: cada uno donde está el dato.
 ### Estado
 
 Validado en dev por Javier (*"veo todo ok"*). `tsc` y `eslint` limpios.
-**Solo en dev**: la 0035 no está en producción y el código no está en `main`.
-Espera el OK del pase (regla de proceso 1).
+**PASADO A PRODUCCIÓN el 2026-09-16** junto con el resto del pase completo
+(migración 0035 aplicada, código en `main` `7003295`), con el OK explícito
+de Javier (*"pasa todo"*). Detalle del pase en `docs/DECISIONES.md` §4.
 
 ### Lo que sigue — la cola C1→C5 (Javier, 2026-09-12, documento de instrucciones)
 
@@ -1575,8 +1583,9 @@ rompe consultas que antes andaban, y no avisa hasta que alguien guarda.*
 
 Validado en dev por Javier: el alta de la sala, el horario, el guardado de
 precios y el cambio de sala de un curso (lo cambió y lo repuso). `tsc`, `eslint`
-y `next build` limpios. **Solo en dev**: las migraciones 0035, 0036 y 0037 no
-están en producción y el código no está en `main`.
+y `next build` limpios. **PASADO A PRODUCCIÓN el 2026-09-16**: migraciones
+0035, 0036 y 0037 aplicadas, código en `main` `7003295`, con el OK explícito
+de Javier (*"pasa todo"*). Detalle en `docs/DECISIONES.md` §4.
 
 ### Lo que sigue
 
@@ -1738,9 +1747,10 @@ descartable, se limpia solo con un refresh de dev cuando corresponda.
 
 ### Estado
 
-Construido y probado en dev. `tsc`, `eslint` y `next build` limpios. **Solo en
-dev** — sin migración, pero cambia comportamiento de `suspenderClase` (ya en
-producción): espera su propio OK de pase, igual que 0035–0037.
+Construido y probado en dev. `tsc`, `eslint` y `next build` limpios. **PASADO
+A PRODUCCIÓN el 2026-09-16** junto con el resto del pase (`main` `7003295`),
+con el OK explícito de Javier (*"pasa todo"*). Sin migración propia — cambia
+comportamiento de `suspenderClase`, ya cubierto por ese mismo deploy.
 
 ---
 
@@ -1773,8 +1783,10 @@ lo que Javier pedía poder controlar.
 Nueva regla permanente (`REGLAS.md` §3.11): toda pantalla o paso nuevo incluye
 su módulo de permisos antes de darse por concluido.
 
-`tsc`, `eslint` y `next build` limpios. **Solo en dev** — migración aditiva
-sobre `rol_permisos`, sin tocar datos de dominio.
+`tsc`, `eslint` y `next build` limpios. **PASADO A PRODUCCIÓN el 2026-09-16**
+— migración 0038 aplicada, código en `main` `7003295`, con el OK explícito de
+Javier (*"pasa todo"*). Verificado en producción: Asistente quedó con
+exactamente los mismos permisos que en dev.
 
 ---
 
@@ -1822,6 +1834,9 @@ punto 1.
 **Verificado en dev**: agregar una excepción, guardarla, confirmar que el
 botón queda apagado y dice "Sin cambios pendientes." Repetido para
 salas nuevas.
+
+**PASADO A PRODUCCIÓN el 2026-09-16** junto con el resto del pase (`main`
+`7003295`), con el OK explícito de Javier (*"pasa todo"*).
 
 ---
 
@@ -1891,8 +1906,10 @@ Aplicado en:
 
 `tsc`, `eslint` y `next build` limpios en los siete archivos tocados
 (`cuentas.ts`, `inscripcion.ts`, `tipos.ts`, `cuenta/page.tsx`,
-`ImprimirCuenta.tsx`, `caja/recibo/[id]/page.tsx`, `Recibo.tsx`). **Solo en
-dev** — sin migración, cambio de solo lectura.
+`ImprimirCuenta.tsx`, `caja/recibo/[id]/page.tsx`, `Recibo.tsx`). **PASADO A
+PRODUCCIÓN el 2026-09-16** junto con el resto del pase (`main` `7003295`),
+con el OK explícito de Javier (*"pasa todo"*). Sin migración, cambio de solo
+lectura.
 
 ### Dato de dev limpiado de paso
 
@@ -1904,5 +1921,3 @@ sus pagos (15, 16, 17) y asistencias — verificado en cero después. **Los tres
 alumnos** ("karola urbari" y sus dos hijas, ids 31/32/33) **se dejaron
 intactos**: Javier no pidió borrarlos y no hay indicio de que sean ellos
 mismos el dato descartable, solo su membresía huérfana.
-
-`tsc`, `eslint` y `next build` limpios. Solo en dev, sin migración.

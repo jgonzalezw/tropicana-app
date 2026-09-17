@@ -164,20 +164,34 @@ proceso 1). No es un backlog de decisiones: es el estado del release.
 - **Código desplegado (D6)**: `main` `2c29cf1..650ae6d` el 2026-09-12, con el
   OK explícito de Javier (*"mergea y publica"*). Migraciones 0001–0034 en las
   dos bases.
-- **Migraciones 0035–0037 + pantallas *Precios y paquetes* (D8), *Sala y
-  horarios* (C1) y la segunda sala — SOLO EN DEV** (2026-09-12/16). Todas
-  aditivas: ninguna modifica una fila de dominio existente. 0035 crea `salas`,
-  `tarifas_particular`, la matriz de sala, `paquetes_particular`,
-  `alquileres_sala` y `reservas_sala`; 0036 el horario base (patrón +
-  excepciones); 0037 la segunda sala, el orden de preferencia y las
-  excepciones por rango. **Las tres validadas en dev por Javier** (*"veo todo
-  ok"*, *"probado ok"*). El código tampoco está en `main`: vive en
-  `claude/tropicana-app-context-d5zjt8`. **Espera su propio OK del pase**
-  (regla de proceso 1) — **distinto del pase de abajo**, que se hizo acotado a
-  propósito para no arrastrar esto. Detalle en `docs/ESTADO.md`.
 - **Bug de asistencia (padrón duplicado) — PASADO A PRODUCCIÓN el
   2026-09-16**, con el OK explícito de Javier (*"pasalo"*). Alcance acotado
   aposta: solo `asistencia/acciones.ts` e `inscribir/acciones.ts`, sin
-  arrastrar las migraciones de arriba. `main` `b0766ac..11c37f9`, confirmado
+  arrastrar las migraciones de abajo. `main` `b0766ac..11c37f9`, confirmado
   por el chip PROD de la app. Sin migración. Detalle en `docs/ESTADO.md`,
   bloque *"Un alumno duplicado en el padrón de asistencia"*.
+- **Migraciones 0035–0038 + todo lo validado en dev — PASADO A PRODUCCIÓN el
+  2026-09-16**, con el OK explícito de Javier (*"pasa todo"*), después de
+  mostrarle el listado completo de lo pendiente. Incluye:
+  - **0035–0037**: *Precios y paquetes* (D8), *Sala y horarios* (C1) y la
+    segunda sala — ya validadas por Javier en dev (*"veo todo ok"*, *"probado
+    ok"*) desde el 2026-09-12, esperaban su propio OK de pase.
+  - **0038 + Roles y Permisos**: Planes, Liquidaciones, Precios y Sala como
+    módulos propios (nuevo el 2026-09-16, ver regla de proceso 11).
+  - **C5**: cierre de sala avisa y suspende con confirmación (sin migración,
+    cambia el comportamiento de `suspenderClase`).
+  - **Cuenta del alumno**: membresías multi-curso completas + fecha de fin
+    real o estimada, aplicado también a la glosa del Recibo (sin migración).
+  - Dos correcciones de UI (menú retráctil en celular, botón "Guardar" que
+    dejaba de invitar a repetir).
+
+  Las 4 migraciones se aplicaron una por una contra producción
+  (`pnvhpbxjbdmbktpwebtx`), en orden (0035→0038), y **antes** del deploy del
+  código, siguiendo el orden de §3. Los controles de `scripts/
+  control_migracion.sql` corridos después dan **OK** en producción — control
+  15 en REVISAR a propósito (deuda conocida D1), igual que en dev. Se
+  verificó además que los permisos de Asistente quedaron idénticos a lo
+  validado en dev (solo "ver" en Planes, nada en Liquidaciones/Precios/Sala).
+  **Código desplegado**: `main` `11c37f9..7003295` (merge, no fast-forward,
+  porque el bug de asistencia se había pasado por separado con alcance
+  acotado — ver el punto de arriba). Detalle completo en `docs/ESTADO.md`.
