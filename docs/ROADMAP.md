@@ -29,9 +29,10 @@ Tamaño: **S** = un rato · **M** = un hito chico · **L** = un hito propio.
 
 > **Orden de cola (Javier, 2026-09-17):** *"siendo latente, debemos evitar que
 > se repita. Dejalo para detrás del ítem 3"* — es decir, después del intervalo
-> estándar de tiempo (parámetro de minutos) y antes del ítem 2 (tramos de
-> precio). Mientras tanto, mitigación por auditoría manual: ver el caso
-> Aguilar más abajo.
+> estándar de tiempo (parámetro de minutos). El ítem 2 (tramos de precio) ya
+> cerró — Javier probó crear y modificar un plan y la tarifa por tramo calcula
+> bien — así que R23 es lo próximo de la cola de bugs. Mientras tanto,
+> mitigación por auditoría manual: ver el caso Aguilar más abajo.
 
 | # | Qué es | Rebanada | Tamaño |
 | --- | --- | --- | --- |
