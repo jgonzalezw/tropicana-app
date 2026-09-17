@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { tienePermiso } from "@/lib/sesion";
 import { estadoDeCuenta } from "@/lib/cuentas";
-import { gs } from "@/lib/inscripcion";
+import { gs, rotuloDiasMembresia } from "@/lib/inscripcion";
 import SinAcceso from "@/components/SinAcceso";
 import ImprimirCuenta from "./ImprimirCuenta";
 import type { CuotaCuenta, MembresiaCuenta } from "@/lib/tipos";
@@ -137,15 +137,28 @@ function Membresia({ m, puedeCobrar }: { m: MembresiaCuenta; puedeCobrar: boolea
     m.faltasConLicencia > 0 ? `${m.faltasConLicencia} con licencia` : null,
   ].filter(Boolean);
 
+  // Un curso por línea, con sus días — una membresía multi-curso tiene que
+  // verse completa, no reducida al primero (regla de negocio: el glosario de
+  // REGLAS.md dice que "no existe curso principal de la membresía, salvo que
+  // sea mono curso"). Vacío es un dato que falta, no "sin curso": se dice.
+  const cursosTexto = m.cursos.length
+    ? m.cursos
+        .map((c) => (rotuloDiasMembresia(c.dias) ? `${c.nombre} (${rotuloDiasMembresia(c.dias)})` : c.nombre))
+        .join(" · ")
+    : "Curso sin determinar";
+
+  const finTexto = m.fechaFin
+    ? `${fechaCorta(m.fechaFin)}${m.fechaFinEstimada ? " (estimado)" : ""}`
+    : "—";
+
   return (
     <div className="rounded-[var(--radio-tarjeta)] bg-[var(--fondo-panel)] border border-[var(--borde)] p-5">
       <div className="flex items-baseline justify-between gap-3 flex-wrap">
         <div className="min-w-0">
-          <div className="text-lg font-semibold">{m.plan ?? m.curso ?? "Membresía"}</div>
+          <div className="text-lg font-semibold">{m.plan ?? m.cursos[0]?.nombre ?? "Membresía"}</div>
+          <div className="text-sm text-[var(--texto-tenue)]">{cursosTexto}</div>
           <div className="text-sm text-[var(--texto-tenue)]">
-            {[m.curso, `${fechaCorta(m.fechaInicio)} → ${fechaCorta(m.fechaFin)}`]
-              .filter(Boolean)
-              .join(" · ")}
+            {fechaCorta(m.fechaInicio)} → {finTexto}
           </div>
         </div>
         <span className="text-sm px-3 py-1 rounded-[var(--radio-control)] bg-[var(--fondo-elevado)]">

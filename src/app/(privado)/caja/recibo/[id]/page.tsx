@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { tienePermiso } from "@/lib/sesion";
+import { cursosDeMembresias, finDeMembresia } from "@/lib/cuentas";
 import SinAcceso from "@/components/SinAcceso";
 import Recibo, { type DatosRecibo } from "./Recibo";
 
@@ -32,7 +33,8 @@ export default async function PaginaRecibo({ params }: { params: Promise<{ id: s
         "cuota_id, registrado_por, " +
         "alumno:alumnos(nombre, apellido, whatsapp), " +
         "profesor:profesores(nombre, apellido, whatsapp), " +
-        "inscripcion:inscripciones(plan:planes(nombre), curso:cursos(nombre))"
+        "inscripcion:inscripciones(id, fecha_inicio, fecha_fin, clases_total, curso_id, " +
+        "plan:planes(nombre), curso:cursos(nombre, dias_semana))"
     )
     .eq("id", pagoId)
     .maybeSingle();
@@ -69,8 +71,31 @@ export default async function PaginaRecibo({ params }: { params: Promise<{ id: s
     registrado_por: string | null;
     alumno: { nombre: string; apellido: string; whatsapp: string | null } | null;
     profesor: { nombre: string; apellido: string; whatsapp: string | null } | null;
-    inscripcion: { plan: { nombre: string } | null; curso: { nombre: string } | null } | null;
+    inscripcion: {
+      id: number;
+      fecha_inicio: string;
+      fecha_fin: string | null;
+      clases_total: number | null;
+      curso_id: number | null;
+      plan: { nombre: string } | null;
+      curso: { nombre: string; dias_semana: number[] | null } | null;
+    } | null;
   };
+
+  // Los cursos que toca la membresía de esta venta, y hasta cuándo — mismo
+  // criterio que la Cuenta del alumno (glosario de REGLAS.md: por
+  // `inscripcion_cursos`, con respaldo a `curso_id` para filas viejas), para
+  // que el recibo no diga menos de lo que dice esa pantalla.
+  let cursosTexto: string | null = null;
+  let fin: { fecha: string; estimada: boolean } | null = null;
+  if (p.inscripcion) {
+    const mapa = await cursosDeMembresias(sb, [
+      { id: p.inscripcion.id, curso_id: p.inscripcion.curso_id, curso: p.inscripcion.curso },
+    ]);
+    const cursos = mapa.get(p.inscripcion.id) ?? [];
+    cursosTexto = cursos.length ? cursos.map((c) => c.nombre).join(" · ") : null;
+    fin = finDeMembresia(p.inscripcion.fecha_fin, p.inscripcion.fecha_inicio, p.inscripcion.clases_total, cursos);
+  }
 
   // El saldo que dejó este movimiento. Se cuenta lo cubierto hasta él
   // inclusive (por orden de asiento), no el saldo de hoy: un recibo tiene que
@@ -131,7 +156,8 @@ export default async function PaginaRecibo({ params }: { params: Promise<{ id: s
     titular: persona ? `${persona.nombre} ${persona.apellido}` : null,
     whatsapp: persona?.whatsapp ?? null,
     servicio: p.inscripcion?.plan?.nombre ?? null,
-    curso: p.inscripcion?.curso?.nombre ?? null,
+    curso: cursosTexto,
+    finMembresia: fin,
     periodo: cuota?.periodo ?? null,
     monto: num(p.monto),
     descuento: num(p.descuento),

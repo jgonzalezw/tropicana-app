@@ -8,7 +8,7 @@ import { cargarLiquidaciones } from "./acciones";
 export const dynamic = "force-dynamic";
 
 export default async function PaginaLiquidaciones() {
-  if (!(await tienePermiso("comisiones", "ver"))) return <SinAcceso />;
+  if (!(await tienePermiso("liquidaciones", "ver"))) return <SinAcceso />;
 
   const [{ profesores, liquidaciones }, mediosParam] = await Promise.all([
     cargarLiquidaciones(),
@@ -29,7 +29,7 @@ export default async function PaginaLiquidaciones() {
         profesores={profesores}
         liquidaciones={liquidaciones}
         medios={medios}
-        puedeCrear={await tienePermiso("comisiones", "crear")}
+        puedeCrear={await tienePermiso("liquidaciones", "crear")}
       />
     </div>
   );

@@ -16,7 +16,7 @@ const ETIQUETA_TIPO_SERVICIO: Record<string, string> = {
 };
 
 export default async function PaginaComprobante({ params }: { params: Promise<{ id: string }> }) {
-  if (!(await tienePermiso("comisiones", "ver"))) return <SinAcceso />;
+  if (!(await tienePermiso("liquidaciones", "ver"))) return <SinAcceso />;
   const { id } = await params;
   const liquidacionId = Number(id);
   if (!Number.isFinite(liquidacionId)) return <SinAcceso />;

@@ -1,6 +1,6 @@
 "use client";
 
-import { gs } from "@/lib/inscripcion";
+import { gs, rotuloDiasMembresia } from "@/lib/inscripcion";
 import type { EstadoCuenta, MembresiaCuenta } from "@/lib/tipos";
 
 /**
@@ -97,18 +97,24 @@ function construirHTMLImpresion(d: EstadoCuenta): string {
           </tr>`
         )
         .join("");
+      const cursosTexto = m.cursos.length
+        ? m.cursos
+            .map((c) =>
+              rotuloDiasMembresia(c.dias) ? `${c.nombre} (${rotuloDiasMembresia(c.dias)})` : c.nombre
+            )
+            .join(" · ")
+        : "Curso sin determinar";
+      const finTexto = m.fechaFin
+        ? `${fechaCorta(m.fechaFin)}${m.fechaFinEstimada ? " (estimado)" : ""}`
+        : "—";
       return `
         <div class="item">
           <div class="item-top">
-            <span class="b">${esc(m.plan ?? m.curso ?? "Membresía")}</span>
+            <span class="b">${esc(m.plan ?? m.cursos[0]?.nombre ?? "Membresía")}</span>
             <span class="muted small">${esc(m.estado)}</span>
           </div>
-          <div class="small muted">${[
-            m.curso ? esc(m.curso) : "",
-            `${fechaCorta(m.fechaInicio)} &rarr; ${fechaCorta(m.fechaFin)}`,
-          ]
-            .filter(Boolean)
-            .join(" &middot; ")}</div>
+          <div class="small muted">${esc(cursosTexto)}</div>
+          <div class="small muted">${esc(fechaCorta(m.fechaInicio))} &rarr; ${esc(finTexto)}</div>
           <div class="small muted">${esc(resumenMembresia(m))}</div>
           ${
             filas

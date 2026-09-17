@@ -27,7 +27,7 @@ function admin() {
   if (!a) throw new Error("Falta configurar la clave service_role en el servidor.");
   return a;
 }
-type Admin = ReturnType<typeof admin>;
+export type Admin = ReturnType<typeof admin>;
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 type Estado = "presente" | "ausente";
@@ -62,12 +62,25 @@ function restarDias(iso: string, dias: number): string {
   return fmt(d);
 }
 /** Próxima fecha (ISO) del patrón semanal del curso, estrictamente posterior a `baseIso`. */
-/** Valida la fecha para operar asistencia: nunca futuro; pasado solo con
- *  permiso de edición y dentro de la ventana en semanas. */
-async function validarFecha(cursoId: number, fecha: string): Promise<string | null> {
+/**
+ * Valida la fecha para operar asistencia: nunca futuro; pasado solo con
+ * permiso de edición y dentro de la ventana en semanas.
+ *
+ * `permitirFutura` es la única excepción, y es angosta a propósito: un cierre
+ * de sala planificado (feriado de la semana que viene) sí necesita suspender
+ * clases futuras — es lo que le permite al corrimiento del ciclo aplicarse
+ * ya, en vez de esperar a que la fecha llegue. El resto de las reglas —
+ * vigencia del curso, congelador de liquidaciones ya pagadas— se aplican
+ * igual: un feriado no pasa por encima de una comisión ya cobrada.
+ */
+export async function validarFecha(
+  cursoId: number,
+  fecha: string,
+  opts?: { permitirFutura?: boolean }
+): Promise<string | null> {
   if (!ISO.test(fecha)) return "Fecha inválida.";
   const hoy = hoyISO();
-  if (fecha > hoy) return "No se puede operar una fecha futura.";
+  if (fecha > hoy && !opts?.permitirFutura) return "No se puede operar una fecha futura.";
 
   // **Vigencia del curso** (0033). Fuera de sus fechas el curso no corría, así
   // que no hay clase que registrar ni que suspender. El desplegable ya no
@@ -118,7 +131,7 @@ async function validarFecha(cursoId: number, fecha: string): Promise<string | nu
  * La cuota quedó afuera: su vencimiento es el plazo de pago, no el fin de ciclo.
  * Idempotente por (inscripción, sesión).
  */
-async function aplicarCorrimiento(
+export async function aplicarCorrimiento(
   a: Admin,
   args: {
     inscripcionId: number;
@@ -129,18 +142,18 @@ async function aplicarCorrimiento(
     motivo: string | null;
     registradoPor: string | null;
   }
-): Promise<"aplicado" | "ya" | "sin_efecto" | "bloqueado_devengada"> {
+): Promise<{ estado: "aplicado" | "ya" | "sin_efecto" | "bloqueado_devengada"; finCicloNuevo: string | null }> {
   const { data: existe } = await a
     .from("corrimientos_ciclo")
     .select("id")
     .eq("inscripcion_id", args.inscripcionId)
     .eq("sesion_id", args.sesionId)
     .maybeSingle();
-  if (existe) return "ya";
+  if (existe) return { estado: "ya", finCicloNuevo: null };
 
   const r = await recalcularFinDeCiclo(a, args.inscripcionId);
-  if (r.estado === "no_aplica") return "sin_efecto";
-  if (r.estado === "bloqueado_devengada") return "bloqueado_devengada";
+  if (r.estado === "no_aplica") return { estado: "sin_efecto", finCicloNuevo: null };
+  if (r.estado === "bloqueado_devengada") return { estado: "bloqueado_devengada", finCicloNuevo: null };
 
   await a.from("corrimientos_ciclo").insert({
     inscripcion_id: args.inscripcionId,
@@ -153,7 +166,7 @@ async function aplicarCorrimiento(
     motivo: args.motivo,
     registrado_por: args.registradoPor,
   });
-  return "aplicado";
+  return { estado: "aplicado", finCicloNuevo: r.despues };
 }
 
 /**
@@ -161,7 +174,7 @@ async function aplicarCorrimiento(
  * de las membresías que tocaba. No "restaura" una fecha guardada: la vuelve a
  * calcular, que es lo único que no puede quedar desincronizado.
  */
-async function revertirCorrimientos(a: Admin, sesionId: number, tipo?: "falta" | "suspension"): Promise<number> {
+export async function revertirCorrimientos(a: Admin, sesionId: number, tipo?: "falta" | "suspension"): Promise<number> {
   let q = a.from("corrimientos_ciclo").select("id, inscripcion_id").eq("sesion_id", sesionId);
   if (tipo) q = q.eq("tipo", tipo);
   const { data } = await q;
@@ -895,30 +908,35 @@ export async function recalcularMembresiasPlan(): Promise<{ ok?: true; error?: s
 
 // ── Suspender / reabrir una clase ────────────────────────────────────────
 
-export async function suspenderClase(args: {
-  cursoId: number;
-  fecha: string;
-  motivo: string;
-}): Promise<{ ok?: true; resumen?: string; error?: string }> {
-  if (!(await tienePermiso("asistencia", "crear")))
-    return { error: "No tenés permiso para suspender clases." };
-  const errFecha = await validarFecha(args.cursoId, args.fecha);
-  if (errFecha) return { error: errFecha };
+/**
+ * El núcleo de suspender una clase: crea (o reafirma) la sesión suspendida,
+ * limpia sus marcas, y corre el ciclo de cada membresía mensual afectada.
+ *
+ * **Compartido entre dos disparadores**: la asistencia del día a día
+ * (`suspenderClase`, abajo) y el cierre planificado de sala (feriados —
+ * `administracion/sala/acciones.ts`). Los dos tienen que dejar exactamente el
+ * mismo rastro; separarlos en dos implementaciones es la clase de duplicación
+ * que termina divergiendo sola. Lo único que cambia entre los dos disparadores
+ * es **qué fechas se les permite tocar** (`validarFecha`, con `permitirFutura`
+ * para el cierre de sala) — esta función no valida nada, ya llega validada.
+ */
+export type AlumnoCorrido = { alumnoId: number; inscripcionId: number; finCicloNuevo: string | null };
 
-  const perfil = await obtenerPerfilActual();
-  const a = admin();
+export async function ejecutarSuspension(
+  a: Admin,
+  args: { cursoId: number; fecha: string; motivo: string; registradoPor: string | null }
+): Promise<{
+  sesionId: number;
+  corridos: number;
+  alumnosCorridos: AlumnoCorrido[];
+  /** Todos los alumnos con membresía activa que tomaban esta clase, corridos o no. */
+  alumnosAfectados: number[];
+}> {
   // Suspender cambia cuantas clases dicto el curso, y con eso el reparto de la
   // comision (regla de negocio 10). Si el devengo esta en una liquidacion
-  // abierta se revierte para que se recalcule; si ya tenia pago, validarFecha
-  // no dejo llegar hasta aca (regla 16).
+  // abierta se revierte para que se recalcule; si ya tenia pago, quien llama
+  // valido con el congelador antes de llegar hasta aca (regla 16).
   await revertirDevengosAbiertos(a, args.cursoId, args.fecha);
-
-  const { data: curso } = await a
-    .from("cursos")
-    .select("id")
-    .eq("id", args.cursoId)
-    .maybeSingle();
-  if (!curso) return { error: "El curso no existe." };
 
   // Una clase suspendida no la dictó nadie: no lleva profesor ni reemplazo.
   const { data: asigSusp } = await a
@@ -942,14 +960,14 @@ export async function suspenderClase(args: {
         titular_id: titularSusp?.profesor_id ?? null,
         reemplazo_motivo: null,
         reemplazo_costo: null,
-        registrado_por: perfil?.id ?? null,
+        registrado_por: args.registradoPor,
         actualizado_en: new Date().toISOString(),
       },
       { onConflict: "curso_id,fecha" }
     )
     .select("id")
     .single();
-  if (errSesion) return { error: errSesion.message };
+  if (errSesion) throw new Error(errSesion.message);
   const sesionId = sesion.id as number;
 
   // Una clase suspendida no computa asistencia: se borran marcas y se
@@ -957,15 +975,26 @@ export async function suspenderClase(args: {
   await a.from("asistencias").delete().eq("sesion_id", sesionId);
   await revertirCorrimientos(a, sesionId);
 
-  const { data: insc } = await a
-    .from("inscripciones")
-    .select("id, alumno_id, modalidad")
-    .eq("curso_id", args.cursoId)
-    .eq("estado", "activa")
-    .lte("fecha_inicio", args.fecha);
+  // Por `inscripcion_cursos`, no por `inscripciones.curso_id`: el glosario dice
+  // que ese campo es un resabio mono-curso y que qué cursos toca una membresía
+  // se mira ahí. La versión anterior de esta consulta usaba `curso_id` directo
+  // — se corrige acá porque una membresía multi-curso que tomara esta clase se
+  // habría quedado sin corrimiento y sin aviso, en silencio.
+  const { data: icRows } = await a
+    .from("inscripcion_cursos")
+    .select("inscripcion:inscripciones!inner(id, alumno_id, modalidad, estado, fecha_inicio)")
+    .eq("curso_id", args.cursoId);
+  const insc = (
+    (icRows as unknown as {
+      inscripcion: { id: number; alumno_id: number; modalidad: string; estado: string; fecha_inicio: string };
+    }[]) ?? []
+  )
+    .map((r) => r.inscripcion)
+    .filter((r) => r.estado === "activa" && r.fecha_inicio <= args.fecha);
 
   let corridos = 0;
-  for (const r of (insc as { id: number; alumno_id: number; modalidad: string }[]) ?? []) {
+  const alumnosCorridos: AlumnoCorrido[] = [];
+  for (const r of insc) {
     if (r.modalidad !== "mensual") continue; // parciales se difieren solos
     const res = await aplicarCorrimiento(a, {
       inscripcionId: r.id,
@@ -974,10 +1003,46 @@ export async function suspenderClase(args: {
       tipo: "suspension",
       fechaClase: args.fecha,
       motivo: args.motivo.trim() || null,
-      registradoPor: perfil?.id ?? null,
+      registradoPor: args.registradoPor,
     });
-    if (res === "aplicado") corridos++;
+    if (res.estado === "aplicado") {
+      corridos++;
+      alumnosCorridos.push({ alumnoId: r.alumno_id, inscripcionId: r.id, finCicloNuevo: res.finCicloNuevo });
+    }
   }
+
+  return {
+    sesionId,
+    corridos,
+    alumnosCorridos,
+    alumnosAfectados: [...new Set(insc.map((r) => r.alumno_id))],
+  };
+}
+
+export async function suspenderClase(args: {
+  cursoId: number;
+  fecha: string;
+  motivo: string;
+}): Promise<{ ok?: true; resumen?: string; error?: string }> {
+  if (!(await tienePermiso("asistencia", "crear")))
+    return { error: "No tenés permiso para suspender clases." };
+  const errFecha = await validarFecha(args.cursoId, args.fecha);
+  if (errFecha) return { error: errFecha };
+
+  const { data: curso } = await admin()
+    .from("cursos")
+    .select("id")
+    .eq("id", args.cursoId)
+    .maybeSingle();
+  if (!curso) return { error: "El curso no existe." };
+
+  const perfil = await obtenerPerfilActual();
+  const { corridos } = await ejecutarSuspension(admin(), {
+    cursoId: args.cursoId,
+    fecha: args.fecha,
+    motivo: args.motivo,
+    registradoPor: perfil?.id ?? null,
+  });
 
   const plu = (n: number, s: string, p: string) => `${n} ${n === 1 ? s : p}`;
   revalidatePath("/asistencia");

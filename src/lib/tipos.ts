@@ -114,6 +114,9 @@ export type Curso = {
   hora: string | null;
   /** Cuánto dura una clase, en minutos. La hora de fin se calcula (0034). */
   duracion_min: number;
+  /** En qué sala se dicta (0037). De acá sale qué clases ocupan cada sala;
+   *  `null` = sin asignar, y entonces no ocupa ninguna. */
+  sala_id: number | null;
   precio_mensual: number;
   activo: boolean;
   /** Desde cuándo corre el curso: el calendario no genera clases antes (0033). */
@@ -182,6 +185,7 @@ export type DatosCurso = {
   dias_semana: number[];
   hora: string | null;
   duracion_min: number;
+  sala_id: number | null;
   precio_mensual: number;
   /** Vigencia del curso (0033). La baja es opcional: null = sigue corriendo. */
   vigente_desde: string;
@@ -310,10 +314,19 @@ export type CuotaCuenta = {
 export type MembresiaCuenta = {
   id: number;
   plan: string | null;
+  /** @deprecated Resabio mono-curso — usar `cursos`, que cubre multi-curso. */
   curso: string | null;
+  /** Los cursos que toca la membresía, con sus días (por `inscripcion_cursos`,
+   *  con respaldo a `curso_id` para filas viejas). Vacío = no se pudo determinar. */
+  cursos: { nombre: string; dias: number[] }[];
   estado: string;
   fechaInicio: string;
+  /** Real si ya se calculó, o una estimación cuando el paquete termina por
+   *  consumo y no por fecha (ver `fechaFinEstimada`). */
   fechaFin: string | null;
+  /** `true` = `fechaFin` es una proyección (asistencia perfecta desde hoy),
+   *  no un compromiso. Un paquete por clase no tiene fecha de fin real. */
+  fechaFinEstimada: boolean;
   /** Plan con N: cuántas clases asistió de las N del ciclo. */
   progreso: { hechas: number; total: number } | null;
   /** Paquete por clase: cuántas le quedan. */
@@ -436,7 +449,6 @@ export const MODULOS = [
   "inscripciones",
   "asistencia",
   "pagos",
-  "comisiones",
   "costos",
   "particulares",
   "inventario",
@@ -444,6 +456,15 @@ export const MODULOS = [
   "dashboard",
   "usuarios",
   "administracion",
+  // Los cuatro de acá abajo se separaron el 2026-09-16 (regla de proceso 11):
+  // vivían gateados con el permiso de otro módulo (cursos, comisiones,
+  // administracion) y un asistente con ese permiso los veía sin poder
+  // restringírselo. Ver docs/REGLAS.md §3.11. "comisiones" se dio de baja en
+  // el mismo cambio: ninguna pantalla lo lee ya, lo reemplazó "liquidaciones".
+  "planes",
+  "liquidaciones",
+  "precios",
+  "sala",
 ] as const;
 
 export const ACCIONES = ["ver", "crear", "editar", "eliminar"] as const;
@@ -458,7 +479,6 @@ export const ETIQUETA_MODULO: Record<string, string> = {
   inscripciones: "Inscripciones",
   asistencia: "Asistencia",
   pagos: "Pagos",
-  comisiones: "Comisiones",
   costos: "Costos",
   particulares: "Particulares",
   inventario: "Inventario",
@@ -466,6 +486,10 @@ export const ETIQUETA_MODULO: Record<string, string> = {
   dashboard: "Dashboard",
   usuarios: "Usuarios",
   administracion: "Administración",
+  planes: "Planes",
+  liquidaciones: "Liquidaciones",
+  precios: "Precios y paquetes",
+  sala: "Sala y horarios",
 };
 
 export const ETIQUETA_ACCION: Record<string, string> = {

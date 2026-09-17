@@ -6,10 +6,38 @@
 > `docs/design/README.md` (fuente de verdad del **diseño**), `docs/CONTEXTO_AVANCE.md`
 > (bitácora larga de Etapa 0), `docs/DESIGN_SYNC.md` (cómo entran los handoffs).
 >
-> **Última actualización:** 2026-09-12 — Liquidación a prorrata (Paso E), las
-> reglas de negocio 16 a 19 y el bug del padrón: ver el bloque final
-> **"Liquidación a prorrata — cierre de E, y las reglas 16 a 19"**. Todo en dev,
-> pendiente del OK para producción.
+> **Última actualización:** 2026-09-16 — secuencia de bugs de Javier, en su
+> orden de prioridad (1, 5, 4 cerrados; 3 y 2 pendientes): **Roles y Permisos**
+> de Planes/Liquidaciones/Precios/Sala, **C5** (cierre de sala avisa y
+> suspende con confirmación), **Cuenta del alumno** (multi-curso completo +
+> fecha de fin real o estimada, aplicada también al recibo), y dos
+> correcciones de UI (menú retráctil en celular, botón "Guardar" que dejaba de
+> invitar a repetir). Detalle en los bloques finales correspondientes. Todo
+> **solo en dev**, esperando el OK de pase.
+>
+> **2026-09-16 (antes)** — **bug de asistencia corregido y
+> PASADO A PRODUCCIÓN**, con el OK explícito de Javier ("pasalo"). `main` en
+> `11c37f9`, confirmado por el chip PROD de la app. **Pase acotado a
+> propósito**: solo los dos archivos del fix, sin arrastrar las migraciones
+> 0035–0037 ni sus pantallas, que siguen solo en dev esperando su propio OK.
+> Detalle en el bloque final **"Un alumno duplicado en el padrón de
+> asistencia"**.
+>
+> **2026-09-12 (noche)** — **C1 cerrado y validado**, y
+> apareció una **segunda sala** en la sede, que se modeló el mismo día. Detalle
+> en el bloque final **"La segunda sala, y las excepciones por rango"**. Antes,
+> ese mismo día: **arrancó el Paso 2D y la base
+> del Paso 5.** Se construyó *Precios y paquetes* (D8: el centro único de los
+> precios base, cinco pestañas) y la **migración 0035**, que agrega los precios
+> de particulares y la matriz de sala, las ventas con contador, y `reservas_sala`
+> con no-choque garantizado por la base. **Validado en dev por Javier**
+> (*"veo todo ok"*), **solo en dev**, pendiente del OK para producción. Ver el
+> bloque final **"Precios y paquetes, y la base de la sala"**.
+>
+> **Dónde estamos, en una línea:** Paso 1 cerrado y en producción; **Paso 2 en
+> curso** (empezó por los precios base, falta la venta); **Paso 5 con la base de
+> datos hecha y la agenda visual pendiente**. La secuencia completa, en §0bis; lo
+> que Natalia necesita y el encuadre de los dos ejes, en **§0duodecies**.
 >
 > **2026-09-10 — Consolidación de estado a pedido de
 > Javier: ver **§0bis** (tabla de los 7 pasos) para la foto completa. **Motor
@@ -70,10 +98,10 @@ Referencia: `docs/PLAN_CIERRE_ETAPA1_v2_MOTOR.md` §2. Actualizado 2026-09-10.
 | --- | --- | --- |
 | 0 | Reencuadre al Motor de Planes y Membresías | ✅ Hecho (2026-09-05) |
 | **1** | **Liquidación a profesores** (motor base Plan Regular: planes N/ilimitado, multi-curso, asistencia con contador/completada/tolerancia/bono, liquidación criterio 1 + comprobante) | ✅ **v1 y v2 EN PRODUCCIÓN** (v1 el 2026-09-09/10; v2 el 2026-09-12): prorrata multi-curso real (reglas 10/16/17/18/19/20), quién dictó la clase, descuento del reemplazante, comprobante auditable. Migraciones 0023–0033 |
-| 2 | Venta de particulares/alquiler + confirmar sesión (con horario) + renovación + estado de cuenta del alumno | ⏳ Pendiente — no iniciado |
+| 2 | Venta de particulares/alquiler + confirmar sesión (con horario) + renovación + estado de cuenta del alumno | 🟡 **Arrancó el 2026-09-12 por los precios base.** *Precios y paquetes* (D8) construida y **validada en dev por Javier**: las cinco pestañas, con los paquetes de particular (bloque D) y la matriz de sala (bloque E) que son las que faltaban para poder cotizar. Falta la venta en sí (*Vender servicio*) y la confirmación/reserva de sesión. Migración **0035**, solo en dev |
 | 3 | App Shell (armazón + visual ya diseñado) + Dashboard operativo | ⏳ Pendiente — no iniciado |
 | 4 | Costos fijos | ⏳ Pendiente — no iniciado |
-| 5 | Agenda de sala (+ `duracion_min` en `cursos`) | ⏳ Pendiente — no iniciado. **Natalia lo pide con urgencia (2026-09-12)** junto con los particulares (2D): sin validar la sala no se puede vender una hora. Ver §0duodecies |
+| 5 | Agenda de sala (+ `duracion_min` en `cursos`) | 🟡 **Base de datos construida el 2026-09-12** (migración 0035, solo en dev): `salas` (D20), `reservas_sala` con una restricción `EXCLUDE` que impide en la **base** que dos reservas de la misma sala se pisen, y los motivos de bloqueo sin venta (D7). Falta **la agenda visual**, que Javier marcó como no negociable: *"es una herramienta fundamental para Natalia por su vista. Debe ir, ya es hoy un problema para ella."* Sin mockup todavía. Ver §0duodecies |
 | 6 | Alineación a estándares del resto de pantallas (ver `docs/PLAN_UX_DANZE.md`) | 🟡 En curso, parcial — Toggle estándar adoptado y pantalla Planes ya alineada; Cursos/Profesores/Dashboard/navegación siguen en el backlog de `PLAN_UX_DANZE.md` |
 
 **Dónde estamos (2026-09-12, tarde).** El **Paso 1 está cerrado y en
@@ -371,10 +399,10 @@ Javier trae un pedido operativo, y **no cae en una sola rebanada**: Natalia est�
 urgida por **la gestión de clases particulares** y por **validar y reservar la
 disponibilidad de la sala**.
 
-| Lo que pide | Dónde vive en el plan | Estado |
+| Lo que pide | Dónde vive en el plan | Estado al 2026-09-12, tarde |
 | --- | --- | --- |
-| Vender y gestionar clases particulares | **2D** (la mitad que no es clase de prueba) | No iniciado |
-| Validar/reservar disponibilidad de la sala | **Paso 5** — Agenda de sala | No iniciado |
+| Vender y gestionar clases particulares | **2D** (la mitad que no es clase de prueba) | 🟡 **Precios base listos** (pantalla *Precios y paquetes*, validada en dev). Falta la venta en sí |
+| Validar/reservar disponibilidad de la sala | **Paso 5** — Agenda de sala | 🟡 **Base de datos lista** (0035: `salas`, `reservas_sala` con no-choque garantizado). Falta la agenda visual |
 
 **El punto que importa:** son dos lugares distintos del plan, y el segundo está
 **tres pasos más adelante** que el primero. Pero operativamente van juntos: no se
@@ -396,20 +424,47 @@ Eso es una decisión de Javier, no una lectura del plan.
 - **D6 — duración de la clase.** ✅ **Construida y en producción** (0034).
 - **D5 — motivos del cobro.** Confirmada; se construye junto con particulares.
 
-### Lo que todavía falta para poder arrancar
+### Las tres respuestas — todas dadas el 2026-09-12
 
-Tres respuestas, las tres de Javier:
-
-| | Qué | Por qué bloquea |
+| | Qué | Respuesta |
 | --- | --- | --- |
-| ~~**D20**~~ | ✅ **RESPONDIDA** (2026-09-12): *"por el momento una sola sala, posteriormente podrían haber varias"* | Se modela **para N y se muestra para 1**: existe `salas` con una fila, cada clase y bloqueo dicen en cuál están, el choque se pregunta por sala, y el selector aparece recién con la segunda |
-| **Alcance** | ¿Paso 5 completo, o **validación mínima de choque** dentro de 2D primero? | Lo segundo destraba a Natalia mucho antes; la agenda visual queda después sobre la misma base |
-| **Diseño** | Particulares es pantalla nueva: ¿Design-first o código v1? | Regla de proceso 3: avisar antes de construir |
+| ~~**D20**~~ | ¿una sala o varias? | ✅ *"por el momento una sola sala, posteriormente podrían haber varias"*. Se modela **para N y se muestra para 1**. **Ya construido** en la 0035 |
+| ~~**Alcance**~~ | ¿Paso 5 completo o validación mínima? | ✅ **Validación mínima primero**, agenda visual después sobre la misma base |
+| ~~**Diseño**~~ | ¿Design-first o código v1? | ✅ **Código v1, Design refina.** Y resultó una pregunta más chica: *Vender servicio* y *Confirmar sesión* **ya tenían diseño aprobado** desde el 30 ago |
+
+### El encuadre que dio Javier, y que gobierna lo que sigue
+
+Javier reformuló el problema en **dos ejes**, y es la lectura que manda:
+
+1. **La venta de paquetes de horas** (particulares y alquileres) con sus
+   contadores, que descuentan horas en cada sesión realizada.
+2. **Un motor de calendario de sala**, *"muy visual, como un calendario del mes,
+   semana, día"*, con la ocupación en intervalos de 30 min (parametrizable),
+   donde se selecciona un rango libre para reservar y se lo asocia al tipo
+   (interno/bloqueo, particular, alquiler) y a su motivo o paquete.
+
+Lo que se ve en el calendario **tiene que decir por qué y para quién** está
+tomada la sala. Reservas: particulares, alquileres, internas. Bloqueos: cursos
+regulares, horario fuera de trabajo, feriados, otros. Y el motor tiene que
+permitir, además de reservar, **reprogramar y cancelar**, y registrar asistencia
+o suspender clases regulares desde el mismo calendario.
+
+**La agenda visual no es opcional ni lejana.** Javier: *"es una herramienta
+fundamental para Natalia por su vista. Debe ir, ya es hoy un problema para ella."*
+Lo que se acordó es el **orden**: primero el eje de ventas y contadores *"para
+que pueda ir registrando sus ventas"*, con algún mecanismo de confirmación de
+sesiones, y después integrarlo al eje visual.
+
+**Lo que el diseño de agosto NO cubre, y hay que construir igual:** reservar una
+sesión **a futuro**. *Confirmar sesión* solo registra que una sesión **ya
+ocurrió**; elegir fecha y hora al momento de vender es la pieza que une los dos
+ejes, y no está en ningún mockup.
 
 **Lo que ya está listo para apoyarse:** `src/lib/horarios.ts` con `seSolapan` y
 el criterio de choque fijado —intervalo medio abierto, así que una clase que
-termina 20:00 y otra que empieza 20:00 **no** chocan—, y `cursos.duracion_min`
-en las dos bases.
+termina 20:00 y otra que empieza 20:00 **no** chocan—, `cursos.duracion_min` en
+las dos bases, y desde hoy `src/lib/sala.ts` + la migración **0035** (ver el
+bloque final de este documento).
 
 **Un dato medido que orienta el modelo** (producción, 2026-09-12): con 60
 minutos **ningún par de cursos se pisa** — los que comparten hora no comparten
@@ -1337,3 +1392,517 @@ importa para diseñar el Paso 5.
 **El código todavía NO está desplegado.** `main` sigue en `2c29cf1`: el campo
 existe en la base pero la pantalla de Cursos no lo muestra. Es el estado seguro
 del orden de §3, y el merge espera su propio OK.
+
+---
+
+## Precios y paquetes, y la base de la sala · 2026-09-12 (dev)
+
+**Qué se hizo, y por qué en este orden.** Javier pidió arrancar con lo que
+Natalia necesita —particulares y sala— y en el camino definió el orden:
+*"quiero aplicar esa pantalla como un paso"*, refiriéndose a **Precios y
+paquetes**. Es la dependencia real: sin precios cargados no se puede cotizar un
+paquete de particular ni un alquiler, así que la venta sin esto no tiene de
+dónde sacar un monto.
+
+### D8 sale del backlog, y resultó más barata de lo temido
+
+Javier la activó: *"ese debe ser el centro donde se definen los precios base de
+todos los servicios"*. Se construyeron **las cinco pestañas**, no dos.
+
+**El miedo que la tenía postergada era una migración de datos que no existe.**
+Medido el 2026-09-12: los precios ya vivían en sus propias tablas —
+`curso_tarifas` (parciales y prueba), `descuentos_adelanto` (meses adelantados),
+`cursos.precio_mensual`— y las dos que faltaban las crea la 0035. D8 es **una
+pantalla que los junta, no un movimiento de datos**.
+
+**Pendiente que abre:** la pantalla de Cursos conserva sus columnas de tarifa.
+Dos superficies para el mismo dato es justamente lo que D8 venía a cerrar; hay
+que decidir si Cursos delega en esta pantalla.
+
+### Migración 0035 — lo que agrega
+
+| Tabla | Para qué |
+| --- | --- |
+| `salas` | D20: se modela para N, hoy una fila |
+| `tarifas_particular` | Bloque D: paquetes de particular por estilo |
+| `sala_tamanos` · `sala_horas_paquete` · `sala_tarifas` | Bloque E: la matriz categoría × tamaño × horas |
+| `paquetes_particular` · `alquileres_sala` | Las ventas, con contador de horas usadas |
+| `reservas_sala` | La ocupación de la sala: particular, alquiler o bloqueo sin venta (D7) |
+
+Además: `profesores.comision_particular_pct`, el catálogo
+`motivo_bloqueo_sala` (6 valores) y dos columnas en `comisiones_devengadas`
+para que una comisión de particular entre al **mismo** motor de liquidación que
+los cursos regulares, en vez de construir uno paralelo.
+
+### Las dos decisiones de diseño que conviene no olvidar
+
+**1. El no-choque lo garantiza la base, no el código.** `reservas_sala` tiene
+una columna generada `rango` (fecha + hora + duración) y una restricción
+`EXCLUDE USING gist`: dos reservas activas de la misma sala **no pueden**
+solaparse, aunque el código se olvide de chequear. Probado contra dev: dos
+reservas que se pisan media hora rebotan; una pegada a la hora siguiente entra
+—el cambio de turno normal de una sala no es un conflicto—.
+
+**2. Los cursos regulares NO son filas de `reservas_sala`.** Su ocupación se
+**calcula** desde el curso (`dias_semana` + `hora` + `duracion_min`), su vigencia
+y las sesiones suspendidas. Guardar el mismo hecho en dos lugares es la
+confusión más cara de este proyecto; el calendario del curso ya es la fuente de
+verdad. Por eso el choque contra cursos vive en `src/lib/sala.ts` y el choque
+entre reservas vive en la base: cada uno donde está el dato.
+
+### Qué NO se hizo, a propósito
+
+- **No se cargó ningún precio.** Son datos de negocio, no configuración: las
+  tablas quedan vacías y Natalia las carga desde la pantalla. Una celda vacía es
+  *"sin tarifa"* y se muestra marcada — nunca se toma como cero.
+- **No se alineó la barra lateral** a los 7 grupos del App Shell diseñado (hoy
+  tiene 3). Eso es el **Paso 3**. *Precios y paquetes* igual quedó en
+  `Administración`, que es su grupo definitivo en el diseño, así que no se va a
+  tener que mover.
+
+### Estado
+
+Validado en dev por Javier (*"veo todo ok"*). `tsc` y `eslint` limpios.
+**Solo en dev**: la 0035 no está en producción y el código no está en `main`.
+Espera el OK del pase (regla de proceso 1).
+
+### Lo que sigue — la cola C1→C5 (Javier, 2026-09-12, documento de instrucciones)
+
+**El orden cambió, y conviene entender por qué**: el motor de disponibilidad va
+**antes** que la venta. El reencuadre que lo justifica es de Javier: *"la unidad
+atómica no es «la venta con horario» sino «la reserva de una franja de sala».
+Vender un paquete crea un saldo de horas; reservar consume ese saldo ocupando la
+sala — son actos distintos que pueden ocurrir juntos o separados en el tiempo."*
+Si la venta se construyera primero, la reserva quedaría colgada de la venta y
+habría que desacoplarla después.
+
+| | Qué | Estado |
+| --- | --- | --- |
+| **C1** | **Horario base de la sala**: patrón semanal de apertura + excepciones por rango de fechas. Es el lienzo — fuera de él no se puede reservar. **Vacío significa cerrado, no abierto** (confirmado por Javier): si valiera "24 h", olvidarse de configurarlo produce justo el bug que C1 evita | ✅ **CERRADO y validado en dev por Javier** (2026-09-12). Migraciones **0036** y **0037**. Javier cargó el horario real de Tropicana |
+| **C2** | Disponibilidad + reserva mínima: validar contra horario base + cursos + otras reservas, y **lista textual** de lo ocupado ese día (*"Lu 15: ocupado 9-10, 11-12:30; resto libre"*). **Sin grilla visual todavía** — 80% del beneficio, 20% del costo | Pendiente |
+| **C3** | Venta de particulares/alquiler apoyada en la disponibilidad. Los dos caminos del mockup de agosto, más lo que ese mockup no tiene: elegir fecha y hora al vender | Pendiente |
+| **C4** | Agenda visual (grilla día/semana/mes). **Pasa por Claude Design** | Pendiente → `ROADMAP.md` R2 |
+| **C5** | Conflicto bloqueo-vs-agendado: el sistema junta los conflictos y **el humano decide**, nunca cancelación automática silenciosa | Pendiente → `ROADMAP.md` R1 |
+
+**Lo que Javier definió para C1** (2026-09-12): el motivo de una reserva o
+bloqueo se **clasifica** desde una lista, y el responsable o la aclaración van en
+una **glosa abierta**. Los motivos que administra el **patrón** —feriado, fuera
+de horario— no se eligen a mano: salen del horario base. Y una reserva lleva
+**notas**, que no son un memo sino *"instrucciones o recomendaciones para el
+asistente coordinador de la sala"*, así que tienen que verse donde se opera.
+
+**El horario puede cambiar con el tiempo**, y las reservas ya hechas fuera del
+horario nuevo **se respetan** —son hechos, no se reescriben—. Los conflictos que
+eso genere los resuelve un humano: es C5.
+
+**Desde 2026-09-12 existe `docs/ROADMAP.md`**, donde van las mejoras y deudas que
+no son del hito en curso, para no perderlas ni meterlas a la fuerza.
+
+---
+
+## La segunda sala, y las excepciones por rango · 2026-09-12 (dev)
+
+**C1 quedó cerrado y validado por Javier**, que además cargó el **horario real
+de Tropicana** (13 franjas). Sin excepciones por ahora.
+
+### Lo que pasó en el medio: apareció una sala
+
+Tropicana habilitó una **segunda sala en la misma sede**. Javier preguntó lo
+correcto —*"¿es más caro si lo dejo para pasos siguientes?"*— y la respuesta se
+midió antes de contestarla:
+
+| | Estado al preguntarlo |
+| --- | --- |
+| Excepciones de horario | 0 |
+| Reservas | 0 |
+| Precios de alquiler cargados | 0 |
+| Cursos | 9 activos, todos con hora, todos en la única sala |
+
+**Todo lo que habría encarecido el cambio estaba en cero.** Lo caro que D20
+evitaba ya estaba evitado —`salas` y `sala_id` en reservas, patrón y excepciones
+existían desde la 0035— y quedaba **un solo agujero**: `cursos` no decía en qué
+sala se dicta.
+
+**Y ese no es un agujero que se agrande: es uno que se cierra.** No es que
+después fuera más trabajo — es que **después ya no se puede saber** en qué sala
+estuvo la clase del martes pasado, y eso es justo lo que decide si la sala está
+libre. Por eso se hizo el mismo día (migración **0037**).
+
+### Las salas tienen orden, porque no son pares
+
+Javier (2026-09-12): *"la idea siempre es vender los espacios disponibles de la
+sala principal (default) y a menos que esté ocupada ofrecer la alterna"*.
+
+Eso convierte el orden en **un dato, no una convención**: es lo que después le
+permite al motor de disponibilidad **ofrecer la alterna** en vez de contestar
+"ocupado". Sin él, elegir cuál proponer sería arbitrario.
+
+### Las excepciones pasaron a ser un rango
+
+Pedido de Javier, y el momento era exacto: había **0 excepciones cargadas**, así
+que el cambio no migró nada. *"Vacaciones del 24/12 al 5/1"* es **un hecho, no
+trece filas**; partirlo en trece obliga a editar trece cosas para cambiar una
+decisión. Un día suelto es un rango de un día, así que no hay dos formas de
+expresar lo mismo.
+
+La base impide que dos excepciones de la misma sala se pisen — si no, una fecha
+tendría dos horarios y no habría forma de elegir cuál vale.
+
+### La tarifa de alquiler: sala opcional, con override
+
+`sala_tarifas.sala_id` es **nullable**: una fila sin sala vale para todas —el
+caso de hoy, porque las dos salas cuestan lo mismo— y una fila con sala manda
+sobre la general. Así se carga **un solo juego de precios** y se diferencia el
+día que haga falta, sin cargar 48 celdas dos veces para decir lo mismo.
+
+**Lo que todavía no se puede hacer, y ahora la pantalla lo dice:** cargar esa
+tarifa propia de una sala. *Precios y paquetes* edita solo la general. Javier lo
+eligió así a propósito, y la pestaña de alquiler ahora **declara** que esos
+precios valen para todas las salas — antes no decía nada, que con dos salas
+dejaba suponiendo. El selector quedó en `ROADMAP.md` (**R19**), junto con copiar
+horarios (**R17**) y tarifas (**R18**) de una sala a otra.
+
+### Un bug encontrado de paso
+
+El guardado de la matriz de alquiler apuntaba al índice único **viejo**, que la
+0037 reemplazó. Habría fallado al guardar un precio. Corregido y probado por
+Javier en la misma pasada.
+
+*Es la regla de calidad 2 en acción: una migración que toca índices o columnas
+rompe consultas que antes andaban, y no avisa hasta que alguien guarda.*
+
+### Estado
+
+Validado en dev por Javier: el alta de la sala, el horario, el guardado de
+precios y el cambio de sala de un curso (lo cambió y lo repuso). `tsc`, `eslint`
+y `next build` limpios. **Solo en dev**: las migraciones 0035, 0036 y 0037 no
+están en producción y el código no está en `main`.
+
+### Lo que sigue
+
+**C2 — disponibilidad + reserva.** Enchufar el motor que ya existe por dentro:
+validar una franja contra el horario base, los cursos regulares y las otras
+reservas, y mostrar la **lista textual** de lo ocupado ese día. Sin grilla
+visual todavía: eso es C4 y pasa por Design.
+
+---
+
+## Un alumno duplicado en el padrón de asistencia · 2026-09-16
+
+**Lo que Javier vio:** un aviso rojo abajo a la izquierda al tomar asistencia
+en dev, en *Bachata Conexión*. Era un warning de React (*"Encountered two
+children with the same key"*), pero no era cosmético.
+
+### La causa: se le vendió una prueba de un curso donde ya era socio
+
+Con datos de dev, a **Aguilar Manuel** se le vendió una **clase de prueba** de
+*Bachata Conexión* el 11/09, con fecha exacta 15/09 — el mismo curso en el que
+ya tenía una **membresía regular activa** desde el 1/09. El padrón de esa
+sesión traía sus dos inscripciones, así que Manuel aparecía **dos veces**.
+
+### Por qué no era solo un warning
+
+`asistencias` tiene `unique(sesion_id, alumno_id)` (0007): **solo puede haber
+una marca por persona y sesión**, sin importar cuántas inscripciones tenga. La
+pantalla (`ClienteAsistencia.tsx`) guarda las marcas y arma el payload
+indexando por `alumnoId` — con dos filas del mismo alumno, marcar una marcaba
+las dos a la vez, y al guardar, un `Map` alumnoId→inscripcionId se quedaba con
+**una sola** de las dos inscripciones. La otra perdía su registro **en
+silencio**: sin error, sin aviso, solo una asistencia que nunca se guardó.
+
+### Medido antes de tocar nada (regla de calidad 3)
+
+- **Producción, hoy: 0 casos.** Ningún alumno real está en esta situación.
+- **El código con el bug SÍ está en producción** (`origin/main`, el mismo que
+  sirve `tropicana-app.vercel.app`): es un riesgo latente, no un incidente
+  ocurrido. Cualquier venta de prueba futura sobre un curso ya inscripto lo
+  habría disparado.
+
+### Dos arreglos, uno por capa
+
+1. **La causa raíz — `venderPrueba` (`inscribir/acciones.ts`).** Ahora
+   rechaza vender una prueba de un curso donde el alumno ya es socio regular
+   (`es_prueba = false`, no dado de baja), buscando por `inscripcion_cursos`
+   para no perderse membresías multi-curso. Mensaje: *"El alumno ya es socio
+   regular de [curso]: no se le puede vender una prueba de un curso donde ya
+   está inscripto."*
+2. **La red de contención — `cargarPadron` (`asistencia/acciones.ts`).** El
+   padrón nunca devuelve dos filas para el mismo alumno: si colisionan, se
+   queda con la membresía **regular** (la prueba redundante no aporta nada).
+   Protege contra este mismo caso con datos anteriores al arreglo 1, y contra
+   cualquier otro camino que produzca la misma colisión que hoy no se conoce.
+
+Verificado en dev: Manuel pasó de aparecer 2 veces (7 filas totales) a 1 (4
+filas), consola limpia en una pestaña sin historial acumulado. `tsc` y
+`eslint` limpios. No se tocó ningún dato: la prueba redundante de Manuel
+sigue en la base, simplemente el padrón ya no la ofrece como fila aparte.
+
+### Estado
+
+**PASADO A PRODUCCIÓN el 2026-09-16**, con el OK explícito de Javier
+("pasalo"). Confirmado por el chip de la app: **PROD**, commit `#11c37f9`.
+
+**Cómo se hizo el pase, porque no fue el camino habitual.** "Pasalo" era
+ambiguo: en la rama había, además de este fix, tres migraciones sin pase
+(0035–0037) con sus pantallas. Antes de tocar nada se le preguntó a Javier
+qué alcance quería, y eligió **solo el arreglo de asistencia**. Un merge
+directo de la rama a `main` habría arrastrado todo junto — y si el código de
+Precios/Sala llega sin sus migraciones en producción, esas pantallas se caen
+enteras (orden del pase, `DECISIONES.md` §3).
+
+Se aisló el fix en un *worktree* aparte (rama `pase-asistencia-20260916`,
+creada desde `origin/main`), se le aplicó el diff de **solo** los dos
+archivos tocados —confirmado con `git diff origin/main HEAD --stat` antes de
+pushear—, se corrió `next build` completo ahí (no solo `tsc`, para generar
+los tipos de Next y validar el build real) y recién entonces se pusheó a
+`main`. El resto del trabajo acumulado (D8, C1, la segunda sala) sigue
+intacto en `claude/tropicana-app-context-d5zjt8`, sin tocar, esperando su
+propio OK.
+
+---
+
+## C5 (lado de cursos regulares): un cierre de sala avisa y suspende · 2026-09-16
+
+Javier reportó varios bugs juntos; este es el que más creció en el camino —
+arrancó como "revisar Roles y Permisos" y terminó siendo la mitad de C5.
+
+### Qué pedía, y por qué se adelantó
+
+Al reportarlo: *"al poner un feriado en el calendario, se debe validar el
+impacto en la planificación de la sala y resolverlo — notificar clases o
+reservas que chocan, notificar y pedir confirmaciones."* Es exactamente **R1
+del ROADMAP (C5)**, que estaba anotado para "después de C2/C3". Se adelantó
+porque **Natalia necesita cargar feriados de la semana que viene ya**, y para
+entonces sí importa: hoy `sala_horario_excepciones` no valida nada contra lo
+ya agendado.
+
+**Alcance acotado, con precisión de Javier**: el choque se pregunta contra
+**membresías activas que efectivamente toman esa clase esa fecha** — no contra
+el calendario crudo del curso (regla de negocio 18, aplicada acá). Del lado de
+particulares/alquiler no hay nada que revisar todavía: sin ventas (C2/C3 sin
+construir) no hay reservas que puedan chocar.
+
+### Cómo quedó
+
+1. **Al guardar un cierre** (`guardarHorarioSala`), se calculan las clases
+   regulares afectadas — cursos de esa sala, en vigencia, con alumnos con
+   membresía activa vía `inscripcion_cursos` (no `curso_id`, ver más abajo) —
+   y si hay alguna, **se pide confirmación explícita antes de guardar nada**.
+2. **Al confirmar**, se guarda el cierre y se suspenden esas clases con el
+   mismo mecanismo que usa Asistencia día a día. Se extrajo el núcleo de
+   `suspenderClase` a una función compartida (`ejecutarSuspension`), para que
+   los dos caminos —asistencia real y cierre planificado— dejen exactamente el
+   mismo rastro (corrimientos, reversión de devengos, etc.). Lo único distinto
+   es que el cierre de sala puede tocar **fechas futuras** (`permitirFutura`),
+   porque un feriado de la semana que viene no puede esperar a que llegue.
+3. **Una clase de la que depende una comisión ya pagada no se toca**, ni por
+   un feriado (regla de negocio 16): si el congelador la bloquea, el cierre de
+   sala se guarda igual y esa clase puntual queda listada para corregir a
+   mano.
+4. **Aviso por alumno, listo para copiar** (pedido de Javier en el momento:
+   *"necesitamos... el detalle de alumnos afectados, su whatsapp y como queda
+   por la suspensión, que permita al menos por hoy copiar y pegar"*): nombre,
+   WhatsApp, y un mensaje armado con el motivo del cierre (la etiqueta del
+   catálogo + la glosa entre paréntesis — no "cierre de sala") y la nueva
+   fecha de vencimiento del ciclo si corrió. Un alumno con dos clases en el
+   mismo cierre recibe un solo aviso, no dos.
+
+### Un bug encontrado y corregido de paso
+
+`ejecutarSuspension` heredaba de `suspenderClase` una consulta que buscaba
+membresías por `inscripciones.curso_id` — el campo que el glosario dice que es
+un resabio mono-curso. Una membresía multi-curso que tomara esa clase por
+`inscripcion_cursos` **se habría quedado sin corrimiento y sin aviso, en
+silencio**. Se corrigió para las dos vías: la de asistencia real (ya estaba en
+producción) y la nueva de cierre de sala.
+
+*Verificado en dev*: probado con un cierre real sobre un martes con tres
+cursos (Bachata Conexión, Zumba, Contemporáneo) y 10 alumnos con membresía
+activa. El caso de Manuel Aguilar —que toma dos de esos tres cursos— salió
+**consolidado en un solo aviso**, confirmando que el arreglo de
+`inscripcion_cursos` funciona. La prueba quedó en dev (una sesión "Prueba C5"
+por curso, 2026-09-22): no se revirtió a mano para no tocar `fecha_fin` de
+alumnos reales con lógica improvisada fuera de su mecanismo — es dato
+descartable, se limpia solo con un refresh de dev cuando corresponda.
+
+### Encontrado en el camino, sin construir (ROADMAP)
+
+- **R20** — el mensaje de aviso está armado a mano; con más pantallas
+  notificando hace falta modelarlo (plantilla por tipo de evento), no
+  hardcodearlo pantalla por pantalla.
+- **R21** — nueva regla de proceso (`REGLAS.md` §3.12): toda notificación de
+  pantalla lleva su "copiar para enviar". Falta la revisión retroactiva de las
+  pantallas que ya notifican.
+- **R22** — borrar la excepción que causó una suspensión no la revierte
+  todavía; hay que reabrir a mano por Asistencia.
+
+### Estado
+
+Construido y probado en dev. `tsc`, `eslint` y `next build` limpios. **Solo en
+dev** — sin migración, pero cambia comportamiento de `suspenderClase` (ya en
+producción): espera su propio OK de pase, igual que 0035–0037.
+
+---
+
+## Roles y Permisos: Planes, Liquidaciones, Precios y Sala separados · 2026-09-16
+
+Javier lo marcó urgente antes del pase: *"el usuario asistente ya está
+trabajando... y no se le puede permitir acceso a módulos donde debe estar
+restringido"*. No eran configurables porque no existían como módulo propio:
+
+| Pantalla | Antes vivía gateada con | Ahora |
+| --- | --- | --- |
+| `/planes` | `cursos` | `planes` |
+| `/liquidaciones` (+ `[id]`) | `comisiones` | `liquidaciones` |
+| `/precios` | `administracion` | `precios` |
+| `/administracion/sala` | `administracion` | `sala` |
+
+`administracion/sala` se sumó de oficio (mismo problema: Precios y Sala no se
+podían separar entre sí), aunque Javier no lo nombró.
+
+**Migración 0038**: le da a cada módulo nuevo el mismo permiso que ya tenía el
+módulo prestado, **por rol** — nadie pierde ni gana acceso el día del pase; a
+partir de ahí Javier ajusta desde la pantalla. `comisiones` quedó huérfano
+(ninguna pantalla ya lo lee) y se dio de baja de `MODULOS`.
+
+**Verificado en dev**: Administrador con los 17 módulos en `✓` completo.
+**Asistente** —el caso real— quedó con **solo "ver" en Planes** (heredado de
+`cursos`) y **sin ningún permiso en Liquidaciones, Precios ni Sala**: exactamente
+lo que Javier pedía poder controlar.
+
+Nueva regla permanente (`REGLAS.md` §3.11): toda pantalla o paso nuevo incluye
+su módulo de permisos antes de darse por concluido.
+
+`tsc`, `eslint` y `next build` limpios. **Solo en dev** — migración aditiva
+sobre `rol_permisos`, sin tocar datos de dominio.
+
+---
+
+## Dos correcciones de UI encontradas probando en celular · 2026-09-16
+
+Javier las reportó mirando el App Shell actual (3 grupos, no el de 7 diseñado)
+en la vista de celular del navegador de dev.
+
+### 1. El menú lateral no se retraía en celular
+
+No existía ningún corte responsive: `BarraLateral` era un `<aside>` fijo de
+264px siempre visible, sin importar el ancho de pantalla. En celular eso le
+comía la mitad del espacio a cualquier pantalla.
+
+**Ahora sigue el mismo criterio que ya estaba documentado** en el App Shell
+diseñado (`docs/design/App Shell.dc.html`, regla N24): corte a los **900px
+evaluado en JS**, no en CSS. Por debajo, el sidebar se convierte en una barra
+superior fija (hamburguesa + logo) y el contenido completo pasa a un *drawer*
+que se abre encima con backdrop, y se cierra solo al elegir un destino. Es el
+mismo elemento en dos posiciones, no dos listas de navegación.
+
+Un detalle de implementación: el primer intento resetear el drawer al cambiar
+de pantalla con un `useEffect` disparó el error de lint *"calling setState
+synchronously within an effect"* — se resolvió con el patrón que React
+recomienda (ajustar el estado durante el render, comparando contra el
+pathname anterior) en vez de un efecto aparte.
+
+### 2. "Guardar horario" quedaba activo después de guardar con éxito
+
+Javier: *"una vez guardada la excepción, no debería mantenerse el botón
+guardar. Es confuso, te invita a repetir."*
+
+**Causa medida, no supuesta**: al guardar una excepción **nueva**, la base le
+asigna un `id` real, pero el estado local de la pantalla se quedaba con
+`id: null` — la comparación de "¿hay cambios sin guardar?" nunca volvía a
+coincidir con lo recién guardado, así que el botón seguía activo para
+siempre. Mismo problema, mismo origen, en "Guardar salas" al crear una sala
+nueva.
+
+**Arreglo**: cuando llegan `salas` / `patron` / `excepciones` frescos del
+servidor (después de `router.refresh()`), el estado local se resincroniza
+contra esos datos reales — ajustado durante el render, mismo patrón que el
+punto 1.
+
+**Verificado en dev**: agregar una excepción, guardarla, confirmar que el
+botón queda apagado y dice "Sin cambios pendientes." Repetido para
+salas nuevas.
+
+---
+
+## Cuenta del alumno: membresías multi-curso completas, y fecha de fin real o estimada · 2026-09-16
+
+Javier: *"corregir la cuenta del alumno para aclarar los paquetes múltiples,
+no sale completa. Se necesita dar mas info de la inscripción y horario"* — y
+después, al confirmar la secuencia de prioridades: *"asegurarte que tenga la
+fecha estimada de fin y se aplique también a la glosa de los recibos de
+pago."*
+
+### El bug: mismo error de glosario que C5, en otra pantalla
+
+`estadoDeCuenta` armaba el nombre de la membresía a partir de
+`inscripciones.curso_id` — el resabio mono-curso. Una membresía con varios
+cursos (`inscripcion_cursos`) mostraba solo uno, o ninguno si esa fila no tenía
+`curso_id` cargado. Mismo síntoma que el bug de C5, encontrado independiente:
+cualquier pantalla que lea `curso_id` en vez de `inscripcion_cursos` para "los
+cursos de la membresía" tiene este agujero.
+
+Además, `fecha_fin` es la fecha real **solo** en mensual/ilimitado: en
+"paquete por clase" (`modalidad='clase'`) el ciclo no tiene fecha, se agota por
+conteo — la pantalla no decía nada, dejando a Natalia sin poder anticipar
+cuándo vence.
+
+### Cómo quedó
+
+Dos piezas nuevas en `src/lib/cuentas.ts`, reutilizadas en las tres pantallas
+que necesitan esta info:
+
+- **`cursosDeMembresias`**: los cursos de un lote de membresías, vía
+  `inscripcion_cursos` con respaldo a `curso_id` para filas viejas sin junction
+  row (mismo criterio que C5, mismo glosario). Calculada **una sola vez** para
+  todas las membresías de la cuenta, no por membresía — evita repetir la
+  consulta que antes solo corría para las que tenían bono.
+- **`finDeMembresia`**: si hay `fecha_fin` real, esa. Si no (paquete por
+  clase), **estima** la fecha de la clase N-ésima (`fechaClaseN`, ya existente
+  para las clases de prueba) usando los días del primer curso con horario y el
+  total de clases compradas, marcada `estimada: true`.
+
+Aplicado en:
+
+1. **Cuenta del alumno** (`alumnos/[id]/cuenta`): cada membresía lista todos
+   sus cursos con sus días (`rotuloDiasMembresia`, movido a `src/lib/inscripcion.ts`
+   para poder usarse también en el cliente) y el rango
+   `fechaInicio → fechaFin` con "(estimado)" cuando corresponde.
+2. **Su versión imprimible** (`ImprimirCuenta.tsx`): mismo criterio, mismo
+   texto.
+3. **Recibo de pago** (`caja/recibo/[id]`): el concepto ahora suma los cursos
+   de la membresía (antes solo el nombre del plan) y una línea nueva "Vence" /
+   "Vence (estimado)" con la fecha — la glosa del recibo, pedida explícitamente.
+
+### Verificado en dev, con dato real y con dato de prueba descartado
+
+- **Multi-curso real**: Nadine Salek, membresía "Plan de Prueba Ili" con 5
+  cursos en `inscripcion_cursos`. Antes de la corrección mostraba uno; ahora:
+  *"Danza Comercial (lunes y miércoles) · Heels (sábados) · Salsa y Bachata
+  Inicial (lunes y miércoles) · Tropicoreografico (lunes y miércoles) · Zumba
+  (martes y jueves)"*.
+- **Fecha estimada**: sin ejemplo real disponible en dev (los únicos paquetes
+  por clase existentes eran las membresías sueltas que se dieron de baja, ver
+  abajo), se creó una membresía y un pago de prueba (Zumba, `modalidad='clase'`,
+  4 clases desde el 10/09) y se confirmó en pantalla: Cuenta mostró
+  *"10/09/2026 → 22/09/2026 (estimado)"*, coincidiendo con `fechaClaseN([2,4],
+  10/09, 4)`; el Recibo de ese pago mostró *"Vence (estimado) 22/09/2026"*.
+  **Datos de prueba borrados** después de verificar (inscripción 41, pago 42).
+
+`tsc`, `eslint` y `next build` limpios en los siete archivos tocados
+(`cuentas.ts`, `inscripcion.ts`, `tipos.ts`, `cuenta/page.tsx`,
+`ImprimirCuenta.tsx`, `caja/recibo/[id]/page.tsx`, `Recibo.tsx`). **Solo en
+dev** — sin migración, cambio de solo lectura.
+
+### Dato de dev limpiado de paso
+
+A pedido de Javier (*"elimina las mebresias sueltsas y sus dependencias. Son de
+unos niños que quedaron sueltos antes de cambios que hicimos a planes"*): se
+borraron las inscripciones 17, 18 y 19 (paquete por clase, sin
+`inscripcion_cursos`, dato huérfano previo al motor de planes actual) junto con
+sus pagos (15, 16, 17) y asistencias — verificado en cero después. **Los tres
+alumnos** ("karola urbari" y sus dos hijas, ids 31/32/33) **se dejaron
+intactos**: Javier no pidió borrarlos y no hay indicio de que sean ellos
+mismos el dato descartable, solo su membresía huérfana.
+
+`tsc`, `eslint` y `next build` limpios. Solo en dev, sin migración.

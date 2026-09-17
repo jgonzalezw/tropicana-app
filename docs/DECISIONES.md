@@ -30,18 +30,30 @@ pierden y se vuelven a discutir, o peor, se contradicen sin que nadie lo note.
 > **D5, D6 y D7 ya están decididas** (2026-09-12) y salieron del backlog: ver
 > §1.b. D6 además ya está construida y en producción.
 >
-> **Faltaban tres respuestas; queda una y media (2026-09-12):**
-> 1. ~~D20 — ¿una sala o varias?~~ **RESPONDIDA** el 2026-09-12: una hoy,
->    varias después; se modela para N y se muestra para 1 (ver §1.b).
-> 2. **Alcance** — ¿Paso 5 completo (agenda visual de sala) o **validación
->    mínima de choque** dentro de 2D primero? Lo segundo destraba a Natalia
->    mucho antes y la agenda queda después sobre la misma base.
-> 3. **Diseño** — particulares es pantalla nueva: ¿Design-first o código v1 y
->    Design refina? (regla de proceso 3: avisar antes de construir).
+> **Las tres respuestas están dadas (2026-09-12). Ninguna queda abierta:**
+> 1. ~~D20 — ¿una sala o varias?~~ **RESPONDIDA**: una hoy, varias después; se
+>    modela para N y se muestra para 1 (ver §1.b).
+> 2. ~~**Alcance**~~ **RESPONDIDA**: **validación mínima de choque primero**, y
+>    la agenda visual después sobre la misma base. Javier agregó el encuadre que
+>    la gobierna: son **dos ejes** —la venta de paquetes de horas con sus
+>    contadores, y un motor de calendario de sala— y *"podemos partir por el eje
+>    de las ventas y contadores… y algún mecanismo de confirmación de sesiones
+>    que luego lo integramos al eje visual"*. **La agenda visual no es opcional
+>    ni lejana**: *"es una herramienta fundamental para Natalia por su vista.
+>    Debe ir, ya es hoy un problema para ella."*
+> 3. ~~**Diseño**~~ **RESPONDIDA**: **código v1 y Design refina**. Y se descubrió
+>    que la pregunta era más chica de lo que parecía: *Vender servicio* y
+>    *Confirmar sesión* **ya tienen diseño aprobado** en `docs/design/` desde el
+>    30 ago 2026. Lo único sin mockup es la agenda de sala.
+>
+> **Lo que el diseño de agosto NO cubre, y hay que construir igual:** reservar
+> una sesión **a futuro** (elegir fecha y hora al vender). *Confirmar sesión*
+> solo registra que una sesión **ya ocurrió**. Es la pieza que une los dos ejes.
 >
 > Lo que ya está listo para apoyarse: `src/lib/horarios.ts` tiene `seSolapan`
 > con el criterio de choque ya fijado (intervalo medio abierto: una clase que
-> termina 20:00 y otra que empieza 20:00 **no** chocan).
+> termina 20:00 y otra que empieza 20:00 **no** chocan), y `src/lib/sala.ts` +
+> la migración **0035** ya resuelven el costo de sala y la ocupación.
 
 
 | # | Decisión | Estado | Por qué se postergó | Disparador: cuándo hacerla |
@@ -51,7 +63,7 @@ pierden y se vuelven a discutir, o peor, se contradicen sin que nadie lo note.
 | D3 | **Renombrar `ClienteVentas.tsx`** a algo que diga lo que hace (`PestanasVenta` / `MostradorVenta`). El nombre indujo a Javier a creer que había otra pantalla de ventas. | Pendiente | Cosmético; se hizo en medio de un diagnóstico. | Junto con D1, que es el mismo tipo de trabajo (renombres). |
 | D4 | **Generalizar el acceso al detalle**: hipervínculo o botón tipo "ojo", igual en toda lista de entidades. Hoy está suelto en Caja y en Alumnos. | Pendiente (pedido de Javier, 2026-09-08) | Es una decisión de diseño transversal: conviene que pase por Design. | Cuando se defina con Design, o cuando la tercera pantalla necesite el mismo gesto. |
 | D5 | **Clasificar mejor el motivo del cobro** en el recibo: Membresía, Clase Particular, Clase de Prueba, Alquiler, Taller, Venta Producto, Ajuste. | **DECIDIDA — Javier confirmó el 2026-09-12** (*"Correcto"*). Falta construirla. | Se resolvió lo urgente (que el motivo elegido no se descarte). | **Se construye junto con los particulares (2D)**: es el primer servicio que deja corto el catálogo actual. Los motivos van a catálogo, no al código (regla de negocio 13). |
-| D8 | **Pantalla "Precios y Paquetes" como punto único de los precios base.** Javier (2026-09-11): los tramos de precio por cantidad de clases —hoy definidos en la pantalla de Cursos— van a una pantalla propia, diseñada con Design, con una pestaña por bloque (entre ellas, valores de clase de prueba y tramos de precio por cantidad de clases). **De esos tramos** sale el valor unitario de cada clase para el precio referencial. Regla que la gobierna: **el precio pleno es por 4 semanas del calendario normal del curso** — 8 clases si el curso es de dos por semana. La pantalla unifica en un solo punto todas las definiciones de precio base de la aplicación, y desde ahí se cotiza y se adopta el precio de cursos, planes y ofertas especiales. | Pendiente (mejora el diseño; requiere compatibilizarse con el motor de planes, que se definió después) | Se definió **antes** del motor de planes y hay que compatibilizar las dos cosas. Hoy estamos en medio de la clase de prueba. | Junto con Design, después de cerrar la clase de prueba. **Antes** de cargar precios nuevos en producción: cada precio que se cargue con el modelo viejo es un dato más a migrar. |
+| D8 | **Pantalla "Precios y Paquetes" como punto único de los precios base.** Javier (2026-09-11): los tramos de precio por cantidad de clases —hoy definidos en la pantalla de Cursos— van a una pantalla propia, diseñada con Design, con una pestaña por bloque (entre ellas, valores de clase de prueba y tramos de precio por cantidad de clases). **De esos tramos** sale el valor unitario de cada clase para el precio referencial. Regla que la gobierna: **el precio pleno es por 4 semanas del calendario normal del curso** — 8 clases si el curso es de dos por semana. La pantalla unifica en un solo punto todas las definiciones de precio base de la aplicación, y desde ahí se cotiza y se adopta el precio de cursos, planes y ofertas especiales. | **SALE DEL BACKLOG — Javier la activó el 2026-09-12: *"ese debe ser el centro donde se definen los precios base de todos los servicios"*, y *"quiero aplicar esa pantalla como un paso"*.** Se construye como hito propio, con las **cinco** pestañas, antes de la venta de particulares/alquiler. | Se postergó por miedo a una migración de datos que **no existe**: medido el 2026-09-12, los precios ya viven en sus propias tablas (`curso_tarifas` para las parciales y la prueba, `descuentos_adelanto` para meses adelantados, `cursos.precio_mensual`, y `tarifas_particular` / `sala_tarifas` desde la 0035). D8 es una **pantalla que los junta, no un movimiento de datos**. | **Disparador cumplido.** Era "antes de cargar precios nuevos en producción", y los precios de particulares y alquiler son exactamente eso: sin esta pantalla no hay dónde cargarlos. Queda pendiente decidir si la pantalla de Cursos conserva sus columnas de tarifa o delega acá — dos superficies para el mismo dato es la clase de duplicación que esta decisión venía a cerrar. |
 | D11 | **Inscribir a los acompañantes de una prueba grupal, con su crédito.** Hoy, en una prueba grupal, solo el **titular** puede convertir y se le acredita **su parte** (opción b: lo pagado ÷ personas). La parte de los acompañantes **existe pero no se puede reclamar**: no tienen nombre en el sistema. Javier: *"lo lógico es que el resto queda para cuando se inscriban los otros en plazo… haciendo referencia a algún ID que se entregue al momento de la inscripción, o referir al titular aunque no se haya inscrito… pero debe ir descontando la cantidad de beneficiarios. Si cualquiera deja pasar la fecha, igual lo pierde."* | **Pendiente** (2026-09-11) | Los acompañantes no tienen identidad en el modelo; darles una es un cambio de modelo, no un ajuste. Javier: *"dejarlo en b por ahora sin la inscripción de los restantes"*. | Cuando **aparezca el primer caso real** (un acompañante que quiere inscribirse y reclamar su parte), o en el paso siguiente si se prioriza. **Cada prueba grupal que se venda mientras tanto es un crédito que alguien puede venir a reclamar y no vamos a poder darle.** |
 | D12 | **Los estilos/especialidades tienen que ser catálogo, no parámetro.** Hoy `especialidades` es un parámetro de texto con los estilos separados por coma (`Salsa,Bachata,Zumba,Urbano,Heels`), y lo mismo pasa con `medios_pago`. Un catálogo se aumenta y se corrige; un parámetro de texto se reescribe entero a mano y no tiene ni id ni orden ni "activo". Javier (2026-09-11): *"Considero que los estilos o especialidades deberían ser valores de catalogo no de parámetros, y deben poderse aumentar o corregir."* | **Pendiente** (2026-09-11) | Es una migración de datos (parámetro → filas de catálogo) más las pantallas que los leen. Estamos cerrando la clase de prueba. | Junto con D13, que es la otra mitad del mismo problema. **Antes** de que alguien cargue estilos nuevos en producción: cada uno que se cargue como texto es un dato más a migrar. |
 | D13 | **Aumentar un valor de catálogo sin salir de la operación.** En las listas de las pantallas, el usuario tiene que poder agregar un valor al catálogo mientras está haciendo otra cosa: cargando un profesor, poder agregar un estilo que no está; ídem en cursos. Hoy hay que abandonar la pantalla, ir a configurar y volver a empezar. Javier (2026-09-11): *"para versión posterior… el usuario pueda aumentar valores a la lista de algún catalogo mientras realiza una operación."* | **Pendiente — versión posterior** (2026-09-11) | Necesita que los catálogos existan de verdad primero (D12) y es un gesto transversal: conviene definirlo una vez con Design y montarlo igual en todos lados (regla de proceso 4), como D4. | Después de D12, y junto con D4 —que es el mismo tipo de decisión: cómo se le ofrece un gesto al usuario en toda lista. |
@@ -65,6 +77,8 @@ que no se pierdan hasta que el código las alcance.
 
 | # | Decisión | Estado |
 | --- | --- | --- |
+| **El orden del Paso 5: la disponibilidad antes que la venta** (C1→C5) | Javier, 2026-09-12, en el documento de instrucciones del Paso 2. **Reemplaza el orden acordado esa misma mañana** ("validación mínima de choque dentro de 2D", con *Vender servicio* como paso siguiente). El motivo es un reencuadre del modelo, no una preferencia: *"la unidad atómica no es «la venta con horario» sino «la reserva de una franja de sala». Vender un paquete crea un saldo de horas; reservar consume ese saldo ocupando la sala — son actos distintos que pueden ocurrir juntos o separados en el tiempo."* Construir la venta primero dejaría la reserva colgada de la venta, y habría que desacoplarla después. Orden: **C1** horario base → **C2** disponibilidad + reserva con lista textual (sin grilla) → **C3** venta apoyada en la disponibilidad → **C4** agenda visual (pasa por Design) → **C5** conflicto bloqueo-vs-agendado. | **VIGENTE desde 2026-09-12.** C1 en curso; C4 y C5 anotados en `ROADMAP.md` (R2 y R1). |
+| **Cómo se clasifica por qué está tomada la sala** | Javier (2026-09-12): el motivo se **elige de una lista** y el responsable o la aclaración van en una **glosa abierta** — *"clasificar los motivos en un campo de motivos, y aclararlo o poner el responsable en un campo glosa abierto"*. Los motivos que salen del **horario base** no se eligen a mano, y el horario base son **dos piezas distintas**: el **patrón** —la regla semanal de apertura, de donde sale "fuera de horario"— y las **excepciones por fecha** —feriados y cualquier otro cierre o apertura especial—. Un feriado **no** es un bloqueo que alguien carga a mano: es una excepción del horario. Además, una reserva lleva **notas**, y no son un memo: *"pueden ser incluso usadas como instrucciones o recomendaciones para el asistente coordinador de la sala"*, así que se muestran donde se opera la sala. **Vacío significa cerrado, no abierto**: un horario sin cargar deja la sala no reservable, porque el default contrario produce justo el bug que C1 viene a evitar. | **DECIDIDA.** Se construye en C1 (migración 0036). |
 | **Una sala hoy, varias después** (ex D20) | Javier (2026-09-12): *"por el momento una sola sala, posteriormente podrían haber varias."* **Consecuencia de diseño, y es la parte que importa: se modela para N y se muestra para 1.** Existe la entidad `salas` desde el principio, con una sola fila; cada clase y cada bloqueo dicen en cuál están; y la pregunta de choque se hace **por sala** aunque hoy siempre sea la misma. La pantalla **no muestra el selector** mientras haya una sola —elegir entre una opción es ruido—, y aparece solo cuando se cargue la segunda. Agregar la dimensión después sería rehacer el modelo y remapear lo ya agendado, no agregar un campo. | **DECIDIDA, sin construir.** Va en la primera migración del Paso 5. |
 | **La sala se puede bloquear sin venta** (ex D7) | **Sí**: la agenda de sala es un **calendario real**, no el reflejo de lo vendido. Javier (2026-09-12): *"la sala se puede reservar/bloquear sin paquete vendido. Aplica motivos de capacitaciones internas, preparación de coreografías de los profesores, mantenimiento, etc."* Consecuencias de diseño: un bloqueo **existe sin dueño comercial** —no cuelga de una venta ni de una membresía—, necesita **motivo de catálogo** (regla de negocio 13) y ocupa la sala igual que una clase para la validación de choque. | **DECIDIDA, sin construir.** Es el corazón del Paso 5. |
 | **Duración de la clase** (ex D6) | Un curso declara **cuánto dura una clase**, en el maestro de cursos. Javier (2026-09-12): *"implementá la duración de las sesiones de cursos en el maestro de cursos, con eso se obtiene la hora de fin."* **La hora de fin se calcula, no se guarda**: guardar inicio y fin sería tener el mismo hecho en dos campos que pueden contradecirse — la confusión más cara de este proyecto fue exactamente esa. | **CONSTRUIDA** en dev el 2026-09-12 (migración 0034 + `src/lib/horarios.ts`). Los 9 cursos quedaron en 60 min, que es lo único que se puede suponer sin inventar: Javier corrige el que no sea. |
@@ -148,5 +162,22 @@ proceso 1). No es un backlog de decisiones: es el estado del release.
   par de cursos se pisa** con esa duración — los que comparten hora no comparten
   día—, así que la grilla de producción es consistente con **una sola sala**.
 - **Código desplegado (D6)**: `main` `2c29cf1..650ae6d` el 2026-09-12, con el
-  OK explícito de Javier (*"mergea y publica"*). **Producción está completa: no
-  queda nada en dev sin pasar.** Migraciones 0001–0034 en las dos bases.
+  OK explícito de Javier (*"mergea y publica"*). Migraciones 0001–0034 en las
+  dos bases.
+- **Migraciones 0035–0037 + pantallas *Precios y paquetes* (D8), *Sala y
+  horarios* (C1) y la segunda sala — SOLO EN DEV** (2026-09-12/16). Todas
+  aditivas: ninguna modifica una fila de dominio existente. 0035 crea `salas`,
+  `tarifas_particular`, la matriz de sala, `paquetes_particular`,
+  `alquileres_sala` y `reservas_sala`; 0036 el horario base (patrón +
+  excepciones); 0037 la segunda sala, el orden de preferencia y las
+  excepciones por rango. **Las tres validadas en dev por Javier** (*"veo todo
+  ok"*, *"probado ok"*). El código tampoco está en `main`: vive en
+  `claude/tropicana-app-context-d5zjt8`. **Espera su propio OK del pase**
+  (regla de proceso 1) — **distinto del pase de abajo**, que se hizo acotado a
+  propósito para no arrastrar esto. Detalle en `docs/ESTADO.md`.
+- **Bug de asistencia (padrón duplicado) — PASADO A PRODUCCIÓN el
+  2026-09-16**, con el OK explícito de Javier (*"pasalo"*). Alcance acotado
+  aposta: solo `asistencia/acciones.ts` e `inscribir/acciones.ts`, sin
+  arrastrar las migraciones de arriba. `main` `b0766ac..11c37f9`, confirmado
+  por el chip PROD de la app. Sin migración. Detalle en `docs/ESTADO.md`,
+  bloque *"Un alumno duplicado en el padrón de asistencia"*.
