@@ -1921,3 +1921,53 @@ sus pagos (15, 16, 17) y asistencias — verificado en cero después. **Los tres
 alumnos** ("karola urbari" y sus dos hijas, ids 31/32/33) **se dejaron
 intactos**: Javier no pidió borrarlos y no hay indicio de que sean ellos
 mismos el dato descartable, solo su membresía huérfana.
+
+---
+
+## Corrección de datos en producción: la clase de Yubinca acreditada a la membresía equivocada · 2026-09-17
+
+Javier lo reportó recorriendo producción: Yubinca (Bachata Conexión, martes y
+jueves) empezó su membresía el 10/09 y tomó dos clases (10 y 15/09), pero la
+cuenta mostraba **una sola**, y en Asistencia el explorador marcaba **1/9 en
+vez de 2/9**.
+
+### Qué estaba mal (medido, no supuesto)
+
+Yubinca tiene dos membresías del mismo curso —una renovación—: la **#22**
+(ciclo anterior, `completada`, 11/08→08/09) y la **#28** (ciclo actual,
+`activa`, 10/09→13/10). La asistencia del **15/09** (id 131, "presente") había
+quedado acreditada a la **#22**, que ya estaba cerrada desde el 08/09, en vez
+de a la **#28**. Resultado: la #28 contaba 1 clase en lugar de 2, y la #22
+cargaba una 9ª clase invisible (tope 8/8).
+
+### Respaldo (antes)
+
+- `asistencia` 131: `inscripcion_id=22`, presente, sesión 65, fecha 2026-09-15.
+- `inscripción` 22: completada, `clases_hechas=8`, clases_plan=8, fin=08/09.
+- `inscripción` 28: activa, `clases_hechas=2`, clases_plan=9, fin=13/10.
+
+### Qué se hizo (con el OK explícito de Javier: *"corrige en producción"*)
+
+1. Se movió la asistencia 131 de la membresía #22 a la #28 (su ciclo real).
+2. Se recalculó `clases_hechas` de ambas desde las asistencias ya corregidas.
+
+`estado`, `bono_generado` y `fecha_fin` no cambian y se verificó que no debían:
+la #22 sigue `completada` (7 presentes + 1 falta con licencia = 8 dictadas ≥ 8)
+y la #28 sigue `activa`.
+
+### Después (verificado)
+
+- `asistencia` 131 → `inscripcion_id=28`.
+- #28: `clases_hechas=2`, presentes reales 2, dictadas 2 → **muestra 2/9**.
+- #22: `clases_hechas=7`, presentes reales 7, dictadas 8 → sigue completada.
+
+### El bug de código sigue vivo — anotado con prioridad
+
+El dato quedó corregido, pero la **causa** es un bug de código: el desempate del
+padrón (`filasPorAlumno` en `asistencia/acciones.ts`) solo resuelve el choque
+regular-vs-prueba, no **dos membresías regulares** del mismo alumno (una
+renovación); y el filtro de "ciclo agotado" deja sobrevivir a la vieja si ya
+tiene una marca, así que la clase equivocada se queda pegada. Es la misma
+familia del "padrón duplicado" (11c37f9), en un caso que ese arreglo no cubre.
+Queda en `ROADMAP.md` como **R23 (prioritario)**, a pedido de Javier
+(*"anota esto para analizarlo a detalle luego, con prioridad"*).
