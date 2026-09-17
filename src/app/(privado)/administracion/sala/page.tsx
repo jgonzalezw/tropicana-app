@@ -10,6 +10,13 @@ export const dynamic = "force-dynamic";
 /**
  * Salas y horarios — el horario base (C1) y el alta de salas (0037).
  *
+ * **Solo lo administrativo.** El patrón semanal y las excepciones se tocan
+ * poco (un feriado, un cambio de horario) — eso es lo que justifica que esta
+ * pantalla siga en Administración. Ver la disponibilidad del día y bloquear
+ * la sala es cotidiano y vive en su propia ruta, `/sala` (2026-09-17, pedido
+ * de Javier: "no me resulta útil que esta pantalla deba ser accesible solo
+ * desde el contexto de administración... es operativa").
+ *
  * Se leen **todas** las salas con su horario completo: son pocas filas y así el
  * cambio de sala en la pantalla es inmediato, sin una vuelta al servidor.
  *

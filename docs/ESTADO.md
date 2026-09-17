@@ -1487,7 +1487,7 @@ habría que desacoplarla después.
 | | Qué | Estado |
 | --- | --- | --- |
 | **C1** | **Horario base de la sala**: patrón semanal de apertura + excepciones por rango de fechas. Es el lienzo — fuera de él no se puede reservar. **Vacío significa cerrado, no abierto** (confirmado por Javier): si valiera "24 h", olvidarse de configurarlo produce justo el bug que C1 evita | ✅ **CERRADO y validado en dev por Javier** (2026-09-12). Migraciones **0036** y **0037**. Javier cargó el horario real de Tropicana |
-| **C2** | Disponibilidad + reserva mínima: validar contra horario base + cursos + otras reservas, y **lista textual** de lo ocupado ese día (*"Lu 15: ocupado 9-10, 11-12:30; resto libre"*). **Sin grilla visual todavía** — 80% del beneficio, 20% del costo | Pendiente |
+| **C2** | Disponibilidad + reserva mínima: validar contra horario base + cursos + otras reservas, y **lista textual** de lo ocupado ese día (*"Lu 15: ocupado 9-10, 11-12:30; resto libre"*). **Sin grilla visual todavía** — 80% del beneficio, 20% del costo | 🟡 **Construido en dev el 2026-09-17**, validado contra el horario real (migración 0040). Solo bloqueos (D7) — sin C3 todavía no hay otra reserva posible. Pendiente el OK de Javier para producción |
 | **C3** | Venta de particulares/alquiler apoyada en la disponibilidad. Los dos caminos del mockup de agosto, más lo que ese mockup no tiene: elegir fecha y hora al vender | Pendiente |
 | **C4** | Agenda visual (grilla día/semana/mes). **Pasa por Claude Design** | Pendiente → `ROADMAP.md` R2 |
 | **C5** | Conflicto bloqueo-vs-agendado: el sistema junta los conflictos y **el humano decide**, nunca cancelación automática silenciosa | Pendiente → `ROADMAP.md` R1 |
@@ -2081,3 +2081,116 @@ borrados las dos veces.
 `tsc` y `eslint` limpios. Sin migración — cambia comportamiento de
 `guardarAsistencia`/`cargarPadron`, ya en producción. **PASADO A PRODUCCIÓN el
 2026-09-17**, con el OK explícito de Javier, `main` `78e19a8`.
+
+## C2 — Disponibilidad + reserva mínima de sala · 2026-09-17 (dev)
+
+Sigue a C1 en la cola C1→C5 (`DECISIONES.md` §1.b). **No es la venta de
+particulares/alquiler** (eso es C3, con diseño propio pendiente para "elegir
+fecha y hora al vender") — es la pieza más chica que ya resuelve el pedido
+urgente de Natalia: ver qué ocupa la sala un día dado y poder bloquearla sin
+venta detrás (D7). Sin grilla visual: eso es C4, pasa por Design.
+
+**Pantalla propia, separada de Administración** (corregido el mismo día,
+2026-09-17). La primera versión la metió como pestaña dentro de
+`administracion/sala`; Javier la corrigió: *"no me resulta útil que esta
+pantalla deba ser accesible solo desde el contexto de administración... ver
+las actividades y disponibilidad de las salas, tomar asistencia, bloquear, y
+después reservar, es totalmente cotidiano"* — el horario base (patrón +
+excepciones) sí es administrativo y se toca poco, así que se queda donde
+estaba. La disponibilidad pasó a `/sala`, ítem propio en el grupo **Gestión**
+del menú (junto a "Tomar asistencia"), y ahora muestra **todas las salas
+activas a la vez** con una sola fecha compartida arriba — no una por vez con
+selector, porque lo que se mira a diario es la foto completa. Reusa el mismo
+permiso `sala` (ver/editar) y las mismas 3 server actions, movidas a
+`src/app/(privado)/sala/acciones.ts`.
+
+**Bug encontrado por Javier probando, corregido el mismo día:** "Cancelar" no
+hacía nada. Usaba el `confirm()` nativo del navegador — al hacer clic en
+"Cancelar" (el botón de la pantalla) aparecía el diálogo del sistema con sus
+propios botones "Aceptar"/"Cancelar", fácil de confundir con el que lo
+disparó; tocar el "Cancelar" del diálogo abortaba la acción sin avisar nada.
+Reemplazado por un panel de confirmación en pantalla (mismo patrón que ya usa
+el resto de la app), con su mensaje de resultado pegado a la lista en vez de
+lejos, junto a otro formulario.
+
+**Segunda reincidencia del mismo bug, corregida el mismo día — ver
+[[feedback-formularios-post-accion]].** Javier, probando de nuevo: *"al grabar
+un bloqueo, el formulario muestra el mensaje 'reserva cancelada' de antes por
+la anterior prueba, y al grabar muestra 'Bloqueo registrado' pero permanece en
+modo edición e invitando a volver a grabar. Esto ya pasó antes, estás
+cometiendo el mismo error. No puede volver a repetirse."* Causa: `errForm/
+msgForm` (bloquear) y `errCancelar/msgCancelar` (cancelar) eran dos pares de
+estado separados, y ninguno se limpiaba al arrancar la acción contraria — y
+`confirmarBloqueo` nunca colapsaba `mostrarForm` tras el éxito, el mismo
+patrón que "Guardar horario" en C1 (2026-09-16). Se unificaron en un solo
+`aviso` por tarjeta de sala, limpiado en los 4 puntos de entrada (abrir el
+formulario, confirmar bloqueo, pedir cancelación, confirmar cancelación), y
+`confirmarBloqueo` ahora colapsa el formulario al tener éxito. Verificado en
+dev reproduciendo la secuencia exacta que reportó Javier (cancelar algo,
+después grabar un bloqueo nuevo): sin mensaje residual, formulario colapsado.
+
+**Migración 0040** (aditiva): agrega `glosa` y `notas` a `reservas_sala` — la
+0035 había modelado `motivo` pero no estos dos campos que Javier ya había
+definido el 2026-09-12 (`DECISIONES.md` §1.b: "el motivo se elige de una lista
+y el responsable o la aclaración van en un campo glosa abierto" + notas para
+"el asistente coordinador de la sala").
+
+**`src/lib/sala.ts`** suma `ocupacionDeReservas`, `ocupacionDelDia`,
+`tramosLibres` y `describirTramos` — se combinan con lo que ya existía
+(`ocupacionDeCursos`, `dentroDelHorario`, `choquesCon`, `ventanasDelDia`), no se
+reescribe nada.
+
+**Solo se puede reservar tipo `bloqueo`.** Sin ventas de particulares/alquiler
+todavía, es la única reserva que puede existir en `reservas_sala`. El motivo se
+elige de un `<select>` del catálogo `motivo_bloqueo_sala` y se revalida en el
+servidor (regla de calidad 6); el choque se valida en código antes de insertar
+—para poder nombrar con qué choca— con el `EXCLUDE` de la base como cinturón de
+seguridad si hay una carrera. Cancelar pasa `estado` a `cancelada`, nunca hard
+delete.
+
+**Deuda anotada para C5** (no se resuelve acá): `calcularImpacto` (el que corre
+al guardar una excepción de horario) solo mira cursos regulares. Una excepción
+de cierre cargada después de un bloqueo podría taparlo sin aviso — el `EXCLUDE`
+no lo cubre porque una excepción no es fila de `reservas_sala`. Queda para
+ROADMAP R1.
+
+### Permisos: quién ve/opera la disponibilidad (2026-09-17)
+
+Javier confirmó que Asistente debería poder bloquear/cancelar y que Profesor
+debería poder ver la disponibilidad — pero con una distinción importante que
+dio él mismo: *"nada debe ser hardcodeado, salvo que tomemos a asistente como
+un usuario-sistema, similar al caso de administrador y profesor"*.
+
+- **Profesor** (`roles.es_sistema = true`, como Administrador — nace en la
+  0001, es parte del diseño base del producto): **migración 0041**, aditiva,
+  le da `sala.ver = true` por `clave = 'profesor'` (no por id). Aplicada en
+  dev. Ve la disponibilidad, no puede bloquear ni cancelar.
+- **Asistente** y **Gerente** (`es_sistema = false`: roles que Javier crea y
+  configura él mismo desde Roles y Permisos, no un dato que el producto deba
+  decidir por él): **no se tocan por migración**. El módulo `sala` ya está en
+  la matriz editable (`MODULOS` en `src/lib/tipos.ts`, desde la 0038) con sus
+  4 acciones — activar `sala.editar` para Asistente es un clic en **Roles y
+  Permisos**, no un cambio de código. Al momento de cerrar C2, Asistente sigue
+  con `ver = true` / `editar = false` (lo que ya tenía); Javier lo ajusta
+  cuando quiera desde la pantalla.
+
+### Verificado en dev
+
+Probado contra el horario real de Tropicana y los 2 cursos de la sala
+principal ese día (Zumba, Contemporáneo, Bachata Conexión): día cerrado por
+excepción (feriado del 24/09, ya cargado) muestra "La sala no abre este día
+(Feriado · Independencia de Santa Cruz)"; bloqueo que choca con un curso
+rechaza con "choca con Zumba (18:30 → 19:30)"; bloqueo en el tramo libre
+21:30–22:30 se crea, aparece en la lista con motivo/glosa/notas, y el tramo
+libre se recalcula; cancelar lo deja en `estado='cancelada'` (verificado por
+SQL, no se borró) y libera el horario en la lista. Re-verificado después de
+mover la pantalla a `/sala` (multi-sala) y de arreglar "Cancelar": bloquear y
+cancelar probados de nuevo ahí, mismo resultado. `tsc`/`eslint` limpios en
+todo el proyecto.
+
+### Estado
+
+**Solo en dev** (migración 0040 aplicada en `hyhijzuomqpylcmrzdvw`). Pendiente
+de que Javier lo pruebe y dé el OK explícito para producción (regla de proceso
+1). Sin mockup — construido Código v1, como el resto de la cola C1→C5; Design
+refina si Javier lo pide.

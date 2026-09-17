@@ -93,6 +93,11 @@ export default function BarraLateral({
           mostrar: puedeAsistencia,
         },
         {
+          href: "/sala",
+          etiqueta: "Disponibilidad de sala",
+          mostrar: puedeSala,
+        },
+        {
           href: "/alumnos",
           etiqueta: "Alumnos",
           mostrar: puedeAlumnos,

@@ -395,6 +395,101 @@ export function describirVentanas(ventanas: Ventana[]): string {
   return ventanas.map((v) => `${v.desde}–${v.hasta}`).join(" y ");
 }
 
+/** Lo mínimo de una fila de `reservas_sala` para saber que ocupa la sala (C2). */
+export type ReservaSalaOcupa = {
+  id: number;
+  tipo: TipoOcupacion;
+  hora: string;
+  duracion_min: number;
+  motivo: string | null;
+  glosa: string | null;
+};
+
+/**
+ * Las reservas reales (particular/alquiler/bloqueo) de `reservas_sala` como
+ * bloques ocupados, con el mismo tipo `BloqueOcupado` que ya usan los cursos.
+ *
+ * Hoy solo puede llegar `tipo: 'bloqueo'` — C3 (venta de particulares/alquiler)
+ * todavía no existe, así que no hay filas de los otros dos tipos que leer. Ya
+ * sabe etiquetarlos para no tener que tocar esta función cuando C3 exista: ahí
+ * va a hacer falta ampliar el JOIN que arma cada fila (nombre del alumno o del
+ * comprador), no esta función.
+ */
+export function ocupacionDeReservas(
+  reservas: ReservaSalaOcupa[],
+  /** Cómo se lee el motivo del catálogo `motivo_bloqueo_sala`. */
+  etiquetaMotivo?: (valor: string) => string
+): BloqueOcupado[] {
+  return reservas.map((r) => ({
+    tipo: r.tipo,
+    hora: r.hora.slice(0, 5),
+    duracionMin: r.duracion_min,
+    etiqueta:
+      r.tipo === "bloqueo"
+        ? etiquetaMotivo?.(r.motivo ?? "") ?? r.motivo ?? "Bloqueo"
+        : r.tipo === "particular"
+          ? "Clase particular"
+          : "Alquiler de sala",
+    detalle: r.glosa,
+  }));
+}
+
+/**
+ * Todo lo que ocupa una sala una fecha dada: cursos regulares + reservas
+ * reales, en una sola lista ordenada por hora. Es la lista textual que pide
+ * Javier para C2 — no reemplaza `ocupacionDeCursos`, la combina con
+ * `ocupacionDeReservas`.
+ */
+export function ocupacionDelDia(
+  cursos: CursoOcupa[],
+  reservas: ReservaSalaOcupa[],
+  fechaISO: string,
+  cursosSuspendidos: Set<number>,
+  salaId: number,
+  etiquetaMotivo?: (valor: string) => string
+): BloqueOcupado[] {
+  const deCursos = ocupacionDeCursos(cursos, fechaISO, cursosSuspendidos, salaId);
+  const deReservas = ocupacionDeReservas(reservas, etiquetaMotivo);
+  return [...deCursos, ...deReservas].sort(
+    (a, b) => (aMinutos(a.hora) ?? 0) - (aMinutos(b.hora) ?? 0)
+  );
+}
+
+export type Tramo = { desde: string; hasta: string };
+
+/**
+ * Los huecos libres dentro de las ventanas de apertura, descontando lo
+ * ocupado. Un bloque que empieza antes de la ventana o termina después se
+ * recorta a la ventana — lo que importa acá es qué queda libre para reservar,
+ * no el bloque completo.
+ */
+export function tramosLibres(ventanas: Ventana[], ocupados: BloqueOcupado[]): Tramo[] {
+  const libres: Tramo[] = [];
+  for (const v of ventanas) {
+    const finVentana = aMinutos(v.hasta) ?? 0;
+    let cursor = aMinutos(v.desde) ?? 0;
+    const dentro = ocupados
+      .map((o) => {
+        const ini = aMinutos(o.hora) ?? 0;
+        return { ini, fin: ini + o.duracionMin };
+      })
+      .filter((o) => o.ini < finVentana && o.fin > cursor)
+      .sort((a, b) => a.ini - b.ini);
+    for (const o of dentro) {
+      if (o.ini > cursor) libres.push({ desde: aHora(cursor), hasta: aHora(Math.min(o.ini, finVentana)) });
+      cursor = Math.max(cursor, o.fin);
+    }
+    if (cursor < finVentana) libres.push({ desde: aHora(cursor), hasta: aHora(finVentana) });
+  }
+  return libres;
+}
+
+/** "09:00–11:00 y 12:30–20:00", o "sin huecos libres" — el resto del día de un vistazo. */
+export function describirTramos(tramos: Tramo[]): string {
+  if (!tramos.length) return "sin huecos libres";
+  return tramos.map((t) => `${t.desde}–${t.hasta}`).join(" y ");
+}
+
 /** "Salsa Inicial (19:00 → 20:00)" — para nombrar el choque en un mensaje. */
 export function describirBloque(b: BloqueOcupado): string {
   const ini = aMinutos(b.hora) ?? 0;

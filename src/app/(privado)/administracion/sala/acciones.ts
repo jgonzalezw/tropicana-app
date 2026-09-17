@@ -16,12 +16,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { tienePermiso, obtenerPerfilActual, obtenerParametro } from "@/lib/sesion";
 import { aMinutos } from "@/lib/horarios";
 import { COLS_VIGENCIA } from "@/lib/vigencia";
-import {
-  clasesAfectadasPorCierre,
-  type ClaseAfectada,
-  type CursoOcupa,
-  type MembresiaCobertura,
-} from "@/lib/sala";
+import { clasesAfectadasPorCierre, type ClaseAfectada, type CursoOcupa, type MembresiaCobertura } from "@/lib/sala";
 import { ejecutarSuspension, validarFecha } from "../../asistencia/acciones";
 import { fechaLarga } from "@/lib/inscripcion";
 
