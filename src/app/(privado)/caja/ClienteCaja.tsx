@@ -105,9 +105,12 @@ export default function ClienteCaja({
   }
 
   const porCobrar = lineas.reduce((t, l) => t + l.saldo, 0);
-  // Los saldos negativos (plata pagada de mas) restan del total, que es lo que
-  // de verdad hay que desembolsar.
-  const totalPorPagar = porPagar.reduce((t, l) => t + l.saldo, 0);
+  // **El total es lo que hay que desembolsar**: solo las líneas a favor del
+  // profesor. Un saldo negativo (descuento por reemplazo, plata pagada de más)
+  // no es plata que entra, así que restarlo del total escondería la liquidez
+  // real que hace falta. Se muestra aparte, debajo.
+  const totalPorPagar = porPagar.reduce((t, l) => t + Math.max(0, l.saldo), 0);
+  const totalACompensar = porPagar.reduce((t, l) => t + Math.min(0, l.saldo), 0);
   // Las deudas ya llegan ordenadas por antigüedad (`lineasPorCobrar`): acá solo
   // se parten en dos grupos, conservando ese orden dentro de cada uno.
   const hoy = hoyISO();
@@ -287,6 +290,13 @@ export default function ClienteCaja({
                 );
               })}
             </ul>
+          )}
+          {totalACompensar < 0 && (
+            <p className="text-xs text-[var(--texto-tenue)] mt-3 pt-3 border-t border-[var(--borde)]">
+              Aparte: <span className="tabular-nums font-medium">{gs(totalACompensar)}</span> a compensar
+              (descuentos por reemplazo y pagos de más). No está restado del total de arriba: no
+              reduce lo que hay que desembolsar, se aplica contra lo que esos profesores devenguen.
+            </p>
           )}
         </section>
 
