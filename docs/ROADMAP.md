@@ -54,6 +54,7 @@ Tamaño: **S** = un rato · **M** = un hito chico · **L** = un hito propio.
 | R4 | **Pago al reemplazante (D19).** A D17b le descuenta al titular lo que costó el reemplazo, pero no genera la contrapartida: al suplente se le paga de memoria. Ver **D19** en `DECISIONES.md`. **Destrabado el 2026-09-18**: R3 era su contenedor y ya existe, asi que ahora es agregar el concepto al saldo del profesor. | 2F | S |
 | R5 | ~~**Liquidaciones pendientes con pago parcial.**~~ **HECHO el 2026-09-18**: el saldo del profesor incluye los parciales, y se paga desde Caja o desde Liquidaciones por el mismo camino. | 2F | ~~M~~ |
 | R6 | **Arqueo / cierre de caja.** No existe. | 2F | M |
+| R27 | **Ver la composición del monto de un "Por pagar" antes de pagarlo.** Javier (2026-09-18): *"será muy útil poder ver el detalle de composición del monto a pagar por un registro por pagar antes de pagarlo, si el usuario lo requiere."* Hoy la línea de un profesor muestra solo su saldo ("Saldo de liquidaciones · N períodos"); falta un desplegable **opcional** que abra de qué está hecho: por período, devengado, ajustes (con su signo), descuentos, lo ya pagado y el neto — el mismo desglose de `cuenta.ts`. Con C3 se le suman las otras fuentes (particulares, talleres, alquiler) como más renglones. Se aplica igual a cualquier "Por cobrar" que después tenga composición. | 2F | S |
 | R7 | **Camino inverso del cobro** (anular o revertir un cobro asentado, dejando traza). Hoy no hay forma. | 2F | M |
 
 ## 3. Marco de roles y política (documento de Arquitectura, 12/09/2026)

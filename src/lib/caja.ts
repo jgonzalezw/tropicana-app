@@ -94,6 +94,18 @@ export function direccionDeBucket(bucket: Bucket): Direccion {
   return BUCKETS_DE_EGRESO.has(bucket) ? "egreso" : "ingreso";
 }
 
+/**
+ * Si un motivo de egreso salda el **saldo de liquidaciones** de un profesor.
+ *
+ * Solo la comisión. `otro_pago_profesor` cae en el mismo bucket pero es un
+ * concepto suelto —multa, bonificación, reintegro— que se resuelve entero en
+ * Caja: no acumula deuda ni reduce el saldo, así que no puede imputarse a una
+ * liquidación (frontera fijada por Javier, 2026-09-18).
+ */
+export function saldaLiquidacion(motivo: string | null): boolean {
+  return motivo === "comision_profesor";
+}
+
 /** Cómo se llama cada bucket cuando hay que decir "no hay saldos abiertos en…". */
 export const NOMBRE_BUCKET: Record<Bucket, string> = {
   cuotas: "cuotas de alumnos",

@@ -10,11 +10,23 @@ import {
   etiquetaMotivo,
   NOMBRE_BUCKET,
   politicaDeMotivo,
+  saldaLiquidacion,
   type ContextoMovimiento,
   type Direccion,
   type EntradaMovimiento,
   type LineaPendiente,
 } from "@/lib/caja";
+
+/**
+ * Cuánta plata mueve el paso de cobro. Con saldo de referencia es lo que baja
+ * el saldo (`total − saldo`); **sin referencia** —un movimiento suelto— `total`
+ * es 0 y esa resta daba siempre 0, así que "Escribí el monto" no dejaba
+ * guardar nunca. Ahí manda el monto tipeado.
+ */
+function plataQueMueve(p: PayloadCobro | null): number {
+  if (!p) return 0;
+  return p.referencia > 0 ? p.total - p.saldo : p.monto;
+}
 
 /**
  * Registrar un movimiento de caja (`Caja y resumen.dc.html`, "Movimiento de
@@ -111,11 +123,25 @@ export default function MovimientoCaja({
 
   const motivos = direccion === "ingreso" ? motivosIngreso : motivosEgreso;
   const bucket = bucketDeMotivo(motivo);
-  const politica = politicaDeMotivo(motivo);
+  // Un concepto suelto a un profesor (multa, bonificación…) comparte el bucket
+  // con la comisión pero **no salda su saldo de liquidaciones**: se elige a
+  // quién va, y el monto es libre. Sin esto, "Otros pagos a profesor" quedaba
+  // vinculado a una liquidación y topado por su saldo.
+  const suelto = bucket === "profesores" && !saldaLiquidacion(motivo);
+  const politica = suelto ? "simple" : politicaDeMotivo(motivo);
 
   const candidatas = useMemo(
-    () => (bucket ? lineas.filter((l) => l.bucket === bucket) : []),
-    [bucket, lineas]
+    () =>
+      bucket
+        ? lineas.filter(
+            (l) =>
+              l.bucket === bucket &&
+              // Una comisión solo se paga contra un saldo a favor del profesor:
+              // uno en cero o negativo (pagado de más) no es un acreedor.
+              !(bucket === "profesores" && saldaLiquidacion(motivo) && l.saldo <= 0)
+          )
+        : [],
+    [bucket, lineas, motivo]
   );
   const linea = fijo
     ? contexto!.linea
@@ -126,24 +152,29 @@ export default function MovimientoCaja({
   // pide fecha de compromiso cuando hay una cuota real de por medio.
   const pideCompromiso = linea?.cuotaId != null && pago != null && pago.saldo > 0;
 
-  function cambiarDireccion(d: Direccion) {
-    setDireccion(d);
-    setMotivo((d === "ingreso" ? motivosIngreso : motivosEgreso)[0] ?? "otro");
+  // Cambiar de dirección, motivo o sujeto es empezar otro movimiento: la glosa
+  // escrita para el anterior no se arrastra. (La sugerida vuelve sola cuando
+  // hay una línea resuelta.)
+  function reiniciarDetalle() {
     setClaveLinea("");
     setFechaCompromiso("");
+    setGlosa("");
     setGlosaTocada(false);
     setError(null);
   }
+  function cambiarDireccion(d: Direccion) {
+    setDireccion(d);
+    setMotivo((d === "ingreso" ? motivosIngreso : motivosEgreso)[0] ?? "otro");
+    reiniciarDetalle();
+  }
   function cambiarMotivo(m: string) {
     setMotivo(m);
-    setClaveLinea("");
-    setFechaCompromiso("");
-    setGlosaTocada(false);
-    setError(null);
+    reiniciarDetalle();
   }
   function cambiarLinea(clave: string) {
     setClaveLinea(clave);
     setFechaCompromiso("");
+    setGlosa("");
     setGlosaTocada(false);
     setError(null);
   }
@@ -151,11 +182,15 @@ export default function MovimientoCaja({
   // La línea viva que explica el efecto exacto sobre el saldo de esa persona.
   const efecto = (() => {
     if (!bucket) return "Este motivo no descuenta ninguna deuda: solo mueve la caja.";
+    if (suelto)
+      return linea
+        ? `Pago suelto a ${linea.sujeto}: no cambia su saldo de liquidaciones.`
+        : "Pago suelto: no cambia el saldo de liquidaciones de nadie.";
     if (!candidatas.length)
       return `No hay saldos abiertos en ${NOMBRE_BUCKET[bucket]}: el movimiento solo entra a la caja.`;
     if (!linea)
       return `Elegí el sujeto para descontar su saldo de ${NOMBRE_BUCKET[bucket]}.`;
-    const mueve = pago ? pago.total - pago.saldo : 0;
+    const mueve = plataQueMueve(pago);
     const queda = Math.max(0, linea.saldo - mueve);
     const desc = pago && pago.ajuste > 0 ? `, con ${gs(pago.ajuste)} de descuento` : "";
     return `${linea.sujeto} · ${linea.detalle}: ${gs(linea.saldo)} pendiente → queda ${gs(queda)}${
@@ -168,16 +203,16 @@ export default function MovimientoCaja({
   // de qué se trata (Javier, 2026-09-10). Solo cuando hay una línea resuelta:
   // los mensajes "elegí el sujeto"/"no hay saldos" no son una glosa útil.
   // Patrón de "ajustar estado en render" (mismo que usa Cobro.tsx), sin efecto.
-  const claveSugerencia = linea ? `${linea.clave}|${pago?.total ?? 0}|${pago?.saldo ?? 0}|${pago?.ajuste ?? 0}` : "";
+  const claveSugerencia = linea && !suelto ? `${linea.clave}|${pago?.total ?? 0}|${pago?.saldo ?? 0}|${pago?.ajuste ?? 0}` : "";
   const [claveSugerenciaPrevia, setClaveSugerenciaPrevia] = useState(claveSugerencia);
   if (claveSugerenciaPrevia !== claveSugerencia) {
     setClaveSugerenciaPrevia(claveSugerencia);
-    if (!glosaTocada && linea) setGlosa(efecto);
+    if (!glosaTocada && linea && !suelto) setGlosa(efecto);
   }
 
   async function guardar() {
     setError(null);
-    const mueve = pago ? pago.total - pago.saldo : 0;
+    const mueve = plataQueMueve(pago);
     const descuento = pago?.ajuste ?? 0;
     // Validaciones en el orden del handoff.
     if (mueve + descuento <= 0) return setError("Escribí el monto del movimiento.");
@@ -225,7 +260,11 @@ export default function MovimientoCaja({
   }
 
   const etiquetaSujeto = direccion === "ingreso" ? "¿A quién se le cobra?" : "¿A quién se le paga?";
-  const referenciaLabel = direccion === "ingreso" ? "Saldo pendiente" : "Saldo a pagar";
+  const referenciaLabel = suelto
+    ? "Sin saldo asociado"
+    : direccion === "ingreso"
+      ? "Saldo pendiente"
+      : "Saldo a pagar";
 
   return (
     <div className="rounded-[var(--radio-tarjeta)] bg-[var(--fondo-elevado)] border border-[var(--borde)] p-5 sm:p-6 space-y-4">
@@ -287,7 +326,9 @@ export default function MovimientoCaja({
 
           {bucket && candidatas.length > 0 && (
             <label className="block sm:col-span-2">
-              <span className="block text-base font-medium mb-1.5">{etiquetaSujeto}</span>
+              <span className="block text-base font-medium mb-1.5">
+                {suelto ? "¿A qué profesor?" : etiquetaSujeto}
+              </span>
               <select
                 value={claveLinea}
                 onChange={(e) => cambiarLinea(e.target.value)}
@@ -298,7 +339,7 @@ export default function MovimientoCaja({
                 </option>
                 {candidatas.map((l) => (
                   <option key={l.clave} value={l.clave}>
-                    {l.sujeto} · {l.detalle} · debe {gs(l.saldo)}
+                    {suelto ? l.sujeto : `${l.sujeto} · ${l.detalle} · debe ${gs(l.saldo)}`}
                   </option>
                 ))}
               </select>
@@ -351,14 +392,18 @@ export default function MovimientoCaja({
       <div className="rounded-[var(--radio-panel)] border border-[var(--borde)] bg-[var(--fondo-panel)] p-4">
         <Cobro
           sujeto={linea?.sujeto}
-          detalle={linea?.detalle}
-          referencia={linea?.saldo ?? 0}
+          detalle={suelto ? undefined : linea?.detalle}
+          referencia={suelto ? 0 : linea?.saldo ?? 0}
           referenciaLabel={referenciaLabel}
           politica={politica}
           direccion={direccion === "ingreso" ? "cobro" : "pago"}
           medios={medios}
           permitirSinCobro={false}
-          cuentaId={linea?.clave ?? `suelto:${direccion}:${motivo}`}
+          cuentaId={
+            suelto
+              ? `suelto:${direccion}:${motivo}:${linea?.clave ?? ""}`
+              : linea?.clave ?? `suelto:${direccion}:${motivo}`
+          }
           onChange={setPago}
         />
 

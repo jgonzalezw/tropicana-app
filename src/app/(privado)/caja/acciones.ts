@@ -5,7 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { obtenerPerfilActual, tienePermiso } from "@/lib/sesion";
 import { registrarCobro } from "@/lib/cuentas";
 import { pagarAProfesor } from "../liquidaciones/acciones";
-import { etiquetaMotivo, type EntradaMovimiento } from "@/lib/caja";
+import { etiquetaMotivo, saldaLiquidacion, type EntradaMovimiento } from "@/lib/caja";
 import { gs } from "@/lib/inscripcion";
 
 /**
@@ -69,7 +69,10 @@ export async function registrarMovimiento(
   // pantalla de Liquidaciones. **Un solo camino a propósito**: si hubiera dos
   // formas de pagarle a un profesor podrían discrepar, y la diferencia recién
   // aparecería en el arqueo.
-  if (e.profesorId != null && e.direccion === "egreso") {
+  // **Solo la comisión.** Un pago suelto a un profesor (`otro_pago_profesor`:
+  // multa, bonificación…) cae más abajo: queda a su nombre pero no se imputa a
+  // ninguna liquidación ni mueve su saldo.
+  if (e.profesorId != null && e.direccion === "egreso" && saldaLiquidacion(e.motivo)) {
     // **Con centavos, no redondeado a entero.** El resto de la caja trabaja en
     // bolivianos enteros, pero un saldo de liquidación sale de un prorrateo y
     // casi nunca es redondo (11,68 · 353,19). Redondeándolo, pagar el saldo
@@ -100,6 +103,8 @@ export async function registrarMovimiento(
     descuento_motivo: descuento > 0 ? e.descuentoMotivo.trim() || null : null,
     glosa: e.glosa.trim(),
     fecha_efectiva: e.fechaEfectiva,
+    // A quién se le pagó, si se eligió; sin liquidacion_id: no salda ninguna.
+    profesor_id: e.direccion === "egreso" ? e.profesorId : null,
     registrado_por: perfil?.id ?? null,
   });
   if (errPago) return { error: "No se pudo registrar el movimiento: " + errPago.message };

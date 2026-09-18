@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import MovimientoCaja from "@/components/MovimientoCaja";
@@ -82,11 +82,20 @@ export default function ClienteCaja({
   );
   const panel = useRef<HTMLDivElement>(null);
 
+  // El panel está arriba de la lista: sin desplazarse el click no parece hacer
+  // nada. Se hace en un efecto, cuando el panel ya está montado — un
+  // `requestAnimationFrame` disparado en el mismo click podía correr antes de
+  // que React lo pintara, y "Por pagar" (más abajo en la página) quedaba sin
+  // moverse. El contador permite volver a desplazar con la misma línea.
+  const [desplazar, setDesplazar] = useState(0);
+  useEffect(() => {
+    if (desplazar > 0) panel.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [desplazar]);
+
   function cobrarLinea(l: LineaPendiente) {
     setLineaElegida(l);
     setAbierto(true);
-    // El panel está arriba de la lista: sin esto el click no parece hacer nada.
-    requestAnimationFrame(() => panel.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    setDesplazar((n) => n + 1);
   }
 
   const porCobrar = lineas.reduce((t, l) => t + l.saldo, 0);
@@ -227,8 +236,8 @@ export default function ClienteCaja({
             <ul className="divide-y divide-[var(--borde)]">
               {porPagar.map((l) => {
                 const aFavorDeTropicana = l.saldo < 0;
-                return (
-                  <li key={l.clave} className="py-2.5 flex items-baseline justify-between gap-3">
+                const contenido = (
+                  <>
                     <div className="min-w-0">
                       <div className="text-base font-medium">{l.sujeto}</div>
                       <div className="text-sm text-[var(--texto-tenue)]">
@@ -237,23 +246,34 @@ export default function ClienteCaja({
                         {l.saldo === 0 && " · sin saldo"}
                       </div>
                     </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                      <span
-                        className={`tabular-nums font-semibold ${
-                          aFavorDeTropicana ? "text-[var(--peligro-texto)]" : ""
-                        }`}
+                    <span
+                      className={`shrink-0 tabular-nums font-semibold ${
+                        aFavorDeTropicana ? "text-[var(--peligro-texto)]" : ""
+                      }`}
+                    >
+                      {gs(l.saldo)}
+                    </span>
+                  </>
+                );
+                // Igual que "Por cobrar": la fila entera lleva al movimiento.
+                // Solo si hay algo que pagar; un saldo en cero o negativo no
+                // se paga, se compensa.
+                return (
+                  <li key={l.clave}>
+                    {puedeRegistrar && l.saldo > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => cobrarLinea(l)}
+                        title={`Pagar a ${l.sujeto}`}
+                        className="w-full text-left py-2.5 px-2 -mx-2 flex items-baseline justify-between gap-3 rounded-[var(--radio-control)] hover:bg-[var(--fondo-elevado)]"
                       >
-                        {gs(l.saldo)}
-                      </span>
-                      {puedeRegistrar && l.saldo > 0 && (
-                        <button
-                          onClick={() => cobrarLinea(l)}
-                          className="px-3 py-1.5 text-sm rounded-[var(--radio-control)] border border-[var(--borde)] hover:border-[var(--primario)]"
-                        >
-                          Pagar
-                        </button>
-                      )}
-                    </div>
+                        {contenido}
+                      </button>
+                    ) : (
+                      <div className="py-2.5 flex items-baseline justify-between gap-3">
+                        {contenido}
+                      </div>
+                    )}
                   </li>
                 );
               })}
