@@ -220,11 +220,13 @@ async function leerDatosMotor(
     "los cursos de las membresías"
   ) as DatosMotor["cursosDeMembresia"];
 
-  // 3. Ya devengado, para no reescribir ni duplicar (regla 12).
+  // 3. Ya devengado: contra esto se mide el delta. Van el `monto` y el
+  //    `periodo` porque un ajuste se compara en plata y entra como
+  //    complemento en el período de la comisión que corrige (0044).
   const comisionesPrevias = exigir(
     await sb
       .from("comisiones_devengadas")
-      .select("membresia_id, curso_id, profesor_id, base")
+      .select("id, membresia_id, curso_id, profesor_id, base, monto, tipo, periodo")
       .in("membresia_id", inscIds),
     "las comisiones ya devengadas"
   ) as DatosMotor["comisionesPrevias"];
@@ -536,34 +538,68 @@ export async function generarLiquidacion(profesorId: number): Promise<{ ok?: tru
     return { error: "No hay devengos pendientes para este profesor." };
   }
 
-  // Liquidación abierta del profesor en ese período, o nueva.
-  const { data: existente } = await a
-    .from("liquidaciones")
-    .select("id, estado")
-    .eq("profesor_id", profesorId)
-    .eq("periodo", periodo)
-    .eq("periodicidad", periodicidad)
-    .maybeSingle();
-
-  let liquidacionId: number;
-  if (existente) {
-    // Una liquidación ya pagada **acepta un complemento**: si aparece una
-    // membresía que en su momento no estaba (se registró tarde, se vendió
-    // retroactiva), su comisión se agrega y la liquidación vuelve a quedar con
-    // saldo. No se reescribe nada de lo que ya se pagó — se suma lo nuevo.
-    liquidacionId = existente.id as number;
-  } else {
-    const { data: nueva, error } = await a
+  /**
+   * La liquidación del profesor para un período: la que exista o una nueva.
+   *
+   * **Una liquidación ya pagada acepta un complemento** y eso es deliberado:
+   * si aparece una membresía que en su momento no estaba (se vendió
+   * retroactiva) o el recálculo de una que ya devengó da otro número, lo nuevo
+   * se agrega y la liquidación vuelve a quedar con saldo. No se reescribe nada
+   * de lo ya pagado — se suma el delta. *(Javier, 2026-09-18.)*
+   */
+  const cache = new Map<string, number>();
+  async function liquidacionDe(periodoDestino: string): Promise<number | { error: string }> {
+    const ya = cache.get(periodoDestino);
+    if (ya != null) return ya;
+    const { data: existente } = await a
       .from("liquidaciones")
-      .insert({ profesor_id: profesorId, periodo, periodicidad, estado: "abierta" })
       .select("id")
-      .single();
-    if (error) return { error: error.message };
-    liquidacionId = nueva.id as number;
+      .eq("profesor_id", profesorId)
+      .eq("periodo", periodoDestino)
+      .eq("periodicidad", periodicidad)
+      .maybeSingle();
+    let id: number;
+    if (existente) id = existente.id as number;
+    else {
+      const { data: nueva, error } = await a
+        .from("liquidaciones")
+        .insert({ profesor_id: profesorId, periodo: periodoDestino, periodicidad, estado: "abierta" })
+        .select("id")
+        .single();
+      if (error) return { error: error.message };
+      id = nueva.id as number;
+    }
+    cache.set(periodoDestino, id);
+    return id;
   }
 
-  // Devengar cada membresía pendiente y crear el ítem.
+  const liquidacionId = await liquidacionDe(periodo);
+  if (typeof liquidacionId !== "number") return liquidacionId;
+
+  // Devengar cada pendiente y crear su ítem.
+  //
+  // **Un ajuste va al período de la comisión que corrige**, no al mes vencido:
+  // es la misma plata de aquel mes, que se recalculó. Por eso cada pendiente
+  // dice a qué período pertenece y la liquidación destino se resuelve por ahí.
   for (const p of pendientes) {
+    const destino = await liquidacionDe(p.periodo ?? periodo);
+    if (typeof destino !== "number") return destino;
+    const esAjuste = p.tipo === "ajuste";
+
+    // La glosa tiene que dejar auditar el reparto sin abrir el código: de
+    // cuánto se partió, qué parte le tocó a este curso y por qué.
+    const detalleReparto =
+      (p.base !== p.cobradoTotal && !esAjuste
+        ? ` — parte de ${p.cobradoTotal} cobrado, a prorrata por ${p.clases} ${
+            p.clases === 1 ? "clase" : "clases"
+          }${p.personas > 1 ? ` x ${p.personas} personas` : ""}`
+        : "") +
+      // El curso lo dictó más de uno: sin esto, la base parece mal calculada
+      // contra la parte del curso que muestra el reparto.
+      (p.clases !== p.clasesDelCurso && !esAjuste
+        ? ` — ${p.clases} de las ${p.clasesDelCurso} clases del curso (cambio de titular en el ciclo)`
+        : "");
+
     const { data: com, error: errCom } = await a
       .from("comisiones_devengadas")
       .insert({
@@ -571,40 +607,34 @@ export async function generarLiquidacion(profesorId: number): Promise<{ ok?: tru
         membresia_id: p.membresiaId,
         curso_id: p.cursoId,
         criterio: 1,
-        periodo,
-        tipo: "comision",
+        periodo: p.periodo ?? periodo,
+        tipo: esAjuste ? "ajuste" : "comision",
+        ajusta_comision_id: p.ajustaComisionId ?? null,
         base: p.base,
         monto: p.monto,
         // Foto del reparto: el comprobante la lee en vez de recalcular, para
         // que el mismo papel diga siempre lo mismo (regla 12).
         reparto: p.reparto.length > 1 ? p.reparto : null,
-        // La glosa tiene que dejar auditar el reparto sin abrir el código: de
-        // cuánto se partió, qué parte le tocó a este curso y por qué.
-        origen:
-          `Criterio 1: ${p.pct}% de ${p.base} (${p.curso} / ${p.alumno})` +
-          (p.base !== p.cobradoTotal
-            ? ` — parte de ${p.cobradoTotal} cobrado, a prorrata por ${p.clases} ${
-                p.clases === 1 ? "clase" : "clases"
-              }${p.personas > 1 ? ` x ${p.personas} personas` : ""}`
-            : "") +
-          // El curso lo dictó más de uno: sin esto, la base parece mal
-          // calculada contra la parte del curso que muestra el reparto.
-          (p.clases !== p.clasesDelCurso
-            ? ` — ${p.clases} de las ${p.clasesDelCurso} clases del curso (cambio de titular en el ciclo)`
-            : ""),
-        liquidacion_id: liquidacionId,
+        origen: esAjuste
+          ? `Ajuste por recálculo de la membresía (${p.curso} / ${p.alumno}): ` +
+            `${p.base >= 0 ? "faltaba" : "sobraba"} ${Math.abs(p.base)} de base, ` +
+            `${p.base >= 0 ? "se le suma" : "se le descuenta"} ${Math.abs(p.monto)}. ` +
+            `Lo ya liquidado no se reescribe: entra como complemento del período.`
+          : `Criterio 1: ${p.pct}% de ${p.base} (${p.curso} / ${p.alumno})` + detalleReparto,
+        liquidacion_id: destino,
       })
       .select("id")
       .single();
     if (errCom) return { error: "Falló devengar una comisión: " + errCom.message };
     await a.from("liquidacion_items").insert({
-      liquidacion_id: liquidacionId,
+      liquidacion_id: destino,
       comision_id: com.id,
       membresia_id: p.membresiaId,
-      descripcion:
-        `${p.alumno} — ${p.curso} (${p.pct}% de ${p.base})` +
-        (p.base !== p.cobradoTotal ? ` · parte de ${p.cobradoTotal}` : "") +
-        (p.clases !== p.clasesDelCurso ? ` · ${p.clases}/${p.clasesDelCurso} clases` : ""),
+      descripcion: esAjuste
+        ? `Ajuste · ${p.alumno} — ${p.curso} (recálculo de la membresía)`
+        : `${p.alumno} — ${p.curso} (${p.pct}% de ${p.base})` +
+          (p.base !== p.cobradoTotal ? ` · parte de ${p.cobradoTotal}` : "") +
+          (p.clases !== p.clasesDelCurso ? ` · ${p.clases}/${p.clasesDelCurso} clases` : ""),
       monto: p.monto,
     });
   }
@@ -629,7 +659,10 @@ export async function generarLiquidacion(profesorId: number): Promise<{ ok?: tru
       return { error: "Falló registrar un descuento: " + errDesc.message };
   }
 
-  await recomputarTotales(a, liquidacionId);
+  // Se recomputan TODAS las liquidaciones tocadas, no solo la del mes vencido:
+  // un ajuste pudo haber caído en un período anterior, y esa liquidación
+  // también cambió de total y de estado.
+  for (const id of new Set(cache.values())) await recomputarTotales(a, id);
   revalidatePath("/liquidaciones");
   return { ok: true, liquidacionId };
 }

@@ -22,6 +22,14 @@ export type ItemComprobante = {
   cobrado: number;
   pct: number;
   monto: number;
+  /**
+   * `'ajuste'` = corrige una comisión anterior de esta misma membresía, porque
+   * el recálculo dio otro número (0044). Viaja firmado y se muestra aparte: no
+   * es una segunda comisión, es la diferencia de la primera.
+   */
+  tipo?: string;
+  /** La glosa del cálculo. En un ajuste, explica qué lo motivó. */
+  origen?: string | null;
   /** Parte de lo cobrado que le tocó a ESTE curso (prorrata). */
   parte: number;
   /** Es una clase de prueba, no un ciclo regular. */
@@ -358,7 +366,10 @@ export default function Comprobante({ datos }: { datos: DatosComprobante }) {
    */
   const [vista, setVista] = useState<"completo" | "compacto">(datos.repartoPantalla);
   const hayAlgunReparto = datos.items.some(hayReparto);
-  const neto = Math.max(0, datos.totalDevengado - datos.totalDescuentos - datos.totalPagado);
+  // Puede dar negativo: un ajuste hacia abajo (0044) sobre una liquidación ya
+  // pagada deja plata pagada de más, y el comprobante tiene que decirlo en vez
+  // de mostrar cero (regla de calidad 1).
+  const neto = datos.totalDevengado - datos.totalDescuentos - datos.totalPagado;
 
   // Imprime SOLO el recibo: abre una ventana nueva con un documento limpio
   // (sin app shell) y dispara la impresion. Evita la pagina en blanco que
@@ -470,6 +481,35 @@ export default function Comprobante({ datos }: { datos: DatosComprobante }) {
         <div className="space-y-3 mb-4">
           {datos.items.map((it, i) => {
             const faltas = detalleFaltas(it);
+            // Un ajuste no es una comisión más: es la diferencia de una que ya
+            // se liquidó. Se muestra como tal —con su motivo— para que el
+            // profesor entienda por qué su liquidación cambió después de
+            // cobrada, en vez de ver dos líneas del mismo curso sin explicación.
+            const esAjuste = it.tipo === "ajuste";
+            if (esAjuste)
+              return (
+                <div
+                  key={i}
+                  className="border border-[var(--peligro)] rounded-[var(--radio-chico)] p-3"
+                >
+                  <div className="flex items-baseline justify-between gap-2">
+                    <div className="font-semibold text-[var(--peligro-texto)]">
+                      Ajuste por recálculo
+                    </div>
+                    <div className="text-sm text-[var(--texto-tenue)]">
+                      {it.alumno} · {it.curso}
+                    </div>
+                  </div>
+                  <p className="text-xs text-[var(--texto-tenue)] mt-1 leading-relaxed">
+                    {it.origen ??
+                      "La membresía se recalculó y el monto devengado cambió. Lo ya liquidado no se reescribe: esta línea es la diferencia."}
+                  </p>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2 text-sm">
+                    <Cifra etiqueta="Diferencia de base" valor={gs(it.parte)} />
+                    <Cifra etiqueta={`Comisión (${it.pct}%)`} valor={gs(it.monto)} fuerte />
+                  </div>
+                </div>
+              );
             return (
               <div key={i} className="border border-[var(--borde)] rounded-[var(--radio-chico)] p-3">
                 <div className="flex items-baseline justify-between gap-2">
@@ -564,8 +604,10 @@ export default function Comprobante({ datos }: { datos: DatosComprobante }) {
           )}
           <Fila etiqueta="Total pagado" valor={gs(datos.totalPagado)} />
           <div className="flex justify-between items-baseline pt-2">
-            <span className="titulo text-lg">Neto a pagar</span>
-            <span className="titulo text-2xl">{gs(neto)}</span>
+            <span className="titulo text-lg">{neto < 0 ? "Pagado de más" : "Neto a pagar"}</span>
+            <span className={`titulo text-2xl ${neto < 0 ? "text-[var(--peligro-texto)]" : ""}`}>
+              {neto < 0 ? `− ${gs(-neto)}` : gs(neto)}
+            </span>
           </div>
         </div>
 
@@ -611,6 +653,24 @@ function construirHTMLImpresion(d: DatosComprobante): string {
       const faltas = detalleFaltas(it);
       const desc = it.descuento > 0 ? `− ${gs(it.descuento)}` : gs(0);
       const descEtq = `Descuento${it.motivo ? ` (${esc(it.motivo)})` : ""}`;
+      // El ajuste va aparte también en el papel: es la diferencia de una
+      // comisión ya liquidada, no una comisión nueva (0044).
+      if (it.tipo === "ajuste")
+        return `
+        <div class="item">
+          <div class="item-top">
+            <span class="b">Ajuste por recálculo</span>
+            <span class="muted">${esc(it.alumno)} &middot; ${esc(it.curso)}</span>
+          </div>
+          <div class="small muted">${esc(
+            it.origen ??
+              "La membresía se recalculó y el monto devengado cambió. Lo ya liquidado no se reescribe: esta línea es la diferencia."
+          )}</div>
+          <div class="cifras">
+            <div><div class="k">Diferencia de base</div><div>${gs(it.parte)}</div></div>
+            <div><div class="k">Comisión (${it.pct}%)</div><div class="b">${gs(it.monto)}</div></div>
+          </div>
+        </div>`;
       return `
         <div class="item">
           <div class="item-top">
@@ -662,7 +722,9 @@ function construirHTMLImpresion(d: DatosComprobante): string {
       </table>`
     : "";
 
-  const neto = Math.max(0, d.totalDevengado - d.totalDescuentos - d.totalPagado);
+  // Igual que en pantalla: un ajuste hacia abajo puede dejarlo negativo, y el
+  // papel tiene que decir que se pagó de más (regla de calidad 1).
+  const neto = d.totalDevengado - d.totalDescuentos - d.totalPagado;
 
   return `<!doctype html><html lang="es"><head><meta charset="utf-8">
     <title>Comprobante de liquidación N° ${d.id}</title>
@@ -744,7 +806,7 @@ function construirHTMLImpresion(d: DatosComprobante): string {
         }
         ${filasPagos}
         <div class="row mt8"><span class="muted">Total pagado</span><span>${gs(d.totalPagado)}</span></div>
-        <div class="neto"><span class="b">Neto a pagar</span><span class="big">${gs(neto)}</span></div>
+        <div class="neto"><span class="b">${neto < 0 ? "Pagado de más" : "Neto a pagar"}</span><span class="big">${neto < 0 ? `− ${gs(-neto)}` : gs(neto)}</span></div>
       </div>
       <div class="firmas"><div>Firma profesor</div><div>Firma academia</div></div>
     </div></body></html>`;

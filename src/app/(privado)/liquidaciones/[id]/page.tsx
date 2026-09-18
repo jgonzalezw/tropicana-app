@@ -59,7 +59,7 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
 
   const [{ data: prof }, { data: comis }, { data: pagosLiq }, { data: descLiq }] = await Promise.all([
     sb.from("profesores").select("nombre, apellido, whatsapp").eq("id", liq.profesor_id).maybeSingle(),
-    sb.from("comisiones_devengadas").select("id, membresia_id, curso_id, profesor_id, base, monto, reparto").eq("liquidacion_id", liquidacionId).order("id"),
+    sb.from("comisiones_devengadas").select("id, membresia_id, curso_id, profesor_id, base, monto, reparto, tipo, origen").eq("liquidacion_id", liquidacionId).order("id"),
     sb.from("pagos").select("fecha, monto, medio, motivo").eq("tipo", "pago").eq("liquidacion_id", liquidacionId).order("fecha"),
     sb.from("descuentos_liquidacion").select("motivo, monto, origen").eq("liquidacion_id", liquidacionId).order("id"),
   ]);
@@ -73,6 +73,8 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
       monto: number;
       profesor_id: number;
       reparto: LineaReparto[] | null;
+      tipo: string;
+      origen: string | null;
     }[]) ?? [];
   const membresiaIds = [...new Set(comisiones.map((c) => c.membresia_id).filter((x): x is number => x != null))];
 
@@ -230,7 +232,13 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
       descuento: mid != null ? descPorInsc[mid] ?? 0 : 0,
       motivo: mid != null ? [...(motivosPorInsc[mid] ?? [])].join(", ") : "",
       cobrado: mid != null ? cobradoPorInsc[mid] ?? base : base,
-      pct: base > 0 ? Math.round((monto / base) * 100) : 0,
+      // `base !== 0`, no `base > 0`: un ajuste hacia abajo (0044) tiene base
+      // negativa, y con la comparación vieja su % salía 0 — el comprobante
+      // decía "Comisión (0%)" sobre una línea que sí tiene porcentaje.
+      pct: base !== 0 ? Math.round((monto / base) * 100) : 0,
+      /** `'ajuste'` = corrige una comisión anterior de esta misma membresía. */
+      tipo: c.tipo === "ajuste" ? "ajuste" : "comision",
+      origen: c.origen,
       monto,
       // Prorrata: `base` es la PARTE de este curso, no lo cobrado entero.
       parte: base,

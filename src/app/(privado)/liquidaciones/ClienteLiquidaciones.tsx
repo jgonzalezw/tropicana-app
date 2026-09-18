@@ -232,7 +232,17 @@ export default function ClienteLiquidaciones({
             <tbody>
               {liquidaciones.map((l) => {
                 // El neto resta también lo que se le descuenta (regla 20a).
-                const restante = Math.max(0, l.totalDevengado - l.totalDescuentos - l.totalPagado);
+                //
+                // **Puede dar negativo, y entonces hay que decirlo.** Desde que
+                // un recálculo puede emitir un ajuste hacia abajo (0044), una
+                // liquidación ya pagada puede terminar debiendo menos de lo que
+                // se le pagó: esa plata hay que recuperarla. Recortarlo a cero
+                // —como se hacía cuando un neto negativo era imposible— mostraba
+                // un pago de más como si estuviera todo saldado (regla de
+                // calidad 1: un saldo nunca se disfraza de cero).
+                const neto = l.totalDevengado - l.totalDescuentos - l.totalPagado;
+                const restante = Math.max(0, neto);
+                const pagadoDeMas = neto < 0 ? -neto : 0;
                 // Quedaron comisiones fuera de esta liquidación: o nunca
                 // entraron, o se dieron de baja porque alguien corrigió una
                 // clase del período (regla de negocio 16). Hay que regenerarla,
@@ -271,7 +281,16 @@ export default function ClienteLiquidaciones({
                       {l.totalDescuentos > 0 ? `− ${gs(l.totalDescuentos)}` : "—"}
                     </td>
                     <td className="py-3 px-4 text-right">{gs(l.totalPagado)}</td>
-                    <td className="py-3 px-4 text-right font-bold">{gs(restante)}</td>
+                    <td className="py-3 px-4 text-right font-bold">
+                      {pagadoDeMas > 0 ? (
+                        <span className="text-[var(--peligro-texto)]">
+                          − {gs(pagadoDeMas)}
+                          <span className="block text-sm font-normal">pagado de más</span>
+                        </span>
+                      ) : (
+                        gs(restante)
+                      )}
+                    </td>
                     <td className="py-3 px-4">
                       <div className="flex flex-col items-end gap-2">
                         <div className="flex gap-2">

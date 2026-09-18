@@ -362,7 +362,18 @@ test("11. una membresía retroactiva devenga la suya y no mueve la de otro alumn
         { cuota_id: 2, monto: 400, descuento: 0 },
       ],
       // La #1 ya se liquidó y se pagó; la #2 es la que se inscribió tarde.
-      comisionesPrevias: [{ membresia_id: 1, curso_id: 1, profesor_id: 1, base: 400 }],
+      comisionesPrevias: [
+        {
+          id: 10,
+          membresia_id: 1,
+          curso_id: 1,
+          profesor_id: 1,
+          base: 400,
+          monto: 200,
+          tipo: "comision",
+          periodo: "2026-08-01",
+        },
+      ],
       alumnos: [
         { id: 1, nombre: "Ana", apellido: "Pérez" },
         { id: 2, nombre: "Luis", apellido: "Gómez" },
@@ -377,26 +388,88 @@ test("11. una membresía retroactiva devenga la suya y no mueve la de otro alumn
 
 // ── 12. El delta: lo que todavía NO existe ───────────────────────────────
 
-test(
-  "12. si el reparto de una membresía ya devengada cambia, se emite el delta",
-  { todo: "Fase 2: hoy el motor saltea la combinación ya devengada en vez de comparar" },
-  () => {
-    // La membresía se liquidó cuando el curso figuraba con 4 clases y el
-    // profesor se llevó 400. Después se registró tarde una clase con reemplazo
-    // administrativo: su parte ya no es de él, le corresponden 300.
-    const r = calcularDevengos(
-      datos({
-        comisionesPrevias: [{ membresia_id: 1, curso_id: 1, profesor_id: 1, base: 400 }],
-        sesiones: [
-          ...dictadas(1, LUNES.slice(0, 3)),
-          { curso_id: 1, fecha: LUNES[3], estado: "dictada", reemplazo_motivo: "administrativo" },
-        ],
-      }),
-      HASTA
-    );
-    // Lo correcto: un ajuste de −100, que se compensa reabriendo el período
-    // original como complemento. Lo pagado no se reescribe.
-    assert.equal(r.pendientes.length, 1, "tiene que emitir el ajuste");
-    assert.equal(r.pendientes[0].base, -100);
-  }
-);
+/** La comisión original de la membresía 1, curso 1, profesor 1: 400 base / 200 monto. */
+const YA_DEVENGADO = [
+  {
+    id: 10,
+    membresia_id: 1,
+    curso_id: 1,
+    profesor_id: 1,
+    base: 400,
+    monto: 200,
+    tipo: "comision",
+    periodo: "2026-08-01",
+  },
+];
+
+test("12. si el reparto de una membresía ya devengada cambia, se emite el delta", () => {
+  // La membresía se liquidó cuando el curso figuraba con 4 clases y el
+  // profesor se llevó 400. Después se registró tarde una clase con reemplazo
+  // administrativo: su parte ya no es de él, le corresponden 300.
+  const r = calcularDevengos(
+    datos({
+      comisionesPrevias: YA_DEVENGADO,
+      sesiones: [
+        ...dictadas(1, LUNES.slice(0, 3)),
+        { curso_id: 1, fecha: LUNES[3], estado: "dictada", reemplazo_motivo: "administrativo" },
+      ],
+    }),
+    HASTA
+  );
+  assert.equal(r.pendientes.length, 1, "tiene que emitir el ajuste");
+  const a = r.pendientes[0];
+  assert.equal(a.tipo, "ajuste");
+  assert.equal(a.base, -100, "le correspondían 300 y ya tenía 400");
+  assert.equal(a.monto, -50, "el 50% de esos 100");
+  assert.equal(a.periodo, "2026-08-01", "va al período de la comisión original, como complemento");
+  assert.equal(a.ajustaComisionId, 10, "y deja la traza de a cuál corrige");
+});
+
+test("12.b nada que ajustar cuando el recálculo da lo mismo", () => {
+  const r = calcularDevengos(datos({ comisionesPrevias: YA_DEVENGADO }), HASTA);
+  assert.deepEqual(r.pendientes, [], "no se emite un ajuste de cero");
+});
+
+test("12.c el delta también corrige hacia arriba", () => {
+  // Se habia liquidado con 400 de base; ahora al curso le corresponde mas
+  // porque el otro curso del plan dejo de poner clases.
+  const r = calcularDevengos(
+    datos({
+      comisionesPrevias: [{ ...YA_DEVENGADO[0], base: 300, monto: 150 }],
+    }),
+    HASTA
+  );
+  assert.equal(r.pendientes.length, 1);
+  assert.equal(r.pendientes[0].tipo, "ajuste");
+  assert.equal(r.pendientes[0].base, 100, "le faltaban 100");
+  assert.equal(r.pendientes[0].monto, 50);
+});
+
+test("12.d un cambio de titular sobre lo ya devengado no paga el curso dos veces", () => {
+  // El caso que el tope viejo resolvia dejando al segundo profesor sin cobrar:
+  // una comision vieja se llevo el curso entero y despues el calculo dice que
+  // lo dictaron dos. Ahora al primero le sale el ajuste hacia abajo y al
+  // segundo su comision — y el curso sigue sumando lo mismo.
+  const r = calcularDevengos(
+    datos({
+      comisionesPrevias: YA_DEVENGADO,
+      asignaciones: [
+        { id: 1, curso_id: 1, profesor_id: 1, pct_ingresos: 50, desde: "2026-01-01", hasta: "2026-08-12" },
+        { id: 2, curso_id: 1, profesor_id: 2, pct_ingresos: 50, desde: "2026-08-13", hasta: null },
+      ],
+    }),
+    HASTA
+  );
+  assert.equal(r.pendientes.length, 2);
+  const uno = r.pendientes.find((p) => p.profesorId === 1)!;
+  const dos = r.pendientes.find((p) => p.profesorId === 2)!;
+  assert.equal(uno.tipo, "ajuste");
+  assert.equal(uno.base, -200, "se queda con la mitad que sí dictó");
+  assert.equal(dos.tipo, "comision");
+  assert.equal(dos.base, 200);
+  assert.equal(
+    400 + uno.base + dos.base,
+    400,
+    "el curso sigue repartiendo exactamente lo mismo que ya se habia devengado"
+  );
+});

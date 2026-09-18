@@ -63,6 +63,22 @@ export type DevengoPendiente = {
   cursoId: number;
   alumno: string;
   curso: string;
+  /**
+   * `'comision'` la primera vez que esta (membresía, curso, profesor)
+   * devenga; `'ajuste'` cuando ya habia devengado y el recálculo da otra
+   * cosa. Un ajuste viaja **firmado**: positivo si hay que pagarle más,
+   * negativo si hay que descontarle.
+   */
+  tipo: "comision" | "ajuste";
+  /**
+   * Solo en los ajustes: el período de la comisión original. El ajuste entra
+   * ahí como complemento —reabriendo esa liquidación— en vez de caer en el
+   * mes vencido. Lo pagado no se reescribe; se le suma el delta.
+   * *(Javier, 2026-09-18.)*
+   */
+  periodo?: string;
+  /** Solo en los ajustes: la comisión que corrige (traza para el comprobante). */
+  ajustaComisionId?: number;
   base: number;
   pct: number;
   monto: number;
@@ -117,10 +133,16 @@ export type CursoDeMembresia = {
 };
 
 export type ComisionPrevia = {
+  id: number;
   membresia_id: number | null;
   curso_id: number | null;
   profesor_id: number;
   base: number;
+  monto: number;
+  /** `'comision'` la original, `'ajuste'` una corrección posterior (0044). */
+  tipo: string;
+  /** El período en que entró: el ajuste va al mismo, como complemento. */
+  periodo: string | null;
 };
 
 export type CuotaLiq = {
@@ -281,28 +303,34 @@ export function calcularDevengos(
   // devengó con el modelo anterior, por la membresía entera: esa membresía
   // queda afuera completa (regla 12: no se reescribe lo devengado).
   const devengadoEntero = new Set<number>();
-  // Por (membresía, curso, PROFESOR): desde que un curso puede repartirse entre
-  // dos profesores, la llave vieja por curso daba por devengado al segundo.
-  const devengadoCurso = new Set<string>();
   /**
-   * Cuánta plata del curso ya está devengada, sumando a todos sus profesores.
-   *
-   * Hace falta porque la liquidación se genera **de a un profesor por vez**: la
-   * llave por profesor sola no alcanza. Una comisión vieja, de cuando el curso
-   * se pagaba en una sola línea, tiene la parte ENTERA del curso; si después el
-   * cálculo nuevo dijera que hubo un segundo profesor, su línea se sumaría
-   * encima y el curso se pagaría de más. Con la suma se ve: lo que ya está
-   * devengado topea lo que todavía se puede devengar.
+   * Lo ya devengado por (membresía, curso, profesor): la comisión original
+   * **más los ajustes que ya se le hicieron**. Contra esta suma se mide el
+   * delta — por eso es un total y no una marca de "ya pasó por acá".
    */
-  const baseDevengadaCurso = new Map<string, number>();
+  const yaDevengado = new Map<string, { base: number; monto: number }>();
+  /** La comisión original de esa llave: a ella apunta el ajuste, y su período
+   *  es el que el ajuste tiene que complementar. */
+  const comisionOriginal = new Map<string, { id: number; periodo: string | null }>();
+  /** Qué profesores ya tienen algo devengado en cada (membresía, curso): si a
+   *  alguno ya no le corresponde, su delta es negativo y hay que emitirlo. */
+  const profesoresConDevengo = new Map<string, Set<number>>();
   for (const c of datos.comisionesPrevias) {
     if (c.membresia_id == null) continue;
-    if (c.curso_id == null) devengadoEntero.add(c.membresia_id);
-    else {
-      devengadoCurso.add(`${c.membresia_id}|${c.curso_id}|${c.profesor_id}`);
-      const k = `${c.membresia_id}|${c.curso_id}`;
-      baseDevengadaCurso.set(k, (baseDevengadaCurso.get(k) ?? 0) + Number(c.base));
+    if (c.curso_id == null) {
+      devengadoEntero.add(c.membresia_id);
+      continue;
     }
+    const k = `${c.membresia_id}|${c.curso_id}|${c.profesor_id}`;
+    const ya = yaDevengado.get(k) ?? { base: 0, monto: 0 };
+    ya.base += Number(c.base);
+    ya.monto += Number(c.monto);
+    yaDevengado.set(k, ya);
+    if (c.tipo !== "ajuste") comisionOriginal.set(k, { id: c.id, periodo: c.periodo });
+    const kc = `${c.membresia_id}|${c.curso_id}`;
+    const set = profesoresConDevengo.get(kc) ?? new Set<number>();
+    set.add(c.profesor_id);
+    profesoresConDevengo.set(kc, set);
   }
 
   // Cuotas y pagos → saldo y plata efectivamente cobrada por membresía.
@@ -511,29 +539,57 @@ export function calcularDevengos(
         sinAsignar > 0 ? (x.cent - lineas.reduce((t, l) => t + l.cent, 0)) / 100 : undefined,
     }));
 
+    // **El reparto se calcula como un objetivo absoluto, no como un
+    // incremento.** Para cada (curso, profesor) el motor dice cuánto le
+    // corresponde HOY; lo que se emite es la diferencia contra lo que ya se le
+    // devengó. Si nunca devengó, la diferencia es el total y sale como
+    // `comision`; si ya devengó y el número cambió, sale como `ajuste`
+    // firmado, que se complementa en el período de la comisión original.
+    //
+    // Esto reemplaza al tope que había acá antes. Aquel tope impedía pagarle
+    // al segundo profesor cuando una comisión vieja se había llevado el curso
+    // entero — pero lo hacía dejándolo sin cobrar. Con el objetivo absoluto el
+    // caso se resuelve solo: al primero le sale un ajuste negativo por lo que
+    // ya no le toca y al segundo su comisión, y el curso sigue sumando lo
+    // mismo. Lo pagado no se reescribe: se compensa.
     for (const { x, lineas } of repartoProf) {
-      if (x.peso <= 0) continue;
-      // Tope: nunca se puede devengar más que la parte del curso. Es lo que
-      // impide pagarle al segundo profesor sobre una comisión vieja que ya se
-      // llevó el curso entero (regla 12: lo devengado no se reescribe — pero
-      // tampoco se le suma encima).
-      let disponible = x.cent / 100 - (baseDevengadaCurso.get(`${m.id}|${x.ic.curso_id}`) ?? 0);
-      for (const l of lineas) {
-        if (devengadoCurso.has(`${m.id}|${x.ic.curso_id}|${l.profesorId}`)) continue;
-        const base = l.cent / 100;
-        if (base <= 0) continue;
-        if (base > disponible + 0.005) continue; // ya está pagado por otro
-        disponible -= base;
+      const objetivo = new Map<number, { base: number; pct: number; clases: number }>();
+      if (x.peso > 0)
+        for (const l of lineas)
+          objetivo.set(l.profesorId, { base: l.cent / 100, pct: l.pct, clases: l.clases });
+
+      // Los que hoy tienen parte, más los que ya tenían algo devengado: a esos
+      // últimos puede corresponderles un ajuste hacia abajo.
+      const enJuego = new Set<number>([
+        ...objetivo.keys(),
+        ...(profesoresConDevengo.get(`${m.id}|${x.ic.curso_id}`) ?? []),
+      ]);
+
+      for (const profesorId of enJuego) {
+        const k = `${m.id}|${x.ic.curso_id}|${profesorId}`;
+        const obj = objetivo.get(profesorId);
+        const ya = yaDevengado.get(k);
+        const baseObjetivo = obj?.base ?? 0;
+        const montoObjetivo = obj ? Math.round(baseObjetivo * obj.pct) / 100 : 0;
+        const base = Math.round((baseObjetivo - (ya?.base ?? 0)) * 100) / 100;
+        const monto = Math.round((montoObjetivo - (ya?.monto ?? 0)) * 100) / 100;
+        if (base === 0 && monto === 0) continue; // ya está al día
+
+        const esAjuste = ya != null;
+        const original = comisionOriginal.get(k);
         out.push({
           membresiaId: m.id,
-          profesorId: l.profesorId,
+          profesorId,
           cursoId: x.ic.curso_id,
           alumno: alNombre.get(m.alumno_id) ?? `#${m.alumno_id}`,
           curso: x.curso?.nombre ?? `#${x.ic.curso_id}`,
+          tipo: esAjuste ? "ajuste" : "comision",
+          periodo: esAjuste ? original?.periodo ?? undefined : undefined,
+          ajustaComisionId: esAjuste ? original?.id : undefined,
           base,
-          pct: l.pct,
-          monto: Math.round(base * l.pct) / 100,
-          clases: l.clases,
+          pct: obj?.pct ?? 0,
+          monto,
+          clases: obj?.clases ?? 0,
           // Cuántas clases puso el curso en total: sin esto no se entiende por
           // qué su base es menor que la parte del curso.
           clasesDelCurso: x.clases,
