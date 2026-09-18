@@ -394,6 +394,12 @@ select '19. membresias devengadas con clases sin registrar' as control,
 --     asignado durante el periodo liquidado. Lo devengado ANTES de la
 --     correccion puede seguir marcado: no se reescribe (regla 12). Lo que
 --     importa es que no aparezcan filas NUEVAS.
+--
+--     LOS AJUSTES QUEDAN FUERA (0044, 2026-09-18). Un ajuste es la
+--     diferencia de una comision que se recalculo, y el caso tipico es
+--     justamente el profesor que PERDIO la asignacion: se le devuelve lo
+--     que ya no le toca, con base negativa. Contarlo aca lo marcaria como
+--     sospechoso siendo que es la correccion, no el problema.
 -- ---------------------------------------------------------------------
 select '20. comisiones de un profesor sin la asignacion vigente en el periodo' as control,
        count(*) as n,
@@ -401,6 +407,7 @@ select '20. comisiones de un profesor sin la asignacion vigente en el periodo' a
   from public.comisiones_devengadas cd
   join public.inscripciones i on i.id = cd.membresia_id
  where cd.curso_id is not null
+   and cd.tipo <> 'ajuste'
    and not exists (
      select 1 from public.asignaciones a
       where a.curso_id = cd.curso_id
