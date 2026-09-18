@@ -6,7 +6,25 @@
 > `docs/design/README.md` (fuente de verdad del **diseño**), `docs/CONTEXTO_AVANCE.md`
 > (bitácora larga de Etapa 0), `docs/DESIGN_SYNC.md` (cómo entran los handoffs).
 >
-> **Última actualización:** 2026-09-17 — **C2 pasado a producción**, con el OK
+> **Última actualización:** 2026-09-17 — **Visibilidad "propio/todo" por rol y
+> módulo (migración 0043), en dev.** Javier: un Profesor con acceso a un módulo
+> veía TODO, no solo lo suyo (todos los cursos en Tomar Asistencia; si se le
+> habilitara Liquidaciones, todas — y por URL directa, cualquiera con el módulo
+> abierto podía ver el comprobante de otro profesor). Se descartó la primera
+> idea (cablear "si el rol no es admin/gerente/asistente, filtrá") porque
+> Javier señaló que eso pega más las claves de rol a la lógica — medido: la
+> única clave cableada en todo el código es `'administrador'`; `gerente`/
+> `asistente` no aparecen en ningún lado, y `eliminarRol` ya bloquea borrar un
+> rol con usuarios o `es_sistema`. En su lugar, una dimensión **configurable**
+> por (rol, módulo) en `rol_visibilidad`, sin cablear nada nuevo. Cubre
+> Asistencia (el profesor ve solo sus cursos asignados), Liquidaciones (solo
+> las propias, y cerrado el agujero de `/liquidaciones/<id>` por URL directa)
+> y Caja (el asistente ve/suma solo lo que él registró). Verificado en dev
+> con la cuenta real de Oscar Núñez. Gerente/Asistente quedan **configurables**
+> (no se convirtieron en roles de sistema). Detalle en el bloque **"Visibilidad
+> de datos propios (0043)"**. Pendiente el OK de Javier para producción.
+>
+> **2026-09-17 (antes)** — **C2 pasado a producción**, con el OK
 > explícito de Javier (*"avanza. ok"*, tras validar en dev y confirmar
 > corregidos dos bugs que encontró probando). Disponibilidad de sala + bloqueos
 > como pantalla operativa propia (`/sala`, grupo Gestión), separada de
@@ -2213,3 +2231,200 @@ error 500) — la verificación visual con sesión real la hace Javier.
 
 Sin mockup — construido Código v1, como el resto de la cola C1→C5; Design
 refina si Javier lo pide.
+
+---
+
+## El trigger de alta no copiaba el email a `perfiles` · 2026-09-17
+
+**Encontrado por Javier**: creó la cuenta de Oscar Núñez y después no podía
+ver con qué correo había quedado — ni en la lista de Usuarios ni editándolo.
+
+**Causa**: `perfiles.email` existe desde la 0001 como copia denormalizada de
+`auth.users.email` ("para buscar por email", según el comentario del tipo
+`Perfil`), pero el trigger `handle_new_user()` nunca la llenaba al crear el
+perfil. Quedaba en `NULL` siempre, aunque el correo sí estaba en Auth. La
+pantalla de Usuarios ya estaba lista para mostrarlo (`{perfil.email && (...)}`)
+— el dato simplemente nunca llegaba.
+
+**Migración 0042** (aditiva): corrige el trigger para que copie `new.email`, y
+hace backfill de las cuentas ya creadas leyendo `auth.users`. Se agregó además
+`actualizarEmail(id, email)` en `administracion/usuarios/acciones.ts` —
+actualiza `auth.users` y `perfiles.email` juntos (mismo patrón que
+`resetearContrasena`) — y un campo "Correo de acceso" editable en la ficha de
+usuario.
+
+**Medido en producción antes de aplicar**: el mismo trigger bugueado estaba
+ahí, pero sin síntoma porque los 3 usuarios existentes (Javier, Natalia,
+Jaime) se cargaron a mano en el setup inicial, antes de que existiera la
+pantalla de Usuarios — la próxima cuenta creada desde ahí habría caído en el
+mismo problema.
+
+### Estado
+
+**PASADO A PRODUCCIÓN el 2026-09-17**, con el OK explícito de Javier ("si
+pasala"). Migración 0042 aplicada en `pnvhpbxjbdmbktpwebtx` primero (sin
+backfill que hacer ahí: los 3 emails ya estaban completos), código en `main`
+`59356a3`, chip **PROD · #59356a3** confirmado. `tsc`/`eslint`/`npm run build`
+limpios.
+
+---
+
+## Visibilidad de datos propios (0043) · 2026-09-17 (dev)
+
+Javier, viendo la cuenta de Oscar Núñez: *"el profesor no puede ver datos que
+no son propios, ni de liquidaciones, ni de toma de asistencia, ni nada, aunque
+tenga acceso al módulo."* Medido: era cierto en las dos pantallas, y además el
+agujero era peor de lo que parecía en Liquidaciones — no solo el listado
+mostraba todo, la URL directa `/liquidaciones/<id>` no comparaba nada contra
+la sesión.
+
+### La corrección de rumbo que pidió Javier
+
+La primera idea —cablear `if (rol.clave !== 'administrador' && rol.clave !==
+'gerente' && rol.clave !== 'asistente') filtrar a lo propio`— la frenó Javier:
+*"los roles de gerente y asistente cada vez están quedando más cableados a la
+lógica del sistema."* Pidió confirmar el riesgo real de esos roles, y una
+opción de visibilidad configurable en vez de hardcodear.
+
+**Medido antes de decidir** (regla de calidad 3): grepeado todo `src/`, la
+única clave de rol cableada en la lógica es `'administrador'`
+(`src/lib/sesion.ts`, dashboard). `'gerente'`, `'asistente'` y `'comercial'`
+**no aparecen en ningún lado del código** — la app nunca ramifica por ellos.
+`eliminarRol` (`administracion/roles/acciones.ts`) ya bloquea borrar un rol
+`es_sistema=true` o con perfiles asignados; la FK `perfiles.rol_id` (0001, sin
+`on delete`) también lo bloquea a nivel de base. **Conclusión: eliminar
+Gerente/Asistente vacíos no rompe nada.** Javier decidió (2026-09-17):
+**dejarlos configurables**, no convertirlos en roles de sistema — el mecanismo
+nuevo ya elimina el riesgo, así que no hace falta "protegerlos" cableándolos.
+
+### Qué se construyó
+
+**Migración 0043**: tabla `rol_visibilidad (rol_id, modulo, alcance)` —
+`alcance` es `'propio'` o `'todo'`; **sin fila = `'todo'`** (retrocompatible:
+sin esta config, se ve como antes). RLS espejo de `rol_permisos`. Seed por
+`clave` de rol (dato, no lógica, mismo criterio que 0038/0041): Profesor →
+`asistencia`/`liquidaciones` = propio; Asistente → `caja` = propio.
+
+**`src/lib/sesion.ts`**: `alcanceDe(modulo)` (admin siempre `'todo'`; sin fila
+→ `'todo'`) y `obtenerProfesorActual()` — el "cuál es mi profesor" que no
+existía en ningún lado, resuelto por `profesores.usuario_id` (vínculo 1-a-1 ya
+existente desde la 0005, que nada usaba hasta ahora).
+
+**Enforcement**:
+- `asistencia/page.tsx` — con alcance propio, filtra `cursos` a las
+  asignaciones **vigentes** del profesor (`asignaciones.hasta is null`); sin
+  cuenta vinculada, un panel explica por qué no ve nada (regla de calidad 5),
+  nunca una lista vacía indistinguible de "no hay cursos".
+- `liquidaciones/acciones.ts` (`cargarLiquidaciones`) — filtra `profesores` y
+  `liquidaciones` a `profesor_id` propio.
+- `liquidaciones/[id]/page.tsx` — compara `liq.profesor_id` contra el
+  profesor de la sesión; si no coincide, `SinAcceso`. Cierra el agujero de la
+  URL directa (antes solo chequeaba el permiso de módulo, nunca la fila).
+- `caja/page.tsx` — con alcance propio, `.eq('registrado_por', perfil.id)` en
+  el libro de movimientos y en el cálculo del saldo. **"Por cobrar" no se
+  filtra**: la deuda de un alumno no es de un cajero, cualquiera que cobra
+  necesita verla completa.
+
+**Roles y Permisos** (`administracion/roles/`): `fijarVisibilidad(rol_id,
+modulo, alcance)` (mismo patrón que `alternarPermiso`) y un bloque nuevo
+"Visibilidad de datos" en `MatrizPermisos.tsx`, con un toggle Propio/Todo por
+cada módulo de `MODULOS_CON_ALCANCE = ['asistencia','liquidaciones','caja']`
+— agregar un módulo a esa constante es todo lo que hace falta para que gane
+la opción.
+
+### Alcance de esta ronda — lo que NO se construyó, a propósito
+
+La **consolidación de caja por el Gerente** (agrupar por cajero, arqueo) es la
+rebanada **2G** (`0quinquies`), anotada "sin diseño". Javier decidió esta
+ronda: aislar la caja del asistente sí, la vista consolidada del gerente
+queda para después, junto con su diseño.
+
+### Verificado en dev, con cuenta real
+
+Con Oscar Núñez (vinculado a su cuenta, única asignación vigente: Bachata
+Conexión):
+- **Tomar Asistencia**: el selector muestra únicamente Bachata Conexión —
+  antes mostraba todos los cursos activos.
+- **Liquidaciones** (habilitado el permiso de módulo solo para la prueba,
+  revertido después): la lista da vacía (no tiene liquidaciones propias) y
+  **`/liquidaciones/3`** (de Natalia Salek, por URL directa) da **Sin
+  acceso** — antes cualquiera con el módulo abierto la veía entera.
+- **Caja**: verificado por dato (no hay cuenta Asistente en dev todavía): 13
+  pagos registrados por Javier, 22 históricos sin `registrado_por`; un
+  asistente en `propio` vería únicamente los suyos.
+
+`tsc`, `eslint` y `npm run build` limpios en todo el proyecto.
+
+### Estado
+
+**Solo en dev.** Pendiente de que Javier lo pruebe y dé el OK explícito para
+producción (regla de proceso 1). Migración 0043 aditiva, no toca datos
+existentes.
+
+---
+
+## El mensaje de "clase congelada" no se notaba (sin migración) · 2026-09-17
+
+Javier, probando la visibilidad de liquidaciones: en Heels, 29/08, marcó a
+los 3 alumnos y guardó — *"primero pareció grabar pero el mensaje se quedó
+pegado y termino de confirmar."*
+
+**Medido antes de tocar nada** (regla de calidad 3): no había ninguna sesión
+guardada para esa clase, ni antes ni después. Reproducido el mismo escenario
+exacto (Heels, 29/08, mismos 3 alumnos): el guardado **rechaza**, correctamente,
+por la regla de negocio 16 — Palotes Multi, Perico tiene una membresía
+multi-curso cuya comisión ya se pagó, y esa clase la toca. El mensaje que
+Javier vio **no era un aviso informativo de que la liquidación se
+recalcularía**, era el rechazo. El bloqueo en sí está bien: no había ningún
+bug de lógica.
+
+**El bug real era de visibilidad**, en `ClienteAsistencia.tsx`: `guardar()`,
+`confirmarSuspension()` y `reabrir()` hacían `scrollTo({top:0})` solo en el
+camino de **éxito** — nunca en el de error. Un usuario mirando el botón
+"Guardar" en el pie fijo (más abajo) podía no ver el mensaje de rechazo,
+que aparecía arriba sin nada que lo señalara. Y el mensaje en sí era texto
+rojo simple (`<p>`), sin el panel con fondo que ya usa `errorPadron` en la
+misma pantalla para un error de otro tipo.
+
+**Corregido**: las tres funciones ahora hacen scroll también en el camino de
+error (helper `scrollArriba()`), y el mensaje pasó a panel con fondo/borde
+rojo y título **"No se guardó"** — mismo tratamiento visual que
+`errorPadron`, para que un rechazo no se pueda confundir con un aviso que
+se resuelve solo. Verificado en dev reproduciendo el escenario exacto de
+Javier (scroll hacia abajo, guardar, la pantalla sube sola al mensaje).
+`tsc`/`eslint` limpios.
+
+**Nota**: el mensaje ya dice qué hacer ("se hace con un ajuste con fecha de
+hoy"), pero no hay ningún enlace directo a esa acción desde esta pantalla —
+queda anotado como posible mejora si vuelve a ser un problema, no se tocó
+en esta pasada.
+
+**Javier corrigió el diagnóstico**: el problema de fondo no era que el
+mensaje no se notara — era que **el bloqueo en sí contradice la política ya
+definida** para una inscripción retroactiva que impacta una liquidación
+cerrada. *"Estás perdiendo de vista las decisiones que se tomaron en
+relación a las inscripciones retroactivas que afectan liquidaciones ya
+cerradas — pagadas."* El bloqueo duro debe seguir para Profesor/Asistente,
+pero un Gerente/Administrador con criterio debería poder confirmar y
+reliquidar, no chocar contra un muro. **Se definió la política completa**
+(autoridad, qué se reliquida, dónde entra el complemento) y **se anotó en
+`DECISIONES.md` como D21, backlog de alta prioridad**, con disparador
+explícito: se retoma después de completar el plan de ventas de particulares,
+alquileres y talleres. No se construye ahora — es más grande que un fix de
+UI (toca el congelador de la regla 16, el motor de complementos y el modelo
+de permisos). Mitigación inmediata acordada: achicar `asistencia_semanas_retro`
+al mínimo operable — el valor puntual quedó **sin decidir** (Javier prefirió
+dejarlo en 2 por ahora).
+
+**Regresión introducida por el propio fix del panel, corregida el mismo
+día**: al volver el error un panel prominente ("No se guardó"), quedó
+expuesto que el estado `error` nunca se limpiaba al cambiar de curso o de
+fecha — a diferencia de `aviso`, que sí. El mensaje de rechazo de una clase
+quedaba pegado en pantalla aunque el usuario mirara otra clase u otra fecha
+que no lo había generado. Javier: *"la exposición del mensaje, como lo has
+corregido, ahora se queda pegado aunque cambie de clase u otra fecha."*
+Corregido agregando `setError(null)` junto a `setAviso(null)` en
+`cambiarCurso` y en el `onChange` del `<select>` de fecha
+(`ClienteAsistencia.tsx`) — mismo criterio que ya regía para `aviso`: un
+aviso o un error son de la clase/fecha que se estaba mirando, y dejan de
+aplicar al cambiar de cualquiera de las dos. `tsc`/`eslint` limpios.
