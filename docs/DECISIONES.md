@@ -298,4 +298,4 @@ proceso 1). No es un backlog de decisiones: es el estado del release.
   la propia migración inserta (verificado activo). Medido antes: producción
   tenía **0** clases con reemplazo y 34 pagos, ninguno tocado; nada aparece como
   pagable hasta que se registre el primer reemplazo. `get_advisors` sin
-  hallazgos nuevos. `main` `816bd9c..` (ver `git log`).
+  hallazgos nuevos. `main` `816bd9c..929721a`.
