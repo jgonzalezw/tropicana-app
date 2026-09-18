@@ -5,10 +5,12 @@ import {
   sumarDiasISO,
   type ClienteAdmin,
 } from "@/lib/membresias";
-import { fechaClaseN } from "@/lib/inscripcion";
+import { fechaClaseN, gs } from "@/lib/inscripcion";
 import { obtenerParametro } from "@/lib/sesion";
 import type { CuotaCuenta, EntradaCobro, EstadoCuenta, MembresiaCuenta, PagoCuenta } from "@/lib/tipos";
 import type { LineaPendiente } from "@/lib/caja";
+import { exigir } from "@/lib/datos";
+import { saldoDeReemplazos, type ClaseReemplazo } from "@/lib/liquidacion/reemplazos";
 
 function hoyLocal(): Date {
   const d = new Date();
@@ -577,8 +579,8 @@ export async function registrarCobro(
  * esconderlo sería disfrazar una deuda de ausencia (regla de calidad 1).
  *
  * **El alcance, que importa no confundir**: esto es el saldo de LIQUIDACIONES
- * —comisiones de cursos regulares y pruebas, más el pago al reemplazante y el
- * descuento al reemplazado—. Los conceptos ad-hoc (multas, bonificaciones,
+ * —comisiones de cursos regulares y pruebas, y el descuento al reemplazado—.
+ * El pago al reemplazante NO va acá: es su propia línea (`lineasPorPagarReemplazos`). Los conceptos ad-hoc (multas, bonificaciones,
  * débitos y créditos de administración) se resuelven enteros en Caja y **no
  * entran acá**: por eso el detalle lo dice con todas las letras, y un pago con
  * motivo `otro_pago_profesor` no salda esta línea. *(Javier, 2026-09-18.)*
@@ -599,9 +601,11 @@ export async function lineasPorPagar(sb: ClienteLectura): Promise<LineaPendiente
       total_pagado: number;
       profesor: { id: number; nombre: string; apellido: string } | null;
     }[]) ?? [];
-  if (!filas.length) return [];
 
-  const porProfesor = new Map<number, { nombre: string; saldo: number; periodos: number }>();
+  const porProfesor = new Map<
+    number,
+    { nombre: string; saldo: number; periodos: number; porDescontar: number; clasesPorDescontar: number }
+  >();
   for (const f of filas) {
     if (!f.profesor) continue;
     const neto = num(f.total_devengado) - num(f.total_descuentos) - num(f.total_pagado);
@@ -609,27 +613,201 @@ export async function lineasPorPagar(sb: ClienteLectura): Promise<LineaPendiente
       nombre: `${f.profesor.apellido}, ${f.profesor.nombre}`,
       saldo: 0,
       periodos: 0,
+      porDescontar: 0,
+      clasesPorDescontar: 0,
     };
     ya.saldo += neto;
     ya.periodos += 1;
     porProfesor.set(f.profesor.id, ya);
   }
 
+  // Lo que se le va a descontar por haber faltado y tener reemplazo (regla 20a)
+  // y todavía no entró a ninguna liquidación. **Ya es plata que no se le debe**:
+  // si esperara al cierre del mes, hasta entonces se le podría pagar de más.
+  // Cuando la liquidación de ese mes lo incorpore, deja de estar "por
+  // descontar" y pasa a restar en su período — nunca cuenta dos veces.
+  const porDescontar = await cargarDescuentosPendientes(sb);
+  const sinLiquidaciones = [...porDescontar.keys()].filter((id) => !porProfesor.has(id));
+  if (sinLiquidaciones.length) {
+    const { data: profs } = await sb.from("profesores").select("id, nombre, apellido").in("id", sinLiquidaciones);
+    for (const p of (profs as { id: number; nombre: string; apellido: string }[]) ?? [])
+      porProfesor.set(p.id, {
+        nombre: `${p.apellido}, ${p.nombre}`,
+        saldo: 0,
+        periodos: 0,
+        porDescontar: 0,
+        clasesPorDescontar: 0,
+      });
+  }
+  for (const [id, d] of porDescontar) {
+    const v = porProfesor.get(id);
+    if (!v) continue;
+    v.porDescontar = d.monto;
+    v.clasesPorDescontar = d.clases;
+  }
+
   return [...porProfesor.entries()]
-    .map(([profesorId, v]) => ({
-      clave: `profesor:${profesorId}`,
-      bucket: "profesores" as const,
-      // No se imputa contra una cuota: el destino se resuelve por cuenta, al
-      // pagar, repartiendo entre los períodos del profesor.
+    .map(([profesorId, v]) => {
+      const partes = [
+        v.periodos > 0
+          ? `Saldo de liquidaciones · ${v.periodos} ${v.periodos === 1 ? "período" : "períodos"}`
+          : "Sin liquidaciones todavía",
+      ];
+      // "Pagado de más" es solo lo que ya salió de caja: un descuento por
+      // reemplazo que todavía no se aplicó es otra cosa y se dice aparte.
+      if (v.saldo < 0) partes.push("se le pagó de más");
+      if (v.porDescontar > 0)
+        partes.push(
+          `${gs(v.porDescontar)} por reemplazo de ${v.clasesPorDescontar} ${
+            v.clasesPorDescontar === 1 ? "clase" : "clases"
+          }, a descontar`
+        );
+      return {
+        clave: `profesor:${profesorId}`,
+        bucket: "profesores" as const,
+        // No se imputa contra una cuota: el destino se resuelve por cuenta, al
+        // pagar, repartiendo entre los períodos del profesor.
+        cuotaId: null,
+        sujetoTipo: "profesor" as const,
+        sujetoId: profesorId,
+        sujeto: v.nombre,
+        detalle: partes.join(" · "),
+        saldo: Math.round((v.saldo - v.porDescontar) * 100) / 100,
+        // Una liquidación no tiene fecha pactada de pago: no hay vencidas.
+        fechaLimite: null,
+        motivoSugerido: "comision_profesor",
+      };
+    })
+    .sort((a, b) => a.sujeto.localeCompare(b.sujeto, "es"));
+}
+
+/**
+ * Lo que se le va a descontar a cada titular por las clases que faltó y dictó
+ * un reemplazante (regla de negocio 20a), **y que todavía no entró a ninguna
+ * liquidación**. No es prorrateo: es la tarifa fija de esas clases, y se resta
+ * de la cuenta del titular. Sale de las mismas filas que la liquidación
+ * (`descuentos_liquidacion.sesion_id` marca las ya aplicadas).
+ */
+export async function cargarDescuentosPendientes(
+  sb: ClienteLectura | ClienteAdmin
+): Promise<Map<number, { monto: number; clases: number }>> {
+  const ses = exigir(
+    await sb
+      .from("sesiones")
+      .select("id, titular_id, reemplazo_costo")
+      .eq("estado", "dictada")
+      .eq("reemplazo_motivo", "titular")
+      .not("titular_id", "is", null)
+      .gt("reemplazo_costo", 0),
+    "las clases con reemplazo del titular"
+  ) as unknown as { id: number; titular_id: number; reemplazo_costo: number }[];
+  const salida = new Map<number, { monto: number; clases: number }>();
+  if (!ses.length) return salida;
+  const aplicados = new Set(
+    (
+      exigir(
+        await sb.from("descuentos_liquidacion").select("sesion_id").in("sesion_id", ses.map((x) => x.id)),
+        "los descuentos ya aplicados"
+      ) as { sesion_id: number | null }[]
+    )
+      .map((d) => d.sesion_id)
+      .filter((x): x is number => x != null)
+  );
+  for (const x of ses) {
+    if (aplicados.has(x.id)) continue;
+    const ya = salida.get(x.titular_id) ?? { monto: 0, clases: 0 };
+    ya.monto = Math.round((ya.monto + num(x.reemplazo_costo)) * 100) / 100;
+    ya.clases += 1;
+    salida.set(x.titular_id, ya);
+  }
+  return salida;
+}
+
+/**
+ * Lo que se le debe a cada profesor por las clases que dictó como
+ * **reemplazante** (regla de negocio 20), con lo ya pagado contra cada clase.
+ *
+ * Es la fuente única: la lista de "Por pagar" y la acción que paga leen de acá,
+ * así que no pueden discrepar. Se puede acotar a un profesor.
+ */
+export async function cargarReemplazos(
+  sb: ClienteLectura | ClienteAdmin,
+  profesorId?: number
+): Promise<Map<number, { nombre: string; clases: ClaseReemplazo[]; pagadoSinClase: number }>> {
+  let consulta = sb
+    .from("sesiones")
+    .select("id, fecha, profesor_id, reemplazo_costo, profesor:profesores!sesiones_profesor_id_fkey(nombre, apellido)")
+    .eq("estado", "dictada")
+    .not("reemplazo_motivo", "is", null)
+    .gt("reemplazo_costo", 0);
+  if (profesorId != null) consulta = consulta.eq("profesor_id", profesorId);
+  const ses = exigir(await consulta, "las clases con reemplazo") as unknown as {
+    id: number;
+    fecha: string;
+    profesor_id: number | null;
+    reemplazo_costo: number;
+    profesor: { nombre: string; apellido: string } | null;
+  }[];
+
+  let consultaPagos = sb.from("pagos").select("profesor_id, sesion_id, monto").eq("motivo", "pago_reemplazante");
+  if (profesorId != null) consultaPagos = consultaPagos.eq("profesor_id", profesorId);
+  const pagos = exigir(await consultaPagos, "los pagos a reemplazantes") as unknown as {
+    profesor_id: number | null;
+    sesion_id: number | null;
+    monto: number;
+  }[];
+
+  const salida = new Map<number, { nombre: string; clases: ClaseReemplazo[]; pagadoSinClase: number }>();
+  const vigentes = new Set<number>();
+  for (const s of ses) {
+    if (s.profesor_id == null) continue;
+    vigentes.add(s.id);
+    const ya = salida.get(s.profesor_id) ?? {
+      nombre: s.profesor ? `${s.profesor.apellido}, ${s.profesor.nombre}` : `#${s.profesor_id}`,
+      clases: [],
+      pagadoSinClase: 0,
+    };
+    ya.clases.push({ sesionId: s.id, fecha: s.fecha, costo: num(s.reemplazo_costo), pagado: 0 });
+    salida.set(s.profesor_id, ya);
+  }
+  for (const p of pagos) {
+    if (p.profesor_id == null) continue;
+    const dest = salida.get(p.profesor_id);
+    const clase = dest?.clases.find((c) => c.sesionId === p.sesion_id);
+    if (dest && clase) clase.pagado += num(p.monto);
+    else if (dest) dest.pagadoSinClase += num(p.monto);
+    // Un profesor sin ninguna clase vigente con pagos: queda fuera de la lista
+    // (no hay nada que pagarle); su saldo negativo solo importa si aún dicta.
+  }
+  return salida;
+}
+
+/**
+ * Una línea de "Por pagar" por profesor con reemplazos pendientes. **Aparte del
+ * saldo de liquidaciones**: el suplente cobra por tarifa y desde que se registra
+ * la clase, sin esperar al cierre del mes. *(Javier, 2026-09-18: "el monto
+ * debería estar pagable de inmediato".)* Solo se listan los que tienen algo
+ * pendiente.
+ */
+export async function lineasPorPagarReemplazos(sb: ClienteLectura): Promise<LineaPendiente[]> {
+  const porProfesor = await cargarReemplazos(sb);
+  const out: LineaPendiente[] = [];
+  for (const [profesorId, v] of porProfesor) {
+    const saldo = saldoDeReemplazos(v.clases, v.pagadoSinClase);
+    if (saldo <= 0) continue;
+    const pendientes = v.clases.filter((c) => c.costo - c.pagado > 0).length;
+    out.push({
+      clave: `reemplazo:${profesorId}`,
+      bucket: "reemplazos",
       cuotaId: null,
-      sujetoTipo: "profesor" as const,
+      sujetoTipo: "profesor",
       sujetoId: profesorId,
       sujeto: v.nombre,
-      detalle: `Saldo de liquidaciones · ${v.periodos} ${v.periodos === 1 ? "período" : "períodos"}`,
-      saldo: Math.round(v.saldo * 100) / 100,
-      // Una liquidación no tiene fecha pactada de pago: no hay vencidas.
+      detalle: `Reemplazos · ${pendientes} ${pendientes === 1 ? "clase" : "clases"}`,
+      saldo,
       fechaLimite: null,
-      motivoSugerido: "comision_profesor",
-    }))
-    .sort((a, b) => a.sujeto.localeCompare(b.sujeto, "es"));
+      motivoSugerido: "pago_reemplazante",
+    });
+  }
+  return out.sort((a, b) => a.sujeto.localeCompare(b.sujeto, "es"));
 }

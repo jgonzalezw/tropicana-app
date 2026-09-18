@@ -16,7 +16,7 @@
  *
  * **La frontera, que importa no equivocar.** Este saldo es el de las
  * **liquidaciones**: comisiones por planes de cursos regulares y pruebas, más
- * el pago al reemplazante y el descuento al reemplazado (regla 20). Los
+ * el descuento al reemplazado (regla 20a); el pago al reemplazante es aparte, ver `reemplazos.ts`. Los
  * conceptos ad-hoc —multas, bonificaciones, débitos y créditos de
  * administración— **se resuelven enteros en Caja y no entran acá**: son
  * movimientos que se cierran en sí mismos y no acumulan deuda. Por eso la línea

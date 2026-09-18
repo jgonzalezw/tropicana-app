@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { obtenerParametro, tienePermiso, alcanceDe, obtenerPerfilActual } from "@/lib/sesion";
-import { lineasPorCobrar, lineasPorPagar } from "@/lib/cuentas";
+import { lineasPorCobrar, lineasPorPagar, lineasPorPagarReemplazos } from "@/lib/cuentas";
 import { exigir } from "@/lib/datos";
 import SinAcceso from "@/components/SinAcceso";
 import ClienteCaja from "./ClienteCaja";
@@ -43,18 +43,34 @@ export default async function PaginaCaja({
 
   const { linea: claveInicial } = await searchParams;
   const sb = await createClient();
-  const [lineas, porPagar, motivosIngreso, motivosEgreso, mediosParam, diasCompromisoParam, puedeRegistrar] =
+  const [lineas, porPagarLiquidaciones, porPagarReemplazos, profesoresRows, motivosIngreso, motivosEgreso, mediosParam, diasCompromisoParam, puedeRegistrar] =
     await Promise.all([
       lineasPorCobrar(sb),
       // La contracara. Igual que "Por cobrar", no se filtra por alcance: una
       // deuda con un profesor no es "de un cajero".
       lineasPorPagar(sb),
+      // Lo que se le debe a un suplente por sus clases, pagable ya (0046).
+      lineasPorPagarReemplazos(sb),
+      // Todos los profesores: un pago suelto (multa, bonificación) no depende
+      // de que tengan liquidaciones, y a uno dado de baja se le puede seguir
+      // debiendo o descontando algo.
+      sb.from("profesores").select("id, nombre, apellido, activo"),
       motivosDe(sb, "motivo_cobro"),
       motivosDe(sb, "motivo_pago"),
       obtenerParametro("medios_pago"),
       obtenerParametro("dias_compromiso_pago"),
       tienePermiso("caja", "crear"),
     ]);
+
+  const profesores = (exigir(profesoresRows, "los profesores") as unknown as {
+    id: number;
+    nombre: string;
+    apellido: string;
+    activo: boolean;
+  }[])
+    .map((p) => ({ id: p.id, nombre: `${p.apellido}, ${p.nombre}${p.activo ? "" : " (inactivo)"}` }))
+    .sort((x, y) => x.nombre.localeCompare(y.nombre, "es"));
+  const porPagar = [...porPagarLiquidaciones, ...porPagarReemplazos];
 
   // Con quién y por qué: para que "Últimos movimientos" se pueda validar,
   // no solo la plata. Un pago siempre trae su sujeto (alumno o profesor) y,
@@ -91,6 +107,7 @@ export default async function PaginaCaja({
     <ClienteCaja
       lineas={lineas}
       porPagar={porPagar}
+      profesores={profesores}
       motivosIngreso={motivosIngreso}
       motivosEgreso={motivosEgreso}
       medios={(mediosParam ?? "Efectivo,QR / transf.,Otro").split(",").map((m) => m.trim())}

@@ -20,6 +20,7 @@ export type Bucket =
   | "talleres"
   | "productos"
   | "profesores"
+  | "reemplazos"
   | "proveedores"
   | "gastos";
 
@@ -39,6 +40,7 @@ export const BUCKET_POR_MOTIVO: Record<string, Bucket | null> = {
   // Egresos (catálogo `motivo_pago`)
   comision_profesor: "profesores",
   otro_pago_profesor: "profesores",
+  pago_reemplazante: "reemplazos",
   gasto_costo_fijo: "gastos",
   pago_proveedor: "proveedores",
   // Ajuste y "otro" no vienen de ninguna operación: solo mueven la caja.
@@ -65,6 +67,8 @@ export const POLITICA_POR_BUCKET: Record<Bucket, Politica> = {
   talleres: "descuento",
   productos: "descuento",
   profesores: "ajuste",
+  // El costo de un reemplazo es una tarifa fija por clase: sin ajuste.
+  reemplazos: "simple",
   proveedores: "ajuste",
   gastos: "simple",
 };
@@ -80,7 +84,7 @@ export function bucketDeMotivo(motivo: string | null): Bucket | null {
 }
 
 /** Los buckets que son plata que SALE. El resto son deudas a cobrar. */
-const BUCKETS_DE_EGRESO: ReadonlySet<Bucket> = new Set<Bucket>(["profesores", "proveedores", "gastos"]);
+const BUCKETS_DE_EGRESO: ReadonlySet<Bucket> = new Set<Bucket>(["profesores", "reemplazos", "proveedores", "gastos"]);
 
 /**
  * Para qué lado va una deuda: si es algo que se le debe a alguien, el
@@ -106,6 +110,15 @@ export function saldaLiquidacion(motivo: string | null): boolean {
   return motivo === "comision_profesor";
 }
 
+/**
+ * Si un motivo de egreso paga las clases dictadas como **reemplazante**. Tiene
+ * su propia deuda, aparte del saldo de liquidaciones: el suplente cobra por
+ * tarifa y desde que se registra la clase (regla de negocio 20).
+ */
+export function saldaReemplazo(motivo: string | null): boolean {
+  return motivo === "pago_reemplazante";
+}
+
 /** Cómo se llama cada bucket cuando hay que decir "no hay saldos abiertos en…". */
 export const NOMBRE_BUCKET: Record<Bucket, string> = {
   cuotas: "cuotas de alumnos",
@@ -115,6 +128,7 @@ export const NOMBRE_BUCKET: Record<Bucket, string> = {
   talleres: "talleres",
   productos: "venta de productos",
   profesores: "pagos a profesores",
+  reemplazos: "pagos a reemplazantes",
   proveedores: "pagos a proveedores",
   gastos: "gastos fijos",
 };
@@ -135,6 +149,7 @@ const ETIQUETA_MOTIVO: Record<string, string> = {
   otro: "Otro",
   comision_profesor: "Comisión a profesor",
   otro_pago_profesor: "Otros pagos a profesor",
+  pago_reemplazante: "Pago a reemplazante",
   gasto_costo_fijo: "Gasto o costo fijo",
   pago_proveedor: "Pago a proveedor",
   // Anteriores a 0020.

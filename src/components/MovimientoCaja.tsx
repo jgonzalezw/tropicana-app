@@ -46,6 +46,7 @@ export default function MovimientoCaja({
   motivosIngreso,
   motivosEgreso,
   lineas,
+  profesores = [],
   medios,
   diasCompromiso,
   contexto,
@@ -56,6 +57,12 @@ export default function MovimientoCaja({
   motivosIngreso: string[];
   motivosEgreso: string[];
   lineas: LineaPendiente[];
+  /**
+   * Todos los profesores. Un pago suelto (multa, bonificación) no
+   * depende de que tengan deuda ni liquidaciones, así que su selector sale de
+   * acá y no de `lineas`.
+   */
+  profesores?: { id: number; nombre: string }[];
   medios: string[];
   /** Parámetro `dias_compromiso_pago`: tope de días para la fecha de compromiso. */
   diasCompromiso: number;
@@ -132,7 +139,20 @@ export default function MovimientoCaja({
 
   const candidatas = useMemo(
     () =>
-      bucket
+      suelto
+        ? profesores.map<LineaPendiente>((p) => ({
+            clave: `profesor:${p.id}`,
+            bucket: "profesores",
+            cuotaId: null,
+            sujetoTipo: "profesor",
+            sujetoId: p.id,
+            sujeto: p.nombre,
+            detalle: "",
+            saldo: 0,
+            fechaLimite: null,
+            motivoSugerido: null,
+          }))
+        : bucket
         ? lineas.filter(
             (l) =>
               l.bucket === bucket &&
@@ -141,7 +161,7 @@ export default function MovimientoCaja({
               !(bucket === "profesores" && saldaLiquidacion(motivo) && l.saldo <= 0)
           )
         : [],
-    [bucket, lineas, motivo]
+    [bucket, lineas, motivo, suelto, profesores]
   );
   const linea = fijo
     ? contexto!.linea

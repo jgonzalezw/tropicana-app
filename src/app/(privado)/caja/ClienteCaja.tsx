@@ -48,6 +48,7 @@ function diasDeAtraso(iso: string, hoy: string): number {
 export default function ClienteCaja({
   lineas,
   porPagar,
+  profesores,
   motivosIngreso,
   motivosEgreso,
   medios,
@@ -60,6 +61,8 @@ export default function ClienteCaja({
   lineas: LineaPendiente[];
   /** Saldo de liquidaciones por profesor: la contracara de `lineas`. */
   porPagar: LineaPendiente[];
+  /** Todos los profesores: para pagos sueltos, que no dependen de una deuda. */
+  profesores: { id: number; nombre: string }[];
   motivosIngreso: string[];
   motivosEgreso: string[];
   medios: string[];
@@ -168,6 +171,7 @@ export default function ClienteCaja({
             // acreedor. Sin esto, un egreso decía "no hay saldos abiertos"
             // aunque la lista de al lado los estuviera mostrando.
             lineas={[...lineas, ...porPagar]}
+            profesores={profesores}
             medios={medios}
             diasCompromiso={diasCompromiso}
             onGuardar={guardar}
@@ -225,8 +229,10 @@ export default function ClienteCaja({
             <span className="titulo text-xl tabular-nums">{gs(totalPorPagar)}</span>
           </div>
           <p className="text-sm text-[var(--texto-tenue)] mb-3">
-            Saldo de liquidaciones de cada profesor. Los conceptos sueltos —multas,
-            bonificaciones— se registran como movimiento y no salen de acá.
+            Saldo de liquidaciones de cada profesor, y lo que se le debe a quien
+            dictó una clase como reemplazante (se paga apenas se registra). Los
+            conceptos sueltos —multas, bonificaciones— se registran como
+            movimiento y no salen de acá.
           </p>
           {porPagar.length === 0 ? (
             <p className="text-base text-[var(--texto-tenue)]">
@@ -242,7 +248,6 @@ export default function ClienteCaja({
                       <div className="text-base font-medium">{l.sujeto}</div>
                       <div className="text-sm text-[var(--texto-tenue)]">
                         {l.detalle}
-                        {aFavorDeTropicana && " · se le pagó de más"}
                         {l.saldo === 0 && " · sin saldo"}
                       </div>
                     </div>

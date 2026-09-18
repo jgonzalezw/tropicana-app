@@ -3,9 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { obtenerPerfilActual, tienePermiso } from "@/lib/sesion";
-import { registrarCobro } from "@/lib/cuentas";
+import { cargarReemplazos, registrarCobro } from "@/lib/cuentas";
+import { imputarPagoReemplazos } from "@/lib/liquidacion/reemplazos";
 import { pagarAProfesor } from "../liquidaciones/acciones";
-import { etiquetaMotivo, saldaLiquidacion, type EntradaMovimiento } from "@/lib/caja";
+import { etiquetaMotivo, saldaLiquidacion, saldaReemplazo, type EntradaMovimiento } from "@/lib/caja";
 import { gs } from "@/lib/inscripcion";
 
 /**
@@ -25,7 +26,10 @@ export async function registrarMovimiento(
 
   const monto = Math.max(0, Math.round(Number(e.monto) || 0));
   const descuento = Math.max(0, Math.round(Number(e.descuento) || 0));
-  if (monto + descuento <= 0) return { error: "Escribí el monto del movimiento." };
+  // Un pago a un profesor puede ser de centavos (un saldo de prorrateo casi
+  // nunca es redondo): el redondeo a entero de arriba no puede tirarlo abajo.
+  const aProfesor = e.profesorId != null && e.direccion === "egreso" && Number(e.monto) > 0;
+  if (monto + descuento <= 0 && !aProfesor) return { error: "Escribí el monto del movimiento." };
   if (!e.glosa.trim()) return { error: "Poné una glosa corta, para saber después de qué fue." };
   if (e.fechaEfectiva && e.fechaEfectiva > new Date().toISOString().slice(0, 10))
     return { error: "La fecha en que ocurrió el movimiento no puede ser futura." };
@@ -62,6 +66,40 @@ export async function registrarMovimiento(
     return {
       ok: true,
       resumen: `Ingreso de ${gs(monto)}${conDesc} · ${etiquetaMotivo(e.motivo)}.${cierre}`,
+    };
+  }
+
+  // Contra lo que se le debe a un profesor por sus reemplazos: el suplente
+  // cobra por tarifa, así que esto NO pasa por liquidaciones. Cada pago queda
+  // atado a las clases que salda (`pagos.sesion_id`), de la más vieja a la más
+  // nueva, y la suma de las filas es exactamente el efectivo que sale.
+  if (e.profesorId != null && e.direccion === "egreso" && saldaReemplazo(e.motivo)) {
+    const exacto = Math.round((Number(e.monto) || 0) * 100) / 100;
+    if (!e.medio) return { error: "Elegí el medio de pago." };
+    const carga = (await cargarReemplazos(a, e.profesorId)).get(e.profesorId);
+    if (!carga) return { error: "Ese profesor no tiene reemplazos pendientes de pago." };
+    const imp = imputarPagoReemplazos(carga.clases, exacto, carga.pagadoSinClase);
+    if (!imp.ok) return { error: imp.error };
+    for (const f of imp.filas) {
+      const { error: errPago } = await a.from("pagos").insert({
+        tipo: "pago",
+        motivo: "pago_reemplazante",
+        profesor_id: e.profesorId,
+        sesion_id: f.sesionId,
+        monto: f.monto,
+        medio: e.medio,
+        glosa: e.glosa.trim(),
+        fecha_efectiva: e.fechaEfectiva,
+        registrado_por: perfil?.id ?? null,
+      });
+      if (errPago) return { error: "No se pudo registrar el pago: " + errPago.message };
+    }
+    revalidatePath("/caja");
+    return {
+      ok: true,
+      resumen: `Egreso de ${gs(exacto)} · ${etiquetaMotivo(e.motivo)}. Se imputó a ${imp.filas.length} ${
+        imp.filas.length === 1 ? "clase" : "clases"
+      } de reemplazo.`,
     };
   }
 
