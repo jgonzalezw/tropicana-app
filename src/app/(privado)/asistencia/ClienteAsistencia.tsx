@@ -146,7 +146,11 @@ export default function ClienteAsistencia({
   function cambiarCurso(id: number) {
     setCursoId(id);
     setSelectorAbierto(false);
+    // Un aviso o un error son de la clase/fecha que se estaba mirando: al
+    // cambiar de curso o fecha dejan de aplicar y se limpian los dos, o el
+    // mensaje queda "pegado" sobre una clase que no lo generó.
     setAviso(null);
+    setError(null);
     setFecha(fechasDelCurso(id)[0]?.iso ?? hoyIso);
   }
 
@@ -175,6 +179,16 @@ export default function ClienteAsistencia({
     });
   }
 
+  // Sin esto, un rechazo (ej. clase congelada por comisión ya pagada, regla de
+  // negocio 16) podía quedar arriba de la pantalla mientras el usuario mira el
+  // botón "Guardar" en el pie fijo, más abajo — el mensaje estaba ahí, pero
+  // nada lo hacía notar. El éxito ya hacía scroll; el error tiene que hacer lo
+  // mismo, porque un rechazo necesita leerse tanto como una confirmación
+  // (Javier, 2026-09-17: "pareció grabar pero el mensaje se quedó pegado").
+  function scrollArriba() {
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   function guardar() {
     if (cursoId == null || marcados === 0) return;
     setError(null);
@@ -200,12 +214,14 @@ export default function ClienteAsistencia({
             }
           : null,
       });
-      if (res.error) setError(res.error);
-      else {
+      if (res.error) {
+        setError(res.error);
+        scrollArriba();
+      } else {
         setAviso(res.resumen ?? "Asistencia guardada.");
         setRecarga((n) => n + 1);
         router.refresh();
-        if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+        scrollArriba();
       }
     });
   }
@@ -215,13 +231,15 @@ export default function ClienteAsistencia({
     setError(null);
     startTransition(async () => {
       const res = await suspenderClase({ cursoId, fecha, motivo: motivoInput });
-      if (res.error) setError(res.error);
-      else {
+      if (res.error) {
+        setError(res.error);
+        scrollArriba();
+      } else {
         setFormSusp(false);
         setAviso(res.resumen ?? "Clase suspendida.");
         setRecarga((n) => n + 1);
         router.refresh();
-        if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+        scrollArriba();
       }
     });
   }
@@ -231,8 +249,10 @@ export default function ClienteAsistencia({
     setError(null);
     startTransition(async () => {
       const res = await reabrirSesion({ cursoId, fecha });
-      if (res.error) setError(res.error);
-      else {
+      if (res.error) {
+        setError(res.error);
+        scrollArriba();
+      } else {
         setAviso("Clase reabierta. Podés tomar o corregir la asistencia.");
         setRecarga((n) => n + 1);
         router.refresh();
@@ -314,7 +334,11 @@ export default function ClienteAsistencia({
           value={fecha}
           onChange={(e) => {
             setFecha(e.target.value);
+            // Igual que al cambiar de curso: el aviso o el error eran de la
+            // fecha anterior; al cambiar de fecha dejan de aplicar y se limpian
+            // los dos, o el mensaje queda "pegado" sobre una clase que no lo generó.
             setAviso(null);
+            setError(null);
           }}
           disabled={fechas.length === 0}
           className="entrada text-lg py-3"
@@ -682,9 +706,13 @@ export default function ClienteAsistencia({
       )}
 
       {error && (
-        <p className="text-[var(--peligro)] text-base mt-4" role="alert">
-          {error}
-        </p>
+        <div
+          role="alert"
+          className="mt-4 rounded-[var(--radio-panel)] border border-[var(--peligro)] bg-[var(--peligro-fill)] text-[var(--peligro-texto)] p-4"
+        >
+          <div className="font-semibold">No se guardó</div>
+          <p className="text-sm mt-1 leading-relaxed">{error}</p>
+        </div>
       )}
 
       {/* Pie fijo: guardar (solo en modo editable) */}
