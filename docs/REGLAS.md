@@ -62,6 +62,15 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
    puede quedar con plata fuera de una cuota. Toda venta nueva crea la suya.
 8. **La comisión se calcula sobre lo efectivamente cobrado** (el descuento no
    suma), criterio 1, a mes vencido.
+   **De dónde sale la plata del profesor, con todas las letras** *(Javier,
+   2026-09-18)*: de las membresías **completadas (agotadas) y cobradas al 100%**
+   hasta el último día del mes pasado. La liquidación toma esas y devenga:
+   **directo** si la membresía es mono-curso, **a prorrata** si es multi-curso
+   (regla 10). Una membresía agotada pero con saldo **no entra** — no terminó la
+   venta (regla 1).
+   *Es el piso de la regla 16: si la plata sale de la membresía, entonces la
+   clase no la tiene, y tocar una clase vieja no reescribe nada — se recalcula
+   la membresía y se compensa la diferencia.*
 9. **Precio del plan: el sistema propone, la persona decide.** La
    **referencia** es lo que costaría comprar por separado lo que el plan
    ofrece junto: se estima el **valor de una clase** del curso y se multiplica
@@ -123,28 +132,39 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
 14. **Diferenciación por rol/permiso, nunca por persona.**
 15. **Toda lista de personas para localizar a alguien se ordena por apellido**
     (helper `compararPorApellido`), en cualquier entidad.
-16. **Una clase de la que depende una comisión ya pagada no se toca.** No se
-    toma ni se corrige su asistencia, ni se la suspende o reabre. Si hay que
-    corregirla, se hace con un **ajuste con fecha de hoy**, que deja rastro; el
-    pasado no se reescribe. **El corte es el primer pago**, no el pago total:
-    una liquidación `cerrada` tiene pago parcial y esa plata ya salió. Mientras
-    la liquidación esté `abierta` (nada pagado) el cambio se permite, y el
-    devengo afectado **se revierte solo** para que se recalcule — si no, la
-    membresía quedaría marcada como "ya devengada" y la corrección nunca
-    llegaría a la comisión.
-    **Congela una clase, no el mes**, y solo cuando de esa clase depende una
-    membresía **con prorrateo (dos o más cursos)** ya pagada. Dos motivos, los
-    dos medidos en el código:
-    **(a)** una membresía de **un solo curso no depende del conteo** — lo
-    cobrado va entero a ese curso, se hayan dictado tres clases o doce;
-    **(b)** **agregar una membresía no toca lo ya repartido** — cada venta se
-    reparte sola, con su propia plata. Por eso una **venta retroactiva** no se
-    bloquea, y una liquidación ya pagada **acepta un complemento**: la membresía
-    que aparece después se devenga y se suma, sin reescribir lo cobrado.
-    *Importa desde la regla 10: la comisión depende de cuántas clases puso cada
-    curso, así que tocar una clase vieja mueve plata ya pagada.*
-    *(Javier, 2026-09-11, opción a; angostada por Javier el 2026-09-12: "no veo
-    por qué no se puedan liquidar cuando se registren completas".)*
+16. **Las clases solo afectan contadores. Lo pagado no se reescribe: se
+    compensa.** *(Javier, 2026-09-18 — esta regla reemplaza al "congelador".)*
+    La cadena es: clase → **contadores** (clases hechas, ciclo agotado,
+    corrimiento del fin de ciclo, bono) → la membresía se **completa** (agotada
+    **y** cobrada al 100%) → recién ahí, al liquidar el mes, se **devenga**.
+    Una clase **nunca tiene plata encima**: el conteo es apenas un insumo del
+    prorrateo de la membresía que se está liquidando.
+    **Por lo tanto, registrar, corregir o suspender una clase vieja siempre se
+    puede.** Son hechos que pasaron y el sistema tiene que poder reflejarlos.
+    Lo que no se hace **nunca** es reescribir lo ya liquidado.
+    **Si el recálculo de esa membresía da otro número, la diferencia sale como
+    un `ajuste`**, firmado: positivo si hay que pagarle más al profesor,
+    negativo si hay que descontarle. Entra como **complemento del período de la
+    comisión original** —reabriendo esa liquidación, aunque esté pagada— y la
+    comisión original queda intacta.
+    **Nada de lo devengado por OTRAS membresías que compartieron esa misma
+    clase cambia.** Cada venta se reparte sola, con su propia plata.
+    Mientras la liquidación esté `abierta` (nada pagado) no hace falta ajuste:
+    el devengo **se revierte solo** y se recalcula — si no, la membresía
+    quedaría marcada como "ya devengada" y la corrección nunca llegaría a la
+    comisión. **El corte es el primer pago**, no el pago total: una liquidación
+    `cerrada` tiene pago parcial y esa plata ya salió.
+    **Lo que queda es el aviso, no el bloqueo.** Quien va a tocar una clase de
+    un período ya liquidado y cobrado ve, **antes de guardar**, qué liquidación
+    se va a mover y de quién, y confirma. Informa; no pide permiso.
+    *De acá se sigue que una **venta retroactiva** nunca se bloquea: devenga lo
+    suyo como complemento, sin tocar lo cobrado.*
+    *Historia, porque el error costó: hasta el 2026-09-17 esto era un
+    "congelador" que prohibía tocar la clase, sobre la premisa de que la clase
+    tenía plata encima. Se descubrió con el caso Heels 29/08 —una inscripción
+    retroactiva que no podía sumar su alumno a una asistencia ya cargada— y lo
+    corrigió Javier: la premisa era falsa, y por eso la respuesta (prohibir) lo
+    era también. El mecanismo de ajuste es la migración 0044.*
 17. **Registrar las sesiones es imperativo para liquidar — pero solo donde hay
     prorrateo.** Una membresía de **dos o más cursos** no se liquida mientras
     alguna clase de su ciclo no tenga ni asistencia ni suspensión: ahí el conteo

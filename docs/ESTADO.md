@@ -6,7 +6,25 @@
 > `docs/design/README.md` (fuente de verdad del **diseño**), `docs/CONTEXTO_AVANCE.md`
 > (bitácora larga de Etapa 0), `docs/DESIGN_SYNC.md` (cómo entran los handoffs).
 >
-> **Última actualización:** 2026-09-17 — **Visibilidad "propio/todo" por rol y
+> **Última actualización:** 2026-09-18 — **Las clases solo afectan contadores:
+> el congelador deja de bloquear y aparece el ajuste (migración 0044), en dev.**
+> Javier corrigió un error de modelo que venía de arrastre: se creía que una
+> clase "tenía plata encima" y por eso el congelador prohibía tocarla si de ella
+> dependía una comisión pagada. La premisa era falsa — la plata sale de las
+> membresías completadas y cobradas al 100%, y el conteo de clases es apenas el
+> insumo del prorrateo. Entonces prohibir era la respuesta equivocada: hay que
+> dejar registrar, corregir y suspender, y **compensar la diferencia** con un
+> `ajuste` firmado que entra como complemento del período original, sin
+> reescribir lo pagado. Antes de tocar el motor se lo **certificó**: se extrajo
+> el cálculo a `src/lib/liquidacion/motor.ts` (sin base de datos) y se fijó con
+> **15 pruebas deterministas** (`npm test`, cero dependencias nuevas), más un
+> script de reconciliación contra datos reales — que de paso explicó el
+> descuadre de 18,08 que el control 18 marcaba hace días. **Producción nunca
+> liquidó nada**: su primera liquidación corre en octubre, así que no hay deltas
+> históricos que arrastrar. Detalle en el bloque **"El mensaje de 'clase
+> congelada' no se notaba"**. Pendiente el OK de Javier para producción.
+>
+> **2026-09-17** — **Visibilidad "propio/todo" por rol y
 > módulo (migración 0043), pasada a producción.** Javier: un Profesor con acceso a un módulo
 > veía TODO, no solo lo suyo (todos los cursos en Tomar Asistencia; si se le
 > habilitara Liquidaciones, todas — y por URL directa, cualquiera con el módulo
@@ -2401,32 +2419,96 @@ hoy"), pero no hay ningún enlace directo a esa acción desde esta pantalla —
 queda anotado como posible mejora si vuelve a ser un problema, no se tocó
 en esta pasada.
 
-**Javier corrigió el diagnóstico**: el problema de fondo no era que el
-mensaje no se notara — era que **el bloqueo en sí contradice la política ya
-definida** para una inscripción retroactiva que impacta una liquidación
-cerrada. *"Estás perdiendo de vista las decisiones que se tomaron en
-relación a las inscripciones retroactivas que afectan liquidaciones ya
-cerradas — pagadas."* El bloqueo duro debe seguir para Profesor/Asistente,
-pero un Gerente/Administrador con criterio debería poder confirmar y
-reliquidar, no chocar contra un muro. **Se definió la política completa**
-(autoridad, qué se reliquida, dónde entra el complemento) y **se anotó en
-`DECISIONES.md` como D21, backlog de alta prioridad**, con disparador
-explícito: se retoma después de completar el plan de ventas de particulares,
-alquileres y talleres. No se construye ahora — es más grande que un fix de
-UI (toca el congelador de la regla 16, el motor de complementos y el modelo
-de permisos). Mitigación inmediata acordada: achicar `asistencia_semanas_retro`
-al mínimo operable — el valor puntual quedó **sin decidir** (Javier prefirió
-dejarlo en 2 por ahora).
+**Y el diagnóstico estaba mal, dos veces.** Vale la pena dejar el camino
+completo, porque el error no fue de código sino de modelo y costó dos días.
 
-**Regresión introducida por el propio fix del panel, corregida el mismo
-día**: al volver el error un panel prominente ("No se guardó"), quedó
-expuesto que el estado `error` nunca se limpiaba al cambiar de curso o de
-fecha — a diferencia de `aviso`, que sí. El mensaje de rechazo de una clase
-quedaba pegado en pantalla aunque el usuario mirara otra clase u otra fecha
-que no lo había generado. Javier: *"la exposición del mensaje, como lo has
-corregido, ahora se queda pegado aunque cambie de clase u otra fecha."*
-Corregido agregando `setError(null)` junto a `setAviso(null)` en
-`cambiarCurso` y en el `onChange` del `<select>` de fecha
-(`ClienteAsistencia.tsx`) — mismo criterio que ya regía para `aviso`: un
-aviso o un error son de la clase/fecha que se estaba mirando, y dejan de
-aplicar al cambiar de cualquiera de las dos. `tsc`/`eslint` limpios.
+**Primer intento (equivocado).** Javier señaló que el problema de fondo no era
+que el mensaje no se notara, sino el bloqueo en sí. Se documentó entonces como
+**D21** una política de autoridad: que el bloqueo siguiera para Profesor y
+Asistente, y que un Gerente o Administrador pudiera confirmar y reliquidar. Era
+una feature grande, y era innecesaria.
+
+**Segundo intento (también equivocado).** Se aflojó el congelador para permitir
+tomar asistencia sobre una clase congelada, argumentando que el reparto depende
+del conteo de clases del curso y que sumar un alumno no lo cambia. El
+razonamiento era cierto pero el marco seguía mal, y el cambio abría un hueco: un
+registro tardío que sí cambia el reparto no generaba ninguna compensación ni
+aviso. **Ese commit se revirtió** (`1a4d4d3`).
+
+**El principio, en una línea de Javier (2026-09-18):** *"las clases solo afectan
+contadores"*. La cadena es clase → contadores (clases hechas, ciclo agotado,
+corrimiento, bono) → la membresía se completa (agotada **y** cobrada al 100%) →
+recién ahí, al liquidar, se devenga. **Una clase nunca tiene plata encima**: el
+conteo es apenas el insumo del prorrateo de la membresía que se liquida.
+
+De ahí se sigue todo lo demás. El congelador partía de una premisa falsa —la
+clase como objeto con dinero— y por eso prohibir era la respuesta equivocada. Lo
+correcto es dejar hacer y **compensar la diferencia**: si el recálculo de una
+membresía ya liquidada da otro número, sale un **ajuste** firmado que entra como
+complemento del período de la comisión original. Lo pagado no se reescribe
+nunca, y lo devengado por otras membresías de la misma clase no cambia.
+
+### Lo que se construyó (2026-09-18)
+
+**Fase 1 — certificar el motor antes de tocarlo.** El cálculo del reparto vivía
+dentro de la server action, así que la única forma de probarlo era mirar lo que
+producía contra los datos que hubiera en dev ese día — y los datos de dev se
+mueven. Se extrajo a `src/lib/liquidacion/motor.ts` como función pura (entra
+data cruda, sale el reparto) y se fijó con **15 pruebas deterministas**, una por
+regla: `npm test` con `node --test` y TypeScript nativo, **cero dependencias
+nuevas**. Más `scripts/reconciliar_liquidacion.mjs`, que recalcula desde cero
+sobre los datos reales y compara contra lo guardado.
+
+**Lo que la reconciliación encontró, y por qué importa.** En dev, 3 deltas
+históricos en la membresía de Perico Palotes Multi (Zumba −55,72;
+Tropicoreográfico −7,88; Salsa y Bachata −7,03) más una línea que el motor
+produce y no estaba guardada (Zumba / Machicado, 52,55: el curso pasó a
+repartirse entre dos profesores). Neto: **−18,08**, que es exactamente la
+discrepancia que el **control 18** venía marcando en esa membresía (818,08
+devengado contra 800,00 cobrado). Dos caminos independientes llegaron al mismo
+número — y de paso quedó explicado un descuadre que arrastrábamos sin
+diagnóstico.
+
+**En producción: cero.** No hay ninguna liquidación, ninguna comisión devengada
+y ninguna membresía completada dentro del mes vencido. **Nunca se liquidó nada
+ahí.** Las 6 membresías completadas terminan en septiembre, así que la primera
+liquidación de producción va a correr en octubre. No hay deltas históricos que
+arrastrar, y lo que se construya ahora gobierna esa primera corrida.
+
+**Fase 2 — el delta (migración 0044).** La razón por la que el motor no emitía
+la diferencia era **técnica, no de criterio**: el índice único
+(membresía, curso, profesor) de la 0029 impide una segunda fila, así que la
+única salida habría sido reescribir la original — justo lo que la regla 12
+prohíbe. La 0044 admite `tipo='ajuste'`, vuelve parcial ese índice (solo sobre
+`tipo='comision'`) y agrega `ajusta_comision_id` como traza. El motor pasó a
+calcular un **objetivo absoluto** por (curso, profesor) y emitir la diferencia
+contra lo ya devengado. Eso reemplazó al tope que había antes, que impedía
+pagarle al segundo profesor cuando una comisión vieja se había llevado el curso
+entero — dejándolo sin cobrar.
+
+**Un bug que esto destapó**, corregido en la misma pasada: el neto se mostraba
+con `Math.max(0, …)` en la lista y en el comprobante. Tenía sentido cuando un
+neto negativo era imposible; ahora un ajuste hacia abajo sobre una liquidación
+pagada deja plata **pagada de más**, y recortarla a cero la mostraba como si
+estuviera todo saldado — un saldo disfrazado de cero (regla de calidad 1).
+
+**Fase 3 — el aviso reemplaza al bloqueo.** `src/lib/periodos.ts` dejó de ser
+congelador y pasó a informador (`cargarImpacto` / `liquidacionesTocadas` /
+`avisoDeImpacto`). Al guardar una asistencia que toca un período ya liquidado y
+cobrado, la pantalla muestra qué liquidación se va a mover y de quién, con
+**Guardar igual / Cancelar / Copiar aviso** — el copiar es obligatorio porque el
+aviso nombra a un profesor (regla de proceso 12). La consulta solo corre para
+fechas del mes vencido hacia atrás: una clase de este mes no puede estar en una
+membresía ya liquidada, y sin ese corte el día a día pagaba el costo.
+
+### Verificado en dev, de punta a punta
+
+Isabel Góngora, liquidación 5, período agosto, estado **pagada**: la comisión
+original (108,27 base / 54,14 monto) quedó **intacta** y se creó el ajuste
+(−55,72 / −27,86) apuntando a ella. La liquidación pasó a 26,28 devengado contra
+54,14 pagado, y la pantalla ahora dice **"− Bs. 27,86 · pagado de más"** en vez
+de "Bs. 0,00". En Heels 29/08, guardar muestra el aviso nombrando esa
+liquidación, y con "Guardar igual" la asistencia se graba.
+
+15 pruebas en verde, `tsc`, `eslint` y `build` limpios. **Migración 0044
+aplicada solo en dev**; el pase espera el OK de Javier.

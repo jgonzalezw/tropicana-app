@@ -76,6 +76,9 @@ Tamaño: **S** = un rato · **M** = un hito chico · **L** = un hito propio.
 | # | Qué es | Rebanada | Tamaño |
 | --- | --- | --- | --- |
 | R16 | **Alumnos: fecha de nacimiento y sexo.** Migración aditiva + los dos campos en la ficha (sexo desde catálogo, no hardcodeado). Surgió de una revisión de uso. | Alumnos | S |
+| R24 | **El pago de una liquidación no se clasifica en Caja.** `registrarPagoLiquidacion` inserta el pago con `motivo: "liquidacion"`, que **no existe** en el catálogo `motivo_pago` (0020) ni en `BUCKET_POR_MOTIVO` (`src/lib/caja.ts`). Resultado: lo que se le paga a un profesor por su liquidación no cae en ningún bucket de Caja. Encontrado al mapear el modelo de liquidación (2026-09-18). | 2F / Caja | S |
+| R25 | **`eliminarLiquidacionVacia` borra sin mirar el estado.** Solo comprueba que no tenga ítems ni pagos, pero no el estado de la liquidación. Hoy no hace daño —sin ítems ni pagos no hay nada que perder— pero es un guard de menos en una tabla que mueve plata. Encontrado en el mismo mapeo. | 2F / Caja | S |
+| R26 | **Control 17 de `control_migracion.sql`: falso positivo con la venta retroactiva.** Cuenta como "hecho dentro de un período pagado" cualquier inscripción creada después del cierre con `fecha_inicio` dentro de él. Desde que la regla 16 admite el complemento y el ajuste (0044), ese caso es **legítimo** y el control igual lo marca. Falta que distinga el complemento seguro de una reescritura real. | control_migracion | S |
 
 ---
 
