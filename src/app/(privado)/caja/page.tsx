@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { obtenerParametro, tienePermiso } from "@/lib/sesion";
+import { obtenerParametro, tienePermiso, alcanceDe, obtenerPerfilActual } from "@/lib/sesion";
 import { lineasPorCobrar } from "@/lib/cuentas";
 import { exigir } from "@/lib/datos";
 import SinAcceso from "@/components/SinAcceso";
@@ -34,6 +34,13 @@ export default async function PaginaCaja({
 }) {
   if (!(await tienePermiso("caja", "ver"))) return <SinAcceso />;
 
+  // Visibilidad "propio" (0043, default para el rol Asistente): el libro de
+  // movimientos y el saldo se acotan a lo que el usuario mismo registró — su
+  // caja, no la de todos. "Por cobrar" NO se filtra: la deuda de un alumno no
+  // es "de un cajero", cualquiera que cobra necesita verla completa.
+  const alcance = await alcanceDe("caja");
+  const perfilActual = alcance === "propio" ? await obtenerPerfilActual() : null;
+
   const { linea: claveInicial } = await searchParams;
   const sb = await createClient();
   const [lineas, motivosIngreso, motivosEgreso, mediosParam, diasCompromisoParam, puedeRegistrar] =
@@ -49,24 +56,26 @@ export default async function PaginaCaja({
   // Con quién y por qué: para que "Últimos movimientos" se pueda validar,
   // no solo la plata. Un pago siempre trae su sujeto (alumno o profesor) y,
   // si viene de una membresía, el plan/curso que le dio origen.
-  const movRows = exigir(
-    await sb
+  let consultaMov = sb
     .from("pagos")
     .select(
       "id, tipo, motivo, monto, descuento, medio, glosa, fecha, fecha_efectiva, " +
         "alumno:alumnos(nombre, apellido), " +
         "profesor:profesores(nombre, apellido), " +
         "inscripcion:inscripciones(plan:planes(nombre), curso:cursos(nombre))"
-    )
-      .order("fecha", { ascending: false })
-      .limit(12),
+    );
+  let consultaSaldo = sb.from("pagos").select("tipo, monto, medio");
+  if (perfilActual) {
+    consultaMov = consultaMov.eq("registrado_por", perfilActual.id);
+    consultaSaldo = consultaSaldo.eq("registrado_por", perfilActual.id);
+  }
+
+  const movRows = exigir(
+    await consultaMov.order("fecha", { ascending: false }).limit(12),
     "los movimientos de caja"
   );
 
-  const saldoRows = exigir(
-    await sb.from("pagos").select("tipo, monto, medio"),
-    "el saldo de caja"
-  );
+  const saldoRows = exigir(await consultaSaldo, "el saldo de caja");
   const saldo = { efectivo: 0, banco: 0 };
   for (const p of (saldoRows as { tipo: string; monto: number; medio: string | null }[]) ?? []) {
     const signo = p.tipo === "cobro" ? 1 : -1;

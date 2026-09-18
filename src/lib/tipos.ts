@@ -36,6 +36,16 @@ export type RolPermiso = {
   permitido: boolean;
 };
 
+/** 'propio' = el rol solo ve sus datos en ese módulo; 'todo' = ve todo. */
+export type Alcance = "propio" | "todo";
+
+/** Alcance de visibilidad por (rol, módulo) — 0043. Sin fila = 'todo'. */
+export type RolVisibilidad = {
+  rol_id: number;
+  modulo: string;
+  alcance: Alcance;
+};
+
 /** Una alternativa admitida por un parámetro: el valor guardado y cómo se lee. */
 export type OpcionParametro = { valor: string; etiqueta: string };
 
@@ -471,6 +481,17 @@ export const ACCIONES = ["ver", "crear", "editar", "eliminar"] as const;
 
 export type ModuloClave = (typeof MODULOS)[number];
 export type AccionClave = (typeof ACCIONES)[number];
+
+/**
+ * Módulos que tienen "dueño" de la fila y por eso admiten un alcance de
+ * visibilidad propio/todo (0043): Asistencia (el profesor de cada curso),
+ * Liquidaciones (el profesor liquidado), Caja (quién registró el movimiento).
+ * La UI de Roles ofrece el selector solo para estos, y solo estos consultan
+ * `alcanceDe`. Agregar un módulo acá es todo lo que hace falta para que gane
+ * la opción — el resto (tabla, helper) ya es genérico.
+ */
+export const MODULOS_CON_ALCANCE = ["asistencia", "liquidaciones", "caja"] as const;
+export type ModuloConAlcance = (typeof MODULOS_CON_ALCANCE)[number];
 
 export const ETIQUETA_MODULO: Record<string, string> = {
   alumnos: "Alumnos",

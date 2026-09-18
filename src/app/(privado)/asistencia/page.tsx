@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { tienePermiso, obtenerParametro } from "@/lib/sesion";
+import { tienePermiso, obtenerParametro, alcanceDe, obtenerProfesorActual } from "@/lib/sesion";
 import SinAcceso from "@/components/SinAcceso";
 import { exigir } from "@/lib/datos";
 import ClienteAsistencia from "./ClienteAsistencia";
@@ -10,6 +10,27 @@ export const dynamic = "force-dynamic";
 export default async function PaginaAsistencia() {
   if (!(await tienePermiso("asistencia", "ver"))) return <SinAcceso />;
 
+  // Visibilidad "propio" (0043, default para el rol Profesor): el selector se
+  // acota a los cursos donde el usuario es el titular vigente. Sin cuenta
+  // vinculada a ningún profesor, se explica por qué no ve nada — nunca una
+  // lista vacía que se confunda con "no hay cursos" (regla de calidad 5).
+  const alcance = await alcanceDe("asistencia");
+  const profesorActual = alcance === "propio" ? await obtenerProfesorActual() : null;
+  if (alcance === "propio" && !profesorActual) {
+    return (
+      <div className="p-8 max-w-lg">
+        <div className="border border-[var(--primario)] bg-[color-mix(in_srgb,var(--primario)_12%,transparent)] rounded-[var(--radio-tarjeta)] p-5">
+          <div className="font-semibold text-base">Tu cuenta no está vinculada a un profesor</div>
+          <p className="text-base mt-1">
+            Tu rol solo ve los cursos propios, y esta cuenta todavía no está vinculada a ninguna
+            ficha de profesor. Pedile a un administrador que la vincule desde
+            Profesores → Profesores y cursos → Cuenta de acceso.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const supabase = await createClient();
 
   const hoyIso = (() => {
@@ -18,11 +39,12 @@ export default async function PaginaAsistencia() {
   })();
 
   const [
-    { data: cursos },
+    { data: cursosRows },
     { data: inscripciones },
     deudaParam,
     semanasParam,
     puedeRetro,
+    { data: asignacionesPropias },
   ] = await Promise.all([
     supabase.from("cursos").select("*").eq("activo", true).order("nombre"),
     supabase
@@ -35,7 +57,24 @@ export default async function PaginaAsistencia() {
     obtenerParametro("mostrar_deuda"),
     obtenerParametro("asistencia_semanas_retro"),
     tienePermiso("asistencia", "editar"),
+    profesorActual
+      ? supabase
+          .from("asignaciones")
+          .select("curso_id")
+          .eq("profesor_id", profesorActual.id)
+          .is("hasta", null)
+      : Promise.resolve({ data: [] as { curso_id: number }[] }),
   ]);
+
+  // Visibilidad "propio": el selector se acota a los cursos donde el usuario
+  // es el titular vigente hoy (no incluye clases donde suplió — eso se elige
+  // al tomar esa asistencia puntual, regla de negocio 20, no es "su curso").
+  const cursos =
+    alcance === "propio"
+      ? (cursosRows ?? []).filter((c) =>
+          ((asignacionesPropias as { curso_id: number }[]) ?? []).some((a) => a.curso_id === c.id)
+        )
+      : (cursosRows ?? []);
 
   // Ventana de carga retroactiva (semanas). Sin permiso de edición, solo hoy.
   const semanasRetro = Math.max(0, Number(semanasParam) || 2);
@@ -117,7 +156,7 @@ export default async function PaginaAsistencia() {
 
   return (
     <ClienteAsistencia
-      cursos={(cursos as Curso[]) ?? []}
+      cursos={cursos as Curso[]}
       alumnosPorCurso={alumnosPorCurso}
       mostrarDeuda={deudaParam !== "false"}
       minRetroIso={minRetroIso}

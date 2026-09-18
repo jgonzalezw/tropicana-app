@@ -150,3 +150,28 @@ export async function alternarPermiso(
   revalidatePath("/administracion/roles");
   return { ok: true };
 }
+
+/**
+ * Alcance de visibilidad (0043): 'propio' = el rol solo ve sus datos en ese
+ * módulo; 'todo' = ve todo. Configurable por (rol, módulo), sin cablear
+ * ninguna clave de rol en la lógica de la app.
+ */
+export async function fijarVisibilidad(
+  rol_id: number,
+  modulo: string,
+  alcance: "propio" | "todo"
+) {
+  if (!(await esAdministrador())) {
+    return { error: "Sin permiso." };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("rol_visibilidad")
+    .upsert({ rol_id, modulo, alcance }, { onConflict: "rol_id,modulo" });
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/administracion/roles");
+  return { ok: true };
+}

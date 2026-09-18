@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { tienePermiso, obtenerParametro } from "@/lib/sesion";
+import { tienePermiso, obtenerParametro, alcanceDe, obtenerProfesorActual } from "@/lib/sesion";
 import { exigirUno } from "@/lib/datos";
 import SinAcceso from "@/components/SinAcceso";
 import Comprobante, { type DatosComprobante } from "./Comprobante";
@@ -47,6 +47,15 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
         </p>
       </div>
     );
+
+  // Visibilidad "propio" (0043): el permiso de módulo no alcanza — sin esto,
+  // cualquiera con acceso a Liquidaciones podía ver el comprobante de OTRO
+  // profesor con solo cambiar el número en la URL.
+  const alcance = await alcanceDe("liquidaciones");
+  if (alcance === "propio") {
+    const profesorActual = await obtenerProfesorActual();
+    if (!profesorActual || profesorActual.id !== liq.profesor_id) return <SinAcceso />;
+  }
 
   const [{ data: prof }, { data: comis }, { data: pagosLiq }, { data: descLiq }] = await Promise.all([
     sb.from("profesores").select("nombre, apellido, whatsapp").eq("id", liq.profesor_id).maybeSingle(),

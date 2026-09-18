@@ -4,7 +4,7 @@ import EncabezadoPagina from "@/components/EncabezadoPagina";
 import SinAcceso from "@/components/SinAcceso";
 import GestionRoles from "./GestionRoles";
 import MatrizPermisos from "./MatrizPermisos";
-import type { Rol, RolPermiso } from "@/lib/tipos";
+import type { Rol, RolPermiso, RolVisibilidad } from "@/lib/tipos";
 
 export const dynamic = "force-dynamic";
 
@@ -13,11 +13,12 @@ export default async function PaginaRoles() {
 
   const supabase = await createClient();
 
-  const [{ data: roles }, { data: permisos }, { data: perfiles }] =
+  const [{ data: roles }, { data: permisos }, { data: perfiles }, { data: visibilidad }] =
     await Promise.all([
       supabase.from("roles").select("*").order("id"),
       supabase.from("rol_permisos").select("*"),
       supabase.from("perfiles").select("rol_id"),
+      supabase.from("rol_visibilidad").select("*"),
     ]);
 
   const listaRoles = (roles as Rol[]) ?? [];
@@ -45,6 +46,7 @@ export default async function PaginaRoles() {
       <MatrizPermisos
         roles={listaRoles}
         permisos={(permisos as RolPermiso[]) ?? []}
+        visibilidad={(visibilidad as RolVisibilidad[]) ?? []}
       />
     </div>
   );

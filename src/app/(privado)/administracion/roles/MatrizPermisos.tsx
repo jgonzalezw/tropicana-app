@@ -4,24 +4,29 @@ import { useState, useTransition } from "react";
 import {
   MODULOS,
   ACCIONES,
+  MODULOS_CON_ALCANCE,
   ETIQUETA_MODULO,
   ETIQUETA_ACCION,
   type Rol,
   type RolPermiso,
+  type RolVisibilidad,
+  type Alcance,
 } from "@/lib/tipos";
 import {
   PLANTILLAS,
   permitidoEnPlantilla,
   type ClavePlantilla,
 } from "@/lib/plantillas";
-import { alternarPermiso, aplicarPlantilla } from "./acciones";
+import { alternarPermiso, aplicarPlantilla, fijarVisibilidad } from "./acciones";
 
 export default function MatrizPermisos({
   roles,
   permisos,
+  visibilidad,
 }: {
   roles: Rol[];
   permisos: RolPermiso[];
+  visibilidad: RolVisibilidad[];
 }) {
   const [rolActivo, setRolActivo] = useState<number>(roles[0]?.id ?? 0);
 
@@ -47,6 +52,7 @@ export default function MatrizPermisos({
         key={rolActivo}
         rolId={rolActivo}
         permisos={permisos.filter((p) => p.rol_id === rolActivo)}
+        visibilidad={visibilidad.filter((v) => v.rol_id === rolActivo)}
       />
     </div>
   );
@@ -55,16 +61,35 @@ export default function MatrizPermisos({
 function TablaRol({
   rolId,
   permisos,
+  visibilidad,
 }: {
   rolId: number;
   permisos: RolPermiso[];
+  visibilidad: RolVisibilidad[];
 }) {
   const inicial = new Map<string, boolean>();
   for (const p of permisos) inicial.set(`${p.modulo}:${p.accion}`, p.permitido);
 
+  const inicialAlcance = new Map<string, Alcance>();
+  for (const v of visibilidad) inicialAlcance.set(v.modulo, v.alcance);
+
   const [estado, setEstado] = useState(inicial);
+  const [alcances, setAlcances] = useState(inicialAlcance);
   const [pendiente, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+
+  function toggleAlcance(modulo: string, alcance: Alcance) {
+    const previo: Alcance = alcances.get(modulo) ?? "todo";
+    setAlcances((prev) => new Map(prev).set(modulo, alcance));
+    setError(null);
+    startTransition(async () => {
+      const res = await fijarVisibilidad(rolId, modulo, alcance);
+      if (res?.error) {
+        setError(res.error);
+        setAlcances((prev) => new Map(prev).set(modulo, previo));
+      }
+    });
+  }
 
   function toggle(modulo: string, accion: string) {
     const clave = `${modulo}:${accion}`;
@@ -170,6 +195,42 @@ function TablaRol({
             {error}
           </p>
         )}
+      </div>
+
+      <div className="bg-[var(--fondo-elevado)] border border-[var(--borde)] rounded-[var(--radio-panel)] p-4 mt-4">
+        <div className="text-base font-medium mb-1">Visibilidad de datos</div>
+        <p className="text-sm text-[var(--texto-tenue)] mb-3">
+          En estos módulos, &ldquo;Propio&rdquo; muestra solo lo que le pertenece a la
+          cuenta (sus cursos asignados, sus liquidaciones, lo que ella misma registró en
+          caja) — nunca lo de los demás. Sin marcar, ve todo.
+        </p>
+        <div className="space-y-2">
+          {MODULOS_CON_ALCANCE.map((m) => {
+            const actual: Alcance = alcances.get(m) ?? "todo";
+            return (
+              <div key={m} className="flex items-center justify-between gap-3 flex-wrap">
+                <span className="text-base">{ETIQUETA_MODULO[m]}</span>
+                <div className="flex gap-1">
+                  {(["propio", "todo"] as const).map((op) => (
+                    <button
+                      key={op}
+                      onClick={() => toggleAlcance(m, op)}
+                      disabled={pendiente}
+                      aria-pressed={actual === op}
+                      className={`px-3 py-1.5 text-sm rounded-[var(--radio-control)] border transition-colors disabled:opacity-40 ${
+                        actual === op
+                          ? "bg-[var(--primario)] text-[var(--primario-texto)] border-[var(--primario)] font-semibold"
+                          : "border-[var(--borde)] hover:border-[var(--primario)]"
+                      }`}
+                    >
+                      {op === "propio" ? "Propio" : "Todo"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

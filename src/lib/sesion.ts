@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import type { PerfilConRol } from "@/lib/tipos";
+import type { Alcance, PerfilConRol } from "@/lib/tipos";
 
 /** Devuelve el perfil (con su rol) del usuario autenticado, o null. */
 export async function obtenerPerfilActual(): Promise<PerfilConRol | null> {
@@ -56,4 +56,43 @@ export async function tienePermiso(
     .maybeSingle();
 
   return data?.permitido === true;
+}
+
+/**
+ * El alcance del usuario actual sobre `modulo`. El Administrador siempre ve
+ * todo. **Sin fila en `rol_visibilidad` → 'todo'**: es el default
+ * retrocompatible (sin esta config, todo se ve como antes de la 0043).
+ */
+export async function alcanceDe(modulo: string): Promise<Alcance> {
+  const perfil = await obtenerPerfilActual();
+  if (!perfil || !perfil.activo) return "todo";
+  if (perfil.rol?.clave === "administrador") return "todo";
+
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("rol_visibilidad")
+    .select("alcance")
+    .eq("rol_id", perfil.rol_id)
+    .eq("modulo", modulo)
+    .maybeSingle();
+
+  return (data?.alcance as Alcance) === "propio" ? "propio" : "todo";
+}
+
+/**
+ * El profesor vinculado a la cuenta del usuario actual, o `null` si su cuenta
+ * no está vinculada a ninguno. Es el "cuál es mi profesor" que hace falta para
+ * filtrar a lo propio (asistencia, liquidaciones): el vínculo 1-a-1 vive en
+ * `profesores.usuario_id` (0005) desde siempre, pero nada lo usaba.
+ */
+export async function obtenerProfesorActual(): Promise<{ id: number } | null> {
+  const perfil = await obtenerPerfilActual();
+  if (!perfil) return null;
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("profesores")
+    .select("id")
+    .eq("usuario_id", perfil.id)
+    .maybeSingle();
+  return (data as { id: number } | null) ?? null;
 }

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { tienePermiso, obtenerParametro, obtenerPerfilActual } from "@/lib/sesion";
+import { tienePermiso, obtenerParametro, obtenerPerfilActual, alcanceDe, obtenerProfesorActual } from "@/lib/sesion";
 import { exigir } from "@/lib/datos";
 import { diaIso, isoFecha } from "@/lib/inscripcion";
 import { enVigencia } from "@/lib/vigencia";
@@ -788,6 +788,14 @@ export async function cargarLiquidaciones(): Promise<{
   liquidaciones: FilaLiquidacion[];
 }> {
   if (!(await tienePermiso("liquidaciones", "ver"))) return { profesores: [], liquidaciones: [] };
+
+  // Visibilidad "propio" (0043, default para el rol Profesor): solo ve sus
+  // propias liquidaciones, procesadas o pendientes de proceso — nunca las de
+  // otro profesor. Sin cuenta vinculada, no hay nada que mostrarle.
+  const alcance = await alcanceDe("liquidaciones");
+  const profesorActual = alcance === "propio" ? await obtenerProfesorActual() : null;
+  if (alcance === "propio" && !profesorActual) return { profesores: [], liquidaciones: [] };
+
   const sb = await createClient();
 
   const periodoVencido = primerDiaMesVencidoISO();
@@ -855,6 +863,12 @@ export async function cargarLiquidaciones(): Promise<{
     ventasEsperando: l.periodo === periodoVencido ? (trabadasPorProf.get(l.profesor_id) ?? []).length : 0,
   }));
 
+  if (alcance === "propio" && profesorActual) {
+    return {
+      profesores: profesores.filter((p) => p.profesorId === profesorActual.id),
+      liquidaciones: liquidaciones.filter((l) => l.profesorId === profesorActual.id),
+    };
+  }
   return { profesores, liquidaciones };
 }
 
