@@ -235,3 +235,18 @@ proceso 1). No es un backlog de decisiones: es el estado del release.
   usuarios ya tenían su correo. `main` `94fd1d3..59356a3`, confirmado por el
   chip PROD `#59356a3`. Detalle en `docs/ESTADO.md`, bloque *"El trigger de
   alta no copiaba el email a `perfiles`"*.
+- **Visibilidad de datos propios por rol (migración 0043) + fix del mensaje
+  de error pegado en Asistencia — PASADO A PRODUCCIÓN el 2026-09-17**, con el
+  OK explícito de Javier (*"A PRODUCCIÓN"*, confirmando que ya lo había
+  probado en dev). Migración **0043** (tabla `rol_visibilidad` + RLS + seed:
+  Profesor → asistencia/liquidaciones propio, Asistente → caja propio)
+  aplicada en `pnvhpbxjbdmbktpwebtx` antes del código, siguiendo el orden de
+  §3. Verificado el seed correcto post-migración y `get_advisors` (security)
+  sin hallazgos nuevos atribuibles a `rol_visibilidad`. Controles de
+  `scripts/control_migracion.sql` en **OK** en producción (1–10, 17, 20, 21;
+  control 15 en REVISAR a propósito, deuda D1), igual que en dev. `main`
+  `59356a3..4e1aebc`. Incluye también el fix de `ClienteAsistencia.tsx` (el
+  mensaje de rechazo quedaba pegado al cambiar de curso o fecha) y **D21**
+  (política de reliquidación retroactiva, anotada en backlog de alta
+  prioridad — no construida en este pase). Detalle completo en
+  `docs/ESTADO.md`.
