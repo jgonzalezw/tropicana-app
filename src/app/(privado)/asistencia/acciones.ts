@@ -76,7 +76,7 @@ function restarDias(iso: string, dias: number): string {
 export async function validarFecha(
   cursoId: number,
   fecha: string,
-  opts?: { permitirFutura?: boolean }
+  opts?: { permitirFutura?: boolean; operacion?: "asistencia" | "suspension" }
 ): Promise<string | null> {
   if (!ISO.test(fecha)) return "Fecha inválida.";
   const hoy = hoyISO();
@@ -94,16 +94,36 @@ export async function validarFecha(
   const vig = cVig as unknown as ({ nombre: string } & VigenciaCurso) | null;
   if (vig && !enVigencia(vig, fecha)) return motivoFueraDeVigencia(vig.nombre, vig, fecha);
 
-  // Regla de negocio 16 (revisada 2026-09-12): lo que no se puede tocar es una
-  // clase de la que depende una comisión **con prorrateo** que ya se pagó.
-  // Tomar o corregir una asistencia, o suspender una clase, cambia cuántas
-  // clases puso ese curso, y con eso el reparto (regla 10). Ya no se congela el
-  // mes entero: una membresía de un solo curso no depende del conteo, y una
-  // membresía nueva no toca lo ya repartido.
+  // Regla de negocio 16 (revisada 2026-09-17): lo que congela una clase es que
+  // TOCARLA cambie cuántas clases puso ese curso (regla 10) o mueva un
+  // descuento al profesor ya pagado. Suspenderla o reabrirla sí cambia ese
+  // conteo — eso sigue bloqueado siempre. Pero TOMAR o CORREGIR la asistencia
+  // de una clase que sigue 'dictada' no lo cambia: el curso se dictó igual,
+  // con más o menos gente. Por eso una inscripción retroactiva puede sumar su
+  // alumno a esa asistencia (entra por complemento, sin tocar lo ya pagado)
+  // aunque la clase esté congelada por la membresía de otro alumno.
   const sbCierre = await createClient();
   const congelador = await cargarCongelador(sbCierre);
   const quien = claseCongelada(congelador, cursoId, fecha);
-  if (quien) return motivoCongelada(fecha, quien);
+  if (quien) {
+    const operacion = opts?.operacion ?? "suspension";
+    // El descuento a un profesor ya pagado se mueve por cualquier cambio a la
+    // clase (regla 20a + 16): eso siempre bloquea, tome o no asistencia.
+    const esDescuentoPagado = quien === "un descuento ya pagado";
+    if (operacion === "suspension" || esDescuentoPagado) return motivoCongelada(fecha, quien);
+
+    // operacion === "asistencia" y el freeze es por prorrateo: se permite,
+    // salvo que guardar reabra una sesión suspendida — eso sí correría el
+    // ciclo y cambiaría el conteo (regla 4), así que ahí sigue bloqueado.
+    const sbSesion = await createClient();
+    const { data: sesionActual } = await sbSesion
+      .from("sesiones")
+      .select("estado")
+      .eq("curso_id", cursoId)
+      .eq("fecha", fecha)
+      .maybeSingle();
+    if (sesionActual?.estado === "suspendida") return motivoCongelada(fecha, quien);
+  }
 
   if (fecha < hoy) {
     if (!(await tienePermiso("asistencia", "editar")))
@@ -791,7 +811,7 @@ export async function guardarAsistencia(
   if (!(await tienePermiso("asistencia", "crear")))
     return { error: "No tenés permiso para registrar asistencia." };
   if (!e.marcas.length) return { error: "No hay nada marcado." };
-  const errFecha = await validarFecha(e.cursoId, e.fecha);
+  const errFecha = await validarFecha(e.cursoId, e.fecha, { operacion: "asistencia" });
   if (errFecha) return { error: errFecha };
 
   const perfil = await obtenerPerfilActual();

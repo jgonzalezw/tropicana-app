@@ -6,8 +6,27 @@
 > `docs/design/README.md` (fuente de verdad del **diseño**), `docs/CONTEXTO_AVANCE.md`
 > (bitácora larga de Etapa 0), `docs/DESIGN_SYNC.md` (cómo entran los handoffs).
 >
-> **Última actualización:** 2026-09-17 — **Visibilidad "propio/todo" por rol y
-> módulo (migración 0043), en dev.** Javier: un Profesor con acceso a un módulo
+> **Última actualización:** 2026-09-17 — **Regla 16 (congelador) afinada: tomar
+> asistencia de una clase congelada ya no bloquea de más.** Caso real: Heels
+> 29/08, con asistencia registrada, tenía una membresía multi-curso ya pagada
+> (Perico) en su ciclo. Al inscribir un alumno con fecha retroactiva y querer
+> sumarlo a esa asistencia, el sistema rechazaba **la clase entera** — y en el
+> troubleshooting la asistencia se borró y tampoco se podía re-grabar. Primer
+> diagnóstico (equivocado): hacía falta una política nueva de confirmar/
+> reliquidar para usuarios con autoridad (quedó anotado un rato como D21).
+> Javier lo corrigió: el manejo retroactivo ya era correcto (regla 16); lo que
+> estaba mal calibrado era el alcance del bloqueo. Por regla 10 el reparto
+> depende de cuántas clases puso el curso, no de cuánta gente asistió — sumar
+> un alumno a una clase que sigue `dictada` no mueve la plata ya pagada.
+> **Corregido**: `validarFecha` distingue `operacion:"asistencia"` de
+> `"suspension"` — tomar/corregir asistencia de una clase congelada se permite
+> (con el permiso que ya exige fechas pasadas), salvo que reabra una sesión
+> suspendida. Suspender/reabrir y los descuentos ya pagados siguen bloqueados.
+> Sin migración. Detalle en el bloque **"El mensaje de 'clase congelada' no se
+> notaba"**. Pendiente el OK de Javier para producción.
+>
+> **2026-09-17 (antes)** — **Visibilidad "propio/todo" por rol y
+> módulo (migración 0043), pasada a producción.** Javier: un Profesor con acceso a un módulo
 > veía TODO, no solo lo suyo (todos los cursos en Tomar Asistencia; si se le
 > habilitara Liquidaciones, todas — y por URL directa, cualquiera con el módulo
 > abierto podía ver el comprobante de otro profesor). Se descartó la primera
@@ -22,7 +41,7 @@
 > y Caja (el asistente ve/suma solo lo que él registró). Verificado en dev
 > con la cuenta real de Oscar Núñez. Gerente/Asistente quedan **configurables**
 > (no se convirtieron en roles de sistema). Detalle en el bloque **"Visibilidad
-> de datos propios (0043)"**. Pendiente el OK de Javier para producción.
+> de datos propios (0043)"**. `main` `59356a3..4e1aebc`, controles en OK.
 >
 > **2026-09-17 (antes)** — **C2 pasado a producción**, con el OK
 > explícito de Javier (*"avanza. ok"*, tras validar en dev y confirmar
@@ -2357,9 +2376,11 @@ Conexión):
 
 ### Estado
 
-**Solo en dev.** Pendiente de que Javier lo pruebe y dé el OK explícito para
-producción (regla de proceso 1). Migración 0043 aditiva, no toca datos
-existentes.
+**PASADO A PRODUCCIÓN el 2026-09-17**, con el OK explícito de Javier
+(*"A PRODUCCIÓN"*, confirmando que ya lo había probado en dev). Migración 0043
+aplicada en `pnvhpbxjbdmbktpwebtx` antes del código; `main` `59356a3..4e1aebc`.
+Controles de `scripts/control_migracion.sql` en OK en producción (control 15
+en REVISAR a propósito, deuda D1). Detalle del pase en `DECISIONES.md` §4.
 
 ---
 
@@ -2399,22 +2420,37 @@ hoy"), pero no hay ningún enlace directo a esa acción desde esta pantalla —
 queda anotado como posible mejora si vuelve a ser un problema, no se tocó
 en esta pasada.
 
-**Javier corrigió el diagnóstico**: el problema de fondo no era que el
-mensaje no se notara — era que **el bloqueo en sí contradice la política ya
-definida** para una inscripción retroactiva que impacta una liquidación
-cerrada. *"Estás perdiendo de vista las decisiones que se tomaron en
-relación a las inscripciones retroactivas que afectan liquidaciones ya
-cerradas — pagadas."* El bloqueo duro debe seguir para Profesor/Asistente,
-pero un Gerente/Administrador con criterio debería poder confirmar y
-reliquidar, no chocar contra un muro. **Se definió la política completa**
-(autoridad, qué se reliquida, dónde entra el complemento) y **se anotó en
-`DECISIONES.md` como D21, backlog de alta prioridad**, con disparador
-explícito: se retoma después de completar el plan de ventas de particulares,
-alquileres y talleres. No se construye ahora — es más grande que un fix de
-UI (toca el congelador de la regla 16, el motor de complementos y el modelo
-de permisos). Mitigación inmediata acordada: achicar `asistencia_semanas_retro`
-al mínimo operable — el valor puntual quedó **sin decidir** (Javier prefirió
-dejarlo en 2 por ahora).
+**Javier corrigió el diagnóstico dos veces.** Primero señaló que el problema
+de fondo no era que el mensaje no se notara, sino el bloqueo en sí — y en un
+primer intento se documentó como D21 una política nueva (confirmar/reliquidar
+para usuarios con autoridad). **Reconstruida la secuencia exacta con Javier**,
+esa política no hacía falta: la clase ya tenía asistencia registrada; se
+inscribió un alumno retroactivamente; la liquidación marcó que había que
+reliquidar; al querer ajustar la asistencia con el alumno nuevo apareció el
+error; en el troubleshooting se borró la asistencia, y volver a grabarla
+(con el alumno nuevo) también fallaba — mismo candado.
+
+**El manejo retroactivo en sí ya era correcto** (regla 16): la venta
+retroactiva no se bloquea, la liquidación pagada de Perico (el otro alumno,
+multi-curso) **no se reliquida** — regla 10, agregar una membresía no cambia
+el conteo de otra. Lo que estaba mal calibrado era el **alcance del bloqueo**:
+`validarFecha` congelaba la clase entera, incluida la asistencia, cuando lo
+único que de verdad mueve la plata pagada es **suspender/reabrir** la clase o
+tocar un **descuento al profesor ya pagado**. Sumar un alumno a una clase que
+sigue `dictada` no cambia el conteo de la regla 10, así que no puede mover un
+peso de lo cobrado — verificado en el código: `revertirDevengosAbiertos` solo
+revierte comisiones de liquidaciones **abiertas**, nunca las pagadas.
+
+**Corregido** (regla de negocio 16 afinada en `REGLAS.md`; `validarFecha`
+ahora recibe `operacion: "asistencia" | "suspension"` en
+`asistencia/acciones.ts`): tomar o corregir asistencia de una clase congelada
+se permite —con el permiso `asistencia.editar` que ya exige cargar fechas
+pasadas—, salvo que la sesión esté `suspendida` (reabrirla sí correría el
+ciclo). Suspender o reabrir, y los descuentos ya pagados, siguen bloqueados
+igual que antes. **D21 quedó resuelta** (ver `DECISIONES.md` §1.b) — no era
+backlog, era un alcance de la regla 16 mal calibrado. Sin
+`asistencia_semanas_retro` de por medio: no había ventana de riesgo nueva que
+mitigar. `tsc`/`eslint` limpios.
 
 **Regresión introducida por el propio fix del panel, corregida el mismo
 día**: al volver el error un panel prominente ("No se guardó"), quedó

@@ -76,6 +76,7 @@ Tamaño: **S** = un rato · **M** = un hito chico · **L** = un hito propio.
 | # | Qué es | Rebanada | Tamaño |
 | --- | --- | --- | --- |
 | R16 | **Alumnos: fecha de nacimiento y sexo.** Migración aditiva + los dos campos en la ficha (sexo desde catálogo, no hardcodeado). Surgió de una revisión de uso. | Alumnos | S |
+| R24 | **Control 17 (`scripts/control_migracion.sql`) da falso positivo con el agregado seguro de asistencia.** Cuenta como "hecho dentro de un período pagado" cualquier inscripción creada después del cierre con `fecha_inicio` dentro de él. Desde que la regla 16 permite sumar un alumno retroactivo a la asistencia de una clase congelada (2026-09-17, ver `DECISIONES.md` §1.b), ese caso legítimo también dispara el control. Falta que distinga el complemento seguro (no mueve plata pagada) de una reescritura real. | control_migracion | S |
 
 ---
 
