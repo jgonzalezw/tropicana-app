@@ -307,3 +307,14 @@ proceso 1). No es un backlog de decisiones: es el estado del release.
   tenía **0** clases con reemplazo y 34 pagos, ninguno tocado; nada aparece como
   pagable hasta que se registre el primer reemplazo. `get_advisors` sin
   hallazgos nuevos. `main` `816bd9c..929721a`.
+  **Cruce de deploys, y cómo se resolvió**: se empujaron cuatro commits
+  seguidos y Vercel dejó activo `3a07c73` (terminó último), con código viejo:
+  el chip decía `#3a07c73` y parecía que la lista de profesores se había
+  revertido. Javier lo corrigió con **Promote** sobre `929721a`. Desde entonces:
+  un solo push por pase (§3).
+- **Ajustes de Caja sobre lo anterior — PASADO A PRODUCCIÓN el 2026-09-18**, con
+  el OK explícito de Javier (*"aplica todo a producción"*), en **un solo push**:
+  el nombre de cada motivo sale del catálogo (no de una tabla en el código), el
+  total de "Por pagar" suma solo lo que hay que desembolsar y los negativos
+  van aparte, y el panel explica cuando no hay a quién elegir. Sin migración.
+  `main` `5ad288e..4d897c8`, confirmado por Javier con el chip PROD `#4d897c8`.
