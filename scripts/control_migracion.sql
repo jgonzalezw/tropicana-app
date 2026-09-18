@@ -259,33 +259,69 @@ select '16. pruebas con clase en un dia sin curso o suspendida' as control,
    );
 
 -- ---------------------------------------------------------------------
--- 17. HECHOS DENTRO DE UN PERIODO YA LIQUIDADO Y PAGADO
---     Regla de negocio 16: un periodo liquidado y pagado esta cerrado. Si
---     aparecen ventas, clases suspendidas o asistencias con fecha dentro de
---     el, alguien reescribio el pasado y la comision que se pago quedo sin
---     respaldo. Cuenta los hechos posteriores al cierre que caen ahi adentro.
+-- 17. HECHOS DENTRO DE UN PERIODO PAGADO QUE NO DEJARON RASTRO
+--     Regla de negocio 16 (reescrita el 2026-09-18): un periodo liquidado y
+--     pagado NO esta congelado. Las clases solo afectan contadores, asi que
+--     registrar tarde, corregir o suspender siempre se puede: lo que no se
+--     hace es reescribir lo pagado. Si el recalculo da otro numero, la
+--     diferencia sale como un `ajuste` (0044), y una venta retroactiva
+--     devenga lo suyo como complemento.
+--
+--     POR ESO ESTE CONTROL SE ACOTO. Antes contaba como sospechosa CUALQUIER
+--     inscripcion creada despues del cierre con fecha adentro -- que desde la
+--     0044 es el caso legitimo y esperado. Un control que grita en falso
+--     ensena a ignorarlo, que es peor que no tenerlo.
+--
+--     Lo que sigue siendo un problema real: un hecho dentro de un periodo
+--     pagado que NO dejo ni complemento ni ajuste. Ahi si la comision que se
+--     pago quedo sin respaldo y nadie lo compenso.
+--
 --     El cierre es el ultimo dia del mes de la liquidacion mas nueva CON PAGO
---     (estado 'pagada' o 'cerrada': 'cerrada' es pago parcial).
+--     ('pagada' o 'cerrada': 'cerrada' es pago parcial).
 -- ---------------------------------------------------------------------
 with cierre as (
   select max((date_trunc('month', periodo) + interval '1 month - 1 day')::date) as hasta
     from public.liquidaciones
    where estado in ('pagada', 'cerrada') and periodo is not null
+),
+-- Ventas retroactivas que ERAN ELEGIBLES para esa liquidacion y aun asi nunca
+-- devengaron nada. Las dos condiciones de elegibilidad importan y se midieron:
+-- una membresia `activa`, o una cuyo ciclo termina DESPUES del cierre, todavia
+-- no puede devengar (solo entran las completadas con fecha_fin <= cierre,
+-- regla 1 y regla 8). Sin ese filtro el control marcaba ocho membresias de dev
+-- que estaban perfectamente bien: no habian devengado porque no les tocaba.
+ventas_mudas as (
+  select i.id
+    from public.inscripciones i, cierre
+   where cierre.hasta is not null
+     and i.creado_en::date > cierre.hasta
+     and i.estado = 'completada'
+     and i.fecha_fin is not null and i.fecha_fin <= cierre.hasta
+     and not exists (select 1 from public.comisiones_devengadas cd
+                      where cd.membresia_id = i.id)
+),
+-- Suspensiones retroactivas sobre una membresia ya devengada que no dejaron
+-- ningun ajuste: el conteo cambio y la plata no se recalculo.
+suspensiones_mudas as (
+  select s.id
+    from public.sesiones s, cierre
+   where cierre.hasta is not null
+     and s.estado = 'suspendida'
+     and s.fecha <= cierre.hasta
+     and s.actualizado_en::date > cierre.hasta
+     and exists (
+       select 1 from public.inscripcion_cursos ic
+       join public.inscripciones i on i.id = ic.inscripcion_id
+       join public.comisiones_devengadas cd on cd.membresia_id = i.id
+      where ic.curso_id = s.curso_id
+        and s.fecha between i.fecha_inicio and coalesce(i.fecha_fin, s.fecha)
+        and not exists (select 1 from public.comisiones_devengadas aj
+                         where aj.membresia_id = i.id and aj.tipo = 'ajuste')
+     )
 )
-select '17. hechos dentro de un periodo pagado' as control,
-       (select count(*) from public.inscripciones i, cierre
-         where cierre.hasta is not null and i.creado_en::date > cierre.hasta
-           and i.fecha_inicio <= cierre.hasta)
-     + (select count(*) from public.sesiones s, cierre
-         where cierre.hasta is not null and s.estado = 'suspendida'
-           and s.fecha <= cierre.hasta and s.actualizado_en::date > cierre.hasta)
-       as n,
-       case when (select count(*) from public.inscripciones i, cierre
-                   where cierre.hasta is not null and i.creado_en::date > cierre.hasta
-                     and i.fecha_inicio <= cierre.hasta)
-                + (select count(*) from public.sesiones s, cierre
-                    where cierre.hasta is not null and s.estado = 'suspendida'
-                      and s.fecha <= cierre.hasta and s.actualizado_en::date > cierre.hasta) = 0
+select '17. hechos dentro de un periodo pagado sin complemento ni ajuste' as control,
+       (select count(*) from ventas_mudas) + (select count(*) from suspensiones_mudas) as n,
+       case when (select count(*) from ventas_mudas) + (select count(*) from suspensiones_mudas) = 0
             then 'OK' else 'REVISAR' end as estado;
 
 -- ---------------------------------------------------------------------

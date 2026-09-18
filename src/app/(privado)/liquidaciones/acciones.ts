@@ -7,6 +7,7 @@ import { tienePermiso, obtenerParametro, obtenerPerfilActual, alcanceDe, obtener
 import { exigir } from "@/lib/datos";
 import type { Curso } from "@/lib/tipos";
 import { COLUMNAS_ASIGNACION, type AsignacionVigencia } from "@/lib/asignaciones";
+import { imputarPago } from "@/lib/liquidacion/cuenta";
 import {
   calcularDevengos,
   type DatosMotor,
@@ -697,6 +698,19 @@ export async function eliminarLiquidacionVacia(
     .limit(1);
   if ((pagos as unknown[])?.length) return { error: "Tiene pagos registrados: no se puede eliminar." };
 
+  // Y solo una `abierta`. Sin ítems ni pagos el estado siempre debería ser esa,
+  // así que este guard no cambia ningún caso real — es la red por si alguna vez
+  // deja de ser cierto. Un borrado en una tabla que mueve plata no se apoya en
+  // que dos condiciones impliquen una tercera.
+  const { data: liq } = await a
+    .from("liquidaciones")
+    .select("estado")
+    .eq("id", liquidacionId)
+    .maybeSingle();
+  if (!liq) return { error: "La liquidación no existe." };
+  if (liq.estado !== "abierta")
+    return { error: `No se puede eliminar una liquidación ${liq.estado}.` };
+
   const { error } = await a.from("liquidaciones").delete().eq("id", liquidacionId);
   if (error) return { error: error.message };
   revalidatePath("/liquidaciones");
@@ -704,8 +718,21 @@ export async function eliminarLiquidacionVacia(
 }
 
 /** Registra un pago al profesor contra su liquidación. */
-export async function registrarPagoLiquidacion(args: {
-  liquidacionId: number;
+/**
+ * Paga contra la **cuenta del profesor**, no contra una liquidación suelta.
+ *
+ * Se llega acá desde la pantalla de Liquidaciones (con una liquidación a la
+ * vista) o desde Caja (con el profesor). En los dos casos el camino es el
+ * mismo, a propósito: si fueran dos, podrían discrepar y nadie se enteraría
+ * hasta el arqueo.
+ *
+ * El monto se reparte con `imputarPago`: primero cancela los períodos con
+ * pagado de más —devolviéndoles lo que sobró— y después reparte el efectivo
+ * entre los que quedan debiendo, del más viejo al más nuevo. La suma de las
+ * filas de `pagos` **es** el efectivo que sale.
+ */
+export async function pagarAProfesor(args: {
+  profesorId: number;
   monto: number;
   medio: string | null;
   notaMedio?: string;
@@ -714,44 +741,79 @@ export async function registrarPagoLiquidacion(args: {
   const a = admin();
   const perfil = await obtenerPerfilActual();
 
-  const monto = Math.max(0, Math.round((Number(args.monto) || 0) * 100) / 100);
+  const monto = Math.round((Number(args.monto) || 0) * 100) / 100;
   if (monto <= 0) return { error: "El monto debe ser mayor a 0." };
   if (!args.medio) return { error: "Elegí el medio de pago." };
 
-  const { data: liq } = await a
+  const { data: liqs } = await a
     .from("liquidaciones")
-    .select("id, profesor_id, periodo, total_devengado, total_descuentos, total_pagado")
+    .select("id, periodo, total_devengado, total_descuentos, total_pagado")
+    .eq("profesor_id", args.profesorId);
+  const periodos = ((liqs as {
+    id: number;
+    periodo: string;
+    total_devengado: number;
+    total_descuentos: number | null;
+    total_pagado: number;
+  }[]) ?? []).map((l) => ({
+    id: l.id,
+    periodo: l.periodo,
+    totalDevengado: Number(l.total_devengado),
+    totalDescuentos: Number(l.total_descuentos ?? 0),
+    totalPagado: Number(l.total_pagado),
+  }));
+  if (!periodos.length) return { error: "Ese profesor no tiene liquidaciones." };
+
+  const imputacion = imputarPago(periodos, monto);
+  if (!imputacion.ok) return { error: imputacion.error };
+
+  const glosa = args.medio && /otro/i.test(args.medio) && args.notaMedio?.trim() ? args.notaMedio.trim() : null;
+  for (const i of imputacion.imputaciones) {
+    const { error: errPago } = await a.from("pagos").insert({
+      tipo: "pago",
+      // El motivo que corresponde, y que ya existía en el catálogo: sin esto
+      // el egreso no cae en ningún bucket de Caja (0045).
+      motivo: "comision_profesor",
+      profesor_id: args.profesorId,
+      liquidacion_id: i.liquidacionId,
+      monto: i.monto,
+      medio: args.medio,
+      // Una reimputación necesita decir qué es: si no, una fila negativa en el
+      // libro de caja no se entiende sola.
+      glosa: i.esReimputacion
+        ? `Devolución de lo pagado de más en ${i.periodo.slice(0, 7)}, aplicada contra este pago` +
+          (glosa ? ` · ${glosa}` : "")
+        : glosa,
+      registrado_por: perfil?.id ?? null,
+    });
+    if (errPago) return { error: errPago.message };
+  }
+
+  for (const id of new Set(imputacion.imputaciones.map((i) => i.liquidacionId)))
+    await recomputarTotales(a, id);
+
+  revalidatePath("/liquidaciones");
+  revalidatePath("/caja");
+  return { ok: true };
+}
+
+/** Compatibilidad con la pantalla de Liquidaciones: paga por la cuenta del
+ *  profesor dueño de esa liquidación. */
+export async function registrarPagoLiquidacion(args: {
+  liquidacionId: number;
+  monto: number;
+  medio: string | null;
+  notaMedio?: string;
+}): Promise<{ ok?: true; error?: string }> {
+  const { data: liq } = await admin()
+    .from("liquidaciones")
+    .select("profesor_id")
     .eq("id", args.liquidacionId)
     .maybeSingle();
   if (!liq) return { error: "La liquidación no existe." };
-
-  // Pagar ya no se bloquea por una membresía trabada de otro (regla 16
-  // revisada): el pago congela solo las clases de las que depende un prorrateo
-  // que este pago hace efectivo, no el mes entero. La membresía que espera
-  // sigue pudiendo registrarse y se cobra después, como complemento.
-  const restante = Math.max(
-    0,
-    Number(liq.total_devengado) - Number(liq.total_descuentos ?? 0) - Number(liq.total_pagado)
-  );
-  if (monto > restante) return { error: `El pago supera el neto pendiente (${restante}).` };
-
-  const glosa = args.medio && /otro/i.test(args.medio) && args.notaMedio?.trim() ? args.notaMedio.trim() : null;
-  const { error: errPago } = await a.from("pagos").insert({
-    tipo: "pago",
-    motivo: "liquidacion",
-    profesor_id: liq.profesor_id,
-    liquidacion_id: args.liquidacionId,
-    monto,
-    medio: args.medio,
-    glosa,
-    registrado_por: perfil?.id ?? null,
-  });
-  if (errPago) return { error: errPago.message };
-
-  await recomputarTotales(a, args.liquidacionId);
-  revalidatePath("/liquidaciones");
-  revalidatePath(`/liquidaciones/${args.liquidacionId}`);
-  return { ok: true };
+  const r = await pagarAProfesor({ ...args, profesorId: liq.profesor_id as number });
+  if (r.ok) revalidatePath(`/liquidaciones/${args.liquidacionId}`);
+  return r;
 }
 
 /** Recalcula total_devengado (ítems), total_pagado (pagos) y neto/estado. */
