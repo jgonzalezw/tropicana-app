@@ -7,7 +7,7 @@
 > (bitácora larga de Etapa 0), `docs/DESIGN_SYNC.md` (cómo entran los handoffs).
 >
 > **Última actualización:** 2026-09-18 — **Las clases solo afectan contadores:
-> el congelador deja de bloquear y aparece el ajuste (migración 0044), en dev.**
+> el congelador deja de bloquear y aparece el ajuste (migración 0044).**
 > Javier corrigió un error de modelo que venía de arrastre: se creía que una
 > clase "tenía plata encima" y por eso el congelador prohibía tocarla si de ella
 > dependía una comisión pagada. La premisa era falsa — la plata sale de las
@@ -22,7 +22,8 @@
 > descuadre de 18,08 que el control 18 marcaba hace días. **Producción nunca
 > liquidó nada**: su primera liquidación corre en octubre, así que no hay deltas
 > históricos que arrastrar. Detalle en el bloque **"El mensaje de 'clase
-> congelada' no se notaba"**. Pendiente el OK de Javier para producción.
+> congelada' no se notaba"**. **En producción desde el 2026-09-18** (`main`
+> `75d33d5`); su primera liquidación corre en octubre.
 >
 > **2026-09-17** — **Visibilidad "propio/todo" por rol y
 > módulo (migración 0043), pasada a producción.** Javier: un Profesor con acceso a un módulo
@@ -2510,5 +2511,19 @@ original (108,27 base / 54,14 monto) quedó **intacta** y se creó el ajuste
 de "Bs. 0,00". En Heels 29/08, guardar muestra el aviso nombrando esa
 liquidación, y con "Guardar igual" la asistencia se graba.
 
-15 pruebas en verde, `tsc`, `eslint` y `build` limpios. **Migración 0044
-aplicada solo en dev**; el pase espera el OK de Javier.
+15 pruebas en verde, `tsc`, `eslint` y `build` limpios.
+
+### Estado
+
+**PASADO A PRODUCCIÓN el 2026-09-18**, con el OK explícito de Javier
+(*"adelante con producción"*). Migración **0044** aplicada en
+`pnvhpbxjbdmbktpwebtx` antes del código: puramente estructural, con
+`comisiones_devengadas` en **0 filas** antes y después. `main`
+`f6f446a..75d33d5` (9 commits). Controles de `scripts/control_migracion.sql`:
+**todos OK** en producción. `get_advisors` sin hallazgos nuevos.
+
+**Por qué el riesgo era bajo, medido y no supuesto**: producción nunca había
+liquidado nada, así que no había ningún delta histórico que el cambio pudiera
+disparar de golpe. Su **primera liquidación corre en octubre**, por septiembre,
+y este código es el que la va a gobernar — llegamos antes de la primera vez, no
+después.

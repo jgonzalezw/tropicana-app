@@ -250,3 +250,27 @@ proceso 1). No es un backlog de decisiones: es el estado del release.
   sin efecto al día siguiente**: no era una política de autoridad por
   construir, sino la regla 16 mal planteada — ver §1.b, "Las clases solo
   afectan contadores". Detalle completo en `docs/ESTADO.md`.
+- **La regla 16 reescrita + el ajuste de comisión (migración 0044) — PASADO A
+  PRODUCCIÓN el 2026-09-18**, con el OK explícito de Javier (*"adelante con
+  producción"*). Es la corrección de un **error de modelo**, no una mejora: se
+  creía que una clase "tenía plata encima" y por eso el congelador prohibía
+  tocarla. La plata sale de las membresías completadas y cobradas al 100%; el
+  conteo de clases es apenas el insumo del prorrateo. Ahora registrar, corregir
+  o suspender siempre se puede, y si el recálculo de una membresía ya liquidada
+  da otro número, la diferencia entra como un `ajuste` firmado —complemento del
+  período original— sin reescribir lo pagado.
+  Migración **0044** aplicada en `pnvhpbxjbdmbktpwebtx` **antes** del código,
+  siguiendo el orden de §3. Es puramente estructural: `comisiones_devengadas`
+  tenía **0 filas** en producción antes y después. Verificado el `check` con
+  `'ajuste'`, el índice único ya parcial (`tipo='comision'`) y la columna
+  `ajusta_comision_id`; `get_advisors` sin hallazgos nuevos. Controles de
+  `scripts/control_migracion.sql`: **todos OK** en producción. `main`
+  `f6f446a..75d33d5` (9 commits).
+  **Riesgo medido antes del pase**: producción **nunca liquidó nada** — cero
+  liquidaciones y cero comisiones—, así que no hay deltas históricos que
+  arrastrar. Su primera liquidación corre en **octubre**, por septiembre, y
+  este código es el que la va a gobernar. Certificado con 15 pruebas
+  deterministas (`npm test`) y reconciliado contra datos reales en dev, donde
+  además **corrigió un descuadre preexistente**: la membresía que el control 18
+  marcaba (818,08 devengado contra 800,00 cobrado) pasó a sumar exactamente
+  800,00. Detalle completo en `docs/ESTADO.md`.
