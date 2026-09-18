@@ -134,6 +134,14 @@ migración — D8 incluida.
    que dio en dev.
 6. **Recién después, si hace falta, refrescar dev desde prod.**
 
+> **Un solo push por pase.** Vercel construye cada commit por separado y **en
+> paralelo**: si se empujan varios seguidos, termina último el que empezó
+> primero y ese queda como el deploy activo, con código viejo. Costó el
+> 2026-09-18: el chip mostraba `#3a07c73` cuando lo publicado era `#929721a`, y
+> parecía que un arreglo se había revertido. Se empuja **una vez**, con todo
+> junto, y se confirma que el chip PROD muestre el último commit. Si quedó el
+> equivocado: Vercel → Deployments → el commit correcto → **⋯ → Promote**.
+
 > **La trampa:** `refresh-dev.mjs` **vacía** las tablas de dominio de dev y las
 > reemplaza con las de producción. Todo lo que se haya cargado en dev para
 > probar —planes, precios de prueba, inscripciones— **se pierde**. Nunca
