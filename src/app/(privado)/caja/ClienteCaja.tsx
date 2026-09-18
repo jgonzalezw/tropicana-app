@@ -49,6 +49,7 @@ export default function ClienteCaja({
   lineas,
   porPagar,
   profesores,
+  etiquetasMotivo,
   motivosIngreso,
   motivosEgreso,
   medios,
@@ -63,6 +64,8 @@ export default function ClienteCaja({
   porPagar: LineaPendiente[];
   /** Todos los profesores: para pagos sueltos, que no dependen de una deuda. */
   profesores: { id: number; nombre: string }[];
+  /** Nombres de los motivos según el catálogo (editables en pantalla). */
+  etiquetasMotivo: Record<string, string>;
   motivosIngreso: string[];
   motivosEgreso: string[];
   medios: string[];
@@ -172,6 +175,7 @@ export default function ClienteCaja({
             // aunque la lista de al lado los estuviera mostrando.
             lineas={[...lineas, ...porPagar]}
             profesores={profesores}
+            etiquetasMotivo={etiquetasMotivo}
             medios={medios}
             diasCompromiso={diasCompromiso}
             onGuardar={guardar}
@@ -311,7 +315,7 @@ export default function ClienteCaja({
                     >
                     <div className="flex items-baseline justify-between gap-3">
                       <span className="min-w-0 text-base font-medium truncate">
-                        {m.sujeto ?? etiquetaMotivo(m.motivo ?? "otro")}
+                        {m.sujeto ?? etiquetaMotivo(m.motivo ?? "otro", etiquetasMotivo)}
                       </span>
                       <span
                         className={`shrink-0 text-base tabular-nums ${
@@ -323,7 +327,7 @@ export default function ClienteCaja({
                     </div>
                     <p className="text-sm text-[var(--texto-tenue)] mt-0.5">
                       {[
-                        m.sujeto ? etiquetaMotivo(m.motivo ?? "otro") : null,
+                        m.sujeto ? etiquetaMotivo(m.motivo ?? "otro", etiquetasMotivo) : null,
                         m.detalle,
                         // El monto de arriba es la plata que se movió de verdad;
                         // el descuento se dice aparte para que un 0 se entienda.

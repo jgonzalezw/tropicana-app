@@ -11,18 +11,24 @@ export const dynamic = "force-dynamic";
 async function motivosDe(
   sb: Awaited<ReturnType<typeof createClient>>,
   clave: string
-): Promise<string[]> {
+): Promise<{ valores: string[]; etiquetas: Record<string, string> }> {
   const { data: cat } = await sb.from("catalogos").select("id").eq("clave", clave).maybeSingle();
-  if (!cat) return ["otro"];
+  if (!cat) return { valores: ["otro"], etiquetas: {} };
   const { data } = await sb
     .from("catalogo_valores")
-    .select("valor")
+    .select("valor, etiqueta")
     .eq("catalogo_id", cat.id)
     .eq("activo", true)
     .order("orden");
-  const valores = ((data as { valor: string }[]) ?? []).map((v) => v.valor);
+  const filas = (data as { valor: string; etiqueta: string | null }[]) ?? [];
+  const valores = filas.map((v) => v.valor);
+  // El nombre que se edita en el catálogo es el que se ve: no una copia en el código.
+  const etiquetas = Object.fromEntries(filas.filter((f) => f.etiqueta).map((f) => [f.valor, f.etiqueta as string]));
   // "Otro" siempre al final: es el que no salda ninguna deuda.
-  return [...valores.filter((v) => v !== "otro"), ...(valores.includes("otro") ? ["otro"] : [])];
+  return {
+    valores: [...valores.filter((v) => v !== "otro"), ...(valores.includes("otro") ? ["otro"] : [])],
+    etiquetas,
+  };
 }
 
 export default async function PaginaCaja({
@@ -43,7 +49,7 @@ export default async function PaginaCaja({
 
   const { linea: claveInicial } = await searchParams;
   const sb = await createClient();
-  const [lineas, porPagarLiquidaciones, porPagarReemplazos, profesoresRows, motivosIngreso, motivosEgreso, mediosParam, diasCompromisoParam, puedeRegistrar] =
+  const [lineas, porPagarLiquidaciones, porPagarReemplazos, profesoresRows, catIngreso, catEgreso, mediosParam, diasCompromisoParam, puedeRegistrar] =
     await Promise.all([
       lineasPorCobrar(sb),
       // La contracara. Igual que "Por cobrar", no se filtra por alcance: una
@@ -71,6 +77,9 @@ export default async function PaginaCaja({
     .map((p) => ({ id: p.id, nombre: `${p.apellido}, ${p.nombre}${p.activo ? "" : " (inactivo)"}` }))
     .sort((x, y) => x.nombre.localeCompare(y.nombre, "es"));
   const porPagar = [...porPagarLiquidaciones, ...porPagarReemplazos];
+  const motivosIngreso = catIngreso.valores;
+  const motivosEgreso = catEgreso.valores;
+  const etiquetasMotivo = { ...catIngreso.etiquetas, ...catEgreso.etiquetas };
 
   // Con quién y por qué: para que "Últimos movimientos" se pueda validar,
   // no solo la plata. Un pago siempre trae su sujeto (alumno o profesor) y,
@@ -108,6 +117,7 @@ export default async function PaginaCaja({
       lineas={lineas}
       porPagar={porPagar}
       profesores={profesores}
+      etiquetasMotivo={etiquetasMotivo}
       motivosIngreso={motivosIngreso}
       motivosEgreso={motivosEgreso}
       medios={(mediosParam ?? "Efectivo,QR / transf.,Otro").split(",").map((m) => m.trim())}

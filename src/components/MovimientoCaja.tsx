@@ -47,6 +47,7 @@ export default function MovimientoCaja({
   motivosEgreso,
   lineas,
   profesores = [],
+  etiquetasMotivo,
   medios,
   diasCompromiso,
   contexto,
@@ -63,6 +64,8 @@ export default function MovimientoCaja({
    * acá y no de `lineas`.
    */
   profesores?: { id: number; nombre: string }[];
+  /** Nombres de los motivos según el catálogo; sin él, el respaldo del código. */
+  etiquetasMotivo?: Record<string, string>;
   medios: string[];
   /** Parámetro `dias_compromiso_pago`: tope de días para la fecha de compromiso. */
   diasCompromiso: number;
@@ -306,7 +309,7 @@ export default function MovimientoCaja({
       {fijo ? (
         <div className="rounded-[var(--radio-panel)] border border-[var(--borde)] p-4">
           <div className="text-sm text-[var(--texto-tenue)]">
-            {direccion === "ingreso" ? "Cobro" : "Pago"} · {etiquetaMotivo(motivo)}
+            {direccion === "ingreso" ? "Cobro" : "Pago"} · {etiquetaMotivo(motivo, etiquetasMotivo)}
           </div>
           <div className="text-lg font-semibold mt-0.5">{contexto!.linea.sujeto}</div>
           <div className="text-sm text-[var(--texto-tenue)]">{contexto!.linea.detalle}</div>
@@ -338,7 +341,7 @@ export default function MovimientoCaja({
             <select value={motivo} onChange={(e) => cambiarMotivo(e.target.value)} className="entrada">
               {motivos.map((m) => (
                 <option key={m} value={m}>
-                  {etiquetaMotivo(m)}
+                  {etiquetaMotivo(m, etiquetasMotivo)}
                 </option>
               ))}
             </select>

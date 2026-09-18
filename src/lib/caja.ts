@@ -149,7 +149,7 @@ const ETIQUETA_MOTIVO: Record<string, string> = {
   otro: "Otro",
   comision_profesor: "Comisión a profesor",
   otro_pago_profesor: "Otros pagos a profesor",
-  pago_reemplazante: "Pago a reemplazante",
+  pago_reemplazante: "Pago a profesor reemplazante",
   gasto_costo_fijo: "Gasto o costo fijo",
   pago_proveedor: "Pago a proveedor",
   // Anteriores a 0020.
@@ -160,8 +160,15 @@ const ETIQUETA_MOTIVO: Record<string, string> = {
   alquiler_de_sala: "Alquiler de sala",
 };
 
-/** Etiqueta legible de un motivo. Si es desconocido, se arma desde la clave. */
-export function etiquetaMotivo(clave: string): string {
+/**
+ * Etiqueta legible de un motivo. **Manda el catálogo** (`catalogo`, con el
+ * nombre que se edita en pantalla): la tabla de arriba es solo el respaldo para
+ * motivos viejos que el catálogo ya no ofrece. Si es desconocido, se arma desde
+ * la clave.
+ */
+export function etiquetaMotivo(clave: string, catalogo?: Record<string, string>): string {
+  const delCatalogo = catalogo?.[clave];
+  if (delCatalogo) return delCatalogo;
   const conocida = ETIQUETA_MOTIVO[clave];
   if (conocida) return conocida;
   const texto = clave.replace(/_/g, " ");
