@@ -210,7 +210,7 @@ export default function MovimientoCaja({
         ? `Pago suelto a ${linea.sujeto}: no cambia su saldo de liquidaciones.`
         : "Pago suelto: no cambia el saldo de liquidaciones de nadie.";
     if (!candidatas.length)
-      return `No hay saldos abiertos en ${NOMBRE_BUCKET[bucket]}: el movimiento solo entra a la caja.`;
+      return `El movimiento solo ${direccion === "ingreso" ? "entra a" : "sale de"} la caja: no descuenta ninguna deuda.`;
     if (!linea)
       return `Elegí el sujeto para descontar su saldo de ${NOMBRE_BUCKET[bucket]}.`;
     const mueve = plataQueMueve(pago);
@@ -346,6 +346,14 @@ export default function MovimientoCaja({
               ))}
             </select>
           </label>
+
+          {/* Una capacidad que no está disponible se explica, no desaparece
+              (calidad 5): sin esto, un combo vacío se ve igual que un fallo. */}
+          {bucket && candidatas.length === 0 && (
+            <p className="sm:col-span-2 text-sm text-[var(--texto-tenue)]">
+              No hay saldos abiertos en {NOMBRE_BUCKET[bucket]}: no hay a quién elegir todavía.
+            </p>
+          )}
 
           {bucket && candidatas.length > 0 && (
             <label className="block sm:col-span-2">
