@@ -30,6 +30,9 @@ Tamaño: **S** = un rato · **M** = un hito chico · **L** = un hito propio.
 | # | Qué era | Estado |
 | --- | --- | --- |
 | R23 | **El padrón podía acreditar una clase a la membresía equivocada cuando un alumno tenía DOS membresías regulares del mismo curso** (renovación: ciclo viejo completado + ciclo nuevo activo). Caso real: Yubinca, Bachata Conexión, la clase del 15/09 quedó acreditada a la #22 (vieja) en vez de la #28 (activa). Causa: `filasPorAlumno` (`cargarPadron`, `asistencia/acciones.ts`) solo resolvía el choque regular-vs-prueba, no dos regulares — se quedaba con la primera del Map en vez de preferir la vigente. **CORREGIDO**: el desempate ahora prefiere la activa sobre la agotada/completada (empate exacto por fecha de inicio, la más nueva gana), y `guardarAsistencia` recalcula también la membresía que pierde la marca. Verificado en dev con datos descartables (alumno de prueba, curso Heels, renovación simulada) antes y después del guardado — el padrón ya ofrece la activa, y tras guardar la asistencia queda en la membresía correcta con ambas recalculadas. **PASADO A PRODUCCIÓN el 2026-09-17** (`main` `78e19a8`), con el OK explícito de Javier. Sin migración. | ✅ Cerrado |
+| R24 | **El pago de una liquidación no se clasificaba en Caja.** Se asentaba con `motivo: "liquidacion"`, una clave inventada que no estaba en el catálogo `motivo_pago` ni en `BUCKET_POR_MOTIVO`: el egreso no saldaba ninguna deuda y no caía en ningún bucket. **CERRADO el 2026-09-18**, y más grande de lo anotado: Javier amplió el alcance a que la deuda del profesor se refleje y se pague bien en cualquier momento, así que se construyó **la cuenta del profesor** (saldo de todas sus liquidaciones, con los negativos compensándose solos), la imputación que hace cerrar los períodos al pagar (`src/lib/liquidacion/cuenta.ts`, 9 pruebas), y el lado de pagar de Caja (ver R3). Migración **0045** remapea el motivo viejo. | ✅ Cerrado |
+| R25 | **`eliminarLiquidacionVacia` borraba sin mirar el estado.** **CERRADO el 2026-09-18**: exige `abierta`. Sin ítems ni pagos el estado siempre debería ser ese, así que no cambia ningún caso real — es la red por si deja de serlo, en una tabla que mueve plata. | ✅ Cerrado |
+| R26 | **Control 17 marcaba como sospechosa la venta retroactiva legítima.** Desde la 0044 una venta retroactiva a un período pagado entra por complemento y es esperada; el control daba 21 en dev, casi todo falso positivo. **CERRADO el 2026-09-18**: cuenta solo hechos que no dejaron ni complemento ni ajuste, y **solo sobre membresías que eran elegibles** — al medirlo apareció un segundo falso positivo no previsto (membresías `activa` o con ciclo posterior al cierre, que no devengaron porque no les tocaba). De 21 pasó a 0. | ✅ Cerrado |
 
 ---
 
@@ -47,9 +50,9 @@ Tamaño: **S** = un rato · **M** = un hito chico · **L** = un hito propio.
 
 | # | Qué es | Rebanada | Tamaño |
 | --- | --- | --- | --- |
-| R3 | **Lista "Por pagar".** Hoy `lineasPorCobrar` arma solo el bucket `cuotas`: no existe la contracara. Sin ella, lo que hay que pagarle a alguien no aparece en ninguna lista. Es el contenedor que necesitan R4 y R5. | 2F | M |
-| R4 | **Pago al reemplazante (D19).** A D17b le descuenta al titular lo que costó el reemplazo, pero no genera la contrapartida: al suplente se le paga de memoria. Ver **D19** en `DECISIONES.md`. | 2F | S sobre R3 |
-| R5 | **Liquidaciones pendientes con pago parcial.** Que una liquidación pagada a medias se vea y se pueda cerrar desde Caja. | 2F | M |
+| R3 | ~~**Lista "Por pagar".**~~ **HECHO el 2026-09-18** para el bucket `profesores`: `lineasPorPagar` produce una linea por profesor con su saldo de liquidaciones, y Caja tiene su seccion. Queda pendiente solo lo que no tiene productor de lineas: `proveedores` y `gastos`. | 2F | ~~M~~ → S |
+| R4 | **Pago al reemplazante (D19).** A D17b le descuenta al titular lo que costó el reemplazo, pero no genera la contrapartida: al suplente se le paga de memoria. Ver **D19** en `DECISIONES.md`. **Destrabado el 2026-09-18**: R3 era su contenedor y ya existe, asi que ahora es agregar el concepto al saldo del profesor. | 2F | S |
+| R5 | ~~**Liquidaciones pendientes con pago parcial.**~~ **HECHO el 2026-09-18**: el saldo del profesor incluye los parciales, y se paga desde Caja o desde Liquidaciones por el mismo camino. | 2F | ~~M~~ |
 | R6 | **Arqueo / cierre de caja.** No existe. | 2F | M |
 | R7 | **Camino inverso del cobro** (anular o revertir un cobro asentado, dejando traza). Hoy no hay forma. | 2F | M |
 
@@ -76,9 +79,6 @@ Tamaño: **S** = un rato · **M** = un hito chico · **L** = un hito propio.
 | # | Qué es | Rebanada | Tamaño |
 | --- | --- | --- | --- |
 | R16 | **Alumnos: fecha de nacimiento y sexo.** Migración aditiva + los dos campos en la ficha (sexo desde catálogo, no hardcodeado). Surgió de una revisión de uso. | Alumnos | S |
-| R24 | **El pago de una liquidación no se clasifica en Caja.** `registrarPagoLiquidacion` inserta el pago con `motivo: "liquidacion"`, que **no existe** en el catálogo `motivo_pago` (0020) ni en `BUCKET_POR_MOTIVO` (`src/lib/caja.ts`). Resultado: lo que se le paga a un profesor por su liquidación no cae en ningún bucket de Caja. Encontrado al mapear el modelo de liquidación (2026-09-18). | 2F / Caja | S |
-| R25 | **`eliminarLiquidacionVacia` borra sin mirar el estado.** Solo comprueba que no tenga ítems ni pagos, pero no el estado de la liquidación. Hoy no hace daño —sin ítems ni pagos no hay nada que perder— pero es un guard de menos en una tabla que mueve plata. Encontrado en el mismo mapeo. | 2F / Caja | S |
-| R26 | **Control 17 de `control_migracion.sql`: falso positivo con la venta retroactiva.** Cuenta como "hecho dentro de un período pagado" cualquier inscripción creada después del cierre con `fecha_inicio` dentro de él. Desde que la regla 16 admite el complemento y el ajuste (0044), ese caso es **legítimo** y el control igual lo marca. Falta que distinga el complemento seguro de una reescritura real. | control_migracion | S |
 
 ---
 

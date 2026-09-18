@@ -6,7 +6,19 @@
 > `docs/design/README.md` (fuente de verdad del **diseño**), `docs/CONTEXTO_AVANCE.md`
 > (bitácora larga de Etapa 0), `docs/DESIGN_SYNC.md` (cómo entran los handoffs).
 >
-> **Última actualización:** 2026-09-18 — **Las clases solo afectan contadores:
+> **Última actualización:** 2026-09-18 — **La cuenta del profesor: la deuda de
+> una liquidación se refleja y se paga clasificada (migración 0045), en dev.**
+> El pago de una liquidación se asentaba con un motivo inventado y no caía en
+> ningún bucket de Caja: plata que salía sin clasificar. Javier amplió el
+> alcance —*"una liquidación deja deuda, y una reliquidación también"*— y eso
+> trajo el lado de pagar de Caja, que era R3. Sobre dos ejemplos comparados
+> decidió que la unidad de la deuda es **la cuenta del profesor** (el saldo suma
+> todos sus períodos, así un pagado de más se compensa solo) y que **además los
+> períodos cierren al pagar**. Cierra R24, R25, R26 y el núcleo de R3 y R5.
+> Detalle en el bloque **"La cuenta del profesor"**. Pendiente el OK para
+> producción.
+>
+> **2026-09-18 (antes)** — **Las clases solo afectan contadores:
 > el congelador deja de bloquear y aparece el ajuste (migración 0044).**
 > Javier corrigió un error de modelo que venía de arrastre: se creía que una
 > clase "tenía plata encima" y por eso el congelador prohibía tocarla si de ella
@@ -2527,3 +2539,100 @@ liquidado nada, así que no había ningún delta histórico que el cambio pudier
 disparar de golpe. Su **primera liquidación corre en octubre**, por septiembre,
 y este código es el que la va a gobernar — llegamos antes de la primera vez, no
 después.
+---
+
+## La cuenta del profesor: deuda, pago clasificado y cierre de períodos · 2026-09-18 (dev)
+
+Al mapear el modelo de liquidación para el pase anterior aparecieron tres
+deudas chicas (R24, R25, R26). Javier pidió no dejarlas — y **amplió R24**:
+*"una liquidación deja deuda, y una reliquidación también; todos los pagos (o
+aplicación del negativo en caso que sea deducción) contra estas deudas deben
+reflejarse correctamente en los pagos que se hagan en cualquier momento,
+correctamente clasificados."*
+
+Eso dejó de ser "arreglar un motivo" y pasó a ser el **lado de pagar de Caja**,
+que estaba anotado aparte como R3.
+
+### El bug de origen
+
+`registrarPagoLiquidacion` asentaba el egreso con `motivo: "liquidacion"`, una
+clave **inventada**: no estaba en el catálogo `motivo_pago` ni en
+`BUCKET_POR_MOTIVO`. No era cosmético — `bucketDeMotivo()` devolvía `null`, así
+que lo que se le paga a un profesor no saldaba ninguna deuda y no caía en ningún
+bucket. Plata que sale sin clasificar. El motivo correcto, `comision_profesor`,
+existía desde la 0020: la **migración 0045** remapea y guarda el valor anterior.
+
+### La decisión de modelo, tomada sobre dos ejemplos
+
+Se le presentaron a Javier los dos modelos con los números reales de Góngora
+(agosto: devengó 26,28 y se le pagaron 54,14; septiembre: devenga 100 → se le
+deben 72,14):
+
+- **La cuenta del profesor**: el saldo suma todos sus períodos y el negativo se
+  compensa solo.
+- **Cada liquidación cierra**: el negativo se arrastra al período siguiente como
+  descuento.
+
+**Ganó la cuenta**, por un argumento que no era obvio de entrada: si el recupero
+dependiera de generar la liquidación siguiente, un profesor que deja de devengar
+se llevaría el saldo **sin que apareciera en ningún lado**. Con la cuenta se ve
+desde el momento cero y no se va hasta saldarse (regla de calidad 1).
+
+Javier agregó una condición al confirmar: **que además los períodos cierren al
+pagar**. Así que la imputación (`src/lib/liquidacion/cuenta.ts`, función pura con
+9 pruebas) primero cancela los períodos con pagado de más —devolviéndoles lo que
+sobró— y después reparte el efectivo entre los que deben, del más viejo al más
+nuevo. **La suma de las filas es el efectivo que sale**, así que la caja cuadra
+sin que nadie compense nada a mano.
+
+### La frontera, que Javier fijó explícitamente
+
+El saldo es el de las **liquidaciones**: comisiones de cursos regulares y
+pruebas, más el pago al reemplazante y el descuento al reemplazado. Los
+conceptos ad-hoc —multas, bonificaciones, débitos y créditos de administración—
+**se resuelven enteros en Caja y no entran al saldo**.
+
+Por eso la línea dice *"Saldo de liquidaciones"* con todas las letras y no "lo
+que se le debe": `otro_pago_profesor` cae en el **mismo bucket** `profesores`, y
+una bonificación pagada por Caja parecería saldar una comisión.
+
+Con **C3** se suman las comisiones por clases particulares y talleres y los
+cargos por alquiler de sala, así que el saldo se escribió como *la suma de los
+conceptos liquidables*: agregar una fuente tiene que ser sumar un sumando.
+
+### Tres bugs que aparecieron recién al probarlo en el navegador
+
+Ninguno lo habrían encontrado `tsc`, `eslint` ni las pruebas:
+
+1. El panel abría en **"Ingreso"** al tocar *Pagar* en una línea de profesor. La
+   dirección ahora sale de la línea (`direccionDeBucket`).
+2. El motivo inicial se calculaba **siempre contra `motivosIngreso`**, aun con
+   contexto de egreso. No se notaba porque no había líneas de egreso; con "Por
+   pagar" habría sido el primer uso.
+3. `registrarMovimiento` redondeaba el monto **a entero**. Sirve para el resto de
+   la caja, pero un saldo de liquidación sale de un prorrateo y casi nunca es
+   redondo: pagar 11,68 exacto daba *"el pago supera el saldo"* porque subía a 12.
+
+### R26: el control que gritaba en falso
+
+El control 17 daba **21** en dev, casi todo falso positivo — desde la 0044 una
+venta retroactiva a un período pagado es legítima. Al acotarlo apareció un
+**segundo** falso positivo que no estaba previsto: membresías `activa` o con
+ciclo que termina después del cierre, que no habían devengado simplemente porque
+no les tocaba. Con las dos correcciones pasó de 21 a **0**, que es la verdad: en
+dev no hay nada reescrito sin compensar.
+
+### Verificado en dev
+
+La sección "Por pagar" lista a los cinco profesores con su saldo; Góngora aparece
+en **−27,86 con "se le pagó de más" y sin botón de pagar**; y pagar los 11,68 de
+Tini dejó su liquidación en `pagada` con neto 0,00, con el pago asentado como
+`comision_profesor` e imputado a esa liquidación. El pago viejo que remapeó la
+0045 ya se lee como "Comisión a profesor" en el libro de caja.
+
+24 pruebas en verde (15 del motor + 9 de la cuenta). `tsc`, `eslint` y `build`
+limpios.
+
+### Estado
+
+**Solo en dev.** Migración **0045** aplicada ahí; el pase espera el OK de Javier.
