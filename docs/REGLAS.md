@@ -123,30 +123,17 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
 14. **Diferenciación por rol/permiso, nunca por persona.**
 15. **Toda lista de personas para localizar a alguien se ordena por apellido**
     (helper `compararPorApellido`), en cualquier entidad.
-16. **Una clase de la que depende una comisión ya pagada no se toca de un modo
-    que mueva esa plata.** Lo que queda prohibido siempre: **suspenderla o
-    reabrirla** (cambia cuántas clases puso el curso — regla 10 — y con eso el
-    reparto) y **corregir un descuento al profesor que ya se pagó** (mueve plata
-    directa). Si hay que corregir alguna de esas dos cosas, se hace con un
-    **ajuste con fecha de hoy**, que deja rastro; el pasado no se reescribe.
-    **El corte es el primer pago**, no el pago total: una liquidación `cerrada`
-    tiene pago parcial y esa plata ya salió. Mientras la liquidación esté
-    `abierta` (nada pagado) el cambio se permite, y el devengo afectado **se
-    revierte solo** para que se recalcule — si no, la membresía quedaría
-    marcada como "ya devengada" y la corrección nunca llegaría a la comisión.
-    **Tomar o corregir la asistencia de una clase que sigue `dictada` NO está
-    prohibido**, aunque esa clase esté congelada por la membresía de otro
-    alumno: el curso se dictó igual, con más o menos gente en la lista, así que
-    el conteo que reparte la plata (regla 10) no cambia. Por eso una
-    **inscripción retroactiva** puede sumar a su alumno en la asistencia de una
-    clase ya congelada — entra por complemento, sin reescribir lo cobrado —
-    salvo que guardarla reabra una sesión que estaba `suspendida`: eso sí
-    correría el ciclo (regla 4) y ahí sigue bloqueado. *(Javier, 2026-09-17, al
-    revisar el caso de Heels 29/08: una inscripción retroactiva pedía sumar su
-    alumno a una asistencia ya cargada, y el bloqueo de clase completa lo
-    impedía sin necesidad — el agregado no movía nada de lo pagado.)*
-    **Congela una clase (no el mes), y solo cuando de esa clase depende una
-    membresía con prorrateo (dos o más cursos) ya pagada.** Dos motivos, los
+16. **Una clase de la que depende una comisión ya pagada no se toca.** No se
+    toma ni se corrige su asistencia, ni se la suspende o reabre. Si hay que
+    corregirla, se hace con un **ajuste con fecha de hoy**, que deja rastro; el
+    pasado no se reescribe. **El corte es el primer pago**, no el pago total:
+    una liquidación `cerrada` tiene pago parcial y esa plata ya salió. Mientras
+    la liquidación esté `abierta` (nada pagado) el cambio se permite, y el
+    devengo afectado **se revierte solo** para que se recalcule — si no, la
+    membresía quedaría marcada como "ya devengada" y la corrección nunca
+    llegaría a la comisión.
+    **Congela una clase, no el mes**, y solo cuando de esa clase depende una
+    membresía **con prorrateo (dos o más cursos)** ya pagada. Dos motivos, los
     dos medidos en el código:
     **(a)** una membresía de **un solo curso no depende del conteo** — lo
     cobrado va entero a ese curso, se hayan dictado tres clases o doce;
@@ -155,11 +142,9 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
     bloquea, y una liquidación ya pagada **acepta un complemento**: la membresía
     que aparece después se devenga y se suma, sin reescribir lo cobrado.
     *Importa desde la regla 10: la comisión depende de cuántas clases puso cada
-    curso, así que suspender o reabrir una clase vieja mueve plata ya pagada —
-    tomar su asistencia no.*
+    curso, así que tocar una clase vieja mueve plata ya pagada.*
     *(Javier, 2026-09-11, opción a; angostada por Javier el 2026-09-12: "no veo
-    por qué no se puedan liquidar cuando se registren completas"; alcance del
-    bloqueo de asistencia afinado el 2026-09-17.)*
+    por qué no se puedan liquidar cuando se registren completas".)*
 17. **Registrar las sesiones es imperativo para liquidar — pero solo donde hay
     prorrateo.** Una membresía de **dos o más cursos** no se liquida mientras
     alguna clase de su ciclo no tenga ni asistencia ni suspensión: ahí el conteo
