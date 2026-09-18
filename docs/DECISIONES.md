@@ -289,3 +289,13 @@ proceso 1). No es un backlog de decisiones: es el estado del release.
   **inactivo** en el catálogo `motivo_pago` (y con la etiqueta "Comisiones
   profesor"; en dev está activo). Sin activarlo, el botón de pagar de Caja abre
   el panel con otro motivo. Queda para decisión de Javier.
+  *(Resuelto el mismo día: Javier lo reactivó en producción.)*
+- **Pago al reemplazante + pago suelto a cualquier profesor (migración 0046;
+  D19 / R4) — PASADO A PRODUCCIÓN el 2026-09-18**, con el OK explícito de
+  Javier (*"avanza con el pase a PROD"*). Migración **0046** aplicada en
+  `pnvhpbxjbdmbktpwebtx` **antes** del código (§3): `pagos.sesion_id` (aditiva,
+  con índice) y el motivo `pago_reemplazante` en el catálogo `motivo_pago`, que
+  la propia migración inserta (verificado activo). Medido antes: producción
+  tenía **0** clases con reemplazo y 34 pagos, ninguno tocado; nada aparece como
+  pagable hasta que se registre el primer reemplazo. `get_advisors` sin
+  hallazgos nuevos. `main` `816bd9c..` (ver `git log`).
