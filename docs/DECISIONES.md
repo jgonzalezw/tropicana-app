@@ -275,3 +275,17 @@ proceso 1). No es un backlog de decisiones: es el estado del release.
   además **corrigió un descuadre preexistente**: la membresía que el control 18
   marcaba (818,08 devengado contra 800,00 cobrado) pasó a sumar exactamente
   800,00. Detalle completo en `docs/ESTADO.md`.
+- **La cuenta del profesor + Caja "Por pagar" (migración 0045; R24, R25, R26) —
+  PASADO A PRODUCCIÓN el 2026-09-18**, con el OK explícito de Javier (*"a
+  producción"*). Migración **0045** aplicada en `pnvhpbxjbdmbktpwebtx` **antes**
+  del código (§3): remapea `pagos.motivo='liquidacion'` → `comision_profesor`
+  con respaldo en `pagos_motivo_previo_0045`. Producción tenía **0** pagos con
+  el motivo viejo, **0** liquidaciones y **0** comisiones: no tocó ningún dato.
+  `get_advisors` sin hallazgos nuevos. Controles en **OK**. `main`
+  `4d9e760..3a07c73` (4 commits, incluye las correcciones de Caja: fila
+  clicable, glosa que se reinicia, pago suelto a profesor que no toca su saldo,
+  y el movimiento suelto que no dejaba guardar).
+  **Hallazgo de configuración**: en producción `comision_profesor` está
+  **inactivo** en el catálogo `motivo_pago` (y con la etiqueta "Comisiones
+  profesor"; en dev está activo). Sin activarlo, el botón de pagar de Caja abre
+  el panel con otro motivo. Queda para decisión de Javier.
