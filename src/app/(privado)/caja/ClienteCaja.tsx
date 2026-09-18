@@ -47,6 +47,7 @@ function diasDeAtraso(iso: string, hoy: string): number {
 
 export default function ClienteCaja({
   lineas,
+  porPagar,
   motivosIngreso,
   motivosEgreso,
   medios,
@@ -57,6 +58,8 @@ export default function ClienteCaja({
   movimientos,
 }: {
   lineas: LineaPendiente[];
+  /** Saldo de liquidaciones por profesor: la contracara de `lineas`. */
+  porPagar: LineaPendiente[];
   motivosIngreso: string[];
   motivosEgreso: string[];
   medios: string[];
@@ -87,6 +90,9 @@ export default function ClienteCaja({
   }
 
   const porCobrar = lineas.reduce((t, l) => t + l.saldo, 0);
+  // Los saldos negativos (plata pagada de mas) restan del total, que es lo que
+  // de verdad hay que desembolsar.
+  const totalPorPagar = porPagar.reduce((t, l) => t + l.saldo, 0);
   // Las deudas ya llegan ordenadas por antigüedad (`lineasPorCobrar`): acá solo
   // se parten en dos grupos, conservando ese orden dentro de cada uno.
   const hoy = hoyISO();
@@ -148,7 +154,11 @@ export default function ClienteCaja({
             lineaInicial={lineaElegida ?? undefined}
             motivosIngreso={motivosIngreso}
             motivosEgreso={motivosEgreso}
-            lineas={lineas}
+            // Las dos direcciones: el formulario filtra por el bucket del
+            // motivo, así que necesita también las de pagar para encontrar al
+            // acreedor. Sin esto, un egreso decía "no hay saldos abiertos"
+            // aunque la lista de al lado los estuviera mostrando.
+            lineas={[...lineas, ...porPagar]}
             medios={medios}
             diasCompromiso={diasCompromiso}
             onGuardar={guardar}
@@ -192,6 +202,62 @@ export default function ClienteCaja({
                 onCobrar={puedeRegistrar ? cobrarLinea : undefined}
               />
             </div>
+          )}
+        </section>
+
+        {/* Por pagar. La contracara de "Por cobrar": lo que Tropicana debe.
+            Es un saldo POR PROFESOR, no por período, porque un ajuste de
+            recálculo puede dejar un mes con plata pagada de más y sumados se
+            compensan solos (0044). Se listan todos, incluso en cero o en
+            negativo: un saldo a recuperar no puede quedar invisible. */}
+        <section className="rounded-[var(--radio-tarjeta)] bg-[var(--fondo-panel)] border border-[var(--borde)] p-5">
+          <div className="flex items-baseline justify-between gap-3 mb-1">
+            <h2 className="titulo text-xl">Por pagar</h2>
+            <span className="titulo text-xl tabular-nums">{gs(totalPorPagar)}</span>
+          </div>
+          <p className="text-sm text-[var(--texto-tenue)] mb-3">
+            Saldo de liquidaciones de cada profesor. Los conceptos sueltos —multas,
+            bonificaciones— se registran como movimiento y no salen de acá.
+          </p>
+          {porPagar.length === 0 ? (
+            <p className="text-base text-[var(--texto-tenue)]">
+              Todavía no hay liquidaciones generadas.
+            </p>
+          ) : (
+            <ul className="divide-y divide-[var(--borde)]">
+              {porPagar.map((l) => {
+                const aFavorDeTropicana = l.saldo < 0;
+                return (
+                  <li key={l.clave} className="py-2.5 flex items-baseline justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-base font-medium">{l.sujeto}</div>
+                      <div className="text-sm text-[var(--texto-tenue)]">
+                        {l.detalle}
+                        {aFavorDeTropicana && " · se le pagó de más"}
+                        {l.saldo === 0 && " · sin saldo"}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span
+                        className={`tabular-nums font-semibold ${
+                          aFavorDeTropicana ? "text-[var(--peligro-texto)]" : ""
+                        }`}
+                      >
+                        {gs(l.saldo)}
+                      </span>
+                      {puedeRegistrar && l.saldo > 0 && (
+                        <button
+                          onClick={() => cobrarLinea(l)}
+                          className="px-3 py-1.5 text-sm rounded-[var(--radio-control)] border border-[var(--borde)] hover:border-[var(--primario)]"
+                        >
+                          Pagar
+                        </button>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </section>
 

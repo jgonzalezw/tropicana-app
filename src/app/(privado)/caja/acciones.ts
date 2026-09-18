@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { obtenerPerfilActual, tienePermiso } from "@/lib/sesion";
 import { registrarCobro } from "@/lib/cuentas";
+import { pagarAProfesor } from "../liquidaciones/acciones";
 import { etiquetaMotivo, type EntradaMovimiento } from "@/lib/caja";
 import { gs } from "@/lib/inscripcion";
 
@@ -61,6 +62,30 @@ export async function registrarMovimiento(
     return {
       ok: true,
       resumen: `Ingreso de ${gs(monto)}${conDesc} · ${etiquetaMotivo(e.motivo)}.${cierre}`,
+    };
+  }
+
+  // Contra el saldo de un profesor: lo resuelve la misma pieza que usa la
+  // pantalla de Liquidaciones. **Un solo camino a propósito**: si hubiera dos
+  // formas de pagarle a un profesor podrían discrepar, y la diferencia recién
+  // aparecería en el arqueo.
+  if (e.profesorId != null && e.direccion === "egreso") {
+    // **Con centavos, no redondeado a entero.** El resto de la caja trabaja en
+    // bolivianos enteros, pero un saldo de liquidación sale de un prorrateo y
+    // casi nunca es redondo (11,68 · 353,19). Redondeándolo, pagar el saldo
+    // exacto daba "el pago supera el saldo": el monto subía a 12 y no entraba.
+    const exacto = Math.round((Number(e.monto) || 0) * 100) / 100;
+    const res = await pagarAProfesor({
+      profesorId: e.profesorId,
+      monto: exacto,
+      medio: e.medio,
+      notaMedio: e.notaMedio,
+    });
+    if (res.error) return { error: res.error };
+    revalidatePath("/caja");
+    return {
+      ok: true,
+      resumen: `Egreso de ${gs(exacto)} · ${etiquetaMotivo(e.motivo)}. Se imputó al saldo del profesor.`,
     };
   }
 

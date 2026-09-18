@@ -559,3 +559,77 @@ export async function registrarCobro(
     saldoRestante: saldoCuota(num(cuota.monto_devengado), num(cuota.descuento_adelanto), cubierto),
   };
 }
+
+// ── Cuentas por pagar ───────────────────────────────────────────────────
+
+/**
+ * Lo que Tropicana le debe a cada profesor: **una línea por profesor**, con el
+ * saldo de todas sus liquidaciones.
+ *
+ * **Es un saldo, no una lista de períodos**, y ahí está la diferencia con el
+ * lado de cobrar. Un ajuste de recálculo puede dejar un período con plata
+ * pagada de más (0044); si cada período fuera su propia línea, ese negativo
+ * quedaría suelto esperando que el profesor vuelva a devengar. Sumados, se
+ * compensan solos y el número que se ve es el que hay que pagar.
+ *
+ * **Se listan todos**, incluso con saldo 0 o negativo — es la regla del handoff
+ * para los buckets de política `ajuste`. Un saldo negativo es plata a recuperar:
+ * esconderlo sería disfrazar una deuda de ausencia (regla de calidad 1).
+ *
+ * **El alcance, que importa no confundir**: esto es el saldo de LIQUIDACIONES
+ * —comisiones de cursos regulares y pruebas, más el pago al reemplazante y el
+ * descuento al reemplazado—. Los conceptos ad-hoc (multas, bonificaciones,
+ * débitos y créditos de administración) se resuelven enteros en Caja y **no
+ * entran acá**: por eso el detalle lo dice con todas las letras, y un pago con
+ * motivo `otro_pago_profesor` no salda esta línea. *(Javier, 2026-09-18.)*
+ */
+export async function lineasPorPagar(sb: ClienteLectura): Promise<LineaPendiente[]> {
+  const { data } = await sb
+    .from("liquidaciones")
+    .select(
+      "id, profesor_id, periodo, total_devengado, total_descuentos, total_pagado, profesor:profesores(id, nombre, apellido)"
+    );
+  const filas =
+    (data as unknown as {
+      id: number;
+      profesor_id: number;
+      periodo: string;
+      total_devengado: number;
+      total_descuentos: number | null;
+      total_pagado: number;
+      profesor: { id: number; nombre: string; apellido: string } | null;
+    }[]) ?? [];
+  if (!filas.length) return [];
+
+  const porProfesor = new Map<number, { nombre: string; saldo: number; periodos: number }>();
+  for (const f of filas) {
+    if (!f.profesor) continue;
+    const neto = num(f.total_devengado) - num(f.total_descuentos) - num(f.total_pagado);
+    const ya = porProfesor.get(f.profesor.id) ?? {
+      nombre: `${f.profesor.apellido}, ${f.profesor.nombre}`,
+      saldo: 0,
+      periodos: 0,
+    };
+    ya.saldo += neto;
+    ya.periodos += 1;
+    porProfesor.set(f.profesor.id, ya);
+  }
+
+  return [...porProfesor.entries()]
+    .map(([profesorId, v]) => ({
+      clave: `profesor:${profesorId}`,
+      bucket: "profesores" as const,
+      // No se imputa contra una cuota: el destino se resuelve por cuenta, al
+      // pagar, repartiendo entre los períodos del profesor.
+      cuotaId: null,
+      sujetoTipo: "profesor" as const,
+      sujetoId: profesorId,
+      sujeto: v.nombre,
+      detalle: `Saldo de liquidaciones · ${v.periodos} ${v.periodos === 1 ? "período" : "períodos"}`,
+      saldo: Math.round(v.saldo * 100) / 100,
+      // Una liquidación no tiene fecha pactada de pago: no hay vencidas.
+      fechaLimite: null,
+      motivoSugerido: "comision_profesor",
+    }))
+    .sort((a, b) => a.sujeto.localeCompare(b.sujeto, "es"));
+}

@@ -6,6 +6,7 @@ import Toggle from "@/components/Toggle";
 import { gs, isoFecha } from "@/lib/inscripcion";
 import {
   bucketDeMotivo,
+  direccionDeBucket,
   etiquetaMotivo,
   NOMBRE_BUCKET,
   politicaDeMotivo,
@@ -58,20 +59,31 @@ export default function MovimientoCaja({
   onCancelar?: () => void;
 }) {
   const fijo = contexto != null;
-  const [direccion, setDireccion] = useState<Direccion>(contexto?.direccion ?? "ingreso");
-  const [motivo, setMotivo] = useState<string>(
-    contexto?.motivo ??
-      // Con una deuda ya elegida, el motivo arranca en el primero que salda esa
-      // clase de deuda; queda editable porque el catálogo tiene varios por
-      // bucket (inscripción y mensualidad saldan las dos una cuota).
-      (lineaInicial
-        ? [lineaInicial.motivoSugerido, ...motivosIngreso].find(
-            (m) => m != null && motivosIngreso.includes(m) && bucketDeMotivo(m) === lineaInicial.bucket
-          ) ?? undefined
-        : undefined) ??
-      motivosIngreso[0] ??
-      "otro"
+  // La direccion sale de la linea cuando se llega con una elegida: el saldo de
+  // un profesor se salda con un egreso, no con un cobro.
+  const [direccion, setDireccion] = useState<Direccion>(
+    contexto?.direccion ?? (lineaInicial ? direccionDeBucket(lineaInicial.bucket) : "ingreso")
   );
+  const [motivo, setMotivo] = useState<string>(() => {
+    // **La lista se elige por la dirección, no siempre la de ingreso.** Antes
+    // esto miraba `motivosIngreso` aunque el contexto fuera de egreso: no se
+    // notaba porque no había líneas de egreso, y con "Por pagar" el primer uso
+    // habría arrancado con un motivo de cobro.
+    const dir: Direccion =
+      contexto?.direccion ?? (lineaInicial ? direccionDeBucket(lineaInicial.bucket) : "ingreso");
+    const propios = dir === "ingreso" ? motivosIngreso : motivosEgreso;
+    if (contexto?.motivo) return contexto.motivo;
+    // Con una deuda ya elegida, el motivo arranca en el primero que salda esa
+    // clase de deuda; queda editable porque el catálogo tiene varios por
+    // bucket (inscripción y mensualidad saldan las dos una cuota).
+    if (lineaInicial) {
+      const calza = [lineaInicial.motivoSugerido, ...propios].find(
+        (m) => m != null && propios.includes(m) && bucketDeMotivo(m) === lineaInicial.bucket
+      );
+      if (calza) return calza;
+    }
+    return propios[0] ?? "otro";
+  });
   const [claveLinea, setClaveLinea] = useState<string>(
     contexto?.linea.clave ?? lineaInicial?.clave ?? ""
   );
@@ -189,6 +201,9 @@ export default function MovimientoCaja({
       motivo,
       glosa: glosa.trim(),
       cuotaId: linea?.cuotaId ?? null,
+      // La linea de un profesor no se imputa contra una cuota: viaja su id y el
+      // reparto entre sus periodos lo resuelve la cuenta.
+      profesorId: linea?.sujetoTipo === "profesor" ? linea.sujetoId : null,
       monto: mueve,
       medio: pago?.medio ?? null,
       notaMedio: pago?.notaMedio ?? "",

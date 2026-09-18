@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { obtenerParametro, tienePermiso, alcanceDe, obtenerPerfilActual } from "@/lib/sesion";
-import { lineasPorCobrar } from "@/lib/cuentas";
+import { lineasPorCobrar, lineasPorPagar } from "@/lib/cuentas";
 import { exigir } from "@/lib/datos";
 import SinAcceso from "@/components/SinAcceso";
 import ClienteCaja from "./ClienteCaja";
@@ -43,9 +43,12 @@ export default async function PaginaCaja({
 
   const { linea: claveInicial } = await searchParams;
   const sb = await createClient();
-  const [lineas, motivosIngreso, motivosEgreso, mediosParam, diasCompromisoParam, puedeRegistrar] =
+  const [lineas, porPagar, motivosIngreso, motivosEgreso, mediosParam, diasCompromisoParam, puedeRegistrar] =
     await Promise.all([
       lineasPorCobrar(sb),
+      // La contracara. Igual que "Por cobrar", no se filtra por alcance: una
+      // deuda con un profesor no es "de un cajero".
+      lineasPorPagar(sb),
       motivosDe(sb, "motivo_cobro"),
       motivosDe(sb, "motivo_pago"),
       obtenerParametro("medios_pago"),
@@ -87,6 +90,7 @@ export default async function PaginaCaja({
   return (
     <ClienteCaja
       lineas={lineas}
+      porPagar={porPagar}
       motivosIngreso={motivosIngreso}
       motivosEgreso={motivosEgreso}
       medios={(mediosParam ?? "Efectivo,QR / transf.,Otro").split(",").map((m) => m.trim())}

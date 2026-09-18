@@ -79,6 +79,21 @@ export function bucketDeMotivo(motivo: string | null): Bucket | null {
   return motivo ? BUCKET_POR_MOTIVO[motivo] ?? null : null;
 }
 
+/** Los buckets que son plata que SALE. El resto son deudas a cobrar. */
+const BUCKETS_DE_EGRESO: ReadonlySet<Bucket> = new Set<Bucket>(["profesores", "proveedores", "gastos"]);
+
+/**
+ * Para qué lado va una deuda: si es algo que se le debe a alguien, el
+ * movimiento que la salda es un egreso.
+ *
+ * Existe para que abrir el panel desde una línea no tenga que adivinarlo. Sin
+ * esto, tocar "Pagar" en el saldo de un profesor abría el formulario en
+ * "ingreso" y con un motivo de cobro.
+ */
+export function direccionDeBucket(bucket: Bucket): Direccion {
+  return BUCKETS_DE_EGRESO.has(bucket) ? "egreso" : "ingreso";
+}
+
 /** Cómo se llama cada bucket cuando hay que decir "no hay saldos abiertos en…". */
 export const NOMBRE_BUCKET: Record<Bucket, string> = {
   cuotas: "cuotas de alumnos",
@@ -175,6 +190,13 @@ export type EntradaMovimiento = {
   glosa: string;
   /** Contra qué deuda se imputa. `null` = movimiento suelto de caja. */
   cuotaId: number | null;
+  /**
+   * A qué profesor se le paga, cuando el egreso salda su **saldo de
+   * liquidaciones**. El reparto entre sus períodos lo resuelve la cuenta
+   * (`imputarPago`), no esta entrada: acá solo viaja a quién. `null` = el
+   * movimiento no salda una liquidación.
+   */
+  profesorId: number | null;
   monto: number;
   medio: string | null;
   notaMedio: string;
