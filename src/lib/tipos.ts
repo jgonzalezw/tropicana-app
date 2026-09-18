@@ -450,6 +450,12 @@ export type EntradaAsistencia = {
    * Obligatorio si el curso no tenía titular esa fecha y la clase se dictó.
    */
   reemplazo?: { profesorId: number; motivo: string; costo: number } | null;
+  /**
+   * La persona ya vio el aviso de que esto recalcula una liquidación cobrada
+   * y decidió seguir. Sin esto, `guardarAsistencia` devuelve el aviso en vez
+   * de guardar (regla de negocio 16: avisa, no bloquea).
+   */
+  confirmado?: boolean;
 };
 
 export const MODULOS = [

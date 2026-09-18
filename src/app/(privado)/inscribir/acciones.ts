@@ -16,7 +16,6 @@ import {
 } from "@/lib/inscripcion";
 import { recalcularFinDeCiclo, recalcularMembresia, registrarCorrimientosPendientes } from "@/lib/membresias";
 import { exigir } from "@/lib/datos";
-import { cargarCongelador, claseCongelada, motivoCongelada } from "@/lib/periodos";
 import {
   COLS_VIGENCIA,
   enVigencia,
@@ -527,14 +526,12 @@ export async function venderPrueba(
   const inicio = parseFechaISO(fechasOrdenadas[0])!;
   const finPrueba = fechasOrdenadas[fechasOrdenadas.length - 1];
 
-  // Acá sí hay que mirar (regla de negocio 16, revisada): una prueba con fecha
-  // pasada **confirma la asistencia sola**, así que crea o toca la sesión de
-  // esa clase. Si de esa clase depende un prorrateo ya pagado, no se puede.
-  const congelador = await cargarCongelador(sb);
-  for (const c of elegidos) {
-    const quien = claseCongelada(congelador, c.cursoId, c.fecha);
-    if (quien) return { error: motivoCongelada(c.fecha, quien) };
-  }
+  // Una prueba con fecha pasada **confirma la asistencia sola**, así que crea o
+  // toca la sesión de esa clase. Antes eso se bloqueaba si de la clase dependía
+  // un prorrateo ya pagado. **Ya no** (regla de negocio 16, reescrita el
+  // 2026-09-18): las clases solo afectan contadores, y si el recálculo de una
+  // membresía ya liquidada da otro número, la diferencia sale como un ajuste al
+  // liquidar (0044) sin reescribir lo pagado. Una venta retroactiva no se traba.
 
   const { data: alumno } = await sb
     .from("alumnos")

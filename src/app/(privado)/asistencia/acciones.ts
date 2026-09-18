@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { tienePermiso, obtenerParametro, obtenerPerfilActual } from "@/lib/sesion";
 import { compararPorApellido } from "@/lib/texto";
 import { diaIso } from "@/lib/inscripcion";
-import { cargarCongelador, claseCongelada, motivoCongelada } from "@/lib/periodos";
+import { cargarImpacto, liquidacionesTocadas, avisoDeImpacto } from "@/lib/periodos";
 import {
   COLS_VIGENCIA,
   enVigencia,
@@ -61,6 +61,11 @@ function restarDias(iso: string, dias: number): string {
   d.setDate(d.getDate() - dias);
   return fmt(d);
 }
+/** Último día del mes vencido: el tope hasta donde llega una liquidación. */
+function finMesVencidoISO(hoy = new Date()): string {
+  const d = new Date(hoy.getFullYear(), hoy.getMonth(), 0);
+  return fmt(d);
+}
 /** Próxima fecha (ISO) del patrón semanal del curso, estrictamente posterior a `baseIso`. */
 /**
  * Valida la fecha para operar asistencia: nunca futuro; pasado solo con
@@ -94,16 +99,14 @@ export async function validarFecha(
   const vig = cVig as unknown as ({ nombre: string } & VigenciaCurso) | null;
   if (vig && !enVigencia(vig, fecha)) return motivoFueraDeVigencia(vig.nombre, vig, fecha);
 
-  // Regla de negocio 16 (revisada 2026-09-12): lo que no se puede tocar es una
-  // clase de la que depende una comisión **con prorrateo** que ya se pagó.
-  // Tomar o corregir una asistencia, o suspender una clase, cambia cuántas
-  // clases puso ese curso, y con eso el reparto (regla 10). Ya no se congela el
-  // mes entero: una membresía de un solo curso no depende del conteo, y una
-  // membresía nueva no toca lo ya repartido.
-  const sbCierre = await createClient();
-  const congelador = await cargarCongelador(sbCierre);
-  const quien = claseCongelada(congelador, cursoId, fecha);
-  if (quien) return motivoCongelada(fecha, quien);
+  // **Acá ya no se bloquea por la liquidación** (regla de negocio 16, reescrita
+  // el 2026-09-18). Las clases solo afectan contadores: la plata sale de las
+  // membresías completadas y cobradas, y el conteo es apenas el insumo del
+  // prorrateo. Registrar tarde, corregir o suspender son hechos que pasaron y
+  // el sistema tiene que poder reflejarlos. Si eso cambia lo devengado de una
+  // membresía ya liquidada, la diferencia sale como un **ajuste** al liquidar
+  // (0044) — lo pagado no se reescribe. Lo que queda es avisar antes de
+  // guardar, y de eso se encarga el que llama (`guardarAsistencia`).
 
   if (fecha < hoy) {
     if (!(await tienePermiso("asistencia", "editar")))
@@ -787,20 +790,47 @@ async function deudaPorAlumno(
 
 export async function guardarAsistencia(
   e: EntradaAsistencia
-): Promise<{ ok?: true; resumen?: string; error?: string }> {
+): Promise<{
+  ok?: true;
+  resumen?: string;
+  error?: string;
+  /** Hay liquidaciones ya cobradas que esto va a recalcular: el host confirma. */
+  requiereConfirmacion?: true;
+  aviso?: string;
+}> {
   if (!(await tienePermiso("asistencia", "crear")))
     return { error: "No tenés permiso para registrar asistencia." };
   if (!e.marcas.length) return { error: "No hay nada marcado." };
   const errFecha = await validarFecha(e.cursoId, e.fecha);
   if (errFecha) return { error: errFecha };
 
+  // **Aviso, no bloqueo** (regla de negocio 16, reescrita el 2026-09-18). Si
+  // esta clase entra en el ciclo de una membresía ya liquidada y cobrada,
+  // guardar la va a recalcular y la diferencia va a salir como un ajuste. Eso
+  // se puede hacer —lo pagado no se reescribe, se complementa— pero quien opera
+  // tiene que enterarse antes, no después.
+  //
+  // Solo se pregunta por fechas del **mes vencido hacia atrás**, y eso no es
+  // una heurística: una liquidación cubre hasta el último día del mes anterior,
+  // y una clase pertenece al ciclo de su membresía, así que una clase de este
+  // mes no puede estar dentro de una membresía ya liquidada. Sin este corte,
+  // la consulta —que recorre todas las comisiones y los ciclos que tocan—
+  // correría en cada asistencia del día a día, que es el caso más frecuente y
+  // el único que tiene que ser rápido.
+  if (!e.confirmado && e.fecha <= finMesVencidoISO()) {
+    const tocadas = liquidacionesTocadas(await cargarImpacto(await createClient()), e.cursoId, e.fecha);
+    if (tocadas.length)
+      return { requiereConfirmacion: true, aviso: avisoDeImpacto(e.fecha, tocadas) };
+  }
+
   const perfil = await obtenerPerfilActual();
   const a = admin();
 
   // Si esta clase ya habia devengado comision en una liquidacion ABIERTA, el
-  // devengo se revierte para que se recalcule con los datos nuevos (regla de
-  // negocio 16, opcion a). Si la liquidacion ya tenia pago, validarFecha ni
-  // siquiera dejo llegar hasta aca.
+  // devengo se revierte para que se recalcule con los datos nuevos: sin eso la
+  // membresia quedaria marcada como "ya devengada" y la correccion nunca
+  // llegaria a la comision. Si la liquidacion ya tiene pago no se toca nada
+  // aca: el desvio se compensa con un ajuste al liquidar (0044).
   const devengosRehechos = await revertirDevengosAbiertos(a, e.cursoId, e.fecha);
 
   const { data: curso } = await a

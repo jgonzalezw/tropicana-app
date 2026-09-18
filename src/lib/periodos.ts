@@ -1,38 +1,32 @@
 /**
- * Hasta dónde se puede tocar el pasado.
+ * Qué liquidaciones se verían tocadas si se cambia una clase vieja.
  *
- * **El problema.** Desde que la comisión se reparte a prorrata (regla de
- * negocio 10), el monto que cobra cada profesor depende de **cuántas clases
- * puso su curso**. Entonces suspender una clase vieja, reabrirla o corregir una
- * asistencia no son hechos inocentes: cambian el peso del reparto. Si esa
- * comisión ya se pagó, el cambio deja la plata que salió sin respaldo en los
- * datos, y nadie se entera.
+ * **Esto ya no bloquea. Informa.** Y el cambio de rol viene de corregir un
+ * error de modelo, no de aflojar un control.
  *
- * **Lo que NO es el problema, y antes se trataba como si lo fuera.** La primera
- * versión de esta regla congelaba el mes entero, para todos los cursos y todos
- * los profesores, apenas alguien cobrara una liquidación. Era mucho más amplio
- * que el daño que evita, por dos motivos que se midieron:
+ * **Lo que se creía.** Que una clase "tenía plata encima": si de ella dependía
+ * una comisión ya pagada, no se la podía tocar —ni tomar asistencia, ni
+ * corregirla, ni suspenderla— y el sistema lo impedía de plano. Ese era el
+ * congelador.
  *
- * 1. **Una membresía de un solo curso no depende del conteo.** Con un solo
- *    curso el reparto es trivial: lo cobrado va entero a ese curso, se hayan
- *    dictado tres clases o doce. Cambiar una clase suya no mueve un peso.
- * 2. **Agregar una membresía nueva no toca lo ya repartido.** Cada venta se
- *    reparte sola, con su propia plata. Liquidar después, o complementar una
- *    liquidación con una membresía que apareció más tarde, es seguro.
+ * **Lo que es.** Las clases solo afectan **contadores** (Javier, 2026-09-18).
+ * La plata sale de las membresías completadas (agotadas) y cobradas al 100%;
+ * el conteo de clases es apenas el insumo del prorrateo al liquidar. Una clase
+ * nunca tiene plata encima.
  *
- * **La regla** (regla de negocio 16, revisada con Javier el 2026-09-12, sobre
- * su decisión original del 11/09): lo que no se puede tocar es una clase que
- * cambiaría el conteo de una membresía **con prorrateo —dos o más cursos—**
- * cuya comisión **ya se pagó**. El corte sigue siendo el primer pago: una
- * liquidación `cerrada` tiene pago parcial y esa plata ya salió. El alcance ya
- * no es el mes: es esa clase.
+ * De ahí se sigue que prohibir era la respuesta equivocada. Lo correcto es
+ * dejar hacer —registrar tarde, corregir, suspender: todo eso son hechos que
+ * pasaron y el sistema tiene que poder reflejarlos— y **compensar la
+ * diferencia**: al liquidar, la membresía se recalcula y, si su devengado
+ * cambió, sale un **ajuste** por el delta (migración 0044). Lo ya pagado no se
+ * reescribe nunca; se le suma o se le resta la diferencia como complemento del
+ * período original. Y lo devengado por **otras** membresías que compartieron
+ * esa misma clase no cambia: cada venta se reparte sola.
  *
- * Si hay que corregir algo congelado, se hace con un ajuste con fecha de hoy,
- * que deja rastro — nunca reescribiendo el pasado.
- *
- * **Lo que sigue protegiendo la regla 5**, y que esta no reemplaza: una
- * membresía ya devengada no cambia sus fechas en silencio. Angostar la 16 no
- * toca esa otra garantía.
+ * Lo que queda es el **aviso**: quien va a tocar una clase de un período ya
+ * liquidado y pagado merece saber, antes de guardar, que eso va a mover la
+ * liquidación de alguien. No para pedirle permiso al sistema — para que no se
+ * entere después.
  */
 
 import type { createClient } from "@/lib/supabase/server";
@@ -47,55 +41,77 @@ export function finDelMes(iso: string): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+/** Una liquidación que un cambio en esta clase haría recalcular. */
+export type LiquidacionTocada = {
+  profesor: string;
+  periodo: string;
+  /** `'pagada'` o `'cerrada'`: ya salió plata, así que el ajuste se va a notar. */
+  estado: string;
+  /** El alumno de la membresía que mete esta clase en ese período. */
+  alumno: string;
+};
+
+export type Impacto = {
+  /** `curso|fecha` → las liquidaciones que esa clase podría mover. */
+  clases: Map<string, LiquidacionTocada[]>;
+};
+
 /**
- * Las membresías **con prorrateo y ya pagadas** que cubren cada clase.
+ * Las clases de las que depende una comisión **ya cobrada**, con qué
+ * liquidación moverían.
+ *
+ * Se mira solo lo `pagada`/`cerrada` a propósito. Si la liquidación sigue
+ * `abierta` —nada pagado— el cambio se absorbe solo: `revertirDevengosAbiertos`
+ * da de baja el devengo y se recalcula en la próxima corrida, sin que nadie
+ * tenga que enterarse de nada. Avisar ahí sería ruido.
  *
  * Se lee una vez y se consulta muchas: la pantalla de asistencia pregunta por
  * una fecha, pero la venta pregunta por varias.
  */
-export type Congelador = {
-  /** `curso|fecha` → nombre del alumno de la membresía que la congela. */
-  clases: Map<string, string>;
-};
+export async function cargarImpacto(sb: Cliente): Promise<Impacto> {
+  const clases = new Map<string, LiquidacionTocada[]>();
+  const sumar = (k: string, l: LiquidacionTocada) => {
+    const ya = clases.get(k);
+    if (ya) {
+      // La misma liquidación puede llegar por varias membresías: una vez basta.
+      if (!ya.some((x) => x.profesor === l.profesor && x.periodo === l.periodo && x.alumno === l.alumno))
+        ya.push(l);
+    } else clases.set(k, [l]);
+  };
 
-export async function cargarCongelador(sb: Cliente): Promise<Congelador> {
-  const clases = new Map<string, string>();
-
-  // 0. Una clase cuyo DESCUENTO ya se pagó también está congelada: si se
-  //    pudiera editar el costo del reemplazo después de pagarlo, el número que
-  //    salió de la caja dejaría de coincidir con el dato (regla 20a + 16).
-  //    Esta es directa —el descuento apunta a la sesión— y no pasa por el
-  //    prorrateo.
-  const { data: desc } = await sb
-    .from("descuentos_liquidacion")
-    .select("sesion_id, sesion:sesiones(curso_id, fecha), liquidacion:liquidaciones(estado)");
-  for (const d of (desc as unknown as {
-    sesion_id: number | null;
-    sesion: { curso_id: number; fecha: string } | null;
-    liquidacion: { estado: string } | null;
-  }[]) ?? []) {
-    if (!d.sesion) continue;
-    if (d.liquidacion?.estado !== "pagada" && d.liquidacion?.estado !== "cerrada") continue;
-    clases.set(`${d.sesion.curso_id}|${d.sesion.fecha.slice(0, 10)}`, "un descuento ya pagado");
-  }
-
-  // 1. Comisiones que ya tienen plata encima: su liquidación cobró algo.
+  // 1. Comisiones cuya liquidación ya tiene plata encima.
   const { data: com } = await sb
     .from("comisiones_devengadas")
-    .select("membresia_id, liquidacion:liquidaciones(estado)");
-  const pagadas = new Set(
-    ((com as unknown as { membresia_id: number | null; liquidacion: { estado: string } | null }[]) ?? [])
-      .filter((c) => c.membresia_id != null && (c.liquidacion?.estado === "pagada" || c.liquidacion?.estado === "cerrada"))
-      .map((c) => c.membresia_id as number)
-  );
-  if (pagadas.size === 0) return { clases };
+    .select("membresia_id, profesor:profesores(nombre, apellido), liquidacion:liquidaciones(estado, periodo)");
+  const porMembresia = new Map<number, LiquidacionTocada[]>();
+  for (const c of (com as unknown as {
+    membresia_id: number | null;
+    profesor: { nombre: string; apellido: string } | null;
+    liquidacion: { estado: string; periodo: string } | null;
+  }[]) ?? []) {
+    if (c.membresia_id == null) continue;
+    if (c.liquidacion?.estado !== "pagada" && c.liquidacion?.estado !== "cerrada") continue;
+    const ya = porMembresia.get(c.membresia_id) ?? [];
+    ya.push({
+      profesor: c.profesor ? `${c.profesor.apellido}, ${c.profesor.nombre}` : "un profesor",
+      periodo: c.liquidacion.periodo,
+      estado: c.liquidacion.estado,
+      alumno: "",
+    });
+    porMembresia.set(c.membresia_id, ya);
+  }
+  if (porMembresia.size === 0) return { clases };
 
-  // 2. De esas, las que reparten entre DOS O MÁS cursos. Una mono-curso no
-  //    depende del conteo: su plata es la misma con cualquier cantidad.
+  // 2. Sus días de clase: esas son las fechas sobre las que hay que avisar.
+  //    A diferencia del viejo congelador, acá entran TODAS las membresías
+  //    devengadas, no solo las multi-curso: desde que existe el ajuste, un
+  //    cambio de titular o un reemplazo administrativo puede mover el reparto
+  //    de una mono-curso también (cambia de quién es la plata, no cuánta).
+  const ids = [...porMembresia.keys()];
   const { data: ic } = await sb
     .from("inscripcion_cursos")
     .select("inscripcion_id, curso_id, dias, fecha")
-    .in("inscripcion_id", [...pagadas]);
+    .in("inscripcion_id", ids);
   const filas =
     (ic as { inscripcion_id: number; curso_id: number; dias: number[] | null; fecha: string | null }[]) ?? [];
   const porInsc = new Map<number, typeof filas>();
@@ -104,14 +120,11 @@ export async function cargarCongelador(sb: Cliente): Promise<Congelador> {
     if (ya) ya.push(r);
     else porInsc.set(r.inscripcion_id, [r]);
   }
-  const conProrrateo = [...porInsc.entries()].filter(([, f]) => f.length > 1).map(([id]) => id);
-  if (conProrrateo.length === 0) return { clases };
 
-  // 3. Sus períodos y sus días: esas son las clases congeladas.
   const { data: insc } = await sb
     .from("inscripciones")
     .select("id, fecha_inicio, fecha_fin, alumno:alumnos(nombre, apellido)")
-    .in("id", conProrrateo);
+    .in("id", ids);
   const cursos = new Map<number, number[]>();
   const vigencias = new Map<number, VigenciaCurso>();
   const { data: cur } = await sb
@@ -131,10 +144,11 @@ export async function cargarCongelador(sb: Cliente): Promise<Congelador> {
   }[]) ?? []) {
     if (!m.fecha_fin) continue;
     const quien = m.alumno ? `${m.alumno.apellido}, ${m.alumno.nombre}` : `#${m.id}`;
+    const tocadas = (porMembresia.get(m.id) ?? []).map((l) => ({ ...l, alumno: quien }));
     for (const f of porInsc.get(m.id) ?? []) {
       if (f.fecha) {
         if (enVigencia(vigencias.get(f.curso_id), f.fecha))
-          clases.set(`${f.curso_id}|${f.fecha.slice(0, 10)}`, quien);
+          for (const l of tocadas) sumar(`${f.curso_id}|${f.fecha.slice(0, 10)}`, l);
         continue;
       }
       const dias = f.dias?.length ? f.dias : cursos.get(f.curso_id) ?? [];
@@ -145,35 +159,43 @@ export async function cargarCongelador(sb: Cliente): Promise<Congelador> {
         const dia = d.getDay() === 0 ? 7 : d.getDay();
         if (!dias.includes(dia)) continue;
         const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-        // Fuera de la vigencia del curso no hay clase que congelar: ese día no
-        // entró en ningún conteo, así que tocarlo no mueve plata (0033).
+        // Fuera de la vigencia del curso no hay clase: ese día no entró en
+        // ningún conteo, así que tocarlo no mueve nada (0033).
         if (!enVigencia(vigencias.get(f.curso_id), iso)) continue;
-        clases.set(`${f.curso_id}|${iso}`, quien);
+        for (const l of tocadas) sumar(`${f.curso_id}|${iso}`, l);
       }
     }
   }
   return { clases };
 }
 
-/** ¿Esta clase está congelada porque una comisión ya pagada depende de ella? */
-export function claseCongelada(c: Congelador, cursoId: number, fechaISO: string): string | null {
-  return c.clases.get(`${cursoId}|${fechaISO.slice(0, 10)}`) ?? null;
+/** Las liquidaciones que un cambio en esta clase haría recalcular. Vacío = ninguna. */
+export function liquidacionesTocadas(
+  i: Impacto,
+  cursoId: number,
+  fechaISO: string
+): LiquidacionTocada[] {
+  return i.clases.get(`${cursoId}|${fechaISO.slice(0, 10)}`) ?? [];
 }
 
 /**
- * El mensaje que ve la persona. Dice **por qué** no se puede y **qué hacer**:
- * un "no se puede" a secas manda a buscar el problema donde no está.
+ * El texto del aviso. Dice **qué va a pasar**, no que no se pueda.
+ *
+ * Nombra al profesor y el período porque es lo que le permite a quien opera
+ * decidir con criterio —y, si hace falta, avisarle—. Toda notificación que
+ * nombra a una persona lleva su mecanismo de copiar (regla de proceso 12); el
+ * host se lo agrega.
  */
-export function motivoCongelada(fechaISO: string, quien: string): string {
-  if (quien === "un descuento ya pagado")
-    return (
-      `Esa clase (${fechaISO}) tiene un descuento al profesor que ya se pagó. ` +
-      `Cambiarla movería plata que ya salió de la caja. ` +
-      `Si hay que corregirlo, se hace con un ajuste con fecha de hoy.`
-    );
+export function avisoDeImpacto(fechaISO: string, tocadas: LiquidacionTocada[]): string {
+  if (tocadas.length === 0) return "";
+  const lista = tocadas
+    .map((t) => `${t.profesor} (${t.periodo.slice(0, 7)}, ${t.estado})`)
+    .join(" · ");
   return (
-    `Esa clase (${fechaISO}) entra en el ciclo de una membresía multi-curso de ${quien} ` +
-    `cuya comisión ya se pagó a los profesores. Cambiarla movería el reparto de plata que ya salió. ` +
-    `Si hay que corregirlo, se hace con un ajuste con fecha de hoy.`
+    `Esa clase (${fechaISO}) entra en el ciclo de una membresía ya liquidada y cobrada. ` +
+    `Guardar la va a recalcular, y la diferencia va a salir como un ajuste en ${
+      tocadas.length === 1 ? "la liquidación de" : "las liquidaciones de"
+    } ${lista}. ` +
+    `Lo ya pagado no se reescribe: el ajuste se suma como complemento de ese mismo período.`
   );
 }

@@ -62,6 +62,8 @@ export default function ClienteAsistencia({
   const [errorPadron, setErrorPadron] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** Texto del aviso de impacto en liquidaciones ya cobradas, a confirmar. */
+  const [impacto, setImpacto] = useState<string | null>(null);
   const [suspendida, setSuspendida] = useState(false);
   const [motivoSusp, setMotivoSusp] = useState<string | null>(null);
   const [completada, setCompletada] = useState(false);
@@ -151,6 +153,7 @@ export default function ClienteAsistencia({
     // mensaje queda "pegado" sobre una clase que no lo generó.
     setAviso(null);
     setError(null);
+    setImpacto(null);
     setFecha(fechasDelCurso(id)[0]?.iso ?? hoyIso);
   }
 
@@ -189,7 +192,7 @@ export default function ClienteAsistencia({
     if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function guardar() {
+  function guardar(confirmado = false) {
     if (cursoId == null || marcados === 0) return;
     setError(null);
     const insc = new Map(filas.map((f) => [f.alumnoId, f.inscripcionId]));
@@ -213,7 +216,17 @@ export default function ClienteAsistencia({
               costo: Number(reeCosto.replace(/[^\d.]/g, "")) || 0,
             }
           : null,
+        confirmado,
       });
+      // Esta clase entra en una liquidación ya cobrada: se puede guardar, pero
+      // primero hay que decirlo. No es un rechazo — es un aviso con su
+      // confirmación (regla de negocio 16).
+      if (res.requiereConfirmacion) {
+        setImpacto(res.aviso ?? "");
+        scrollArriba();
+        return;
+      }
+      setImpacto(null);
       if (res.error) {
         setError(res.error);
         scrollArriba();
@@ -339,6 +352,7 @@ export default function ClienteAsistencia({
             // los dos, o el mensaje queda "pegado" sobre una clase que no lo generó.
             setAviso(null);
             setError(null);
+            setImpacto(null);
           }}
           disabled={fechas.length === 0}
           className="entrada text-lg py-3"
@@ -715,6 +729,43 @@ export default function ClienteAsistencia({
         </div>
       )}
 
+      {/* Aviso de impacto: esta clase entra en una liquidación ya cobrada.
+          **No es un rechazo** — se puede guardar, y el desvío se compensa con
+          un ajuste al liquidar. Pero quien opera tiene que enterarse antes de
+          guardar, no después (regla de negocio 16). Lleva su botón de copiar
+          porque nombra a un profesor y algo que le va a pasar (proceso 12). */}
+      {impacto && (
+        <div
+          role="alert"
+          className="mt-4 rounded-[var(--radio-panel)] border border-[var(--aviso,var(--peligro))] bg-[var(--aviso-fill,var(--peligro-fill))] text-[var(--aviso-texto,var(--peligro-texto))] p-4"
+        >
+          <div className="font-semibold">Esto va a mover una liquidación ya cobrada</div>
+          <p className="text-sm mt-1 leading-relaxed">{impacto}</p>
+          <div className="flex flex-wrap gap-2 mt-3">
+            <button
+              onClick={() => guardar(true)}
+              disabled={pendiente}
+              className="px-4 py-2 text-base rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)] font-semibold disabled:opacity-40"
+            >
+              Guardar igual
+            </button>
+            <button
+              onClick={() => setImpacto(null)}
+              disabled={pendiente}
+              className="px-4 py-2 text-base rounded-[var(--radio-control)] border border-[var(--borde)] disabled:opacity-40"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={() => navigator.clipboard?.writeText(impacto)}
+              className="px-4 py-2 text-base rounded-[var(--radio-control)] border border-[var(--borde)]"
+            >
+              Copiar aviso
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Pie fijo: guardar (solo en modo editable) */}
       {cursoId != null && fechas.length > 0 && editable && total > 0 && (
         <div className="sticky bottom-0 -mx-6 sm:-mx-8 mt-6 px-6 sm:px-8 py-4 bg-[var(--fondo-panel)] border-t border-[var(--borde)]">
@@ -730,7 +781,7 @@ export default function ClienteAsistencia({
             </span>
           </div>
           <button
-            onClick={guardar}
+            onClick={() => guardar()}
             disabled={marcados === 0 || pendiente}
             className="w-full px-5 py-3 text-lg font-semibold rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)] hover:bg-[var(--primario-hover)] disabled:opacity-40"
           >
