@@ -1,5 +1,9 @@
 # Mudanza del repo: de OneDrive a `D:\dev\tropicana-app`
 
+> **CERRADA el 2026-09-23.** La mudanza se hizo el 2026-09-16 y la carpeta
+> vieja de OneDrive ya fue eliminada (Javier). Este documento queda como
+> referencia histórica del procedimiento, no como un paso pendiente.
+
 Procedimiento para ejecutar la decisión **D2** de `docs/DECISIONES.md`.
 
 **Leelo desde GitHub en el navegador mientras lo hacés** — vas a estar cerrando

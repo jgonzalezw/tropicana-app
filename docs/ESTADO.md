@@ -6,7 +6,13 @@
 > `docs/design/README.md` (fuente de verdad del **diseño**), `docs/CONTEXTO_AVANCE.md`
 > (bitácora larga de Etapa 0), `docs/DESIGN_SYNC.md` (cómo entran los handoffs).
 >
-> **Última actualización:** 2026-09-23 — **Conversión de prueba y redención de
+> **Última actualización:** 2026-09-23 — **D2 (mudanza del repo fuera de
+> OneDrive) cerrada definitivamente.** La carpeta vieja de OneDrive ya fue
+> eliminada (Javier, 2026-09-23) — el stash que ahí quedaba estaba vacío (ver
+> abajo), y no hay ningún paso manual pendiente. Detalle en `DECISIONES.md`
+> (D2) y `docs/MUDANZA_REPO.md`.
+>
+> **2026-09-23 (antes)** — **Conversión de prueba y redención de
 > bono: probadas por Javier, confirmadas ya en producción, sin pase pendiente.**
 > Javier probó en dev (18/09) los dos flujos del motor de venta que no tenían
 > hito propio en este documento: la **conversión de prueba → inscripción**
