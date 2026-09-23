@@ -101,7 +101,7 @@ modelarlo cada pantalla lo va a resolver distinto.
 
 No se copian acá — viven en `DECISIONES.md` con su disparador. Se listan para no
 perderlas de vista al priorizar: **D1** (unificar `membresia_id` en lo existente),
-**D2** (sacar el repo de OneDrive), **D3** (renombrar `ClienteVentas.tsx`),
+**D3** (renombrar `ClienteVentas.tsx`),
 **D4** (acceso al detalle en toda lista), **D9** (tarjeta de confirmación de venta
 específica), **D11** (inscribir acompañantes de una prueba grupal),
 **D12**/**D13** (estilos a catálogo, y aumentar un catálogo sin salir de la

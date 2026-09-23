@@ -6,7 +6,31 @@
 > `docs/design/README.md` (fuente de verdad del **diseño**), `docs/CONTEXTO_AVANCE.md`
 > (bitácora larga de Etapa 0), `docs/DESIGN_SYNC.md` (cómo entran los handoffs).
 >
-> **Última actualización:** 2026-09-18 — **La cuenta del profesor: la deuda de
+> **Última actualización:** 2026-09-23 — **Conversión de prueba y redención de
+> bono: probadas por Javier, confirmadas ya en producción, sin pase pendiente.**
+> Javier probó en dev (18/09) los dos flujos del motor de venta que no tenían
+> hito propio en este documento: la **conversión de prueba → inscripción**
+> (`pruebaConvertible`, `inscribir/acciones.ts` — acredita como descuento la
+> parte del alumno de lo pagado por su prueba, si convierte el mismo plan
+> dentro de plazo) y la **redención del bono de tolerancia al reinscribir**
+> (`bono_redimido`, mismo archivo — suma al ciclo nuevo las faltas con
+> licencia no redimidas de ciclos `completada` del mismo plan). Confirmó:
+> *"ok las pruebas de redención del bono de prueba realizadas, puntos 1 y 2"*,
+> y pidió pasar a producción si no estaba. **Medido antes de tocar nada**
+> (regla de calidad 3): `git log origin/main..HEAD` y `HEAD..origin/main`
+> vacíos (local = `origin/main` en `7bb05d5`), sin diffs locales sin commitear
+> en `inscribir/acciones.ts` ni `lib/membresias.ts`, y las columnas que ambos
+> flujos necesitan (`inscripciones.bono_redimido`/`es_prueba`/`acompanantes`/
+> `membresia_anterior_id`, `planes.acepta_prueba`/`prueba_acredita`/
+> `prueba_cursos_max`/`prueba_plazo_dias`) ya existen en producción
+> (`pnvhpbxjbdmbktpwebtx`, verificado contra `information_schema.columns`).
+> **No eran una feature nueva sin publicar**: el código de los dos flujos
+> quedó tocado por última vez en los commits `11c37f9` (16/09) y `8d8a6cf`
+> (12/09), ya documentados más abajo como pasados a producción en esos pases.
+> **Conclusión: no hubo migración ni pase que hacer** — ambos flujos ya
+> corrían en producción desde antes de esta verificación.
+>
+> **2026-09-18 (antes)** — **La cuenta del profesor: la deuda de
 > una liquidación se refleja y se paga clasificada (migración 0045), en dev.**
 > El pago de una liquidación se asentaba con un motivo inventado y no caía en
 > ningún bucket de Caja: plata que salía sin clasificar. Javier amplió el
