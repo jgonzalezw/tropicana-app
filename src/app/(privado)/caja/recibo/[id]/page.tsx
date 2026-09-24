@@ -33,7 +33,7 @@ export default async function PaginaRecibo({ params }: { params: Promise<{ id: s
         "cuota_id, registrado_por, " +
         "alumno:alumnos(nombre, apellido, whatsapp), " +
         "profesor:profesores(nombre, apellido, whatsapp), " +
-        "inscripcion:inscripciones(id, fecha_inicio, fecha_fin, clases_total, curso_id, " +
+        "inscripcion:membresias(id, fecha_inicio, fecha_fin, clases_total, curso_id, " +
         "plan:planes(nombre), curso:cursos(nombre, dias_semana))"
     )
     .eq("id", pagoId)
@@ -84,7 +84,7 @@ export default async function PaginaRecibo({ params }: { params: Promise<{ id: s
 
   // Los cursos que toca la membresía de esta venta, y hasta cuándo — mismo
   // criterio que la Cuenta del alumno (glosario de REGLAS.md: por
-  // `inscripcion_cursos`, con respaldo a `curso_id` para filas viejas), para
+  // `membresia_cursos`, con respaldo a `curso_id` para filas viejas), para
   // que el recibo no diga menos de lo que dice esa pantalla.
   let cursosTexto: string | null = null;
   let fin: { fecha: string; estimada: boolean } | null = null;

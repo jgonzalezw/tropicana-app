@@ -3,7 +3,7 @@ import { tienePermiso, obtenerParametro } from "@/lib/sesion";
 import SinAcceso from "@/components/SinAcceso";
 import { exigir } from "@/lib/datos";
 import { isoFecha } from "@/lib/inscripcion";
-import ClienteVentas from "./ClienteVentas";
+import MostradorVenta from "./MostradorVenta";
 import type { PlanVenta } from "./ClienteInscribir";
 import type { Alumno, Curso } from "@/lib/tipos";
 
@@ -133,14 +133,14 @@ export default async function PaginaInscribir() {
 
   // Panel del alumno: cursos activos y deuda pendiente + planes activos (dup).
   const [{ data: inscripciones }, { data: cuotas }, { data: pagos }] = await Promise.all([
-    supabase.from("inscripciones").select("id, alumno_id, curso_id, plan_id, estado").eq("estado", "activa"),
-    supabase.from("cuotas").select("id, inscripcion_id, monto_devengado, descuento_adelanto, estado"),
+    supabase.from("membresias").select("id, alumno_id, curso_id, plan_id, estado").eq("estado", "activa"),
+    supabase.from("cuotas").select("id, membresia_id, monto_devengado, descuento_adelanto, estado"),
     supabase.from("pagos").select("cuota_id, monto, descuento").eq("tipo", "cobro"),
   ]);
 
   // Bonos de tolerancia pendientes de redimir, por alumno y plan.
   const { data: bonos } = await supabase
-    .from("inscripciones")
+    .from("membresias")
     .select("alumno_id, plan_id, bono_generado")
     .eq("estado", "completada")
     .eq("bono_redimido", false)
@@ -158,7 +158,7 @@ export default async function PaginaInscribir() {
   // cobrar; el servidor lo vuelve a calcular al vender, que es lo que manda.
   const pruebas = exigir(
     await supabase
-      .from("inscripciones")
+      .from("membresias")
       .select("id, alumno_id, plan_id, fecha_fin, acompanantes")
       .eq("es_prueba", true)
       .neq("estado", "baja"),
@@ -174,16 +174,16 @@ export default async function PaginaInscribir() {
   if (pruebas.length) {
     const convertidas = exigir(
       await supabase
-        .from("inscripciones")
+        .from("membresias")
         .select("membresia_anterior_id")
         .in("membresia_anterior_id", pruebas.map((p) => p.id)),
       "las conversiones previas"
     ) as { membresia_anterior_id: number | null }[];
     const usadas = new Set(convertidas.map((x) => x.membresia_anterior_id));
     const cuotasPrueba = exigir(
-      await supabase.from("cuotas").select("id, inscripcion_id").in("inscripcion_id", pruebas.map((p) => p.id)),
+      await supabase.from("cuotas").select("id, membresia_id").in("membresia_id", pruebas.map((p) => p.id)),
       "las cuotas de las pruebas"
-    ) as { id: number; inscripcion_id: number }[];
+    ) as { id: number; membresia_id: number }[];
     const pagosPrueba = cuotasPrueba.length
       ? (exigir(
           await supabase
@@ -195,7 +195,7 @@ export default async function PaginaInscribir() {
         ) as { cuota_id: number | null; monto: number }[])
       : [];
     const pagadoPorInsc: Record<number, number> = {};
-    const inscDeCuota = new Map(cuotasPrueba.map((q) => [q.id, q.inscripcion_id]));
+    const inscDeCuota = new Map(cuotasPrueba.map((q) => [q.id, q.membresia_id]));
     for (const pg of pagosPrueba) {
       const ins = pg.cuota_id != null ? inscDeCuota.get(pg.cuota_id) : undefined;
       if (ins != null) pagadoPorInsc[ins] = (pagadoPorInsc[ins] ?? 0) + Number(pg.monto);
@@ -255,13 +255,13 @@ export default async function PaginaInscribir() {
   const deudaPorAlumno: Record<number, number> = {};
   for (const q of (cuotas as {
     id: number;
-    inscripcion_id: number;
+    membresia_id: number;
     monto_devengado: number;
     descuento_adelanto: number;
     estado: string;
   }[]) ?? []) {
     if (q.estado === "pagada") continue;
-    const insc = inscById.get(q.inscripcion_id);
+    const insc = inscById.get(q.membresia_id);
     if (!insc) continue;
     const efectivo = Math.max(0, Number(q.monto_devengado) - Number(q.descuento_adelanto));
     const saldo = Math.max(0, efectivo - (pagadoPorCuota[q.id] ?? 0));
@@ -274,7 +274,7 @@ export default async function PaginaInscribir() {
     .filter(Boolean);
 
   return (
-    <ClienteVentas
+    <MostradorVenta
       alumnos={(alumnos as Alumno[]) ?? []}
       planes={planesVenta}
       diasCompromiso={Math.max(1, Number(diasCompromisoParam) || 30)}

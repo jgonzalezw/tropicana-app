@@ -57,13 +57,13 @@ export function estadoQueCorresponde(devengado: number, descuentoAdelanto: numbe
 export type CursoDeMembresia = { cursoId: number; nombre: string; dias: number[] };
 
 /**
- * Qué cursos toca cada membresía, con sus días — por `inscripcion_cursos`,
+ * Qué cursos toca cada membresía, con sus días — por `membresia_cursos`,
  * que es donde el glosario de `REGLAS.md` dice que vive esta información.
  *
  * **Con respaldo a `curso_id`** para membresías viejas que nunca llegaron a
- * tener fila en `inscripcion_cursos` (paquetes por clase vendidos antes del
+ * tener fila en `membresia_cursos` (paquetes por clase vendidos antes del
  * motor de planes — medido en dev, 2026-09-16: existían de verdad). El
- * glosario lo dice explícito: *"`inscripciones.curso_id` NO es 'el curso' de
+ * glosario lo dice explícito: *"`membresias.curso_id` NO es 'el curso' de
  * la membresía... queda como respaldo para filas viejas"*. Sin este respaldo,
  * esas membresías se mostraban sin ningún curso.
  *
@@ -82,25 +82,25 @@ export async function cursosDeMembresias(
   if (!inscripciones.length) return porInsc;
 
   const { data: icRows } = await sb
-    .from("inscripcion_cursos")
-    .select("inscripcion_id, curso_id, dias, curso:cursos(nombre)")
+    .from("membresia_cursos")
+    .select("membresia_id, curso_id, dias, curso:cursos(nombre)")
     .in(
-      "inscripcion_id",
+      "membresia_id",
       inscripciones.map((r) => r.id)
     );
   for (const ic of (icRows as unknown as {
-    inscripcion_id: number;
+    membresia_id: number;
     curso_id: number;
     dias: number[];
     curso: { nombre: string } | null;
   }[]) ?? []) {
     if (!ic.curso) continue;
-    const l = porInsc.get(ic.inscripcion_id) ?? [];
+    const l = porInsc.get(ic.membresia_id) ?? [];
     l.push({ cursoId: ic.curso_id, nombre: ic.curso.nombre, dias: ic.dias ?? [] });
-    porInsc.set(ic.inscripcion_id, l);
+    porInsc.set(ic.membresia_id, l);
   }
 
-  // Respaldo: la membresía no tiene ninguna fila en inscripcion_cursos, pero
+  // Respaldo: la membresía no tiene ninguna fila en membresia_cursos, pero
   // sí un curso_id directo (fila vieja). Se usan los días DEL CURSO, porque
   // en el camino viejo no había forma de elegir un subconjunto.
   for (const r of inscripciones) {
@@ -160,7 +160,7 @@ export async function estadoDeCuenta(sb: ClienteLectura, alumnoId: number): Prom
   const alumno = al as { id: number; nombre: string; apellido: string };
 
   const { data: inscRows } = await sb
-    .from("inscripciones")
+    .from("membresias")
     .select(
       "id, estado, fecha_inicio, fecha_fin, clases_plan, clases_total, bono_generado, bono_redimido, curso_id, " +
         "plan:planes(nombre), curso:cursos(nombre, dias_semana)"
@@ -179,7 +179,7 @@ export async function estadoDeCuenta(sb: ClienteLectura, alumnoId: number): Prom
     bono_generado: number;
     bono_redimido: boolean;
     /** Resabio mono-curso (glosario `REGLAS.md`): respaldo cuando la
-     *  membresía no tiene fila en `inscripcion_cursos`. */
+     *  membresía no tiene fila en `membresia_cursos`. */
     curso_id: number | null;
     plan: { nombre: string } | null;
     curso: { nombre: string; dias_semana: number[] | null } | null;
@@ -195,10 +195,10 @@ export async function estadoDeCuenta(sb: ClienteLectura, alumnoId: number): Prom
   const sinLic: Record<number, number> = {};
   const { data: asisRows } = await sb
     .from("asistencias")
-    .select("inscripcion_id, sesion_id, estado, con_licencia")
-    .in("inscripcion_id", inscIds);
+    .select("membresia_id, sesion_id, estado, con_licencia")
+    .in("membresia_id", inscIds);
   const asis =
-    (asisRows as { inscripcion_id: number | null; sesion_id: number; estado: string; con_licencia: boolean }[]) ?? [];
+    (asisRows as { membresia_id: number | null; sesion_id: number; estado: string; con_licencia: boolean }[]) ?? [];
   if (asis.length) {
     const { data: ses } = await sb
       .from("sesiones")
@@ -208,23 +208,23 @@ export async function estadoDeCuenta(sb: ClienteLectura, alumnoId: number): Prom
       ((ses as { id: number; estado: string }[]) ?? []).filter((s) => s.estado === "dictada").map((s) => s.id)
     );
     for (const a of asis) {
-      if (a.inscripcion_id == null || !dictadas.has(a.sesion_id)) continue;
-      if (a.estado === "presente") presentes[a.inscripcion_id] = (presentes[a.inscripcion_id] ?? 0) + 1;
-      else if (a.con_licencia) conLic[a.inscripcion_id] = (conLic[a.inscripcion_id] ?? 0) + 1;
-      else sinLic[a.inscripcion_id] = (sinLic[a.inscripcion_id] ?? 0) + 1;
+      if (a.membresia_id == null || !dictadas.has(a.sesion_id)) continue;
+      if (a.estado === "presente") presentes[a.membresia_id] = (presentes[a.membresia_id] ?? 0) + 1;
+      else if (a.con_licencia) conLic[a.membresia_id] = (conLic[a.membresia_id] ?? 0) + 1;
+      else sinLic[a.membresia_id] = (sinLic[a.membresia_id] ?? 0) + 1;
     }
   }
 
   // Cuotas y lo cobrado contra cada una.
   const { data: cuotaRows } = await sb
     .from("cuotas")
-    .select("id, inscripcion_id, periodo, vencimiento, fecha_compromiso, monto_devengado, descuento_adelanto, estado")
-    .in("inscripcion_id", inscIds)
+    .select("id, membresia_id, periodo, vencimiento, fecha_compromiso, monto_devengado, descuento_adelanto, estado")
+    .in("membresia_id", inscIds)
     .order("periodo", { ascending: true });
   const cuotas =
     (cuotaRows as {
       id: number;
-      inscripcion_id: number;
+      membresia_id: number;
       periodo: string;
       vencimiento: string | null;
       fecha_compromiso: string | null;
@@ -274,18 +274,18 @@ export async function estadoDeCuenta(sb: ClienteLectura, alumnoId: number): Prom
       saldo: saldoCuota(num(c.monto_devengado), num(c.descuento_adelanto), cubierto),
       estado: c.estado,
     };
-    const lista = cuotasPorInsc.get(c.inscripcion_id) ?? [];
+    const lista = cuotasPorInsc.get(c.membresia_id) ?? [];
     lista.push(fila);
-    cuotasPorInsc.set(c.inscripcion_id, lista);
+    cuotasPorInsc.set(c.membresia_id, lista);
   }
 
   // Qué cursos toca cada membresía, con sus días — para TODAS, no solo las
-  // que tienen bono. Por `inscripcion_cursos`, que es donde el glosario dice
-  // que vive esta información; `inscripciones.curso_id` es "un resabio que
+  // que tienen bono. Por `membresia_cursos`, que es donde el glosario dice
+  // que vive esta información; `membresias.curso_id` es "un resabio que
   // solo significa algo en un plan mono-curso, y queda como respaldo para
   // filas viejas" — y hay filas viejas de verdad (paquetes por clase
   // vendidos antes del motor de planes) que nunca llegaron a tener fila en
-  // `inscripcion_cursos`. Sin este respaldo, esas membresías se mostraban
+  // `membresia_cursos`. Sin este respaldo, esas membresías se mostraban
   // sin ningún curso.
   const cursosPorInsc = await cursosDeMembresias(sb, inscripciones);
 
@@ -372,15 +372,15 @@ export async function lineasPorCobrar(
   const { data } = await sb
     .from("cuotas")
     .select(
-      "id, inscripcion_id, monto_devengado, descuento_adelanto, vencimiento, fecha_compromiso, " +
-        "inscripcion:inscripciones(id, alumno_id, alumno:alumnos(id, nombre, apellido), " +
+      "id, membresia_id, monto_devengado, descuento_adelanto, vencimiento, fecha_compromiso, " +
+        "inscripcion:membresias(id, alumno_id, alumno:alumnos(id, nombre, apellido), " +
         "plan:planes(nombre), curso:cursos(nombre))"
     )
     .neq("estado", "pagada");
 
   type Fila = {
     id: number;
-    inscripcion_id: number;
+    membresia_id: number;
     monto_devengado: number;
     descuento_adelanto: number;
     vencimiento: string | null;
@@ -458,21 +458,21 @@ export async function registrarCobro(
 ): Promise<{ ok?: true; error?: string; cerroMembresia?: boolean; saldoRestante?: number }> {
   const { data: cuotaRow } = await a
     .from("cuotas")
-    .select("id, inscripcion_id, monto_devengado, descuento_adelanto")
+    .select("id, membresia_id, monto_devengado, descuento_adelanto")
     .eq("id", e.cuotaId)
     .maybeSingle();
   if (!cuotaRow) return { error: "La cuota no existe." };
   const cuota = cuotaRow as {
     id: number;
-    inscripcion_id: number;
+    membresia_id: number;
     monto_devengado: number;
     descuento_adelanto: number;
   };
 
   const { data: inscRow } = await a
-    .from("inscripciones")
+    .from("membresias")
     .select("id, alumno_id")
-    .eq("id", cuota.inscripcion_id)
+    .eq("id", cuota.membresia_id)
     .maybeSingle();
   if (!inscRow) return { error: "La membresía de esa cuota no existe." };
   const insc = inscRow as { id: number; alumno_id: number };
@@ -529,7 +529,7 @@ export async function registrarCobro(
     // descartaba lo que elegia el operador.
     motivo: e.motivo?.trim() || "membresia",
     alumno_id: insc.alumno_id,
-    inscripcion_id: insc.id,
+    membresia_id: insc.id,
     cuota_id: cuota.id,
     monto: plata,
     medio: plata > 0 ? e.medio : null,

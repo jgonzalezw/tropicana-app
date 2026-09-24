@@ -101,10 +101,10 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
 
   if (membresiaIds.length) {
     const [{ data: insc }, { data: corr }, { data: cuotas }, { data: asis }] = await Promise.all([
-      sb.from("inscripciones").select("id, alumno_id, curso_id, plan_id, fecha_inicio, fecha_fin, clases_plan, clases_hechas, es_prueba, acompanantes").in("id", membresiaIds),
-      sb.from("corrimientos_ciclo").select("inscripcion_id, tipo").in("inscripcion_id", membresiaIds),
-      sb.from("cuotas").select("id, inscripcion_id, monto_devengado, descuento_adelanto").in("inscripcion_id", membresiaIds),
-      sb.from("asistencias").select("inscripcion_id, sesion_id, estado, con_licencia").in("inscripcion_id", membresiaIds),
+      sb.from("membresias").select("id, alumno_id, curso_id, plan_id, fecha_inicio, fecha_fin, clases_plan, clases_hechas, es_prueba, acompanantes").in("id", membresiaIds),
+      sb.from("corrimientos_ciclo").select("membresia_id, tipo").in("membresia_id", membresiaIds),
+      sb.from("cuotas").select("id, membresia_id, monto_devengado, descuento_adelanto").in("membresia_id", membresiaIds),
+      sb.from("asistencias").select("membresia_id, sesion_id, estado, con_licencia").in("membresia_id", membresiaIds),
     ]);
     for (const r of (insc as {
       id: number; alumno_id: number; curso_id: number; plan_id: number | null; fecha_inicio: string | null;
@@ -114,13 +114,13 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
       inscById.set(r.id, r);
     // Corrimientos: en el comprobante solo cuentan los de SUSPENSION (la falta con
     // licencia se muestra aparte como bono; la falta sin licencia no corre nada).
-    for (const r of (corr as { inscripcion_id: number | null; tipo: string | null }[]) ?? [])
-      if (r.inscripcion_id != null && r.tipo === "suspension")
-        corrSuspPorInsc[r.inscripcion_id] = (corrSuspPorInsc[r.inscripcion_id] ?? 0) + 1;
+    for (const r of (corr as { membresia_id: number | null; tipo: string | null }[]) ?? [])
+      if (r.membresia_id != null && r.tipo === "suspension")
+        corrSuspPorInsc[r.membresia_id] = (corrSuspPorInsc[r.membresia_id] ?? 0) + 1;
 
     // Faltas del ciclo (solo sobre sesiones dictadas), separadas por licencia.
     const asisRows =
-      (asis as { inscripcion_id: number | null; sesion_id: number; estado: string; con_licencia: boolean }[]) ?? [];
+      (asis as { membresia_id: number | null; sesion_id: number; estado: string; con_licencia: boolean }[]) ?? [];
     const sesAusIds = [...new Set(asisRows.filter((r) => r.estado === "ausente").map((r) => r.sesion_id))];
     const dictadas = new Set<number>();
     if (sesAusIds.length) {
@@ -129,25 +129,25 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
         if (s.estado === "dictada") dictadas.add(s.id);
     }
     for (const r of asisRows) {
-      if (r.inscripcion_id == null || r.estado !== "ausente" || !dictadas.has(r.sesion_id)) continue;
+      if (r.membresia_id == null || r.estado !== "ausente" || !dictadas.has(r.sesion_id)) continue;
       // La licencia (bono de tolerancia) solo existe en planes con N; un plan
       // ilimitado nunca bonifica, aunque la fila tenga con_licencia=true (dato
       // viejo de antes de ocultar esa opcion para ilimitados).
-      const esIlimitado = inscById.get(r.inscripcion_id)?.clases_plan == null;
+      const esIlimitado = inscById.get(r.membresia_id)?.clases_plan == null;
       if (r.con_licencia && !esIlimitado)
-        faltasConLicPorInsc[r.inscripcion_id] = (faltasConLicPorInsc[r.inscripcion_id] ?? 0) + 1;
-      else faltasSinLicPorInsc[r.inscripcion_id] = (faltasSinLicPorInsc[r.inscripcion_id] ?? 0) + 1;
+        faltasConLicPorInsc[r.membresia_id] = (faltasConLicPorInsc[r.membresia_id] ?? 0) + 1;
+      else faltasSinLicPorInsc[r.membresia_id] = (faltasSinLicPorInsc[r.membresia_id] ?? 0) + 1;
     }
 
-    const cuotaRows = (cuotas as { id: number; inscripcion_id: number; monto_devengado: number; descuento_adelanto: number }[]) ?? [];
+    const cuotaRows = (cuotas as { id: number; membresia_id: number; monto_devengado: number; descuento_adelanto: number }[]) ?? [];
     const cuotaToInsc = new Map<number, number>();
     for (const c of cuotaRows) {
-      cuotaToInsc.set(c.id, c.inscripcion_id);
-      totalPorInsc[c.inscripcion_id] = (totalPorInsc[c.inscripcion_id] ?? 0) + Number(c.monto_devengado);
+      cuotaToInsc.set(c.id, c.membresia_id);
+      totalPorInsc[c.membresia_id] = (totalPorInsc[c.membresia_id] ?? 0) + Number(c.monto_devengado);
       const da = Number(c.descuento_adelanto);
       if (da > 0) {
-        descPorInsc[c.inscripcion_id] = (descPorInsc[c.inscripcion_id] ?? 0) + da;
-        (motivosPorInsc[c.inscripcion_id] ??= new Set()).add("adelanto");
+        descPorInsc[c.membresia_id] = (descPorInsc[c.membresia_id] ?? 0) + da;
+        (motivosPorInsc[c.membresia_id] ??= new Set()).add("adelanto");
       }
     }
     const cuotaIds = cuotaRows.map((c) => c.id);
@@ -202,7 +202,7 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
     const i = mid != null ? inscById.get(mid) : undefined;
     const base = Number(c.base);
     const monto = Number(c.monto);
-    // El curso de la COMISIÓN. `inscripciones.curso_id` no es "el curso" de la
+    // El curso de la COMISIÓN. `membresias.curso_id` no es "el curso" de la
     // membresía —solo significa algo en un plan mono-curso (Javier)— así que
     // queda apenas como respaldo para lo devengado antes de 0025, que no
     // guardaba el curso.

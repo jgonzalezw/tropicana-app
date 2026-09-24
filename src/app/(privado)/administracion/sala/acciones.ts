@@ -181,12 +181,12 @@ async function calcularImpacto(
   const desde = cierres.reduce((m, e) => (e.fecha < m ? e.fecha : m), cierres[0].fecha);
   const hasta = cierres.reduce((m, e) => (e.hasta_fecha > m ? e.hasta_fecha : m), cierres[0].hasta_fecha);
 
-  // Membresías: por `inscripcion_cursos`, que es donde el glosario dice que
-  // vive qué cursos toca una membresía — no `inscripciones.curso_id`, que es
+  // Membresías: por `membresia_cursos`, que es donde el glosario dice que
+  // vive qué cursos toca una membresía — no `membresias.curso_id`, que es
   // un resabio mono-curso.
   const { data: icRows } = await a
-    .from("inscripcion_cursos")
-    .select("curso_id, inscripcion:inscripciones!inner(alumno_id, estado, fecha_inicio, fecha_fin)")
+    .from("membresia_cursos")
+    .select("curso_id, inscripcion:membresias!inner(alumno_id, estado, fecha_inicio, fecha_fin)")
     .in("curso_id", cursoIds);
   const membresias: MembresiaCobertura[] = (
     (icRows as unknown as {

@@ -15,7 +15,7 @@ export default async function PaginaAlumnos() {
   const [{ data: alumnos }, { data: cat }, { data: insc }, { data: pagosAl }] = await Promise.all([
     supabase.from("alumnos").select("*").order("apellido").order("nombre"),
     supabase.from("catalogos").select("id").eq("clave", "canal_captacion").maybeSingle(),
-    supabase.from("inscripciones").select("alumno_id"),
+    supabase.from("membresias").select("alumno_id"),
     supabase.from("pagos").select("alumno_id"),
   ]);
 

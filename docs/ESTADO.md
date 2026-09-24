@@ -6,13 +6,29 @@
 > `docs/design/README.md` (fuente de verdad del **diseño**), `docs/CONTEXTO_AVANCE.md`
 > (bitácora larga de Etapa 0), `docs/DESIGN_SYNC.md` (cómo entran los handoffs).
 >
-> **Última actualización:** 2026-09-23 — **D2 (mudanza del repo fuera de
+> **Última actualización:** 2026-09-24 — **D1 + D3: la membresía queda con un
+> solo nombre, en dev.** Migración **0047** (`inscripciones`→`membresias`,
+> `inscripcion_cursos`→`membresia_cursos`, `inscripcion_id`→`membresia_id` en
+> las 5 tablas que lo tenían) aplicada en dev, más el renombre de
+> `ClienteVentas.tsx`→`MostradorVenta.tsx` (D3). Javier decidió hacerla ahora,
+> antes de C3-0a.1, para que el código de contactos se escriba una sola vez
+> con el nombre correcto (evaluación completa en el plan de C3-0). Verificado:
+> los 21 controles de `control_migracion.sql` en OK (control 15, la deuda de
+> este mismo D1, pasa de REVISAR-a-propósito a **OK**), `tsc` y `npm test`
+> (33/33) limpios, y 6 pantallas recorridas en el navegador incluyendo un
+> guardado real de asistencia confirmado a nivel de fila. Detalle abajo.
+> **Solo en dev — no commiteado a producción**; Javier pidió pausar ahí
+> (*"pausa al terminar d1 y d3 en dev"*) hasta dar el OK del pase, que además
+> necesita una ventana sin operación (el renombre no es aditivo: rompe el
+> código publicado unos 3-5 min hasta que Vercel termina el deploy nuevo).
+>
+> **2026-09-23 (antes)** — **D2 (mudanza del repo fuera de
 > OneDrive) cerrada definitivamente.** La carpeta vieja de OneDrive ya fue
 > eliminada (Javier, 2026-09-23) — el stash que ahí quedaba estaba vacío (ver
 > abajo), y no hay ningún paso manual pendiente. Detalle en `DECISIONES.md`
 > (D2) y `docs/MUDANZA_REPO.md`.
 >
-> **2026-09-23 (antes)** — **Conversión de prueba y redención de
+> **2026-09-23 (antes, antes)** — **Conversión de prueba y redención de
 > bono: probadas por Javier, confirmadas ya en producción, sin pase pendiente.**
 > Javier probó en dev (18/09) los dos flujos del motor de venta que no tenían
 > hito propio en este documento: la **conversión de prueba → inscripción**
@@ -2666,3 +2682,88 @@ limpios.
 ### Estado
 
 **Solo en dev.** Migración **0045** aplicada ahí; el pase espera el OK de Javier.
+
+## D1 + D3 — un solo nombre para la membresía · 2026-09-24 (dev)
+
+### Por qué ahora, y por qué junto con el plan de C3-0
+
+Al armar el informe de impacto de "Contactos y captación" (C3-0), Javier pidió
+medir si convenía adelantar **D1** (unificar `inscripcion_id`→`membresia_id` y
+`inscripciones`→`membresias`, la deuda que el glosario de `REGLAS.md` viene
+señalando desde el 2026-09-12) antes de escribir el código nuevo de contactos.
+
+Medido contra producción: la base son 5 columnas y 2 tablas, sin ninguna
+función, vista, trigger ni política RLS que las nombre por string — solo
+restricciones, índices y secuencias derivadas. El código son 260 menciones en
+23 archivos, de los cuales **11 los iba a tocar C3-0a.1 de todos modos**
+(inscribir, asistencia, caja, recibo, liquidaciones, cuentas, periodos,
+alumnos, tipos, `EntidadAlumno`, sala). Hacerlo antes significa escribir ese
+código una sola vez, con el nombre correcto. Javier aprobó: **D1 + D3, pase
+propio en dev, antes de C3-0a.1** — y, apenas terminado, pidió pausar
+(*"pausa al terminar d1 y d3 en dev"*) sin commit ni push hasta nueva orden.
+
+### Qué hizo la migración 0047
+
+Solo renombra, no toca ninguna fila:
+
+1. `inscripciones` → `membresias`, `inscripcion_cursos` → `membresia_cursos`.
+2. `inscripcion_id` → `membresia_id` en `asistencias`, `cuotas`, `pagos`,
+   `corrimientos_ciclo` y `membresia_cursos`.
+3. Restricciones, índices, secuencias y políticas RLS con el nombre viejo,
+   renombradas por bloque `do $$ ... $$` (re-ejecutable: solo actúa si el
+   nombre viejo existe todavía).
+
+**Lo que deja afuera, a propósito**: `membresia_anterior_id` (otro concepto —
+de qué membresía viene esta, no la llave de pertenencia) y los respaldos
+históricos `*_previo_*` (conservan el nombre que tenían cuando se tomaron).
+
+### Un bug encontrado al verificar, y su corrección
+
+Las secuencias de las columnas identity **no figuran en
+`information_schema.sequences`** — solo son visibles en `pg_class` con
+`relkind='S'`. La primera versión del bloque de renombre las buscaba en
+`information_schema` y no las tocaba; `pg_get_serial_sequence` seguía
+devolviendo `inscripciones_id_seq` después de aplicar la migración. Corregido
+—en el archivo y ejecutado directo contra dev para las dos secuencias que ya
+habían quedado sin renombrar— antes de dar el pase por terminado.
+
+### `control_migracion.sql`: control 15 pasa de REVISAR-a-propósito a OK
+
+El control 15 ("un concepto, un nombre: llaves a `membresias` con nombres
+distintos") daba REVISAR **por diseño**, documentando la deuda D1. Con la
+0047 aplicada, un primer re-chequeo seguía dando 3 grafías porque el control
+todavía no excluía `membresia_anterior_id` ni los respaldos `*_previo_*` —no
+era un bug de la migración, era que el control no reflejaba la exclusión que
+el glosario siempre tuvo. Se corrigió el SQL y su comentario, y quedó en
+**OK** (n=1, solo `membresia_id`). El resto del script (67 referencias en los
+demás controles) se renombró en bloque.
+
+### Verificado en dev
+
+- **21 controles de `control_migracion.sql` en OK**, incluido el 15. El
+  control 10 sigue en 1 — desvío de datos preexistente, no relacionado.
+- `npx tsc --noEmit` limpio. `npm test`: **33/33** en verde.
+- Recorrido en el navegador: Alumnos, Cursos, Planes, Inscribir/Venta
+  (`MostradorVenta.tsx`, ya con su nombre nuevo), Liquidaciones y Asistencia.
+  En Asistencia se hizo una prueba de escritura real —marcar y guardar una
+  clase— confirmada a nivel de fila: `asistencias.membresia_id` quedó
+  poblado correctamente.
+- `scripts/refresh-dev.mjs` y `scripts/reconciliar_liquidacion.mjs`
+  actualizados a los nombres nuevos (orden de inserción, backfill de
+  `membresia_cursos`, endpoints REST y filtros).
+
+### D3, en el mismo pase
+
+`ClienteVentas.tsx` → `MostradorVenta.tsx` (`git mv` + referencias), porque su
+disparador en `DECISIONES.md` era "junto con D1, que es el mismo tipo de
+trabajo".
+
+### Estado
+
+**Solo en dev — nada commiteado ni pusheado.** Migración `0047_d1_membresias.sql`
+aplicada en `hyhijzuomqpylcmrzdvw`, no en `pnvhpbxjbdmbktpwebtx`. El pase a
+producción espera el OK explícito de Javier (regla de proceso 1) y necesita
+una **ventana sin operación**: el renombre no es aditivo, así que el código
+publicado se cae contra el esquema renombrado durante los ~3-5 minutos entre
+correr la migración y que Vercel termine el deploy del código nuevo — y, como
+siempre, **un solo push** (Vercel construye cada commit en paralelo).

@@ -51,7 +51,7 @@ function finMesVencidoISO(hoy = new Date()): string {
 // y no cobra nada. La clase de prueba no es un caso especial: es el caso
 // general con una clase por curso y N personas.
 //
-// Antes esto repartía usando `inscripciones.curso_id` —el curso principal de
+// Antes esto repartía usando `membresias.curso_id` —el curso principal de
 // la venta— así que en un plan de cinco cursos un solo profesor se llevaba
 // todo y los otros cuatro no cobraban.
 
@@ -200,7 +200,7 @@ async function leerDatosMotor(
   //    Una que se completó después no corresponde a este período.
   const membresias = exigir(
     await sb
-      .from("inscripciones")
+      .from("membresias")
       .select("id, alumno_id, curso_id, plan_id, es_prueba, acompanantes, fecha_inicio, fecha_fin")
       .eq("estado", "completada")
       .not("plan_id", "is", null)
@@ -215,9 +215,9 @@ async function leerDatosMotor(
   //    exacta de su clase.
   const cursosDeMembresia = exigir(
     await sb
-      .from("inscripcion_cursos")
-      .select("inscripcion_id, curso_id, dias, fecha")
-      .in("inscripcion_id", inscIds),
+      .from("membresia_cursos")
+      .select("membresia_id, curso_id, dias, fecha")
+      .in("membresia_id", inscIds),
     "los cursos de las membresías"
   ) as DatosMotor["cursosDeMembresia"];
 
@@ -237,8 +237,8 @@ async function leerDatosMotor(
   const cuotas = exigir(
     await sb
       .from("cuotas")
-      .select("id, inscripcion_id, monto_devengado, descuento_adelanto")
-      .in("inscripcion_id", inscIds),
+      .select("id, membresia_id, monto_devengado, descuento_adelanto")
+      .in("membresia_id", inscIds),
     "las cuotas"
   ) as DatosMotor["cuotas"];
   const cuotaIds = cuotas.map((c) => c.id);
@@ -472,16 +472,16 @@ export async function revertirDevengosAbiertos(
 ): Promise<number> {
   // Membresías que incluyen ese curso y cuyo período cubre esa fecha.
   const { data: ic } = await a
-    .from("inscripcion_cursos")
-    .select("inscripcion_id, fecha")
+    .from("membresia_cursos")
+    .select("membresia_id, fecha")
     .eq("curso_id", cursoId);
-  const candidatas = ((ic as { inscripcion_id: number; fecha: string | null }[]) ?? []).map(
-    (r) => r.inscripcion_id
+  const candidatas = ((ic as { membresia_id: number; fecha: string | null }[]) ?? []).map(
+    (r) => r.membresia_id
   );
   if (!candidatas.length) return 0;
 
   const { data: insc } = await a
-    .from("inscripciones")
+    .from("membresias")
     .select("id, fecha_inicio, fecha_fin")
     .in("id", candidatas)
     .lte("fecha_inicio", fechaISO);

@@ -135,7 +135,7 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
   let bonoOrigenIds: number[] = [];
   if (!ilimitado) {
     const { data: previos } = await sb
-      .from("inscripciones")
+      .from("membresias")
       .select("id, bono_generado")
       .eq("alumno_id", e.alumnoId)
       .eq("plan_id", e.planId)
@@ -224,7 +224,7 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
 
   // 4. No repetir una membresía activa del mismo plan para el alumno.
   const { data: dup } = await sb
-    .from("inscripciones")
+    .from("membresias")
     .select("id")
     .eq("alumno_id", e.alumnoId)
     .eq("plan_id", e.planId)
@@ -263,7 +263,7 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
 
   // 7. Membresía.
   const { data: insc, error: errInsc } = await a
-    .from("inscripciones")
+    .from("membresias")
     .insert({
       alumno_id: e.alumnoId,
       curso_id: cursoPrincipal,
@@ -287,15 +287,15 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
 
   // Marcar como redimidos los bonos que se aplicaron a este ciclo.
   if (bono > 0 && bonoOrigenIds.length)
-    await a.from("inscripciones").update({ bono_redimido: true }).in("id", bonoOrigenIds);
+    await a.from("membresias").update({ bono_redimido: true }).in("id", bonoOrigenIds);
 
-  // 8. Días elegidos por curso (inscripcion_cursos).
+  // 8. Días elegidos por curso (membresia_cursos).
   const icRows = seleccion.map((s) => ({
-    inscripcion_id: inscripcionId,
+    membresia_id: inscripcionId,
     curso_id: s.cursoId,
     dias: s.dias,
   }));
-  const { error: errIC } = await a.from("inscripcion_cursos").insert(icRows);
+  const { error: errIC } = await a.from("membresia_cursos").insert(icRows);
   if (errIC) return { error: "Se creó la membresía, pero falló guardar los días: " + errIC.message };
 
   // El fin de ciclo se calcula recién ahora, con los días ya guardados: la
@@ -309,7 +309,7 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
   const { data: cuota, error: errCuota } = await a
     .from("cuotas")
     .insert({
-      inscripcion_id: inscripcionId,
+      membresia_id: inscripcionId,
       periodo: isoFecha(primerDiaDelMes(inicio)),
       monto_devengado: precioUnit,
       descuento_adelanto: 0,
@@ -339,7 +339,7 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
       tipo: "cobro",
       motivo: "membresia",
       alumno_id: e.alumnoId,
-      inscripcion_id: inscripcionId,
+      membresia_id: inscripcionId,
       cuota_id: cuota.id,
       monto: porPlata,
       medio: porPlata > 0 ? c.medio : null,
@@ -355,7 +355,7 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
       tipo: "cobro",
       motivo: "membresia",
       alumno_id: e.alumnoId,
-      inscripcion_id: inscripcionId,
+      membresia_id: inscripcionId,
       cuota_id: cuota.id,
       monto: 0,
       medio: null,
@@ -408,7 +408,7 @@ async function pruebaConvertible(
 
   const pruebas = exigir(
     await sb
-      .from("inscripciones")
+      .from("membresias")
       .select("id, fecha_fin, acompanantes")
       .eq("alumno_id", args.alumnoId)
       .eq("plan_id", args.planId)
@@ -425,7 +425,7 @@ async function pruebaConvertible(
   // Ya convertidas: una prueba se acredita una sola vez.
   const yaConvertidas = exigir(
     await sb
-      .from("inscripciones")
+      .from("membresias")
       .select("membresia_anterior_id")
       .in("membresia_anterior_id", pruebas.map((p) => p.id)),
     "las conversiones previas"
@@ -440,7 +440,7 @@ async function pruebaConvertible(
 
     // Lo efectivamente cobrado por esa prueba.
     const cuotas = exigir(
-      await sb.from("cuotas").select("id").eq("inscripcion_id", pr.id),
+      await sb.from("cuotas").select("id").eq("membresia_id", pr.id),
       "las cuotas de la prueba"
     ) as { id: number }[];
     if (!cuotas.length) continue;
@@ -570,14 +570,14 @@ export async function venderPrueba(
   // uno ya vendido). La prueba existe para decidir si alguien se inscribe, no
   // para alguien que ya decidió y ya paga.
   const { data: yaSocioRows } = await sb
-    .from("inscripciones")
-    .select("id, curso_id, inscripcion_cursos(curso_id)")
+    .from("membresias")
+    .select("id, curso_id, membresia_cursos(curso_id)")
     .eq("alumno_id", e.alumnoId)
     .eq("es_prueba", false)
     .neq("estado", "baja");
   const cursosYaSocio = new Set(
-    ((yaSocioRows as { curso_id: number | null; inscripcion_cursos: { curso_id: number }[] }[]) ?? []).flatMap(
-      (r) => [r.curso_id, ...r.inscripcion_cursos.map((ic) => ic.curso_id)].filter((x): x is number => x != null)
+    ((yaSocioRows as { curso_id: number | null; membresia_cursos: { curso_id: number }[] }[]) ?? []).flatMap(
+      (r) => [r.curso_id, ...r.membresia_cursos.map((ic) => ic.curso_id)].filter((x): x is number => x != null)
     )
   );
   const yaInscripto = cursoIds.find((c) => cursosYaSocio.has(c));
@@ -671,7 +671,7 @@ export async function venderPrueba(
 
   // La membresía preliminar. Sin tolerancia: una prueba no genera bono.
   const { data: insc, error: errInsc } = await a
-    .from("inscripciones")
+    .from("membresias")
     .insert({
       alumno_id: e.alumnoId,
       curso_id: cursoIds[0],
@@ -699,13 +699,13 @@ export async function venderPrueba(
   // días reales del curso, que es lo que le permite al motor correr la prueba
   // a la clase siguiente si la elegida se suspende (regla de negocio 4).
   const icRows = cursoRows.map((cu) => ({
-    inscripcion_id: inscripcionId,
+    membresia_id: inscripcionId,
     curso_id: cu.id,
     dias: cu.dias_semana ?? [],
     fecha: fechaPorCurso.get(cu.id) ?? null,
   }));
   if (icRows.length) {
-    const { error: errIC } = await a.from("inscripcion_cursos").insert(icRows);
+    const { error: errIC } = await a.from("membresia_cursos").insert(icRows);
     if (errIC) return { error: "Se creó la prueba, pero falló guardar las clases: " + errIC.message };
   }
 
@@ -744,7 +744,7 @@ export async function venderPrueba(
     const { error: errAsis } = await a.from("asistencias").insert({
       sesion_id: ses.id,
       alumno_id: e.alumnoId,
-      inscripcion_id: inscripcionId,
+      membresia_id: inscripcionId,
       estado: "presente",
       con_licencia: false,
       registrado_por: perfil?.id ?? null,
@@ -760,7 +760,7 @@ export async function venderPrueba(
   const { data: cuota, error: errCuota } = await a
     .from("cuotas")
     .insert({
-      inscripcion_id: inscripcionId,
+      membresia_id: inscripcionId,
       periodo: isoFecha(primerDiaDelMes(inicio)),
       monto_devengado: referencia,
       descuento_adelanto: 0,
@@ -784,7 +784,7 @@ export async function venderPrueba(
       tipo: "cobro",
       motivo: "membresia",
       alumno_id: e.alumnoId,
-      inscripcion_id: inscripcionId,
+      membresia_id: inscripcionId,
       cuota_id: cuota.id,
       monto: porPlata,
       medio: porPlata > 0 ? c.medio : null,
@@ -807,9 +807,9 @@ export async function venderPrueba(
   // sola dejaba la otra invisible.
   const guardadas = exigir(
     await sb
-      .from("inscripcion_cursos")
+      .from("membresia_cursos")
       .select("curso_id, fecha")
-      .eq("inscripcion_id", inscripcionId),
+      .eq("membresia_id", inscripcionId),
     "las clases de la prueba"
   ) as { curso_id: number; fecha: string | null }[];
   const nombreCurso = new Map(cursoRows.map((c) => [c.id, c.nombre]));

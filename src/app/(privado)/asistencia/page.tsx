@@ -48,7 +48,7 @@ export default async function PaginaAsistencia() {
   ] = await Promise.all([
     supabase.from("cursos").select("*").eq("activo", true).order("nombre"),
     supabase
-      .from("inscripciones")
+      .from("membresias")
       .select(
         "id, curso_id, modalidad, clases_total, plan_id, clases_plan, fecha_fin, fecha_inicio, es_prueba, acompanantes, alumno:alumnos(activo)"
       )
@@ -98,23 +98,23 @@ export default async function PaginaAsistencia() {
   };
   const inscVigentes = ((inscripciones as unknown as InscCard[]) ?? []).filter((r) => r.alumno?.activo);
 
-  // A qué cursos toca cada membresía. `inscripciones.curso_id` es solo el curso
+  // A qué cursos toca cada membresía. `membresias.curso_id` es solo el curso
   // principal de la venta: un plan multi-curso (o una prueba de varios cursos)
-  // vive en `inscripcion_cursos`, y contando por `curso_id` el alumno quedaba
+  // vive en `membresia_cursos`, y contando por `curso_id` el alumno quedaba
   // fuera del número de todos los demás cursos.
   const cursosDeInsc = new Map<number, number[]>();
   if (inscVigentes.length) {
     const icRows = exigir(
       await supabase
-        .from("inscripcion_cursos")
-        .select("inscripcion_id, curso_id")
-        .in("inscripcion_id", inscVigentes.map((r) => r.id)),
+        .from("membresia_cursos")
+        .select("membresia_id, curso_id")
+        .in("membresia_id", inscVigentes.map((r) => r.id)),
       "los cursos de cada membresía"
     );
-    for (const r of (icRows as { inscripcion_id: number; curso_id: number }[]) ?? []) {
-      const ya = cursosDeInsc.get(r.inscripcion_id);
+    for (const r of (icRows as { membresia_id: number; curso_id: number }[]) ?? []) {
+      const ya = cursosDeInsc.get(r.membresia_id);
       if (ya) ya.push(r.curso_id);
-      else cursosDeInsc.set(r.inscripcion_id, [r.curso_id]);
+      else cursosDeInsc.set(r.membresia_id, [r.curso_id]);
     }
   }
 
@@ -127,13 +127,13 @@ export default async function PaginaAsistencia() {
     const data = exigir(
       await supabase
       .from("asistencias")
-      .select("inscripcion_id")
+      .select("membresia_id")
         .eq("estado", "presente")
-        .in("inscripcion_id", inscParcialIds),
+        .in("membresia_id", inscParcialIds),
       "las asistencias de los paquetes"
     );
-    for (const x of (data as { inscripcion_id: number | null }[]) ?? [])
-      if (x.inscripcion_id != null) consumidasParcial[x.inscripcion_id] = (consumidasParcial[x.inscripcion_id] ?? 0) + 1;
+    for (const x of (data as { membresia_id: number | null }[]) ?? [])
+      if (x.membresia_id != null) consumidasParcial[x.membresia_id] = (consumidasParcial[x.membresia_id] ?? 0) + 1;
   }
 
   // Cuántos alumnos con membresía NO completada a hoy tiene cada curso: excluye

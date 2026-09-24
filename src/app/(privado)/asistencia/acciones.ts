@@ -149,7 +149,7 @@ export async function aplicarCorrimiento(
   const { data: existe } = await a
     .from("corrimientos_ciclo")
     .select("id")
-    .eq("inscripcion_id", args.inscripcionId)
+    .eq("membresia_id", args.inscripcionId)
     .eq("sesion_id", args.sesionId)
     .maybeSingle();
   if (existe) return { estado: "ya", finCicloNuevo: null };
@@ -159,7 +159,7 @@ export async function aplicarCorrimiento(
   if (r.estado === "bloqueado_devengada") return { estado: "bloqueado_devengada", finCicloNuevo: null };
 
   await a.from("corrimientos_ciclo").insert({
-    inscripcion_id: args.inscripcionId,
+    membresia_id: args.inscripcionId,
     alumno_id: args.alumnoId,
     sesion_id: args.sesionId,
     tipo: args.tipo,
@@ -178,13 +178,13 @@ export async function aplicarCorrimiento(
  * calcular, que es lo único que no puede quedar desincronizado.
  */
 export async function revertirCorrimientos(a: Admin, sesionId: number, tipo?: "falta" | "suspension"): Promise<number> {
-  let q = a.from("corrimientos_ciclo").select("id, inscripcion_id").eq("sesion_id", sesionId);
+  let q = a.from("corrimientos_ciclo").select("id, membresia_id").eq("sesion_id", sesionId);
   if (tipo) q = q.eq("tipo", tipo);
   const { data } = await q;
-  const filas = (data as { id: number; inscripcion_id: number }[]) ?? [];
+  const filas = (data as { id: number; membresia_id: number }[]) ?? [];
   if (!filas.length) return 0;
   await a.from("corrimientos_ciclo").delete().in("id", filas.map((f) => f.id));
-  for (const insc of [...new Set(filas.map((f) => f.inscripcion_id))])
+  for (const insc of [...new Set(filas.map((f) => f.membresia_id))])
     await recalcularFinDeCiclo(a, insc);
   return filas.length;
 }
@@ -278,37 +278,37 @@ export async function cargarPadron(
   // padrones ya tomados, y un ciclo ya completado igual tenía que estar
   // marcado en las clases que cayeron dentro de su período).
   //
-  // Qué membresías toca este curso. NO alcanza con `inscripciones.curso_id`:
+  // Qué membresías toca este curso. NO alcanza con `membresias.curso_id`:
   // ese campo guarda el curso *principal* de la venta, y una membresía de plan
-  // multi-curso (o una prueba de varios cursos) vive en `inscripcion_cursos`.
+  // multi-curso (o una prueba de varios cursos) vive en `membresia_cursos`.
   // Filtrando solo por `curso_id`, un alumno con un plan de 5 cursos aparecía
   // en el padrón de uno y era invisible en los otros cuatro.
   const { data: icCurso, error: errIC } = await sb
-    .from("inscripcion_cursos")
-    .select("inscripcion_id, dias, fecha")
+    .from("membresia_cursos")
+    .select("membresia_id, dias, fecha")
     .eq("curso_id", cursoId);
   if (errIC) return { ...vacio, error: `No se pudo leer qué alumnos toma este curso: ${errIC.message}` };
   const icRows =
-    (icCurso as { inscripcion_id: number; dias: number[] | null; fecha: string | null }[]) ?? [];
+    (icCurso as { membresia_id: number; dias: number[] | null; fecha: string | null }[]) ?? [];
   const diasPorInsc = new Map<number, number[]>();
   // Una prueba tiene UNA clase en este curso, en una fecha elegida al vender
   // (0024): figura ese día y ningún otro, aunque el curso se dicte dos veces
   // por semana.
   const fechaPruebaPorInsc = new Map<number, string>();
   for (const r of icRows) {
-    if (r.dias?.length) diasPorInsc.set(r.inscripcion_id, r.dias);
-    if (r.fecha) fechaPruebaPorInsc.set(r.inscripcion_id, r.fecha.slice(0, 10));
+    if (r.dias?.length) diasPorInsc.set(r.membresia_id, r.dias);
+    if (r.fecha) fechaPruebaPorInsc.set(r.membresia_id, r.fecha.slice(0, 10));
   }
-  const idsPorCurso = [...new Set(icRows.map((r) => r.inscripcion_id))];
+  const idsPorCurso = [...new Set(icRows.map((r) => r.membresia_id))];
 
   const COLS =
     "id, alumno_id, estado, modalidad, fecha_inicio, clases_total, plan_id, clases_plan, fecha_fin, tolerancia_faltas, bono_generado, es_prueba, acompanantes, creado_en, alumno:alumnos(id, nombre, apellido, activo)";
   // Dos lecturas y se unen por id: las que declaran este curso en
-  // `inscripcion_cursos`, y las viejas que solo tienen `curso_id` (legado).
+  // `membresia_cursos`, y las viejas que solo tienen `curso_id` (legado).
   const [porCursoPrincipal, porInscCursos] = await Promise.all([
-    sb.from("inscripciones").select(COLS).eq("curso_id", cursoId).neq("estado", "baja"),
+    sb.from("membresias").select(COLS).eq("curso_id", cursoId).neq("estado", "baja"),
     idsPorCurso.length
-      ? sb.from("inscripciones").select(COLS).in("id", idsPorCurso).neq("estado", "baja")
+      ? sb.from("membresias").select(COLS).in("id", idsPorCurso).neq("estado", "baja")
       : Promise.resolve({ data: [], error: null }),
   ]);
   const errInsc = porCursoPrincipal.error ?? porInscCursos.error;
@@ -368,9 +368,9 @@ export async function cargarPadron(
   if (membresias.length) {
     const { data } = await sb
       .from("asistencias")
-      .select("inscripcion_id, sesion_id, estado")
-      .in("inscripcion_id", membresias.map((r) => r.id));
-    const filasAsis = (data as { inscripcion_id: number | null; sesion_id: number; estado: Estado }[]) ?? [];
+      .select("membresia_id, sesion_id, estado")
+      .in("membresia_id", membresias.map((r) => r.id));
+    const filasAsis = (data as { membresia_id: number | null; sesion_id: number; estado: Estado }[]) ?? [];
     const sesIds = [...new Set(filasAsis.map((f) => f.sesion_id))];
     const dictadas = new Map<number, string>(); // sesión dictada → su fecha
     if (sesIds.length) {
@@ -379,14 +379,14 @@ export async function cargarPadron(
         if (s.estado === "dictada") dictadas.set(s.id, s.fecha);
     }
     for (const f of filasAsis) {
-      if (f.inscripcion_id == null) continue;
+      if (f.membresia_id == null) continue;
       const fechaSesion = dictadas.get(f.sesion_id);
       if (!fechaSesion) continue;
-      dictadasPorInsc[f.inscripcion_id] = (dictadasPorInsc[f.inscripcion_id] ?? 0) + 1;
-      (fechasDictadas[f.inscripcion_id] ??= []).push(fechaSesion);
+      dictadasPorInsc[f.membresia_id] = (dictadasPorInsc[f.membresia_id] ?? 0) + 1;
+      (fechasDictadas[f.membresia_id] ??= []).push(fechaSesion);
       if (f.estado === "presente") {
-        consumidas[f.inscripcion_id] = (consumidas[f.inscripcion_id] ?? 0) + 1;
-        (fechasPresentes[f.inscripcion_id] ??= []).push(fechaSesion);
+        consumidas[f.membresia_id] = (consumidas[f.membresia_id] ?? 0) + 1;
+        (fechasPresentes[f.membresia_id] ??= []).push(fechaSesion);
       }
     }
   }
@@ -412,7 +412,7 @@ export async function cargarPadron(
 
   /**
    * ¿Toma ESTE curso ESE día? Cuando la membresía declaró días para este curso
-   * (`inscripcion_cursos.dias`), manda esa elección: es la misma que usa el
+   * (`membresia_cursos.dias`), manda esa elección: es la misma que usa el
    * motor para contar el ciclo. Sin días declarados (legado), no filtra.
    */
   const tomaEseDia = (r: InscRow, f: string) => {
@@ -519,13 +519,13 @@ export async function cargarPadron(
     motivoSuspension = (sesion.motivo as string | null) ?? null;
     const { data } = await sb
       .from("asistencias")
-      .select("estado, con_licencia, inscripcion_id, alumno:alumnos(id, nombre, apellido)")
+      .select("estado, con_licencia, membresia_id, alumno:alumnos(id, nombre, apellido)")
       .eq("sesion_id", sesion.id);
     const idsBase = new Set(alumnoIds);
     for (const r of (data as unknown as {
       estado: Estado;
       con_licencia: boolean;
-      inscripcion_id: number | null;
+      membresia_id: number | null;
       alumno: { id: number; nombre: string; apellido: string } | null;
     }[]) ?? []) {
       if (!r.alumno) continue;
@@ -533,7 +533,7 @@ export async function cargarPadron(
       if (r.estado === "ausente" && r.con_licencia) licencias[r.alumno.id] = true;
       if (!idsBase.has(r.alumno.id))
         extrasCrudos.push({
-          inscripcionId: r.inscripcion_id,
+          inscripcionId: r.membresia_id,
           alumnoId: r.alumno.id,
           apellido: r.alumno.apellido,
           nombre: r.alumno.nombre,
@@ -553,16 +553,16 @@ export async function cargarPadron(
   if (todosInscIds.length) {
     const { data } = await sb
       .from("asistencias")
-      .select("inscripcion_id, sesion_id, con_licencia")
+      .select("membresia_id, sesion_id, con_licencia")
       .eq("estado", "ausente")
-      .in("inscripcion_id", todosInscIds);
-    for (const x of (data as { inscripcion_id: number | null; sesion_id: number; con_licencia: boolean }[]) ?? []) {
-      if (x.inscripcion_id == null) continue;
-      faltasCicloPorInsc[x.inscripcion_id] = (faltasCicloPorInsc[x.inscripcion_id] ?? 0) + 1;
+      .in("membresia_id", todosInscIds);
+    for (const x of (data as { membresia_id: number | null; sesion_id: number; con_licencia: boolean }[]) ?? []) {
+      if (x.membresia_id == null) continue;
+      faltasCicloPorInsc[x.membresia_id] = (faltasCicloPorInsc[x.membresia_id] ?? 0) + 1;
       // La falta de la sesión que se está editando no se bloquea a sí misma:
       // justo ahora se está decidiendo si es justificada o no.
       if (!x.con_licencia && x.sesion_id !== sesionId)
-        faltasSinLicPrevias[x.inscripcion_id] = (faltasSinLicPrevias[x.inscripcion_id] ?? 0) + 1;
+        faltasSinLicPrevias[x.membresia_id] = (faltasSinLicPrevias[x.membresia_id] ?? 0) + 1;
     }
   }
 
@@ -754,7 +754,7 @@ async function deudaPorAlumno(
 ): Promise<Record<number, number>> {
   const deuda: Record<number, number> = {};
   if (!alumnoIds.length) return deuda;
-  const { data: inscAll } = await sb.from("inscripciones").select("id, alumno_id").in("alumno_id", alumnoIds);
+  const { data: inscAll } = await sb.from("membresias").select("id, alumno_id").in("alumno_id", alumnoIds);
   const inscToAlumno = new Map<number, number>(
     ((inscAll as { id: number; alumno_id: number }[]) ?? []).map((r) => [r.id, r.alumno_id])
   );
@@ -762,11 +762,11 @@ async function deudaPorAlumno(
   if (!allInscIds.length) return deuda;
   const { data: cuotas } = await sb
     .from("cuotas")
-    .select("id, inscripcion_id, monto_devengado, descuento_adelanto, estado")
-    .in("inscripcion_id", allInscIds)
+    .select("id, membresia_id, monto_devengado, descuento_adelanto, estado")
+    .in("membresia_id", allInscIds)
     .neq("estado", "pagada");
   const cuotaRows =
-    (cuotas as { id: number; inscripcion_id: number; monto_devengado: number; descuento_adelanto: number }[]) ?? [];
+    (cuotas as { id: number; membresia_id: number; monto_devengado: number; descuento_adelanto: number }[]) ?? [];
   const pagado: Record<number, number> = {};
   if (cuotaRows.length) {
     const { data: pagos } = await sb
@@ -780,7 +780,7 @@ async function deudaPorAlumno(
   for (const c of cuotaRows) {
     const efectivo = Math.max(0, Number(c.monto_devengado) - Number(c.descuento_adelanto));
     const saldo = Math.max(0, efectivo - (pagado[c.id] ?? 0));
-    const al = inscToAlumno.get(c.inscripcion_id);
+    const al = inscToAlumno.get(c.membresia_id);
     if (al != null && saldo > 0) deuda[al] = (deuda[al] ?? 0) + saldo;
   }
   return deuda;
@@ -908,15 +908,15 @@ export async function guardarAsistencia(
   // membresías regulares, se prefiere la vigente), el upsert de abajo le
   // saca la marca a la vieja en silencio. Sin recalcularla también, se queda
   // con un contador que ya no corresponde a ninguna asistencia real.
-  const { data: previas } = await a.from("asistencias").select("inscripcion_id").eq("sesion_id", sesionId);
-  const inscIdsPrevias = ((previas as { inscripcion_id: number | null }[]) ?? [])
-    .map((r) => r.inscripcion_id)
+  const { data: previas } = await a.from("asistencias").select("membresia_id").eq("sesion_id", sesionId);
+  const inscIdsPrevias = ((previas as { membresia_id: number | null }[]) ?? [])
+    .map((r) => r.membresia_id)
     .filter((x): x is number => x != null);
 
   const filas = e.marcas.map((m) => ({
     sesion_id: sesionId,
     alumno_id: m.alumnoId,
-    inscripcion_id: m.inscripcionId,
+    membresia_id: m.inscripcionId,
     estado: m.estado,
     con_licencia: m.estado === "ausente" ? !!m.conLicencia : false,
   }));
@@ -974,7 +974,7 @@ export async function recalcularMembresiasPlan(): Promise<{ ok?: true; error?: s
   // Planes con N y paquetes por clase: los dos se cierran por consumo. Las
   // ilimitadas no entran (su ciclo termina por fecha, no por contador).
   const { data } = await a
-    .from("inscripciones")
+    .from("membresias")
     .select("id")
     .or("clases_plan.not.is.null,clases_total.not.is.null")
     .neq("estado", "baja");
@@ -1053,14 +1053,14 @@ export async function ejecutarSuspension(
   await a.from("asistencias").delete().eq("sesion_id", sesionId);
   await revertirCorrimientos(a, sesionId);
 
-  // Por `inscripcion_cursos`, no por `inscripciones.curso_id`: el glosario dice
+  // Por `membresia_cursos`, no por `membresias.curso_id`: el glosario dice
   // que ese campo es un resabio mono-curso y que qué cursos toca una membresía
   // se mira ahí. La versión anterior de esta consulta usaba `curso_id` directo
   // — se corrige acá porque una membresía multi-curso que tomara esta clase se
   // habría quedado sin corrimiento y sin aviso, en silencio.
   const { data: icRows } = await a
-    .from("inscripcion_cursos")
-    .select("inscripcion:inscripciones!inner(id, alumno_id, modalidad, estado, fecha_inicio)")
+    .from("membresia_cursos")
+    .select("inscripcion:membresias!inner(id, alumno_id, modalidad, estado, fecha_inicio)")
     .eq("curso_id", args.cursoId);
   const insc = (
     (icRows as unknown as {

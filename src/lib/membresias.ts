@@ -42,7 +42,7 @@ type EstadoAsistencia = "presente" | "ausente";
  */
 export async function recalcularMembresia(a: ClienteAdmin, inscripcionId: number): Promise<boolean> {
   const { data: insc } = await a
-    .from("inscripciones")
+    .from("membresias")
     .select("id, plan_id, clases_plan, clases_total, estado, tolerancia_faltas")
     .eq("id", inscripcionId)
     .maybeSingle();
@@ -53,7 +53,7 @@ export async function recalcularMembresia(a: ClienteAdmin, inscripcionId: number
   const { data: asis } = await a
     .from("asistencias")
     .select("sesion_id, estado, con_licencia")
-    .eq("inscripcion_id", inscripcionId);
+    .eq("membresia_id", inscripcionId);
   const rows = (asis as { sesion_id: number; estado: EstadoAsistencia; con_licencia: boolean }[]) ?? [];
 
   let dictadas = 0; // sesiones de la membresía efectivamente dictadas
@@ -83,7 +83,7 @@ export async function recalcularMembresia(a: ClienteAdmin, inscripcionId: number
     // que puede cambiar el estado, y así no se pega a la base al pedo.
     const cerrado = consumido && (await saldoDeMembresia(a, inscripcionId)) <= 0;
     await a
-      .from("inscripciones")
+      .from("membresias")
       .update({
         clases_hechas: presentes,
         estado: cerrado ? "completada" : "activa",
@@ -104,7 +104,7 @@ export async function recalcularMembresia(a: ClienteAdmin, inscripcionId: number
   // cuando el ciclo ya se agotó, que es cuando puede cambiar el estado.
   const completada = dictadas >= clasesPlan && (await saldoDeMembresia(a, inscripcionId)) <= 0;
   await a
-    .from("inscripciones")
+    .from("membresias")
     .update({
       clases_hechas: presentes,
       bono_generado: bono,
@@ -137,7 +137,7 @@ export async function finDeCicloReal(
   inscripcionId: number
 ): Promise<string | null> {
   const { data: insc } = await a
-    .from("inscripciones")
+    .from("membresias")
     .select("id, fecha_inicio, clases_plan, plan_id, es_prueba")
     .eq("id", inscripcionId)
     .maybeSingle();
@@ -152,9 +152,9 @@ export async function finDeCicloReal(
   if (!(n > 0)) return null;
 
   const { data: ic } = await a
-    .from("inscripcion_cursos")
+    .from("membresia_cursos")
     .select("curso_id, dias")
-    .eq("inscripcion_id", inscripcionId);
+    .eq("membresia_id", inscripcionId);
   const cursos = ((ic as { curso_id: number; dias: number[] }[]) ?? []).filter(
     (c) => c.dias?.length
   );
@@ -187,9 +187,9 @@ export async function renovacionBonificada(
   if (!fin) return null;
 
   const { data: ic } = await a
-    .from("inscripcion_cursos")
+    .from("membresia_cursos")
     .select("curso_id, dias")
-    .eq("inscripcion_id", inscripcionId);
+    .eq("membresia_id", inscripcionId);
   const cursos = ((ic as { curso_id: number; dias: number[] }[]) ?? []).filter(
     (c) => c.dias?.length
   );
@@ -212,7 +212,7 @@ export async function renovacionBonificada(
 
 /**
  * Fin de ciclo de una **membresía de prueba**: la última de sus clases, que son
- * fechas elegidas al vender, una por curso (`inscripcion_cursos.fecha`, 0024).
+ * fechas elegidas al vender, una por curso (`membresia_cursos.fecha`, 0024).
  *
  * La única regla que sigue aplicando es la 4: si la clase elegida se suspende,
  * no se pierde — corre a la siguiente clase de ese curso que sí se dicte. Para
@@ -223,9 +223,9 @@ async function finDeCicloDePrueba(
   inscripcionId: number
 ): Promise<string | null> {
   const { data: ic } = await a
-    .from("inscripcion_cursos")
+    .from("membresia_cursos")
     .select("curso_id, dias, fecha")
-    .eq("inscripcion_id", inscripcionId);
+    .eq("membresia_id", inscripcionId);
   const cursos = ((ic as { curso_id: number; dias: number[] | null; fecha: string | null }[]) ?? [])
     .filter((c) => c.fecha);
   if (!cursos.length) return null;
@@ -324,7 +324,7 @@ export async function registrarCorrimientosPendientes(
   registradoPor: string | null
 ): Promise<number> {
   const { data: insc } = await a
-    .from("inscripciones")
+    .from("membresias")
     .select("id, alumno_id, fecha_inicio, fecha_fin, clases_plan, estado")
     .eq("id", inscripcionId)
     .maybeSingle();
@@ -333,9 +333,9 @@ export async function registrarCorrimientosPendientes(
   if (!(n > 0)) return 0;
 
   const { data: ic } = await a
-    .from("inscripcion_cursos")
+    .from("membresia_cursos")
     .select("curso_id, dias")
-    .eq("inscripcion_id", inscripcionId);
+    .eq("membresia_id", inscripcionId);
   const cursos = ((ic as { curso_id: number; dias: number[] }[]) ?? []).filter((c) => c.dias?.length);
   if (!cursos.length) return 0;
 
@@ -355,7 +355,7 @@ export async function registrarCorrimientosPendientes(
   const { data: yaHay } = await a
     .from("corrimientos_ciclo")
     .select("sesion_id")
-    .eq("inscripcion_id", inscripcionId);
+    .eq("membresia_id", inscripcionId);
   const conTraza = new Set(
     ((yaHay as { sesion_id: number | null }[]) ?? []).map((r) => r.sesion_id).filter((x): x is number => x != null)
   );
@@ -369,7 +369,7 @@ export async function registrarCorrimientosPendientes(
     const despues = caminarClases(inicio, cursos, new Set(acumuladas), n);
     if (conTraza.has(s.id)) continue;
     const { error } = await a.from("corrimientos_ciclo").insert({
-      inscripcion_id: inscripcionId,
+      membresia_id: inscripcionId,
       alumno_id: insc.alumno_id,
       sesion_id: s.id,
       tipo: "suspension",
@@ -398,7 +398,7 @@ export async function tieneComisionDevengada(
 }
 
 /**
- * Deja `inscripciones.fecha_fin` en la fecha que corresponde según las clases
+ * Deja `membresias.fecha_fin` en la fecha que corresponde según las clases
  * reales. Devuelve qué pasó, para poder reportarlo.
  */
 export async function recalcularFinDeCiclo(
@@ -406,7 +406,7 @@ export async function recalcularFinDeCiclo(
   inscripcionId: number
 ): Promise<{ estado: "sin_cambio" | "actualizado" | "no_aplica" | "bloqueado_devengada"; antes: string | null; despues: string | null }> {
   const { data: insc } = await a
-    .from("inscripciones")
+    .from("membresias")
     .select("id, fecha_fin, estado")
     .eq("id", inscripcionId)
     .maybeSingle();
@@ -424,7 +424,7 @@ export async function recalcularFinDeCiclo(
     return { estado: "bloqueado_devengada", antes, despues };
 
   await a
-    .from("inscripciones")
+    .from("membresias")
     .update({ fecha_fin: despues, actualizado_en: new Date().toISOString() })
     .eq("id", inscripcionId);
   return { estado: "actualizado", antes, despues };
@@ -438,7 +438,7 @@ export async function saldoDeMembresia(a: ClienteAdmin, inscripcionId: number): 
   const { data: cuotas } = await a
     .from("cuotas")
     .select("id, monto_devengado, descuento_adelanto")
-    .eq("inscripcion_id", inscripcionId);
+    .eq("membresia_id", inscripcionId);
   const filas = (cuotas as { id: number; monto_devengado: number; descuento_adelanto: number }[]) ?? [];
   if (!filas.length) return 0;
 

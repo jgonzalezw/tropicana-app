@@ -90,7 +90,7 @@ export default async function PaginaCaja({
       "id, tipo, motivo, monto, descuento, medio, glosa, fecha, fecha_efectiva, " +
         "alumno:alumnos(nombre, apellido), " +
         "profesor:profesores(nombre, apellido), " +
-        "inscripcion:inscripciones(plan:planes(nombre), curso:cursos(nombre))"
+        "inscripcion:membresias(plan:planes(nombre), curso:cursos(nombre))"
     );
   let consultaSaldo = sb.from("pagos").select("tipo, monto, medio");
   if (perfilActual) {

@@ -126,7 +126,7 @@ export type MembresiaLiq = {
 };
 
 export type CursoDeMembresia = {
-  inscripcion_id: number;
+  membresia_id: number;
   curso_id: number;
   dias: number[] | null;
   fecha: string | null;
@@ -147,7 +147,7 @@ export type ComisionPrevia = {
 
 export type CuotaLiq = {
   id: number;
-  inscripcion_id: number;
+  membresia_id: number;
   monto_devengado: number;
   descuento_adelanto: number;
 };
@@ -288,16 +288,16 @@ export function calcularDevengos(
   if (insc.length === 0) return { pendientes: [], bloqueadas: [] };
 
   // Los cursos de cada membresía. El curso principal es solo el respaldo para
-  // filas viejas sin `inscripcion_cursos`.
+  // filas viejas sin `membresia_cursos`.
   const cursosDe = new Map<number, CursoDeMembresia[]>();
   for (const r of datos.cursosDeMembresia) {
-    const ya = cursosDe.get(r.inscripcion_id);
+    const ya = cursosDe.get(r.membresia_id);
     if (ya) ya.push(r);
-    else cursosDe.set(r.inscripcion_id, [r]);
+    else cursosDe.set(r.membresia_id, [r]);
   }
   for (const m of insc)
     if (!cursosDe.has(m.id))
-      cursosDe.set(m.id, [{ inscripcion_id: m.id, curso_id: m.curso_id, dias: null, fecha: null }]);
+      cursosDe.set(m.id, [{ membresia_id: m.id, curso_id: m.curso_id, dias: null, fecha: null }]);
 
   // Ya devengado, por (membresía, curso). Una fila vieja con `curso_id` nulo se
   // devengó con el modelo anterior, por la membresía entera: esa membresía
@@ -346,9 +346,9 @@ export function calcularDevengos(
   const cobradoPorInsc: Record<number, number> = {};
   for (const c of datos.cuotas) {
     const efectivo = Math.max(0, Number(c.monto_devengado) - Number(c.descuento_adelanto));
-    saldoPorInsc[c.inscripcion_id] =
-      (saldoPorInsc[c.inscripcion_id] ?? 0) + Math.max(0, efectivo - (pagadoPorCuota[c.id] ?? 0));
-    cobradoPorInsc[c.inscripcion_id] = (cobradoPorInsc[c.inscripcion_id] ?? 0) + (plataPorCuota[c.id] ?? 0);
+    saldoPorInsc[c.membresia_id] =
+      (saldoPorInsc[c.membresia_id] ?? 0) + Math.max(0, efectivo - (pagadoPorCuota[c.id] ?? 0));
+    cobradoPorInsc[c.membresia_id] = (cobradoPorInsc[c.membresia_id] ?? 0) + (plataPorCuota[c.id] ?? 0);
   }
 
   // Las clases del ciclo, por curso: **calendario menos suspendidas** (Javier,

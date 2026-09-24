@@ -109,20 +109,20 @@ export async function cargarImpacto(sb: Cliente): Promise<Impacto> {
   //    de una mono-curso también (cambia de quién es la plata, no cuánta).
   const ids = [...porMembresia.keys()];
   const { data: ic } = await sb
-    .from("inscripcion_cursos")
-    .select("inscripcion_id, curso_id, dias, fecha")
-    .in("inscripcion_id", ids);
+    .from("membresia_cursos")
+    .select("membresia_id, curso_id, dias, fecha")
+    .in("membresia_id", ids);
   const filas =
-    (ic as { inscripcion_id: number; curso_id: number; dias: number[] | null; fecha: string | null }[]) ?? [];
+    (ic as { membresia_id: number; curso_id: number; dias: number[] | null; fecha: string | null }[]) ?? [];
   const porInsc = new Map<number, typeof filas>();
   for (const r of filas) {
-    const ya = porInsc.get(r.inscripcion_id);
+    const ya = porInsc.get(r.membresia_id);
     if (ya) ya.push(r);
-    else porInsc.set(r.inscripcion_id, [r]);
+    else porInsc.set(r.membresia_id, [r]);
   }
 
   const { data: insc } = await sb
-    .from("inscripciones")
+    .from("membresias")
     .select("id, fecha_inicio, fecha_fin, alumno:alumnos(nombre, apellido)")
     .in("id", ids);
   const cursos = new Map<number, number[]>();

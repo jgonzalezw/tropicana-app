@@ -76,7 +76,7 @@ export async function actualizarAlumno(id: number, d: DatosAlumno): Promise<Resu
 async function contarDependencias(id: number): Promise<number> {
   const a = admin();
   const [{ count: insc }, { count: pagos }] = await Promise.all([
-    a.from("inscripciones").select("id", { count: "exact", head: true }).eq("alumno_id", id),
+    a.from("membresias").select("id", { count: "exact", head: true }).eq("alumno_id", id),
     a.from("pagos").select("id", { count: "exact", head: true }).eq("alumno_id", id),
   ]);
   return (insc ?? 0) + (pagos ?? 0);

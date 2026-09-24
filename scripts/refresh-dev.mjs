@@ -41,8 +41,8 @@ const ORDEN = [
   "plan_cursos",
   "asignaciones",
   "descuentos_adelanto",
-  "inscripciones",
-  "inscripcion_cursos",
+  "membresias",
+  "membresia_cursos",
   "cuotas",
   "sesiones",
   "asistencias",
@@ -172,12 +172,12 @@ async function reajustarSecuencia(dev, t) {
 /**
  * Repone en DEV lo que PROD no pudo aportar porque su esquema es mas viejo: la
  * etiqueta planes.modalidad y, si prod todavia no tiene las tablas de 0013, una
- * fila por el curso principal en plan_cursos / inscripcion_cursos.
+ * fila por el curso principal en plan_cursos / membresia_cursos.
  *
  * OJO: esto es un RESPALDO, no la fuente. Las dos tablas se copian de prod en
  * ORDEN. Antes se reconstruian siempre desde el curso principal, y eso APLANABA
  * un plan multi-curso a un solo curso en cada refresh, en silencio. Como el
- * padron resuelve por inscripcion_cursos, eso volvia invisibles a los alumnos
+ * padron resuelve por membresia_cursos, eso volvia invisibles a los alumnos
  * en todos los demas cursos de su plan.
  */
 async function postBackfill(dev) {
@@ -211,14 +211,14 @@ async function postBackfill(dev) {
                              where pc.plan_id=p.id and pc.curso_id=p.curso_id)`
     );
   }
-  if (await existeTabla("inscripcion_cursos")) {
+  if (await existeTabla("membresia_cursos")) {
     await dev.query(
-      `insert into public.inscripcion_cursos (inscripcion_id, curso_id, dias)
+      `insert into public.membresia_cursos (membresia_id, curso_id, dias)
          select i.id, i.curso_id, coalesce(nullif(i.dias_elegidos, '{}'), c.dias_semana, '{}')
-           from public.inscripciones i join public.cursos c on c.id=i.curso_id
+           from public.membresias i join public.cursos c on c.id=i.curso_id
           where i.plan_id is not null
-            and not exists (select 1 from public.inscripcion_cursos ic
-                             where ic.inscripcion_id=i.id and ic.curso_id=i.curso_id)`
+            and not exists (select 1 from public.membresia_cursos ic
+                             where ic.membresia_id=i.id and ic.curso_id=i.curso_id)`
     );
   }
 }
@@ -300,7 +300,7 @@ async function main() {
 
   try {
     const chk = await dev.query(
-      "select to_regclass('public.planes') as p, to_regclass('public.inscripciones') as i"
+      "select to_regclass('public.planes') as p, to_regclass('public.membresias') as i"
     );
     if (!chk.rows[0].p || !chk.rows[0].i)
       fatal("La base DEV no tiene el esquema del motor. Aplicá primero setup_dev_full.sql y 0012 en dev.");

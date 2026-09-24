@@ -22,7 +22,7 @@ export default async function PaginaPlanes() {
       supabase.from("planes").select("*").eq("tipo_servicio", "curso_regular").order("nombre"),
       supabase.from("cursos").select("*").eq("activo", true).order("nombre"),
       supabase.from("plan_cursos").select("plan_id, curso_id"),
-      supabase.from("inscripciones").select("plan_id"),
+      supabase.from("membresias").select("plan_id"),
     ]);
 
   // Tarifas parciales por curso: la referencia de precio estima el valor de

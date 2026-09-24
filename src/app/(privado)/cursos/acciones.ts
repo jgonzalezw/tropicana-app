@@ -78,10 +78,10 @@ async function vigenciaChocaConHistorial(
   const [{ data: ses }, { data: ic }, { data: insc }] = await Promise.all([
     a.from("sesiones").select("fecha").eq("curso_id", cursoId),
     a
-      .from("inscripcion_cursos")
-      .select("fecha, inscripcion:inscripciones(fecha_inicio, fecha_fin)")
+      .from("membresia_cursos")
+      .select("fecha, inscripcion:membresias(fecha_inicio, fecha_fin)")
       .eq("curso_id", cursoId),
-    a.from("inscripciones").select("fecha_inicio, fecha_fin").eq("curso_id", cursoId),
+    a.from("membresias").select("fecha_inicio, fecha_fin").eq("curso_id", cursoId),
   ]);
 
   const fechas: string[] = [];
@@ -296,7 +296,7 @@ export async function actualizarCurso(id: number, d: DatosCurso): Promise<Result
 }
 
 /** Historial dependiente de un curso: asignaciones, membresías (por `curso_id`
- *  y por `inscripcion_cursos` — regla del glosario: los cursos de una membresía
+ *  y por `membresia_cursos` — regla del glosario: los cursos de una membresía
  *  viven ahí) y clases registradas. Con eso >0 el curso se da de baja en vez de
  *  borrarse. El Plan Regular auto-creado no cuenta (se borra junto al curso si
  *  está vacío). */
@@ -304,8 +304,8 @@ async function contarDependencias(id: number): Promise<number> {
   const a = admin();
   const [{ count: asig }, { count: insc }, { count: ic }, { count: ses }] = await Promise.all([
     a.from("asignaciones").select("id", { count: "exact", head: true }).eq("curso_id", id),
-    a.from("inscripciones").select("id", { count: "exact", head: true }).eq("curso_id", id),
-    a.from("inscripcion_cursos").select("id", { count: "exact", head: true }).eq("curso_id", id),
+    a.from("membresias").select("id", { count: "exact", head: true }).eq("curso_id", id),
+    a.from("membresia_cursos").select("id", { count: "exact", head: true }).eq("curso_id", id),
     a.from("sesiones").select("id", { count: "exact", head: true }).eq("curso_id", id),
   ]);
   return (asig ?? 0) + (insc ?? 0) + (ic ?? 0) + (ses ?? 0);

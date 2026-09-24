@@ -148,7 +148,7 @@ export async function actualizarPlan(id: number, d: DatosPlan): Promise<Resultad
 /** Membresías (inscripciones) que usan el plan: con historial se desactiva. */
 async function contarMembresias(a: ReturnType<typeof admin>, id: number): Promise<number> {
   const { count } = await a
-    .from("inscripciones")
+    .from("membresias")
     .select("id", { count: "exact", head: true })
     .eq("plan_id", id);
   return count ?? 0;

@@ -17,7 +17,7 @@ type Modo = "inscripcion" | "prueba";
  * inscripción ya es larga, y las dos ventas piden cosas distintas (la prueba
  * no tiene días, ni bono, ni ciclo; tiene acompañantes y precio por curso).
  */
-export default function ClienteVentas(props: {
+export default function MostradorVenta(props: {
   alumnos: Alumno[];
   planes: PlanVenta[];
   diasCompromiso: number;

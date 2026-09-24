@@ -326,7 +326,7 @@ export type MembresiaCuenta = {
   plan: string | null;
   /** @deprecated Resabio mono-curso — usar `cursos`, que cubre multi-curso. */
   curso: string | null;
-  /** Los cursos que toca la membresía, con sus días (por `inscripcion_cursos`,
+  /** Los cursos que toca la membresía, con sus días (por `membresia_cursos`,
    *  con respaldo a `curso_id` para filas viejas). Vacío = no se pudo determinar. */
   cursos: { nombre: string; dias: number[] }[];
   estado: string;

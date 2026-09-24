@@ -70,9 +70,9 @@ function dictadas(cursoId: number, fechas: string[]): DatosMotor["sesiones"] {
 function datos(over: Partial<DatosMotor> = {}): DatosMotor {
   return {
     membresias: [membresia(1)],
-    cursosDeMembresia: [{ inscripcion_id: 1, curso_id: 1, dias: [1], fecha: null }],
+    cursosDeMembresia: [{ membresia_id: 1, curso_id: 1, dias: [1], fecha: null }],
     comisionesPrevias: [],
-    cuotas: [{ id: 1, inscripcion_id: 1, monto_devengado: 400, descuento_adelanto: 0 }],
+    cuotas: [{ id: 1, membresia_id: 1, monto_devengado: 400, descuento_adelanto: 0 }],
     pagos: [{ cuota_id: 1, monto: 400, descuento: 0 }],
     sesiones: dictadas(1, LUNES),
     cursos: [curso(1, "Salsa", [1])],
@@ -145,10 +145,10 @@ test("3. multi-curso: reparte por (clases × precio de una clase) y suma exacto"
   const d = datos({
     membresias: [membresia(1)],
     cursosDeMembresia: [
-      { inscripcion_id: 1, curso_id: 1, dias: [1], fecha: null }, // 4 lunes
-      { inscripcion_id: 1, curso_id: 2, dias: [3], fecha: null }, // 3 miércoles
+      { membresia_id: 1, curso_id: 1, dias: [1], fecha: null }, // 4 lunes
+      { membresia_id: 1, curso_id: 2, dias: [3], fecha: null }, // 3 miércoles
     ],
-    cuotas: [{ id: 1, inscripcion_id: 1, monto_devengado: 800, descuento_adelanto: 0 }],
+    cuotas: [{ id: 1, membresia_id: 1, monto_devengado: 800, descuento_adelanto: 0 }],
     pagos: [{ cuota_id: 1, monto: 800, descuento: 0 }],
     sesiones: [...dictadas(1, LUNES), ...dictadas(2, MIERCOLES)],
     cursos: [curso(1, "Salsa", [1]), curso(2, "Bachata", [3])],
@@ -272,8 +272,8 @@ test("8. una clase sin registrar bloquea multi-curso, no bloquea mono-curso", ()
   const multi = calcularDevengos(
     datos({
       cursosDeMembresia: [
-        { inscripcion_id: 1, curso_id: 1, dias: [1], fecha: null },
-        { inscripcion_id: 1, curso_id: 2, dias: [3], fecha: null },
+        { membresia_id: 1, curso_id: 1, dias: [1], fecha: null },
+        { membresia_id: 1, curso_id: 2, dias: [3], fecha: null },
       ],
       sesiones: [...dictadas(1, LUNES), ...dictadas(2, MIERCOLES.slice(0, 2))],
       cursos: [curso(1, "Salsa", [1]), curso(2, "Bachata", [3])],
@@ -317,10 +317,10 @@ test("10. prueba grupal: una clase por curso, y el peso escala por personas", ()
         }),
       ],
       cursosDeMembresia: [
-        { inscripcion_id: 1, curso_id: 1, dias: null, fecha: "2026-08-03" },
-        { inscripcion_id: 1, curso_id: 2, dias: null, fecha: "2026-08-05" },
+        { membresia_id: 1, curso_id: 1, dias: null, fecha: "2026-08-03" },
+        { membresia_id: 1, curso_id: 2, dias: null, fecha: "2026-08-05" },
       ],
-      cuotas: [{ id: 1, inscripcion_id: 1, monto_devengado: 120, descuento_adelanto: 0 }],
+      cuotas: [{ id: 1, membresia_id: 1, monto_devengado: 120, descuento_adelanto: 0 }],
       pagos: [{ cuota_id: 1, monto: 120, descuento: 0 }],
       sesiones: [...dictadas(1, ["2026-08-03"]), ...dictadas(2, ["2026-08-05"])],
       cursos: [curso(1, "Salsa", [1]), curso(2, "Bachata", [3])],
@@ -350,12 +350,12 @@ test("11. una membresía retroactiva devenga la suya y no mueve la de otro alumn
     datos({
       membresias: [membresia(1), membresia(2, { alumno_id: 2 })],
       cursosDeMembresia: [
-        { inscripcion_id: 1, curso_id: 1, dias: [1], fecha: null },
-        { inscripcion_id: 2, curso_id: 1, dias: [1], fecha: null },
+        { membresia_id: 1, curso_id: 1, dias: [1], fecha: null },
+        { membresia_id: 2, curso_id: 1, dias: [1], fecha: null },
       ],
       cuotas: [
-        { id: 1, inscripcion_id: 1, monto_devengado: 400, descuento_adelanto: 0 },
-        { id: 2, inscripcion_id: 2, monto_devengado: 400, descuento_adelanto: 0 },
+        { id: 1, membresia_id: 1, monto_devengado: 400, descuento_adelanto: 0 },
+        { id: 2, membresia_id: 2, monto_devengado: 400, descuento_adelanto: 0 },
       ],
       pagos: [
         { cuota_id: 1, monto: 400, descuento: 0 },

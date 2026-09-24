@@ -85,7 +85,7 @@ async function leerDeSupabase(hastaISO) {
   const enLista = (ids) => `in.(${ids.join(",")})`;
 
   const membresias = await pedir(
-    "inscripciones",
+    "membresias",
     "select=id,alumno_id,curso_id,plan_id,es_prueba,acompanantes,fecha_inicio,fecha_fin" +
       `&estado=eq.completada&plan_id=not.is.null&fecha_fin=not.is.null&fecha_fin=lte.${hastaISO}&limit=10000`
   );
@@ -93,8 +93,8 @@ async function leerDeSupabase(hastaISO) {
   const ids = membresias.map((m) => m.id);
 
   const cursosDeMembresia = await pedir(
-    "inscripcion_cursos",
-    `select=inscripcion_id,curso_id,dias,fecha&inscripcion_id=${enLista(ids)}&limit=10000`
+    "membresia_cursos",
+    `select=membresia_id,curso_id,dias,fecha&membresia_id=${enLista(ids)}&limit=10000`
   );
   const comisionesGuardadas = await pedir(
     "comisiones_devengadas",
@@ -102,7 +102,7 @@ async function leerDeSupabase(hastaISO) {
   );
   const cuotas = await pedir(
     "cuotas",
-    `select=id,inscripcion_id,monto_devengado,descuento_adelanto&inscripcion_id=${enLista(ids)}&limit=10000`
+    `select=id,membresia_id,monto_devengado,descuento_adelanto&membresia_id=${enLista(ids)}&limit=10000`
   );
   const pagos = cuotas.length
     ? await pedir(
