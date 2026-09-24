@@ -74,9 +74,10 @@ function finMesVencidoISO(hoy = new Date()): string {
  * `permitirFutura` es la única excepción, y es angosta a propósito: un cierre
  * de sala planificado (feriado de la semana que viene) sí necesita suspender
  * clases futuras — es lo que le permite al corrimiento del ciclo aplicarse
- * ya, en vez de esperar a que la fecha llegue. El resto de las reglas —
- * vigencia del curso, congelador de liquidaciones ya pagadas— se aplican
- * igual: un feriado no pasa por encima de una comisión ya cobrada.
+ * ya, en vez de esperar a que la fecha llegue. El resto de las reglas —la
+ * vigencia del curso, la ventana de semanas hacia atrás— se aplican igual.
+ * Una liquidación ya pagada **no** bloquea (regla de negocio 16): si el
+ * recálculo cambia lo devengado, la diferencia sale como ajuste (0044).
  */
 export async function validarFecha(
   cursoId: number,
@@ -1012,8 +1013,8 @@ export async function ejecutarSuspension(
 }> {
   // Suspender cambia cuantas clases dicto el curso, y con eso el reparto de la
   // comision (regla de negocio 10). Si el devengo esta en una liquidacion
-  // abierta se revierte para que se recalcule; si ya tenia pago, quien llama
-  // valido con el congelador antes de llegar hasta aca (regla 16).
+  // abierta se revierte para que se recalcule; si ya tenia pago, no se toca:
+  // la diferencia sale como ajuste al liquidar (regla 16, 0044).
   await revertirDevengosAbiertos(a, args.cursoId, args.fecha);
 
   // Una clase suspendida no la dictó nadie: no lleva profesor ni reemplazo.

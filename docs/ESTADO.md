@@ -6,7 +6,42 @@
 > `docs/design/README.md` (fuente de verdad del **diseño**), `docs/CONTEXTO_AVANCE.md`
 > (bitácora larga de Etapa 0), `docs/DESIGN_SYNC.md` (cómo entran los handoffs).
 >
-> **Última actualización:** 2026-09-24 — **Todas las pantallas arrancan en el
+> **Cómo leer este documento.** Los bloques con fecha son **bitácora**: cuentan
+> cómo estaban las cosas **ese día** y no se reescriben. Cuando una frase vieja
+> ("solo en dev", "sin construir", "pendiente") dejó de ser cierta, lleva al
+> lado una marca *(➜ hoy: …)* con la fecha del cambio. El estado **vigente**
+> vive en las tablas (§0bis, la cola C1→C5), en `DECISIONES.md` (decisiones y
+> registro de pases) y en `ROADMAP.md` (trabajo pendiente).
+>
+> **Última actualización:** 2026-09-24 — **Documentos consistentes entre sí**,
+> a pedido de Javier (*"me confunde tener contradicciones"*), antes de
+> retomar C3. Sin código ni migraciones: solo documentos y comentarios.
+> - **C5** figuraba "Pendiente" en la tabla C1→C5, pero el lado cursos
+>   regulares está en producción desde el 2026-09-16 (verificado en el
+>   código: `calcularImpacto` + `ejecutarSuspension`). Ahora dice 🟡 a medias.
+>   El lado reservas falta, y su hueco (`calcularImpacto` no mira
+>   `reservas_sala`) **ya existe hoy** con los bloqueos de C2 (R1).
+> - **D5**: el catálogo `motivo_cobro` ya tenía los siete motivos desde la
+>   0020. Solo falta que la venta de C3 elija el motivo sola.
+> - **D8** cerrada: está en producción desde el 2026-09-16, y lo que quedaba
+>   ya es R11.
+> - **D22** contradecía una decisión del 2026-09-04 (el referido lo cobra el
+>   profesor que refirió, con su `pct_referido`). Corregida: decidida en
+>   concepto y sin construir. Lo que falta decidir está listado en D22.
+> - **§1.b de DECISIONES**: casi todas figuraban "sin construir" o "falta el
+>   OK del pase", y están en producción. Se actualizaron las filas y se
+>   arregló la tabla, que se mostraba cortada.
+> - **§4 de DECISIONES** pasa a llamarse "Registro de pases"; hoy no hay nada
+>   pendiente de pase.
+> - **ROADMAP**: R16 (fecha de nacimiento y sexo) cerrado por la 0048/0049.
+>   El pie ya no lista como pendientes D1, D3 y D12, que están cerradas.
+> - **REGLAS**: el glosario nombraba la tabla `inscripciones`, que hoy se
+>   llama `membresias`. Calidad 4 ahora dice que el repo ya salió de OneDrive.
+> - **Código**: comentarios que todavía hablaban del "congelador" (reemplazado
+>   por la regla 16 el 2026-09-18) o que decían que no había reservas que
+>   revisar. Sin cambio de comportamiento.
+>
+> **2026-09-24 (antes)** — **Todas las pantallas arrancan en el
 > mismo borde. PASADO A PRODUCCIÓN**, con el OK explícito de Javier (*"estoy
 > listo para pasar a prod"*), junto con el bloque de abajo (Inscribir
 > alineado, prueba sin estado ambiguo, ficha que abre para ver). Sin
@@ -426,6 +461,7 @@
 >
 > **Además sigue pendiente**: el pase a producción de C3-0a.1 (migración
 > 0048 + D12) y de C3-0a.2, que necesita el OK explícito de Javier.
+> *(➜ hoy: pasado a producción el 2026-09-24, junto con C3-0a.3.)*
 >
 > **2026-09-24 (antes)** — **C3-0a.1 (contactos): modelo,
 > migración y adaptación completa, en DEV — sin pase a producción todavía.**
@@ -634,7 +670,7 @@
 > todos sus períodos, así un pagado de más se compensa solo) y que **además los
 > períodos cierren al pagar**. Cierra R24, R25, R26 y el núcleo de R3 y R5.
 > Detalle en el bloque **"La cuenta del profesor"**. Pendiente el OK para
-> producción.
+> producción. *(➜ hoy: en producción desde el 2026-09-18.)*
 >
 > **2026-09-18 (antes)** — **Las clases solo afectan contadores:
 > el congelador deja de bloquear y aparece el ajuste (migración 0044).**
@@ -705,6 +741,7 @@
 > `11c37f9`, confirmado por el chip PROD de la app. **Pase acotado a
 > propósito**: solo los dos archivos del fix, sin arrastrar las migraciones
 > 0035–0037 ni sus pantallas, que siguen solo en dev esperando su propio OK.
+> *(➜ hoy: 0035–0037 en producción desde el 2026-09-16.)*
 > Detalle en el bloque final **"Un alumno duplicado en el padrón de
 > asistencia"**.
 >
@@ -716,7 +753,8 @@
 > precios base, cinco pestañas) y la **migración 0035**, que agrega los precios
 > de particulares y la matriz de sala, las ventas con contador, y `reservas_sala`
 > con no-choque garantizado por la base. **Validado en dev por Javier**
-> (*"veo todo ok"*), **solo en dev**, pendiente del OK para producción. Ver el
+> (*"veo todo ok"*), **solo en dev**, pendiente del OK para producción *(➜ hoy: en
+> producción desde el 2026-09-16)*. Ver el
 > bloque final **"Precios y paquetes, y la base de la sala"**.
 >
 > **Dónde estamos, en una línea:** Paso 1 cerrado y en producción; **Paso 2 en
@@ -777,19 +815,19 @@
 
 ## 0bis. Estado consolidado — secuencia del Motor de Planes (7 pasos)
 
-Referencia: `docs/PLAN_CIERRE_ETAPA1_v2_MOTOR.md` §2. Actualizado 2026-09-10.
+Referencia: `docs/PLAN_CIERRE_ETAPA1_v2_MOTOR.md` §2. Tabla revisada el 2026-09-24 (pasos 2 y 5).
 
 | Paso | Qué es | Estado |
 | --- | --- | --- |
 | 0 | Reencuadre al Motor de Planes y Membresías | ✅ Hecho (2026-09-05) |
 | **1** | **Liquidación a profesores** (motor base Plan Regular: planes N/ilimitado, multi-curso, asistencia con contador/completada/tolerancia/bono, liquidación criterio 1 + comprobante) | ✅ **v1 y v2 EN PRODUCCIÓN** (v1 el 2026-09-09/10; v2 el 2026-09-12): prorrata multi-curso real (reglas 10/16/17/18/19/20), quién dictó la clase, descuento del reemplazante, comprobante auditable. Migraciones 0023–0033 |
-| 2 | Venta de particulares/alquiler + confirmar sesión (con horario) + renovación + estado de cuenta del alumno | 🟡 **Arrancó el 2026-09-12 por los precios base.** *Precios y paquetes* (D8) construida y **validada en dev por Javier**: las cinco pestañas, con los paquetes de particular (bloque D) y la matriz de sala (bloque E) que son las que faltaban para poder cotizar. Falta la venta en sí (*Vender servicio*) y la confirmación/reserva de sesión. Migración **0035**, solo en dev |
+| 2 | Venta de particulares/alquiler + confirmar sesión (con horario) + renovación + estado de cuenta del alumno | 🟡 **Arrancó el 2026-09-12 por los precios base.** *Precios y paquetes* (D8) construida, con las cinco pestañas, los paquetes de particular (bloque D) y la matriz de sala (bloque E). **En producción desde el 2026-09-16** (0035). Falta la venta en sí (*Vender servicio*) y la confirmación/reserva de sesión: es **C3** |
 | 3 | App Shell (armazón + visual ya diseñado) + Dashboard operativo | ⏳ Pendiente — no iniciado |
 | 4 | Costos fijos | ⏳ Pendiente — no iniciado |
-| 5 | Agenda de sala (+ `duracion_min` en `cursos`) | 🟡 **Base de datos construida el 2026-09-12** (migración 0035, solo en dev): `salas` (D20), `reservas_sala` con una restricción `EXCLUDE` que impide en la **base** que dos reservas de la misma sala se pisen, y los motivos de bloqueo sin venta (D7). Falta **la agenda visual**, que Javier marcó como no negociable: *"es una herramienta fundamental para Natalia por su vista. Debe ir, ya es hoy un problema para ella."* Sin mockup todavía. Ver §0duodecies |
+| 5 | Agenda de sala (+ `duracion_min` en `cursos`) | 🟡 **En curso por la cola C1→C5** (ver "Lo que sigue — la cola C1→C5"). En producción: la base (0035), la duración de la clase (0034), C1 horario base (0036/0037), C2 disponibilidad + bloqueos (`/sala`, 0040/0041) y el lado cursos de C5. **Falta:** C3 (venta con reserva), el lado reservas de C5 y **la agenda visual** (C4), que Javier marcó como no negociable: *"es una herramienta fundamental para Natalia por su vista. Debe ir, ya es hoy un problema para ella."* Sin mockup todavía |
 | 6 | Alineación a estándares del resto de pantallas (ver `docs/PLAN_UX_DANZE.md`) | 🟡 En curso, parcial — Toggle estándar adoptado y pantalla Planes ya alineada; Cursos/Profesores/Dashboard/navegación siguen en el backlog de `PLAN_UX_DANZE.md` |
 
-**Dónde estamos (2026-09-12, tarde).** El **Paso 1 está cerrado y en
+**Dónde estamos (foto del 2026-09-12, tarde — lo de después está en la tabla de arriba y en el encabezado de este documento).** El **Paso 1 está cerrado y en
 producción**, v1 y v2: el motor de planes multi-curso de punta a punta —prorrata
 por curso y por profesor, las reglas de negocio 10 y 16 a 20, quién dictó cada
 clase, el descuento del reemplazante— más la clase de prueba completa y la
@@ -1084,10 +1122,10 @@ Javier trae un pedido operativo, y **no cae en una sola rebanada**: Natalia est�
 urgida por **la gestión de clases particulares** y por **validar y reservar la
 disponibilidad de la sala**.
 
-| Lo que pide | Dónde vive en el plan | Estado al 2026-09-12, tarde |
-| --- | --- | --- |
-| Vender y gestionar clases particulares | **2D** (la mitad que no es clase de prueba) | 🟡 **Precios base listos** (pantalla *Precios y paquetes*, validada en dev). Falta la venta en sí |
-| Validar/reservar disponibilidad de la sala | **Paso 5** — Agenda de sala | 🟡 **Base de datos lista** (0035: `salas`, `reservas_sala` con no-choque garantizado). Falta la agenda visual |
+| Lo que pide | Dónde vive en el plan | Estado al 2026-09-12, tarde | Hoy (2026-09-24) |
+| --- | --- | --- | --- |
+| Vender y gestionar clases particulares | **2D** (la mitad que no es clase de prueba) | 🟡 **Precios base listos** (pantalla *Precios y paquetes*, validada en dev). Falta la venta en sí | Precios en producción (2026-09-16). La venta es **C3**, lo siguiente |
+| Validar/reservar disponibilidad de la sala | **Paso 5** — Agenda de sala | 🟡 **Base de datos lista** (0035: `salas`, `reservas_sala` con no-choque garantizado). Falta la agenda visual | C1 y C2 en producción (horario base, disponibilidad y bloqueos en `/sala`). Falta reservar al vender (C3) y la agenda visual (C4) |
 
 **El punto que importa:** son dos lugares distintos del plan, y el segundo está
 **tres pasos más adelante** que el primero. Pero operativamente van juntos: no se
@@ -1365,13 +1403,13 @@ Pantallas/componentes: **Login, App Shell, Inscribir y cobrar, Tomar asistencia,
 - **Inscripción parcial** (una clase / una semana / medio mes) con tarifa propia (tabla A); curso sin tarifa → mensual. "Una semana" = una repetición del patrón semanal (Lu-Mi-Vi → 3 clases).
 - **Multi-mes adelantado:** N cuotas (una por mes) con el descuento (tabla B) distribuido. Cruce exacto de meses, sin interpolar.
 - **Renovación mensual manual** (un clic genera la cuota del mes siguiente); nunca automática.
-- **Comisiones:** tasa **por asignación profesor×curso**, **congelada al confirmar** (dos %: sobre ingresos del curso + por alumno referido). **Referido (definido 2026-09-04, RF-02.2/RF-07.2):** lo percibe el **profesor que REFIRIÓ** al alumno (no el titular), según el `pct_referido` de **su** asignación, sobre los cobros de ese alumno en el curso del otro profesor. *(Brecha a resolver antes de construir: hoy `referido_por_alumno_id` apunta a un alumno, no a un profesor; y falta definir cuál `pct_referido` aplica si el profesor tiene varias asignaciones.)* El **"bono por referido" sobre la inscripción** queda como **gancho** (pendiente validar). La liquidación lee el % de la **asignación que cubrió el período** (filas inmutables `desde/hasta`; reemplazar titular cierra la fila, no la edita). Devenga **sobre lo cobrado**, a **mes vencido**, con **prorrateo** en pagos adelantados. Base de ingresos incluye cuotas, parciales y clases de prueba.
+- **Comisiones:** tasa **por asignación profesor×curso**, **congelada al confirmar** (dos %: sobre ingresos del curso + por alumno referido). **Referido (definido 2026-09-04, RF-02.2/RF-07.2):** lo percibe el **profesor que REFIRIÓ** al alumno (no el titular), según el `pct_referido` de **su** asignación, sobre los cobros de ese alumno en el curso del otro profesor. *(➜ hoy: **sin construir** —la liquidación no lee `pct_referido`—; el estado y lo que falta decidir viven en `DECISIONES.md` **D22**.)* *(Brecha a resolver antes de construir: hoy `referido_por_alumno_id` apunta a un alumno, no a un profesor; y falta definir cuál `pct_referido` aplica si el profesor tiene varias asignaciones.)* El **"bono por referido" sobre la inscripción** queda como **gancho** (pendiente validar). La liquidación lee el % de la **asignación que cubrió el período** (filas inmutables `desde/hasta`; reemplazar titular cierra la fila, no la edita). Devenga **sobre lo cobrado**, a **mes vencido**, con **prorrateo** en pagos adelantados. Base de ingresos incluye cuotas, parciales y clases de prueba.
 - **Liquidación mensual básica dentro de Etapa 1** (devengado − pagos al profesor); esquema diseñado para ampliarla (relevos, bonos, particulares, costos de sala) en fase 2.
 - **Costos fijos:** devengado mensual automático, prorrateado por frecuencia (mensual / trimestral ÷3 / anual ÷12 / único en su mes).
 - **Snapshot de precios** en inscripción/cobro (editar el precio del curso no reescribe lo ya inscripto).
 - **Clase particular:** individual / pareja / **grupo hasta 16** (máximo en parámetros), siempre con ≥1 alumno titular. Al vender, se crea automáticamente el paquete de uso de sala del profesor, tarifado desde la **tabla única de Tarifas de Sala** (Categoría × Tamaño × Horas). *(pantallas = fase 2; el backend deja los ganchos.)*
 - **Clase de prueba:** precio por alumno por curso (tabla C); los asistentes entran a la lista de asistencia de la sesión; el cobro suma a la comisión del profesor.
-- **Sala:** una sola por ahora, pero el modelo nace para varias (reserva fecha+hora+duración).
+- **Sala:** el modelo nace para varias (reserva fecha+hora+duración). *(➜ hoy: dos salas desde la 0037, 2026-09-12; ver `DECISIONES.md` §1.b.)*
 - **Profesor y Usuario:** entidades separadas, vinculables **uno a uno** (un externo normalmente sin cuenta).
 - **Orden de listas de personas:** toda lista de personas usada para **localizar** a alguien (búsquedas, padrones, selects) se ordena **alfabéticamente por apellido** (luego nombre), en **cualquier** entidad. Helper: `compararPorApellido` en `src/lib/texto.ts`.
 - **Sin hardcode:** tarifas, tolerancias, umbrales, motivos, categorías, temas, roles y permisos → catálogo o parámetro.
@@ -1389,7 +1427,7 @@ Pantallas/componentes: **Login, App Shell, Inscribir y cobrar, Tomar asistencia,
 **Suspensión de clase + corrimiento de fin de ciclo** ✅ **construido** (migración `0009` aplicada 2026-09-04). Mecanismo ÚNICO compartido `aplicarCorrimiento`/`revertirCorrimientos`: mueve el `vencimiento` de la **cuota vigente** (mayor periodo) a la próxima fecha del patrón semanal y deja traza en `corrimientos_ciclo` (unique por inscripción+sesión → idempotente). Dos disparadores del mismo efecto: (1) **falta individual tolerada** — `guardarAsistencia` reconcilia: marca ausente a un mensual con tolerancia disponible (faltas del mes, excluyendo esta sesión, < `faltas_toleradas`) → corre; si se cambia a presente o no hay tolerancia → revierte; (2) **suspensión masiva** — `suspenderClase` marca la sesión `suspendida` (col `estado`+`motivo` en `sesiones`), borra asistencias, y corre el fin de ciclo de **todos** los mensuales del curso (tipo `suspension`; **no gasta** la tolerancia personal). `reabrirSesion` revierte todo. Parciales: no se marca asistencia → no consumen → se difieren solos. UI en `/asistencia`: botón "Marcar esta clase como suspendida" (con motivo) y panel de "Clase suspendida" con "Reabrir". Validado en Postgres 16 (corrimiento, unique, revert, check de estado). Nota: el efecto (vencimiento corrido) será plenamente visible con la pantalla de renovación/estado de cuenta. **Pendiente registrado:** catálogo de motivos de suspensión.
 
 **Pedidos futuros (registrados, no urgentes):**
-- **Alumnos: fecha de nacimiento y sexo.** Agregar ambos campos a `alumnos` (migración aditiva) y a la ficha `EntidadAlumno` (fecha opcional; sexo desde catálogo para no hardcodear). Surgió de la revisión de uso; se hará más adelante.
+- ~~**Alumnos: fecha de nacimiento y sexo.**~~ *(➜ hecho y en producción el 2026-09-24, en el contacto: 0048 + 0049. Ver `ROADMAP.md` R16.)*
 
 **Pendientes de Design (no me bloquean; registro):** #8 correcciones de Login (accent-100 solo informativo + estado "cuenta bloqueada"; el backend ya expone el contrato); #11 correcciones de Vender/Confirmar sesión incluido el selector de grupo.
 
@@ -1594,7 +1632,8 @@ convertir), G (reparar inscripciones 17/18/19).
 
 **Rama:** `claude/tropicana-app-context-d5zjt8` · commits `4e526c7`, `e98dc8e`,
 `5a6900c`. Todo **solo en dev**: falta el OK explícito de Javier (regla de
-proceso 1).
+proceso 1). *(➜ hoy: en producción desde el 2026-09-12, con las migraciones
+0023–0030.)*
 
 ### Lo que se decidió, y por qué
 
@@ -1669,6 +1708,7 @@ que es lo que la regla 16 permite.
    (`hasta is null`), así que si cambia el titular a mitad de mes toda la
    comisión va al nuevo. El **control 20 ya detecta 1 caso en dev**.
 2. **Vigencia del curso** (§1.b de `DECISIONES.md`): decidida, sin construir.
+   *(➜ hoy: construida y en producción desde el 2026-09-12, 0033.)*
 3. Validaciones pendientes de Javier sobre lo de arriba, y **D10** (volver
    `asistencia_semanas_retro` a 2 en dev).
 
@@ -1757,7 +1797,8 @@ después la abierta, después el id más alto— porque de ahí sale a quién se
 
 **El prorrateo honra el motivo** (regla 20): `administrativo` deja la parte de
 esa clase en Tropicana; `titular` se la cuenta a él y la cobra normal — el
-descuento de lo pagado al reemplazante es **D17b**, sin construir.
+descuento de lo pagado al reemplazante es **D17b**, sin construir *(➜ hoy:
+construido, 0032, en producción desde el 2026-09-12)*.
 
 **Una clase suspendida** deja de llevar profesor: `profesor_id` null y los
 campos de reemplazo limpios. No la dictó nadie.
@@ -1818,7 +1859,7 @@ cuenta y la cobra— y al **total** se le descuenta lo que se le pagó al
 reemplazante. Javier, textual: *"El descuento es un concepto aparte en la
 liquidación: no es una comisión."*
 
-**Migración 0032** (aplicada **solo en dev**, aditiva):
+**Migración 0032** (aplicada **solo en dev**, aditiva; *➜ hoy: en producción desde el 2026-09-12*):
 
 - `descuentos_liquidacion` — un descuento por clase, idempotente por
   `sesion_id` (índice único parcial). `sesion_id` es nullable a propósito, para
@@ -1875,7 +1916,7 @@ atrás hasta donde llegue el ciclo, existiera el curso o no. Esas clases
 inventadas pesan en el prorrateo y traban liquidaciones por sesiones "sin
 registrar" (regla 17) que nunca ocurrieron.
 
-**Migración 0033** (aplicada **solo en dev**): `cursos.vigente_desde` (not null,
+**Migración 0033** (aplicada **solo en dev**; *➜ hoy: en producción desde el 2026-09-12*): `cursos.vigente_desde` (not null,
 default `current_date`) y `cursos.vigente_hasta` (null = sigue corriendo), más
 un check de coherencia.
 
@@ -2011,7 +2052,7 @@ duración no hay nada que validar: una clase "a las 19:00" no choca con ninguna
 otra si no se sabe cuánto ocupa. `cursos.hora` existía desde la 0005 y dice
 cuándo **empieza**; faltaba la otra mitad.
 
-**Migración 0034** (aplicada **solo en dev**): `cursos.duracion_min` (not null,
+**Migración 0034** (aplicada **solo en dev**; *➜ hoy: en producción desde el 2026-09-12*): `cursos.duracion_min` (not null,
 default 60, check entre 1 y 600) y el parámetro `duracion_clase_min` con su
 lista de opciones — el default que la pantalla propone para un curso nuevo sale
 del **dato**, no del código (regla de negocio 13), y nace en la migración (regla
@@ -2102,7 +2143,8 @@ pantalla que los junta, no un movimiento de datos**.
 
 **Pendiente que abre:** la pantalla de Cursos conserva sus columnas de tarifa.
 Dos superficies para el mismo dato es justamente lo que D8 venía a cerrar; hay
-que decidir si Cursos delega en esta pantalla.
+que decidir si Cursos delega en esta pantalla. *(➜ hoy: anotado como trabajo en
+`ROADMAP.md` **R11**.)*
 
 ### Migración 0035 — lo que agrega
 
@@ -2166,9 +2208,9 @@ habría que desacoplarla después.
 | --- | --- | --- |
 | **C1** | **Horario base de la sala**: patrón semanal de apertura + excepciones por rango de fechas. Es el lienzo — fuera de él no se puede reservar. **Vacío significa cerrado, no abierto** (confirmado por Javier): si valiera "24 h", olvidarse de configurarlo produce justo el bug que C1 evita | ✅ **CERRADO y validado en dev por Javier** (2026-09-12). Migraciones **0036** y **0037**. Javier cargó el horario real de Tropicana |
 | **C2** | Disponibilidad + reserva mínima: validar contra horario base + cursos + otras reservas, y **lista textual** de lo ocupado ese día (*"Lu 15: ocupado 9-10, 11-12:30; resto libre"*). **Sin grilla visual todavía** — 80% del beneficio, 20% del costo | ✅ **EN PRODUCCIÓN desde el 2026-09-17.** Pantalla operativa propia (`/sala`, grupo Gestión), separada de Administración → Sala y horarios. Solo bloqueos (D7) — sin C3 todavía no hay otra reserva posible |
-| **C3** | Venta de particulares/alquiler apoyada en la disponibilidad. Los dos caminos del mockup de agosto, más lo que ese mockup no tiene: elegir fecha y hora al vender | Pendiente |
-| **C4** | Agenda visual (grilla día/semana/mes). **Pasa por Claude Design** | Pendiente → `ROADMAP.md` R2 |
-| **C5** | Conflicto bloqueo-vs-agendado: el sistema junta los conflictos y **el humano decide**, nunca cancelación automática silenciosa | Pendiente → `ROADMAP.md` R1 |
+| **C3** | Venta de particulares/alquiler apoyada en la disponibilidad. Los dos caminos del mockup de agosto, más lo que ese mockup no tiene: elegir fecha y hora al vender | **Lo siguiente.** Su prerrequisito C3-0a (contactos + matriz de mínimos) está **en producción desde el 2026-09-24**. C3-0b (captación pública) espera a C3 |
+| **C4** | Agenda visual (grilla día/semana/mes). **Pasa por Claude Design** | Pendiente, después de C3 → `ROADMAP.md` R2 |
+| **C5** | Conflicto bloqueo-vs-agendado: el sistema junta los conflictos y **el humano decide**, nunca cancelación automática silenciosa | 🟡 **A medias.** Lado cursos regulares **en producción desde el 2026-09-16** (un cierre de sala avisa, pide confirmación y suspende; ver el bloque "C5 (lado de cursos regulares)"). **Falta el lado reservas**: `calcularImpacto` no mira `reservas_sala`, y el hueco ya existe hoy con los bloqueos de C2 → `ROADMAP.md` R1 y R22 |
 
 **Lo que Javier definió para C1** (2026-09-12): el motivo de una reserva o
 bloqueo se **clasifica** desde una lista, y el responsable o la aclaración van en

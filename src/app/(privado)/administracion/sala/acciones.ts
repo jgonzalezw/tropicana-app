@@ -157,9 +157,10 @@ function validarPatron(patron: FranjaEdit[], incrementoMin: number): string | nu
 
 /**
  * Qué clases con membresía activa quedan afectadas por las excepciones que se
- * están por guardar. Es el impacto de C5, acotado a cursos regulares: sin
- * ventas de particulares/alquiler todavía, del otro lado no hay nada que
- * revisar (Javier, 2026-09-16).
+ * están por guardar. Es el impacto de C5, **acotado a cursos regulares**
+ * (Javier, 2026-09-16). No mira `reservas_sala`: un cierre cargado encima de un
+ * bloqueo de C2 (y, desde C3, de una particular o un alquiler) lo tapa sin
+ * avisar. Es el lado reservas de C5, pendiente: `ROADMAP.md` R1.
  */
 async function calcularImpacto(
   a: ReturnType<typeof admin>,
@@ -364,9 +365,10 @@ export async function guardarHorarioSala(
         : exc?.glosa ?? "un cierre";
       const errFecha = await validarFecha(c.cursoId, c.fecha, { permitirFutura: true });
       if (errFecha) {
-        // Regla de negocio 16: una clase de la que depende una comisión ya
-        // pagada no se toca, ni siquiera por un feriado. La sala queda
-        // cerrada igual; esa clase puntual necesita una corrección manual.
+        // `validarFecha` rechazó esta clase (hoy solo por vigencia del curso o
+        // por la ventana de semanas: una comisión ya pagada NO bloquea desde
+        // la regla 16 reescrita). La sala queda cerrada igual; esa clase
+        // puntual queda listada para corregirla a mano.
         bloqueadas.push(`${c.cursoNombre} (${c.fecha}): ${errFecha}`);
         continue;
       }

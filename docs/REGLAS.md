@@ -21,13 +21,13 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
 
 | Concepto | Dónde vive | Qué significa |
 | --- | --- | --- |
-| **Fin de ciclo** | `inscripciones.fecha_fin` | Fecha de la última clase del ciclo. **Se calcula** desde las clases que realmente ocurren (`finDeCicloReal`): una sesión suspendida no consume ciclo, lo corre. |
+| **Fin de ciclo** | `membresias.fecha_fin` | Fecha de la última clase del ciclo. **Se calcula** desde las clases que realmente ocurren (`finDeCicloReal`): una sesión suspendida no consume ciclo, lo corre. |
 | **Renovación bonificada** | derivada (`renovacionBonificada`) | Hasta cuándo puede renovar sin perder el bono: la **siguiente clase después del fin de ciclo**. |
 | **Corrimiento** | `corrimientos_ciclo` | La traza de qué suspensión corrió el ciclo de quién, con el antes/después. Idempotente por (inscripción, sesión). **Audita y explica; no es la fuente de verdad** — la fecha se recalcula. |
 | **Plazo de pago** | `cuotas.vencimiento` | Hasta cuándo hay tiempo de pagar. **No es el fin de ciclo** y el corrimiento no lo toca (eso era la etapa 1, antes del motor de planes). |
 | **Agotarse** | `cicloAgotado` (padrón), contadores | El ciclo se consumió. **No** es lo mismo que cerrarse. |
-| **Cerrarse** | `inscripciones.estado = 'completada'` | La **venta** terminó: agotado **y** cobrado. |
-| **Bono de tolerancia** | `inscripciones.bono_generado` / `bono_redimido` | Clases que se suman al ciclo siguiente por faltas con licencia. |
+| **Cerrarse** | `membresias.estado = 'completada'` | La **venta** terminó: agotado **y** cobrado. |
+| **Bono de tolerancia** | `membresias.bono_generado` / `bono_redimido` | Clases que se suman al ciclo siguiente por faltas con licencia. |
 | **Membresía** | `membresias` | Una venta de plan a un alumno. Cada renovación es una fila nueva. Se llamó `inscripciones` hasta la migración **0047 (D1)**, cerrada el 2026-09-24: hoy la tabla es `membresias` y la llave que apunta a ella se llama **siempre** `membresia_id`, sin ninguna otra grafía en ningún lado. **Ningún campo nuevo con `inscripcion_id`.** |
 | **Curso de una membresía** | `membresia_cursos` | Los cursos que la membresía habilita, con sus días y —si es prueba— la fecha de su clase. **`membresias.curso_id` NO es "el curso" de la membresía**: es un resabio que solo significa algo en un plan mono-curso, y queda como respaldo para filas viejas. Para saber qué cursos toca una membresía —padrón, liquidación, cualquier cosa— se mira `membresia_cursos`. *(Javier, 2026-09-11: "no existe curso principal de la membresía, salvo que sea mono curso".)* Se llamó `inscripcion_cursos` hasta la 0047. |
 | **Membresía de prueba** | `membresias.es_prueba` | Preliminar: 1 clase por curso elegido, sin tolerancia, bono ni renovación. Cuelga del **mismo plan regular**. `acompanantes` guarda la gente sin nombre del grupo. |
@@ -331,13 +331,13 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
    Un 404 así es de resolución de ruta, no de datos: ninguna pantalla de este
    proyecto devuelve 404 cuando no encuentra un registro.
    *Costó dos veces (commits `2a26010` y `8fb648c`): las dos se fue el tiempo
-   revisando datos, RLS y componentes que estaban bien. El repo vive dentro de
-   OneDrive, que sincroniza por debajo y pelea con el watcher de Turbopack —
-   moverlo fuera (p. ej. `C:\dev\tropicana-app`) sacaría la causa de raíz —
-   no hay arreglo por configuración, la doc de Next prohíbe sacar `distDir` del
-   proyecto. Desde 2026-09-11 `npm run dev` **avisa** cuando detecta el repo
-   dentro de una carpeta que sincroniza sola, para que el riesgo no vuelva a
-   aparecer disfrazado de bug.*
+   revisando datos, RLS y componentes que estaban bien. El repo vivía dentro
+   de OneDrive, que sincroniza por debajo y pelea con el watcher de Turbopack
+   —no hay arreglo por configuración, la doc de Next prohíbe sacar `distDir`
+   del proyecto—. **La causa de raíz se sacó el 2026-09-16**: el repo se mudó
+   a `D:\dev\tropicana-app`, fuera de OneDrive (D2, cerrada). Desde
+   2026-09-11 `npm run dev` **avisa** cuando detecta el repo dentro de una
+   carpeta que sincroniza sola, y el aviso queda por si vuelve a pasar.*
 5. **Una capacidad que no está disponible se explica; no desaparece.** Es la
    regla 1 aplicada a la pantalla. Si una pestaña, un botón o una opción se
    ocultan cuando falta su configuración, "todavía no lo configuré" y "algo se

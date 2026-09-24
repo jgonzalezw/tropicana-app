@@ -40,7 +40,7 @@ Tamaño: **S** = un rato · **M** = un hito chico · **L** = un hito propio.
 
 | # | Qué es | Rebanada | Tamaño |
 | --- | --- | --- | --- |
-| R1 | **Conflicto bloqueo-vs-agendado (C5).** Cuando un bloqueo o un cierre cae sobre clases o reservas ya agendadas, el sistema **junta los conflictos y el humano decide** caso por caso — nunca una cancelación automática silenciosa. Para un curso regular, un bloqueo que pisa una clase **es una suspensión** (corre el fin de ciclo, regla de negocio 4). **Alcance del lado de cursos regulares** (Javier, 2026-09-16): el choque se pregunta contra **membresías activas que efectivamente toman esa clase esa fecha**, no contra el calendario del curso a secas — una clase sin nadie inscripto vigente no genera aviso ni confirmación (regla de negocio 18: una clase sin alumnos no existe para nadie). Del lado de particulares/alquiler no aplica el filtro: una reserva ya es un compromiso real por definición. **Lado de cursos regulares: CONSTRUIDO en dev el 2026-09-16** — al guardar un cierre, se detectan las clases afectadas, se pide confirmación explícita, y al confirmar se suspenden con aviso por alumno (ver `docs/ESTADO.md`). Lado de particulares/alquiler sigue sin construir — no hay reservas todavía (C2/C3). **Gap encontrado al construir C2 (2026-09-17):** `calcularImpacto` (el que corre al guardar una excepción de horario) solo mira cursos regulares — una excepción de cierre cargada **después** de un bloqueo de sala (D7) podría taparlo sin ningún aviso, porque el `EXCLUDE` de la base no cubre este caso (una excepción no es fila de `reservas_sala`). Falta extender `calcularImpacto` para preguntar también contra `reservas_sala` vigentes. | C5 | L |
+| R1 | **Conflicto bloqueo-vs-agendado (C5).** Cuando un bloqueo o un cierre cae sobre clases o reservas ya agendadas, el sistema **junta los conflictos y el humano decide** caso por caso — nunca una cancelación automática silenciosa. Para un curso regular, un bloqueo que pisa una clase **es una suspensión** (corre el fin de ciclo, regla de negocio 4). **Alcance del lado de cursos regulares** (Javier, 2026-09-16): el choque se pregunta contra **membresías activas que efectivamente toman esa clase esa fecha**, no contra el calendario del curso a secas — una clase sin nadie inscripto vigente no genera aviso ni confirmación (regla de negocio 18: una clase sin alumnos no existe para nadie). Del lado de particulares/alquiler no aplica el filtro: una reserva ya es un compromiso real por definición. **Lado de cursos regulares: EN PRODUCCIÓN desde el 2026-09-16.** Al guardar un cierre se detectan las clases afectadas, se pide confirmación explícita y, al confirmar, se suspenden con un aviso por alumno (ver `docs/ESTADO.md`). **Lado de reservas: sin construir, y el hueco ya existe hoy.** `calcularImpacto`, que corre al guardar una excepción de horario, solo mira cursos regulares. Desde C2 (en producción el 2026-09-17) ya puede haber **bloqueos** en `reservas_sala`, así que una excepción de cierre cargada encima de uno lo tapa sin avisar: el `EXCLUDE` de la base no cubre este caso, porque una excepción no es una fila de `reservas_sala`. Con C3 se le suman las particulares y los alquileres. Falta extender `calcularImpacto` para que pregunte también contra las `reservas_sala` vigentes. | C5 | L |
 | R17 | **Copiar el horario de una sala a otra.** Pedido de Javier (2026-09-12): *"que haya una forma de duplicar los valores… en horarios, de una sala a otra"*. Hoy cada sala se carga de cero, y la alterna suele abrir igual que la principal: se parte de la copia y se ajusta solo lo que difiere. La copia es **un punto de partida, no un vínculo** — después son horarios independientes. | Paso 5 | S |
 | R18 | **Copiar las tarifas de alquiler de una sala a otra.** La otra mitad del mismo pedido. Hoy no hace falta porque las tarifas son generales (valen para todas las salas), pero en cuanto se diferencie una sala (R19) va a hacer falta partir de la copia en vez de cargar 48 celdas a mano. | Precios | S |
 | R19 | **Editar la tarifa de alquiler propia de una sala.** El modelo ya lo soporta desde la 0037 —una fila con `sala_id` manda sobre la general— pero **desde la pantalla no hay forma de cargarla**: *Precios y paquetes* edita solo la general. Javier lo eligió así a propósito (2026-09-12: hoy las dos salas cuestan lo mismo), y la pantalla ahora **dice** que esos precios valen para todas las salas en vez de callarlo. Lo que falta es el selector de sala en la pestaña de alquiler. | Precios | M |
@@ -79,7 +79,7 @@ Tamaño: **S** = un rato · **M** = un hito chico · **L** = un hito propio.
 
 | # | Qué es | Rebanada | Tamaño |
 | --- | --- | --- | --- |
-| R16 | **Alumnos: fecha de nacimiento y sexo.** Migración aditiva + los dos campos en la ficha (sexo desde catálogo, no hardcodeado). Surgió de una revisión de uso. | Alumnos | S |
+| R16 | ~~**Alumnos: fecha de nacimiento y sexo.**~~ **HECHO y en producción el 2026-09-24**, con C3-0a y en el contacto, no en `alumnos` (regla de negocio 21): `contactos_privados.fecha_nacimiento` y `contactos.sexo` con catálogo `sexo` (0048), sexo en la matriz de mínimos (0049), y los dos en el formulario vía `CamposContacto`. | Alumnos | ✅ |
 
 ---
 
@@ -100,9 +100,10 @@ modelarlo cada pantalla lo va a resolver distinto.
 ## Decisiones postergadas que además son trabajo
 
 No se copian acá — viven en `DECISIONES.md` con su disparador. Se listan para no
-perderlas de vista al priorizar: **D1** (unificar `membresia_id` en lo existente),
-**D3** (renombrar `ClienteVentas.tsx`),
-**D4** (acceso al detalle en toda lista), **D9** (tarjeta de confirmación de venta
-específica), **D11** (inscribir acompañantes de una prueba grupal),
-**D12**/**D13** (estilos a catálogo, y aumentar un catálogo sin salir de la
-operación).
+perderlas de vista al priorizar: **D4** (acceso al detalle en toda lista),
+**D5** (que la venta de C3 elija el motivo de cobro sola; el catálogo ya
+existe), **D9** (tarjeta de confirmación de venta específica), **D11** (inscribir
+acompañantes de una prueba grupal), **D13** (aumentar un catálogo sin salir de
+la operación) y **D22** (comisión por referido: decidida en concepto, sin
+construir).
+*D1, D3 y D12 ya están cerradas (2026-09-24).*
