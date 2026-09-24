@@ -6,7 +6,57 @@
 > `docs/design/README.md` (fuente de verdad del **diseño**), `docs/CONTEXTO_AVANCE.md`
 > (bitácora larga de Etapa 0), `docs/DESIGN_SYNC.md` (cómo entran los handoffs).
 >
-> **Última actualización:** 2026-09-24 — **El documento de un contacto no
+> **Última actualización:** 2026-09-24 — **El `@usuario` de una red social
+> abre el perfil, y el WhatsApp abre el chat, con el ícono de cada red. En
+> dev**, esperando el OK del pase (junto con lo de abajo).
+>
+> Pedido de Javier tras usar C3-0a en producción: que el `@usuario` de
+> Instagram/Facebook/TikTok abra el perfil en una pestaña nueva, que el
+> WhatsApp de un contacto abra el chat, y que cada red se vea con su ícono
+> de marca.
+>
+> **`redes_sociales.patron_url`** existía desde la 0048 pero vacío en las
+> 4 redes (dev y producción). Migración **0051**: lo siembra
+> (`{usuario}` como marcador; `whatsapp` como red usa `wa.me`, para quien
+> cargue un WhatsApp de tercero **como red social** — distinto del WhatsApp
+> propio del contacto). `update ... where patron_url is null`: no pisa una
+> plantilla que alguien ya haya cargado a mano.
+>
+> **Helpers puros en `lib/contactos.ts`**, testeados: `urlPerfilRed`
+> (limpia el usuario — acepta `@user` o la URL entera pegada — y lo escapa;
+> `null` si no hay plantilla, no hay usuario, o la plantilla no es
+> `https://`) y `urlChatWhatsapp` (`wa.me`, **solo si el número está en
+> formato internacional**; uno crudo de los que marca el control 23 queda
+> sin link — armarle el chat sería inventarle el país, regla de calidad 1).
+>
+> **Íconos** (`IconoRed.tsx`): trazos oficiales de **Simple Icons v16.32.0**
+> (CC0, sin atribución requerida), bajados textuales, no dibujados de
+> memoria. Colores de marca para Instagram/Facebook/WhatsApp; **TikTok usa
+> `currentColor`** (su negro de marca desaparecería en el tema oscuro de la
+> app — verificado en los dos temas, `tropicana` y `tropicana_alto_contraste`).
+> Una red sin ícono conocido cae al genérico de enlace (regla de calidad 5).
+>
+> **Dónde quedó**: en la ficha, cada fila de red social suma "Abrir ↗" con
+> su ícono (editable igual que antes); debajo del WhatsApp (propio y del
+> tutor), "Abrir chat ↗" en cuanto el número tipeado es válido. En los
+> padrones de Alumnos y Profesores, el número es un link con el ícono de
+> WhatsApp (`EnlaceWhatsapp.tsx`). En los **avisos de cierre de sala**, el
+> chat abre con el mensaje **ya escrito** (complementa "Copiar mensaje", no
+> lo reemplaza). En los resultados de "Buscar" (son `<button>`, un `<a>`
+> adentro sería HTML inválido y chocaría con el clic de abrir la ficha)
+> **no** hay link, solo el ícono, para que el número se asocie igual.
+>
+> Verificado en dev: Instagram de Nadine abre `instagram.com/nadinesalek`
+> en pestaña nueva; el WhatsApp `+591…` de varios contactos abre `wa.me`
+> con el número correcto; el `776326266` crudo queda sin link; "Buscar" no
+> rompe HTML y sigue abriendo la ficha al clic; 75/75 tests, `tsc`, lint y
+> build limpios.
+>
+> **Javier confirmó el arreglo del documento + la 0050 en dev** (bloque de
+> abajo) y pidió no pasarlo solo: **los dos pasan juntos**, después de
+> probar esto y con su OK.
+>
+> **2026-09-24 (antes)** — **El documento de un contacto no
 > se podía guardar, y ahora también sirve para buscar. En dev**, esperando
 > el OK del pase.
 >

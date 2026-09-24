@@ -360,5 +360,12 @@ proceso 1). No es un backlog de decisiones: es el estado del release.
   **antes de cargar el primer documento**. Detalle en `docs/ESTADO.md`.
   *Ese mismo día Javier empezó a cargar documentos en producción y apareció
   un bug al guardarlos. El arreglo, la búsqueda por documento y la migración
-  **0050** (que cierra ese hallazgo) están en dev y esperan su propio OK de
-  pase.*
+  **0050** (que cierra ese hallazgo) están en dev, confirmadas por Javier
+  ("confirmo mi ok con el arreglo del documento +0050 aplicados en DEV") y
+  esperan pasar junto con lo de abajo.*
+- **Abrir el perfil de una red social y el chat de WhatsApp con un clic**
+  (pedido de Javier, 2026-09-24, tras probar C3-0a en producción), con el
+  ícono de cada red para reconocerla de un vistazo. Migración **0051**
+  siembra `redes_sociales.patron_url` (vacío desde la 0048). Detalle
+  completo en `docs/ESTADO.md`. **En dev**, esperando el OK — Javier pidió
+  pasarlo junto con el arreglo del documento + 0050, no por separado.

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { Profesor, Curso, Asignacion, DepsProfesor, DatosProfesor, Estilo, ListasContacto, MatrizMinimo } from "@/lib/tipos";
 import { nombreCompleto, apellidoNombre, compararContactosPorApellido } from "@/lib/contactos";
 import EntidadProfesor, { TagTipo } from "@/components/entidades/EntidadProfesor";
+import EnlaceWhatsapp from "@/components/entidades/EnlaceWhatsapp";
 import {
   crearProfesor,
   actualizarProfesor,
@@ -183,7 +184,9 @@ function TabListado({
                 >
                   <td className="py-3 px-4">
                     <div className="font-medium">{apellidoNombre(p.contacto)}</div>
-                    <div className="text-sm text-[var(--texto-tenue)]">{p.contacto.whatsapp || "—"}</div>
+                    <div className="text-sm text-[var(--texto-tenue)]">
+                      <EnlaceWhatsapp numero={p.contacto.whatsapp} vacio="—" />
+                    </div>
                   </td>
                   <td className="py-3 px-4 text-[var(--texto-tenue)]">
                     {(p.estilos ?? []).map((c) => etiquetaEstilo(c, estilos)).join(", ") || "—"}

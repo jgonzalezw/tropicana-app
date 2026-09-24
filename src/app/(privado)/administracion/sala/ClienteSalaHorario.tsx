@@ -15,6 +15,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { describirVentanas } from "@/lib/sala";
+import EnlaceWhatsapp from "@/components/entidades/EnlaceWhatsapp";
 import {
   guardarHorarioSala,
   guardarSalas,
@@ -686,7 +687,7 @@ export default function ClienteSalaHorario({
                   <div className="font-medium">
                     {a.nombre}{" "}
                     <span className="text-sm text-[var(--texto-tenue)] font-normal">
-                      {a.whatsapp ? `· ${a.whatsapp}` : "· sin WhatsApp cargado"}
+                      · <EnlaceWhatsapp numero={a.whatsapp} texto={a.mensaje} vacio="sin WhatsApp cargado" />
                     </span>
                   </div>
                   <p className="text-sm mt-1 whitespace-pre-wrap">{a.mensaje}</p>

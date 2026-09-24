@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import type { Alumno, DatosAlumno, ListasContacto, MatrizMinimo } from "@/lib/tipos";
 import { nombreCompleto, apellidoNombre, compararContactosPorApellido } from "@/lib/contactos";
 import EntidadAlumno from "@/components/entidades/EntidadAlumno";
+import EnlaceWhatsapp from "@/components/entidades/EnlaceWhatsapp";
 import { crearAlumno, actualizarAlumno, eliminarODesactivarAlumno, activarAlumno } from "./acciones";
 
 type Canal = { valor: string; etiqueta: string };
@@ -111,9 +112,14 @@ export default function ClienteAlumnos({
                     )}
                   </td>
                   <td className="py-3 px-4 text-[var(--texto-tenue)]">
-                    {a.es_menor
-                      ? `Tutor ${a.tutor ? nombreCompleto(a.tutor) : "—"} · ${a.tutor?.whatsapp || "—"}`
-                      : a.contacto.whatsapp || "—"}
+                    {a.es_menor ? (
+                      <>
+                        Tutor {a.tutor ? nombreCompleto(a.tutor) : "—"} ·{" "}
+                        <EnlaceWhatsapp numero={a.tutor?.whatsapp} vacio="—" />
+                      </>
+                    ) : (
+                      <EnlaceWhatsapp numero={a.contacto.whatsapp} vacio="—" />
+                    )}
                   </td>
                   <td className="py-3 px-4 text-[var(--texto-tenue)]">{etiquetaCanal(a.contacto.canal_captacion)}</td>
                   <td className="py-3 px-4">

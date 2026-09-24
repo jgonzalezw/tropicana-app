@@ -10,6 +10,8 @@ import {
   coincideBusqueda,
   documentoComparable,
 } from "@/lib/contactos";
+import IconoRed from "./IconoRed";
+import AbrirChatWhatsapp from "./AbrirChatWhatsapp";
 import { nivelesDe, faltantes, presenteDesdeExtra } from "@/lib/matrizMinimos";
 import CamposContacto, { DATOS_CONTACTO_EXTRA_VACIO, type ListasContacto } from "./CamposContacto";
 import { detalleContacto } from "@/app/(privado)/contactos/acciones";
@@ -115,7 +117,8 @@ export default function EntidadProfesor({
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <div className="font-medium">{apellidoNombre(p.contacto)}</div>
-                  <div className="text-sm text-[var(--texto-tenue)]">
+                  <div className="text-sm text-[var(--texto-tenue)] inline-flex items-center gap-1">
+                    <IconoRed red="whatsapp" nombre="WhatsApp" className="w-3.5 h-3.5" />
                     {p.contacto.whatsapp || "sin WhatsApp"} ·{" "}
                     {etiquetasDe(p.estilos, estilos).join(", ") || "sin especialidad"}
                   </div>
@@ -325,6 +328,7 @@ function FichaProfesor({
           inputMode="tel"
           className="entrada"
         />
+        <AbrirChatWhatsapp numero={whatsapp} />
       </Campo>
       {dupe && (
         <div className="p-3 rounded-[var(--radio-panel)] border border-[var(--primario)] bg-[var(--accent-100)] text-[var(--peligro-texto)] text-sm">

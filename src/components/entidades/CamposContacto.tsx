@@ -8,6 +8,8 @@ import type {
   RedSocial,
   TipoDocumento,
 } from "@/lib/tipos";
+import { urlPerfilRed } from "@/lib/contactos";
+import IconoRed from "./IconoRed";
 export type { ListasContacto } from "@/lib/tipos";
 
 /**
@@ -140,34 +142,49 @@ function RedesSociales({
   }
   return (
     <div className="space-y-2">
-      {redes.map((r, i) => (
-        <div key={i} className="flex gap-2">
-          <select
-            value={r.red}
-            onChange={(e) => set(i, "red", e.target.value)}
-            className="entrada max-w-[160px] shrink-0"
-          >
-            {disponibles.map((d) => (
-              <option key={d.clave} value={d.clave}>
-                {d.nombre}
-              </option>
-            ))}
-          </select>
-          <input
-            value={r.usuario}
-            onChange={(e) => set(i, "usuario", e.target.value)}
-            placeholder="@usuario"
-            className="entrada flex-1 min-w-0"
-          />
-          <button
-            type="button"
-            onClick={() => quitar(i)}
-            className="px-3 shrink-0 text-[var(--texto-tenue)] hover:text-[var(--peligro)]"
-          >
-            Quitar
-          </button>
-        </div>
-      ))}
+      {redes.map((r, i) => {
+        const dRed = disponibles.find((d) => d.clave === r.red);
+        const url = dRed ? urlPerfilRed(dRed.patron_url, dRed.clave, r.usuario) : null;
+        return (
+          <div key={i} className="flex gap-2 items-center">
+            <IconoRed red={r.red} nombre={dRed?.nombre ?? r.red} className="w-5 h-5 shrink-0" />
+            <select
+              value={r.red}
+              onChange={(e) => set(i, "red", e.target.value)}
+              className="entrada max-w-[160px] shrink-0"
+            >
+              {disponibles.map((d) => (
+                <option key={d.clave} value={d.clave}>
+                  {d.nombre}
+                </option>
+              ))}
+            </select>
+            <input
+              value={r.usuario}
+              onChange={(e) => set(i, "usuario", e.target.value)}
+              placeholder="@usuario"
+              className="entrada flex-1 min-w-0"
+            />
+            {url && (
+              <a
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-2 shrink-0 text-sm text-[var(--primario)] hover:underline whitespace-nowrap"
+              >
+                Abrir ↗
+              </a>
+            )}
+            <button
+              type="button"
+              onClick={() => quitar(i)}
+              className="px-3 shrink-0 text-[var(--texto-tenue)] hover:text-[var(--peligro)]"
+            >
+              Quitar
+            </button>
+          </div>
+        );
+      })}
       <button
         type="button"
         onClick={() => onChange([...redes, { red: disponibles[0]?.clave ?? "", usuario: "" }])}

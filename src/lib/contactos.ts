@@ -156,6 +156,38 @@ export function coincideBusqueda(
   return qDoc.length >= 3 && documentoComparable(c.documento).includes(qDoc);
 }
 
+/**
+ * Arma la URL del perfil de una red social a partir de la plantilla del
+ * catálogo (`redes_sociales.patron_url`, `{usuario}` es el marcador) y lo
+ * que la persona haya escrito — que puede ser una URL completa pegada a
+ * mano, así que se limpia con `normalizarRed` antes de armar el link.
+ * `null` si no hay plantilla, no hay usuario, o la plantilla no es https
+ * (una plantilla mal cargada no debe poder mandar a otro esquema).
+ */
+export function urlPerfilRed(patron: string | null, red: string, usuario: string): string | null {
+  if (!patron || !patron.startsWith("https://")) return null;
+  // La red "whatsapp" (distinta del WhatsApp propio del contacto) usa
+  // wa.me, que solo entiende dígitos.
+  const limpio = red === "whatsapp" ? soloDigitos(usuario) : normalizarRed(red, usuario);
+  if (!limpio) return null;
+  return patron.replace("{usuario}", encodeURIComponent(limpio));
+}
+
+/**
+ * El link para abrir un chat de WhatsApp (`wa.me`). Solo si el número está
+ * en formato internacional reconocido (`+591...` u otro `+<país>`): un
+ * número crudo de los que marca el control 23 (9 u 11 dígitos sin `+`) no
+ * alcanza para armar el link sin inventarle el país (regla de calidad 1).
+ */
+export function urlChatWhatsapp(numero: string | null | undefined, texto?: string): string | null {
+  const n = (numero ?? "").trim();
+  if (!n.startsWith("+")) return null;
+  const digitos = soloDigitos(n);
+  if (digitos.length < 8) return null;
+  const query = texto?.trim() ? `?text=${encodeURIComponent(texto.trim())}` : "";
+  return `https://wa.me/${digitos}${query}`;
+}
+
 /** Edad en años cumplidos a hoy, a partir de una fecha ISO (YYYY-MM-DD). */
 export function edadDesde(fechaISO: string): number {
   const nacimiento = new Date(`${fechaISO}T00:00:00`);

@@ -14,6 +14,8 @@ import {
   validarFechaNacimiento,
   documentoNormalizado,
   coincideBusqueda,
+  urlPerfilRed,
+  urlChatWhatsapp,
 } from "./contactos.ts";
 
 /** Fecha ISO de hace `anios` años (y algunos días de margen para no depender del día de la corrida). */
@@ -197,6 +199,53 @@ test("coincideBusqueda: el documento se suma como criterio (parcial, sin espacio
   assert.equal(coincideBusqueda("9999", ana), false);
   assert.equal(coincideBusqueda("4455", ANA), false, "sin documento no aparece por un número que no tiene");
   assert.equal(coincideBusqueda("ab12", { ...ANA, documento: "AB123456" }), true, "pasaporte con letras");
+});
+
+const PATRON_IG = "https://www.instagram.com/{usuario}";
+
+test("urlPerfilRed: usuario simple, con @ y con URL completa pegada dan el mismo link", () => {
+  assert.equal(urlPerfilRed(PATRON_IG, "instagram", "nadinesalek"), "https://www.instagram.com/nadinesalek");
+  assert.equal(urlPerfilRed(PATRON_IG, "instagram", "@nadinesalek"), "https://www.instagram.com/nadinesalek");
+  assert.equal(
+    urlPerfilRed(PATRON_IG, "instagram", "https://instagram.com/nadinesalek/"),
+    "https://www.instagram.com/nadinesalek"
+  );
+});
+
+test("urlPerfilRed: sin plantilla, sin usuario, o plantilla no-https da null", () => {
+  assert.equal(urlPerfilRed(null, "instagram", "nadinesalek"), null);
+  assert.equal(urlPerfilRed(PATRON_IG, "instagram", ""), null);
+  assert.equal(urlPerfilRed("javascript:alert(1)//{usuario}", "instagram", "x"), null);
+});
+
+test("urlPerfilRed: un usuario con caracteres especiales queda escapado en la URL", () => {
+  assert.equal(urlPerfilRed(PATRON_IG, "instagram", "a b&c"), "https://www.instagram.com/a%20b%26c");
+});
+
+test("urlPerfilRed: la red whatsapp usa solo dígitos (wa.me no entiende otra cosa)", () => {
+  assert.equal(
+    urlPerfilRed("https://wa.me/{usuario}", "whatsapp", "+591 7731 1069"),
+    "https://wa.me/59177311069"
+  );
+  assert.equal(urlPerfilRed("https://wa.me/{usuario}", "whatsapp", "sin números"), null);
+});
+
+test("urlChatWhatsapp: numero internacional da el link de wa.me", () => {
+  assert.equal(urlChatWhatsapp("+59177311069"), "https://wa.me/59177311069");
+  assert.equal(urlChatWhatsapp("+34625844863"), "https://wa.me/34625844863");
+});
+
+test("urlChatWhatsapp: numero crudo sin + no arma link (no se inventa el pais)", () => {
+  assert.equal(urlChatWhatsapp("776326266"), null);
+  assert.equal(urlChatWhatsapp(null), null);
+  assert.equal(urlChatWhatsapp(""), null);
+});
+
+test("urlChatWhatsapp: con texto agrega ?text= codificado", () => {
+  assert.equal(
+    urlChatWhatsapp("+59177311069", "Hola! Se suspendió tu clase"),
+    "https://wa.me/59177311069?text=Hola!%20Se%20suspendi%C3%B3%20tu%20clase"
+  );
 });
 
 test("compararContactosPorApellido: ordena por apellido, luego nombre", () => {

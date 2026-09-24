@@ -11,6 +11,8 @@ import {
   coincideBusqueda,
   documentoComparable,
 } from "@/lib/contactos";
+import IconoRed from "./IconoRed";
+import AbrirChatWhatsapp from "./AbrirChatWhatsapp";
 import { contextoAlumno, nivelesDe, faltantes, presenteDesdeExtra } from "@/lib/matrizMinimos";
 import CamposContacto, { DATOS_CONTACTO_EXTRA_VACIO, type ListasContacto } from "./CamposContacto";
 import { detalleContacto } from "@/app/(privado)/contactos/acciones";
@@ -115,7 +117,8 @@ export default function EntidadAlumno({
               className="w-full text-left bg-[var(--fondo-elevado)] border border-[var(--borde)] rounded-[var(--radio-panel)] px-4 py-3 hover:border-[var(--primario)]"
             >
               <div className="font-medium">{apellidoNombre(a.contacto)}</div>
-              <div className="text-sm text-[var(--texto-tenue)]">
+              <div className="text-sm text-[var(--texto-tenue)] inline-flex items-center gap-1">
+                <IconoRed red="whatsapp" nombre="WhatsApp" className="w-3.5 h-3.5" />
                 {a.es_menor
                   ? `menor · tutor ${a.tutor?.whatsapp || "—"}`
                   : a.contacto.whatsapp || "sin WhatsApp"}
@@ -324,6 +327,7 @@ function FichaAlumno({
           inputMode="tel"
           className="entrada"
         />
+        <AbrirChatWhatsapp numero={wa} />
       </Campo>
 
       {dupAdulto && (
@@ -380,6 +384,7 @@ function FichaAlumno({
                 inputMode="tel"
                 className="entrada"
               />
+              <AbrirChatWhatsapp numero={tutorWa} />
             </Campo>
           </div>
           <p className="text-sm text-[var(--texto-tenue)]">
