@@ -21,23 +21,18 @@
 -- que existian antes de la 0048), y recien despues borra lo nuevo.
 --
 -- QUE SE PIERDE, A PROPOSITO Y MEDIDO (ningun dato de negocio se pierde,
--- pero dos transformos de la 0048 no son perfectamente reversibles):
---   1. `canal_captacion`: la 0048 remapeo 'recomendacion'->'referido' y
---      'volante'->'otro' al crear el contacto. La vuelta copia el valor
---      YA remapeado: un alumno que tenia 'recomendacion' antes de la 0048
---      vuelve con 'referido', no con su valor original. Es la unica
---      transformacion de la 0048 que no guarda de donde vino (no hay
---      `alumnos_previo_0048.canal_captacion_original` separado del
---      remapeado porque el respaldo guarda el valor SIN remapear -- se
---      usa esa copia para los alumnos de antes de la 0048; los de
---      despues, sin respaldo posible, quedan con el valor de `contactos`).
---   2. Texto exacto de `cursos.linea` / `tarifas_particular.estilo` /
---      `paquetes_particular.estilo` para filas CREADAS DESPUES de la
---      0048: se reconstruye desde `estilos.nombre` (el catalogo), no
---      caracter a caracter como estaba escrito a mano. Para las filas de
---      ANTES de la 0048 se usa el respaldo exacto
---      (`cursos_linea_previo_0048`, `tarifas_estilo_previo_0048`).
---   3. Los catalogos que la 0048 sembro (`sexo`, `tipo_relacion`,
+-- pero una transformacion de la 0048 no es perfectamente reversible):
+--   1. Texto exacto de `cursos.linea` / `tarifas_particular.estilo` /
+--      `paquetes_particular.estilo` / `profesores.especialidades` para
+--      filas CREADAS DESPUES de la 0048: se reconstruye desde
+--      `estilos.nombre` (el catalogo), no caracter a caracter como estaba
+--      escrito a mano. Para las filas de ANTES de la 0048 se usa el
+--      respaldo exacto (`cursos_linea_previo_0048`,
+--      `tarifas_estilo_previo_0048`) -- salvo `profesores.especialidades`,
+--      que nunca tuvo respaldo (`profesores_previo_0048` no guarda esa
+--      columna): su reconstruccion puede quedar en otro ORDEN que el
+--      original (mismos valores, orden distinto -- cosmetico).
+--   2. Los catalogos que la 0048 sembro (`sexo`, `tipo_relacion`,
 --      `finalidad_consentimiento`, `medio_consentimiento`, los valores
 --      nuevos de `canal_captacion`) NO se borran. Mismo criterio que
 --      `refresh-dev.mjs` con catalogos y parametros: son aditivos y
@@ -45,6 +40,9 @@
 --      valores que YA existian en produccion antes de la 0048 (el propio
 --      comentario de la 0048 dice que 9 de las 10 opciones nuevas de
 --      canal_captacion "son reales de produccion").
+--   `canal_captacion` y `whatsapp`/`tutor_whatsapp` (alumnos y profesores)
+--   SI se restauran exactos para las filas de antes de la 0048, pisando con
+--   el respaldo -- ver la correccion del 2026-09-24 mas abajo.
 --
 -- QUE SI SE DESHACE POR COMPLETO: las tablas nuevas (contactos y las 16
 -- que cuelgan de ella), `alumnos.contacto_id` / `profesores.contacto_id`
@@ -55,12 +53,18 @@
 -- `profesor_estilos`, `estilos`, las funciones y politicas RLS nuevas, y
 -- los permisos/visibilidad de los 4 modulos nuevos.
 --
--- COMO SE VERIFICA. Se aplica sobre dev (que ya tiene la 0048 aplicada y
--- datos reales de prueba, incluidos los corregidos a mano -- Sebastian
--- Vivancos/Jessica Galvis, Manuel Aguilar/+34), se compara el esquema por
--- hash contra produccion (que nunca tuvo la 0048), y se vuelve a aplicar
--- la 0048 para dejar dev como estaba. El detalle de esa corrida va en
--- docs/ESTADO.md antes del pase.
+-- PROBADO DE PUNTA A PUNTA en dev el 2026-09-24: se aplico el rollback
+-- sobre dev (que ya tenia la 0048 aplicada), se comparo el esquema por hash
+-- contra produccion (que nunca tuvo la 0048) -- **identico**
+-- (`f77cb07573ef5630d784beffdca522aa`) -- y se compararon fila por fila
+-- `alumnos`/`profesores` restaurados contra el dato real de produccion.
+-- Esa comparacion encontro los dos bugs de datos que este script ya tiene
+-- corregidos (ver el comentario junto al UPDATE de abajo): el formato de
+-- whatsapp (quedaba con +591 en vez del crudo original) y el nulificado de
+-- tutor_nombre/tutor_whatsapp cuando el tutor tambien es alumno (produccion
+-- prueba que las dos cosas conviven). Se volvio a aplicar la 0048 despues
+-- para dejar dev como estaba; `tsc`, `npm test` (43/43) y
+-- `control_migracion.sql` limpios.
 --
 -- CUANDO USARLO. Solo si, despues de correr la 0048 en produccion, algo
 -- sale mal ANTES o DESPUES del deploy del codigo nuevo. Se corre este
@@ -82,6 +86,26 @@ delete from public.rol_permisos where modulo in ('contactos', 'contactos_privado
 --    desde `contactos`, para TODAS las filas (no solo las de antes de la
 --    0048 -- un alumno dado de alta despues nunca tuvo estas columnas
 --    escritas).
+--
+--    CORREGIDO tras probar el script de punta a punta en dev (2026-09-24)
+--    y comparar el resultado, fila por fila, contra el dato real de
+--    produccion (que nunca tuvo la 0048): dos bugs encontrados.
+--    1) `whatsapp`/`tutor_whatsapp` quedaban con el prefijo +591 (formato
+--       normalizado de `contactos`) en vez del formato crudo original
+--       (produccion: "77644222"; el bug daba "+59177644222"). Mismo numero,
+--       string distinto -- y el codigo viejo, si se llega a restaurar de
+--       verdad, no espera el prefijo.
+--    2) `tutor_nombre`/`tutor_whatsapp` se ponian en null cuando el tutor
+--       tambien era alumno (`tutor_alumno_id` reconstruido). Produccion
+--       prueba que eso es falso: ids 32/33 (hijas de karola urbari) tienen
+--       LAS DOS COSAS a la vez, `tutor_alumno_id` Y `tutor_nombre`/
+--       `tutor_whatsapp` -- el dato viejo denormalizaba el nombre aunque
+--       hubiera vinculo. Nulificarlo borraba informacion real.
+--    La correccion resincroniza TODO desde `contactos`/`contacto_relaciones`
+--    (necesario para las filas creadas despues de la 0048, que no tienen
+--    respaldo) y despues, para las filas CON respaldo, pisa con el valor
+--    exacto de `*_previo_0048` -- la misma logica que ya se usaba para
+--    `canal_captacion`, extendida a `whatsapp` y a los campos de tutor.
 -- ---------------------------------------------------------------------
 update public.alumnos a
    set nombre = c.nombre,
@@ -93,22 +117,17 @@ update public.alumnos a
 
 -- tutor_alumno_id: si el tutor (contacto_relaciones tipo tutor_de) es EL
 -- MISMO contacto de otro alumno, se reconstruye el vinculo alumno-a-alumno
--- de antes. Si no, el tutor era "solo texto": se reconstruye en
--- tutor_nombre/tutor_whatsapp.
+-- de antes. tutor_nombre/tutor_whatsapp se denormalizan SIEMPRE desde el
+-- contacto del tutor -- con o sin tutor_alumno_id -- porque asi vivia el
+-- dato antes de la 0048 (confirmado contra produccion).
 update public.alumnos a
-   set tutor_alumno_id = ta.id, tutor_nombre = null, tutor_whatsapp = null
-  from public.contacto_relaciones cr
-  join public.alumnos ta on ta.contacto_id = cr.desde_id
- where cr.hacia_id = a.contacto_id and cr.tipo = 'tutor_de' and a.es_menor;
-
-update public.alumnos a
-   set tutor_alumno_id = null,
+   set tutor_alumno_id = ta.id,
        tutor_nombre = coalesce(nullif(trim(coalesce(tc.nombre, '') || ' ' || coalesce(tc.apellido, '')), ''), 'Tutor sin nombre'),
        tutor_whatsapp = tc.whatsapp
   from public.contacto_relaciones cr
   join public.contactos tc on tc.id = cr.desde_id
- where cr.hacia_id = a.contacto_id and cr.tipo = 'tutor_de' and a.es_menor
-   and not exists (select 1 from public.alumnos ta2 where ta2.contacto_id = cr.desde_id);
+  left join public.alumnos ta on ta.contacto_id = cr.desde_id
+ where cr.hacia_id = a.contacto_id and cr.tipo = 'tutor_de' and a.es_menor;
 
 -- referido_por_alumno_id (0 filas medidas al escribir la 0048; se deja el
 -- mapeo por si deja de estarlo).
@@ -118,17 +137,32 @@ update public.alumnos a
   join public.alumnos ra on ra.contacto_id = cr.desde_id
  where cr.hacia_id = a.contacto_id and cr.tipo = 'referido_por';
 
--- Filas de ANTES de la 0048: el respaldo exacto pisa el remapeo de
--- canal_captacion (recomendacion/volante), que el paso de arriba no
--- puede deshacer porque copia el valor YA remapeado.
+-- Filas de ANTES de la 0048: el respaldo exacto pisa TODO lo resincronizado
+-- arriba -- el whatsapp normalizado, el remapeo de canal_captacion
+-- (recomendacion/volante) y los campos de tutor reconstruidos -- porque para
+-- estas filas ya tenemos el valor original tal cual estaba, sin adivinar.
 update public.alumnos a
-   set canal_captacion = prev.canal_captacion
+   set whatsapp = prev.whatsapp,
+       tutor_alumno_id = prev.tutor_alumno_id,
+       tutor_nombre = prev.tutor_nombre,
+       tutor_whatsapp = prev.tutor_whatsapp,
+       canal_captacion = prev.canal_captacion
   from public.alumnos_previo_0048 prev
  where prev.alumno_id = a.id;
 
 
 -- ---------------------------------------------------------------------
 -- 2. RESINCRONIZAR PROFESORES
+--    Mismo bug 1) de arriba: `whatsapp` via `contactos` queda normalizado
+--    con +591. Se corrige igual, pisando con el respaldo exacto para las
+--    filas de antes de la 0048.
+--    (`especialidades` NO tiene este mismo respaldo -- `profesores_previo_
+--    0048` nunca guardo esa columna -- asi que su reconstruccion desde
+--    `profesor_estilos` puede quedar en OTRO ORDEN que el original. Mismos
+--    valores, orden distinto: cosmetico, no es perdida de dato. Si algun
+--    dia importa, hay que agregar la columna al respaldo ANTES de correr la
+--    0048 de nuevo -- este rollback no puede inventar un orden que nunca
+--    guardo.)
 -- ---------------------------------------------------------------------
 update public.profesores p
    set nombre = c.nombre,
@@ -136,6 +170,11 @@ update public.profesores p
        whatsapp = c.whatsapp
   from public.contactos c
  where c.id = p.contacto_id;
+
+update public.profesores p
+   set whatsapp = prev.whatsapp
+  from public.profesores_previo_0048 prev
+ where prev.profesor_id = p.id;
 
 
 -- ---------------------------------------------------------------------

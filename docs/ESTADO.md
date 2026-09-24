@@ -82,24 +82,76 @@
 > `consentimientos`/`profesor_estilos` después. **Pantalla nueva**: Catálogos
 > suma la sección **Estilos** (agregar, renombrar, activar/desactivar).
 >
-> **`scripts/rollback_0048_contactos.sql` escrito, sin probar todavía.** A
-> diferencia del rollback de la 0047 (puro renombre, simétrico), este es un
+> **`scripts/rollback_0048_contactos.sql` probado de punta a punta en dev,
+> 2026-09-24 (después de esta misma actualización).** A diferencia del
+> rollback de la 0047 (puro renombre, simétrico), este es un
 > **resincronizado**: copia hacia las columnas viejas todo lo que hoy vive en
 > `contactos` y las tablas nuevas —para TODAS las filas, no solo las de antes
 > de la 0048, porque el código nuevo ya dejó de escribir ahí— y recién
-> después borra lo nuevo. Documenta explícitamente qué no es perfectamente
-> reversible (el remapeo de `canal_captacion`, el texto exacto de estilos
-> escritos a mano después de la 0048) y por qué los catálogos sembrados no se
-> borran (mismo criterio que `refresh-dev.mjs`: aditivos, nunca se sabe con
-> certeza cuáles ya existían en producción). **Falta**: correrlo en dev,
-> comparar por hash contra el esquema pre-0048 de producción, y volver a
-> aplicar la 0048 — Javier prefirió dejarlo para más adelante, antes del pase,
-> en vez de ahora.
+> después borra lo nuevo.
 >
-> **Pendiente antes de proponer el pase a producción**: probar el rollback
-> (arriba), actualizar `docs/REGLAS.md` (glosario) y `docs/DECISIONES.md`
-> (cerrar D12, registrar las postergadas nuevas), y el commit local de todo
-> este trabajo — nada de esto se pasó a producción, nada se pusheó.
+> **Metodología**: se tomó el hash MD5 de columnas + restricciones + índices
+> + políticas de las 7 tablas que la 0048 toca (`alumnos`, `profesores`,
+> `cursos`, `tarifas_particular`, `paquetes_particular`, `alquileres_sala`,
+> `pagos`) contra **producción**, que nunca tuvo la 0048 y por lo tanto ES el
+> esquema pre-0048 de referencia (`f77cb07573ef5630d784beffdca522aa`). Se
+> aplicó el rollback sobre dev (que ya tenía la 0048 con datos reales de
+> prueba) y se repitió el mismo hash: **idéntico**. Hasta ahí, igual que la
+> 0047. La diferencia es que esta vez además se comparó, fila por fila, el
+> contenido reconstruido de `alumnos`/`profesores` contra el dato **real** de
+> producción (mismos alumnos, mismos IDs, nunca tocados por ninguna
+> migración) — no alcanza con que el esquema coincida si el dato que
+> reconstruye está mal.
+>
+> **Esa comparación encontró 2 bugs reales en el script** (no en la 0048
+> misma, que sigue intacta):
+> 1. `whatsapp`/`tutor_whatsapp` quedaban con el prefijo `+591` (el formato
+>    normalizado de `contactos`) en vez del formato crudo original que
+>    producción todavía conserva (`"77644222"`, no `"+59177644222"` — mismo
+>    número, string distinto). El script sí corregía este mismo problema para
+>    `canal_captacion` (pisando con el respaldo `*_previo_0048` exacto) pero
+>    no lo hacía para `whatsapp`, aunque el respaldo también lo guarda.
+> 2. `tutor_nombre`/`tutor_whatsapp` se ponían en `null` cada vez que el
+>    tutor también resultaba ser alumno (`tutor_alumno_id` reconstruido) — el
+>    script asumía que las dos formas de guardar el tutor eran excluyentes.
+>    Producción prueba que es falso: los IDs 32/33 (hijas de "karola urbari")
+>    tienen **las dos cosas a la vez**, `tutor_alumno_id` Y
+>    `tutor_nombre`/`tutor_whatsapp` poblados — el dato viejo denormalizaba
+>    el nombre aunque hubiera vínculo. Nulificarlo borraba información real
+>    que un rollback de verdad tendría que devolver.
+>
+> **Los dos se corrigieron en el script** (resincroniza todo desde
+> `contactos`/`contacto_relaciones` — necesario para filas creadas después de
+> la 0048, sin respaldo posible — y para las filas CON respaldo pisa con el
+> valor exacto de `alumnos_previo_0048`/`profesores_previo_0048`, extendiendo
+> a `whatsapp` y a los campos de tutor la misma lógica que ya protegía a
+> `canal_captacion`). **Se volvió a probar el script ya corregido, de punta a
+> punta**: mismo hash de esquema contra producción, y esta vez los IDs 32/33
+> y el whatsapp de todos los alumnos coincidieron exactos con producción. Se
+> volvió a aplicar la 0048 para dejar dev funcional: `tsc`, `npm test`
+> (43/43) y los controles 1, 2, 15, 22, 24, 25, 26 de `control_migracion.sql`
+> en **OK** (el 23 en REVISAR con 2 casos, a propósito — los mismos de
+> siempre: Lucas Campero de 9 dígitos y Manuel Aguilar `+34`).
+>
+> **Qué queda documentado como límite conocido, no bug**: el texto exacto de
+> `cursos.linea`/`tarifas_particular.estilo`/`paquetes_particular.estilo`
+> para filas creadas después de la 0048 se reconstruye desde el catálogo
+> `estilos`, no carácter a carácter (mismo criterio que ya tenía el script,
+> sin cambios). Y `profesores.especialidades`: el ORDEN del array puede
+> quedar distinto al original (mismos valores) porque `profesores_previo_0048`
+> nunca guardó esa columna — no hay de dónde restaurar el orden exacto.
+> Cosmético, no pérdida de dato.
+>
+> **Dev, entre medio, quedó momentáneamente con datos de prueba
+> desincronizados** (Javier: *"los datos de dev me son irrelevantes, solo los
+> uso para pruebas... sin perjudicar la prueba"*) — no afectó la validez de
+> la prueba porque lo que se estaba verificando es el **script**, no la
+> fidelidad de los datos de dev en sí.
+>
+> **Pendiente antes de proponer el pase a producción**: actualizar
+> `docs/REGLAS.md` (glosario) y `docs/DECISIONES.md` (cerrar D12, registrar
+> las postergadas nuevas), y el commit local de todo este trabajo — nada de
+> esto se pasó a producción, nada se pusheó.
 >
 > **2026-09-24 (antes)** — **D1 + D3: la membresía queda con un
 > solo nombre, en producción.** Migración **0047** (`inscripciones`→`membresias`,
