@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import Link from "next/link";
 import type { Alumno, DatosAlumno, MatrizMinimo } from "@/lib/tipos";
 import { soloDigitos } from "@/lib/texto";
 import {
@@ -15,6 +16,8 @@ import IconoRed from "./IconoRed";
 import AbrirChatWhatsapp from "./AbrirChatWhatsapp";
 import { contextoAlumno, nivelesDe, faltantes, presenteDesdeExtra } from "@/lib/matrizMinimos";
 import CamposContacto, { DATOS_CONTACTO_EXTRA_VACIO, type ListasContacto } from "./CamposContacto";
+import VistaContacto, { Dato, type ModoFicha } from "./VistaContacto";
+import EnlaceWhatsapp from "./EnlaceWhatsapp";
 import { detalleContacto } from "@/app/(privado)/contactos/acciones";
 
 type Canal = { valor: string; etiqueta: string };
@@ -38,9 +41,12 @@ export default function EntidadAlumno({
   permitirBaja = false,
   abrirAlElegir = true,
   valor = null,
+  modoInicial = "editar",
+  puedeEditar = false,
   depsDe,
   onGuardar,
   onBaja,
+  onActivar,
   onSelect,
   onCancelar,
 }: {
@@ -54,14 +60,33 @@ export default function EntidadAlumno({
   permitirBaja?: boolean;
   abrirAlElegir?: boolean;
   valor?: Alumno | null;
+  /** Cómo se abre `valor`: editando (el usuario pidió editar) o para ver. */
+  modoInicial?: ModoFicha;
+  /** Si el rol puede editar un alumno existente (`alumnos` · `editar`). */
+  puedeEditar?: boolean;
   depsDe?: (id: number) => number | undefined;
   onGuardar?: (datos: DatosAlumno, id: number | null) => Promise<{ error?: string }>;
   onBaja?: (id: number) => Promise<{ error?: string; accion?: string }>;
+  onActivar?: (id: number) => Promise<{ error?: string }>;
   onSelect?: (a: Alumno) => void;
   onCancelar?: () => void;
 }) {
   const [ficha, setFicha] = useState<Alumno | "nuevo" | null>(valor);
+  // Elegir a alguien lo abre para VER; editar es un paso explícito, y solo
+  // si el rol puede (Javier, 2026-09-24).
+  const [modo, setModo] = useState<ModoFicha>(valor ? modoInicial : "editar");
+  const [volverAVista, setVolverAVista] = useState(false);
   const [q, setQ] = useState("");
+
+  function abrir(a: Alumno | "nuevo", m: ModoFicha) {
+    setFicha(a);
+    setModo(m);
+    setVolverAVista(false);
+  }
+  function cerrar() {
+    setFicha(null);
+    onCancelar?.();
+  }
 
   const resultados = padron
     .filter((a) =>
@@ -75,9 +100,14 @@ export default function EntidadAlumno({
     .slice(0, 5);
 
   if (ficha) {
+    const existente = ficha === "nuevo" ? null : ficha;
     return (
       <FichaAlumno
-        inicial={ficha === "nuevo" ? null : ficha}
+        // Cambiar de modo remonta la ficha: volver a la vista descarta lo tipeado.
+        key={`${existente?.id ?? "nuevo"}-${modo}`}
+        inicial={existente}
+        viendo={!!existente && modo === "ver"}
+        puedeEditar={puedeEditar}
         padron={padron}
         canales={canales}
         matriz={matriz}
@@ -85,14 +115,22 @@ export default function EntidadAlumno({
         puedeVerPrivados={puedeVerPrivados}
         enPrueba={enPrueba}
         permitirBaja={permitirBaja}
-        deps={ficha !== "nuevo" && depsDe ? depsDe(ficha.id) : undefined}
-        onAbrir={(a) => setFicha(a)}
+        deps={existente && depsDe ? depsDe(existente.id) : undefined}
+        onAbrir={(a) => abrir(a, "ver")}
+        onEditar={() => {
+          setModo("editar");
+          setVolverAVista(true);
+        }}
         onGuardar={onGuardar}
         onBaja={onBaja}
-        onCerrar={() => {
-          setFicha(null);
-          onCancelar?.();
+        onActivar={onActivar}
+        onCancelar={() => {
+          if (volverAVista) {
+            setModo("ver");
+            setVolverAVista(false);
+          } else cerrar();
         }}
+        onCerrar={cerrar}
       />
     );
   }
@@ -113,7 +151,7 @@ export default function EntidadAlumno({
           resultados.map((a) => (
             <button
               key={a.id}
-              onClick={() => (abrirAlElegir ? setFicha(a) : onSelect?.(a))}
+              onClick={() => (abrirAlElegir ? abrir(a, "ver") : onSelect?.(a))}
               className="w-full text-left bg-[var(--fondo-elevado)] border border-[var(--borde)] rounded-[var(--radio-panel)] px-4 py-3 hover:border-[var(--primario)]"
             >
               <div className="font-medium">{apellidoNombre(a.contacto)}</div>
@@ -128,7 +166,7 @@ export default function EntidadAlumno({
         ))}
 
       <button
-        onClick={() => setFicha("nuevo")}
+        onClick={() => abrir("nuevo", "editar")}
         className="w-full px-5 py-3 text-base font-semibold rounded-[var(--radio-control)] bg-[var(--fondo-elevado)] border border-[var(--borde)] hover:border-[var(--primario)]"
       >
         + Alumno nuevo
@@ -139,6 +177,8 @@ export default function EntidadAlumno({
 
 function FichaAlumno({
   inicial,
+  viendo,
+  puedeEditar,
   padron,
   canales,
   matriz,
@@ -148,11 +188,16 @@ function FichaAlumno({
   permitirBaja,
   deps,
   onAbrir,
+  onEditar,
   onGuardar,
   onBaja,
+  onActivar,
+  onCancelar,
   onCerrar,
 }: {
   inicial: Alumno | null;
+  viendo: boolean;
+  puedeEditar: boolean;
   padron: Alumno[];
   canales: Canal[];
   matriz: MatrizMinimo[];
@@ -162,8 +207,11 @@ function FichaAlumno({
   permitirBaja: boolean;
   deps?: number;
   onAbrir: (a: Alumno) => void;
+  onEditar: () => void;
   onGuardar?: (datos: DatosAlumno, id: number | null) => Promise<{ error?: string }>;
   onBaja?: (id: number) => Promise<{ error?: string; accion?: string }>;
+  onActivar?: (id: number) => Promise<{ error?: string }>;
+  onCancelar: () => void;
   onCerrar: () => void;
 }) {
   const [nombre, setNombre] = useState(inicial?.contacto.nombre ?? "");
@@ -176,6 +224,8 @@ function FichaAlumno({
     sexo: inicial?.contacto.sexo ?? null,
   });
 
+  const [detalleListo, setDetalleListo] = useState(!inicial);
+
   // Redes/documento/consentimiento no viajan en el padrón (tablas aparte):
   // se piden al abrir la ficha de un alumno existente, no para toda la lista.
   useEffect(() => {
@@ -183,6 +233,7 @@ function FichaAlumno({
     let vivo = true;
     detalleContacto(inicial.contacto_id).then((d) => {
       if (!vivo) return;
+      setDetalleListo(true);
       setExtra((e) => ({
         ...e,
         redes: d.redes.map((r) => ({ red: r.red, usuario: r.usuario })),
@@ -295,13 +346,112 @@ function FichaAlumno({
     });
   }
 
+  function activar() {
+    if (!inicial) return;
+    setError(null);
+    startTransition(async () => {
+      const res = await onActivar?.(inicial.id);
+      if (res?.error) setError(res.error);
+      else onCerrar();
+    });
+  }
+
   const tieneHistorial = (deps ?? 0) > 0;
+
+  if (viendo && inicial) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xl">Alumno</h3>
+          <button onClick={onCerrar} className="text-[var(--texto-tenue)] hover:text-[var(--texto)]">
+            Cerrar
+          </button>
+        </div>
+
+        <div className="text-lg font-semibold">
+          {nombreCompleto(inicial.contacto)}
+          {!inicial.activo && <span className="ml-2 text-sm font-normal text-[var(--texto-tenue)]">(inactivo)</span>}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Dato etiqueta="WhatsApp">
+            <EnlaceWhatsapp numero={inicial.contacto.whatsapp} vacio="—" />
+          </Dato>
+          {inicial.es_menor && (
+            <Dato etiqueta="Tutor (es menor)">
+              {inicial.tutor ? nombreCompleto(inicial.tutor) : "—"}
+              {inicial.tutor?.whatsapp && (
+                <>
+                  {" · "}
+                  <EnlaceWhatsapp numero={inicial.tutor.whatsapp} vacio="—" />
+                </>
+              )}
+            </Dato>
+          )}
+          {(niveles.canal_captacion !== "-" || !!canal) && (
+            <Dato etiqueta="Canal de captación">
+              {canal ? canales.find((c) => c.valor === canal)?.etiqueta ?? canal : "—"}
+            </Dato>
+          )}
+          <VistaContacto
+            niveles={niveles}
+            listas={listasContacto}
+            valor={extra}
+            puedeVerPrivados={puedeVerPrivados}
+            cargando={!detalleListo}
+          />
+        </div>
+
+        {error && (
+          <p className="text-[var(--peligro)] text-base" role="alert">
+            {error}
+          </p>
+        )}
+
+        {/* Las mismas acciones que la fila del padrón. */}
+        <div className="flex flex-wrap gap-2">
+          <Link href={`/alumnos/${inicial.id}/cuenta`} className={BOTON_FILA}>
+            Cuenta
+          </Link>
+          {puedeEditar && (
+            <button onClick={onEditar} className={BOTON_FILA}>
+              Editar
+            </button>
+          )}
+          {permitirBaja &&
+            (inicial.activo ? (
+              <button
+                onClick={baja}
+                disabled={pendiente}
+                className={`${BOTON_FILA_BASE} border-[var(--peligro)] text-[var(--peligro)] disabled:opacity-40`}
+              >
+                {tieneHistorial ? "Desactivar" : "Eliminar"}
+              </button>
+            ) : (
+              <button
+                onClick={activar}
+                disabled={pendiente}
+                className={`${BOTON_FILA_BASE} border-[var(--exito)] text-[var(--exito)] disabled:opacity-40`}
+              >
+                Activar
+              </button>
+            ))}
+        </div>
+        {permitirBaja && tieneHistorial && inicial.activo && (
+          <p className="text-xs text-[var(--texto-tenue)]">Tiene historial: se desactiva, no se elimina.</p>
+        )}
+        {!puedeEditar && (
+          <p className="text-sm text-[var(--texto-tenue)]">Tu rol puede ver este alumno, no editarlo.</p>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-xl">{inicial ? "Editar alumno" : "Alumno nuevo"}</h3>
-        <button onClick={onCerrar} className="text-[var(--texto-tenue)] hover:text-[var(--texto)]">
+        <button onClick={onCancelar} className="text-[var(--texto-tenue)] hover:text-[var(--texto)]">
           Cancelar
         </button>
       </div>
@@ -509,6 +659,9 @@ function FichaAlumno({
     </div>
   );
 }
+
+const BOTON_FILA_BASE = "px-4 py-1.5 text-sm rounded-[var(--radio-control)] border";
+const BOTON_FILA = `${BOTON_FILA_BASE} border-[var(--borde)] hover:border-[var(--primario)]`;
 
 function PanelDupe({
   titulo,

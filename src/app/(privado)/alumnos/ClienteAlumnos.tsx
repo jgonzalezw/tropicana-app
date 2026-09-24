@@ -18,6 +18,7 @@ export default function ClienteAlumnos({
   matriz,
   listasContacto,
   puedeVerPrivados,
+  puedeEditar,
 }: {
   alumnos: Alumno[];
   canales: Canal[];
@@ -25,6 +26,7 @@ export default function ClienteAlumnos({
   matriz: MatrizMinimo[];
   listasContacto: ListasContacto;
   puedeVerPrivados: boolean;
+  puedeEditar: boolean;
 }) {
   const router = useRouter();
   const [editSel, setEditSel] = useState<Alumno | null>(null);
@@ -38,6 +40,15 @@ export default function ClienteAlumnos({
 
   async function onGuardar(datos: DatosAlumno, id: number | null) {
     const res = id ? await actualizarAlumno(id, datos) : await crearAlumno(datos);
+    if (!res?.error) {
+      setEditSel(null);
+      setRemount((n) => n + 1);
+      router.refresh();
+    }
+    return res ?? {};
+  }
+  async function onActivar(id: number) {
+    const res = await activarAlumno(id);
     if (!res?.error) {
       setEditSel(null);
       setRemount((n) => n + 1);
@@ -70,7 +81,7 @@ export default function ClienteAlumnos({
     <div className="space-y-6">
       <div className="bg-[var(--fondo-panel)] border border-[var(--borde)] rounded-[var(--radio-tarjeta)] p-6 max-w-2xl">
         <div className="text-base font-medium mb-3">
-          {editSel ? "Editar alumno" : "Buscar o cargar alumno"}
+          {editSel ? "Alumno" : "Buscar o cargar alumno"}
         </div>
         <EntidadAlumno
           key={remount}
@@ -81,9 +92,12 @@ export default function ClienteAlumnos({
           puedeVerPrivados={puedeVerPrivados}
           permitirBaja
           valor={editSel}
+          modoInicial={puedeEditar ? "editar" : "ver"}
+          puedeEditar={puedeEditar}
           depsDe={(id) => deps[id]}
           onGuardar={onGuardar}
           onBaja={onBaja}
+          onActivar={onActivar}
           onCancelar={() => setEditSel(null)}
         />
       </div>
@@ -137,7 +151,7 @@ export default function ClienteAlumnos({
                         }}
                         className="px-4 py-1.5 text-sm rounded-[var(--radio-control)] border border-[var(--borde)] hover:border-[var(--primario)]"
                       >
-                        Editar
+                        {puedeEditar ? "Editar" : "Ver"}
                       </button>
                       {a.activo ? (
                         <button

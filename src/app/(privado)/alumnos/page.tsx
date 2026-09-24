@@ -13,13 +13,14 @@ export default async function PaginaAlumnos() {
 
   const supabase = await createClient();
 
-  const [{ data: alumnosRaw }, { data: cat }, { data: insc }, { data: pagosAl }, contactoListas] =
+  const [{ data: alumnosRaw }, { data: cat }, { data: insc }, { data: pagosAl }, contactoListas, puedeEditar] =
     await Promise.all([
       supabase.from("alumnos").select("*, contacto:contactos(*, privados:contactos_privados(numero))"),
       supabase.from("catalogos").select("id").eq("clave", "canal_captacion").maybeSingle(),
       supabase.from("membresias").select("alumno_id"),
       supabase.from("pagos").select("alumno_id"),
       cargarListasContacto(),
+      tienePermiso("alumnos", "editar"),
     ]);
 
   const alumnos = ((alumnosRaw as Alumno[]) ?? []).slice();
@@ -72,6 +73,7 @@ export default async function PaginaAlumnos() {
         matriz={contactoListas.matriz}
         listasContacto={contactoListas.listas}
         puedeVerPrivados={contactoListas.puedeVerPrivados}
+        puedeEditar={puedeEditar}
       />
     </div>
   );

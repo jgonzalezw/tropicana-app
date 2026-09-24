@@ -143,6 +143,21 @@ export default function VenderPrueba({
   }));
   const faltaAlgunaFecha = cuandoAsiste.some((c) => !c.fecha);
 
+  // Cambiar de alumno reinicia todo lo que viene después: si no, una venta a
+  // medias deja el plan y los cursos del anterior.
+  function elegirAlumno(al: Alumno | null) {
+    setAlumno(al);
+    setPlan(null);
+    setCursoIds([]);
+    setAcompanantes("0");
+    setFechaPorCurso({});
+    setRetroActivo(false);
+    setCobro(null);
+    setFechaCompromiso("");
+    setError(null);
+    setAviso(null);
+  }
+
   async function guardarAlumnoNuevo(datos: DatosAlumno) {
     const res = await crearAlumnoDesdeInscripcion(datos);
     if (res.alumno) {
@@ -242,34 +257,28 @@ export default function VenderPrueba({
           {/* 1 · Quién viene */}
           <section className="rounded-[var(--radio-tarjeta)] bg-[var(--fondo-panel)] border border-[var(--borde)] p-5">
             <h2 className="titulo text-xl mb-3">¿Quién viene a probar?</h2>
-            <EntidadAlumno
-              key={remountAlumno}
-              padron={alumnos}
-              canales={canales}
-              matriz={matriz}
-              listasContacto={listasContacto}
-              puedeVerPrivados={puedeVerPrivados}
-              enPrueba
-              abrirAlElegir={false}
-              // Cambiar de alumno reinicia todo lo que viene después: si no,
-              // una venta a medias deja el plan y los cursos del anterior.
-              onSelect={(al) => {
-                setAlumno(al);
-                setPlan(null);
-                setCursoIds([]);
-                setAcompanantes("0");
-                setFechaPorCurso({});
-                setRetroActivo(false);
-                setCobro(null);
-                setFechaCompromiso("");
-                setError(null);
-                setAviso(null);
-              }}
-              onGuardar={guardarAlumnoNuevo}
-            />
-            {alumno && (
-              <div className="mt-3 rounded-[var(--radio-panel)] border border-[var(--borde)] p-3">
-                <div className="text-lg font-semibold">{nombreCompleto(alumno.contacto)}</div>
+            {alumno ? (
+              <div className="rounded-[var(--radio-panel)] bg-[var(--fondo-elevado)] p-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-lg font-semibold">{nombreCompleto(alumno.contacto)}</div>
+                    <div className="text-sm text-[var(--texto-tenue)] mt-0.5">
+                      {alumno.es_menor
+                        ? `menor · tutor ${alumno.tutor?.whatsapp || "—"}`
+                        : alumno.contacto.whatsapp || "sin WhatsApp"}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      elegirAlumno(null);
+                      setRemountAlumno((n) => n + 1);
+                    }}
+                    className="text-[var(--primario)] text-base shrink-0"
+                  >
+                    Cambiar
+                  </button>
+                </div>
                 <label className="block mt-3 max-w-[260px]">
                   <span className="block text-base font-medium mb-1.5">
                     ¿Cuántos vienen con él o ella?
@@ -286,6 +295,19 @@ export default function VenderPrueba({
                   </span>
                 </label>
               </div>
+            ) : (
+              <EntidadAlumno
+                key={remountAlumno}
+                padron={alumnos}
+                canales={canales}
+                matriz={matriz}
+                listasContacto={listasContacto}
+                puedeVerPrivados={puedeVerPrivados}
+                enPrueba
+                abrirAlElegir={false}
+                onSelect={elegirAlumno}
+                onGuardar={guardarAlumnoNuevo}
+              />
             )}
           </section>
 

@@ -27,6 +27,7 @@ export default function ClienteProfesores({
   matriz,
   listasContacto,
   puedeVerPrivados,
+  puedeEditar,
 }: {
   padron: Profesor[];
   cursos: Curso[];
@@ -37,6 +38,7 @@ export default function ClienteProfesores({
   matriz: MatrizMinimo[];
   listasContacto: ListasContacto;
   puedeVerPrivados: boolean;
+  puedeEditar: boolean;
 }) {
   const [tab, setTab] = useState<"listado" | "asignacion">("listado");
 
@@ -67,6 +69,7 @@ export default function ClienteProfesores({
           matriz={matriz}
           listasContacto={listasContacto}
           puedeVerPrivados={puedeVerPrivados}
+          puedeEditar={puedeEditar}
         />
       ) : (
         <TabAsignacion padron={padron} cursos={cursos} asignaciones={asignaciones} estilos={estilos} />
@@ -88,6 +91,7 @@ function TabListado({
   matriz,
   listasContacto,
   puedeVerPrivados,
+  puedeEditar,
 }: {
   padron: Profesor[];
   cuentas: Cuenta[];
@@ -96,6 +100,7 @@ function TabListado({
   matriz: MatrizMinimo[];
   listasContacto: ListasContacto;
   puedeVerPrivados: boolean;
+  puedeEditar: boolean;
 }) {
   const router = useRouter();
   const [editSel, setEditSel] = useState<Profesor | null>(null);
@@ -107,6 +112,15 @@ function TabListado({
 
   async function onGuardar(datos: DatosProfesor, id: number | null) {
     const res = id ? await actualizarProfesor(id, datos) : await crearProfesor(datos);
+    if (!res?.error) {
+      setEditSel(null);
+      setRemount((n) => n + 1);
+      router.refresh();
+    }
+    return res ?? {};
+  }
+  async function onActivar(id: number) {
+    const res = await activarProfesor(id);
     if (!res?.error) {
       setEditSel(null);
       setRemount((n) => n + 1);
@@ -140,7 +154,7 @@ function TabListado({
     <div className="space-y-6">
       <div className="bg-[var(--fondo-panel)] border border-[var(--borde)] rounded-[var(--radio-tarjeta)] p-6 max-w-xl">
         <div className="text-base font-medium mb-3">
-          {editSel ? "Editar profesor" : "Buscar o cargar profesor"}
+          {editSel ? "Profesor" : "Buscar o cargar profesor"}
         </div>
         <EntidadProfesor
           key={remount}
@@ -152,9 +166,12 @@ function TabListado({
           puedeVerPrivados={puedeVerPrivados}
           permitirBaja
           valor={editSel}
+          modoInicial={puedeEditar ? "editar" : "ver"}
+          puedeEditar={puedeEditar}
           depsDe={(id) => deps[id]}
           onGuardar={onGuardar}
           onBaja={onBaja}
+          onActivar={onActivar}
           onCancelar={() => setEditSel(null)}
         />
       </div>
@@ -206,7 +223,7 @@ function TabListado({
                         }}
                         className="px-4 py-1.5 text-sm rounded-[var(--radio-control)] border border-[var(--borde)] hover:border-[var(--primario)]"
                       >
-                        Editar
+                        {puedeEditar ? "Editar" : "Ver"}
                       </button>
                       {p.activo ? (
                         <button

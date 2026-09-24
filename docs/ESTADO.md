@@ -6,9 +6,45 @@
 > `docs/design/README.md` (fuente de verdad del **diseño**), `docs/CONTEXTO_AVANCE.md`
 > (bitácora larga de Etapa 0), `docs/DESIGN_SYNC.md` (cómo entran los handoffs).
 >
-> **Última actualización:** 2026-09-24 — **El `@usuario` de una red social
-> abre el perfil, y el WhatsApp abre el chat, con el ícono de cada red. En
-> dev**, esperando el OK del pase (junto con lo de abajo).
+> **Última actualización:** 2026-09-24 — **Inscribir alineado, la clase de
+> prueba deja de quedar ambigua al elegir alumno, y la ficha de Alumnos/
+> Profesores abre para VER, no para editar. En dev**, esperando prueba y OK
+> de Javier.
+>
+> Tres fallas que Javier encontró probando en producción:
+>
+> 1. **Inscribir desalineado** en pantalla ancha: el cuerpo de "Inscripción"
+>    llevaba `mx-auto` y se centraba solo; ni las pestañas de arriba ni
+>    "Clase de prueba" lo llevaban. Se sacó el `mx-auto` — todo a la
+>    izquierda, como el resto de la app (`ClienteInscribir.tsx`).
+> 2. **Clase de prueba quedaba "esperando"** después de elegir un alumno: el
+>    buscador, la lista y "+ Alumno nuevo" seguían a la vista (`VenderPrueba.tsx`
+>    mostraba `EntidadAlumno` siempre, solo agregaba el elegido debajo). Ahora
+>    sigue el mismo patrón que "Inscripción": elegido el alumno, el buscador
+>    se reemplaza por su tarjeta con "Cambiar".
+> 3. **Alumnos y Profesores abrían la ficha editando** al elegir de la
+>    búsqueda. Ahora abre para **VER** (`VistaContacto.tsx`, pieza nueva
+>    compartida: WhatsApp con link, redes con ícono y link, documento y
+>    fecha de nacimiento si el rol tiene `contactos_privados`, canal, y —para
+>    profesor— tipo/estilos/tarifa/cuenta), con las mismas acciones que la
+>    fila del padrón (Cuenta, Editar, Desactivar/Activar). "Editar" solo
+>    aparece si el rol tiene `alumnos`/`profesores` · `editar`
+>    (`tienePermiso`, calculado en `page.tsx` y pasado como `puedeEditar`);
+>    si no, un aviso lo explica (regla de calidad 5) y el botón de la fila
+>    dice "Ver". "Cancelar" desde una edición abierta por este camino vuelve
+>    a la vista, no cierra la ficha. Sin migración — usa el permiso `editar`
+>    que ya existía en Roles y Permisos.
+>
+> Verificado en dev: las dos pestañas de Inscribir arrancan en el mismo
+> borde en pantalla ancha; elegir un alumno en la prueba hace desaparecer
+> buscador/lista/"+ nuevo" y deja la tarjeta con acompañantes; en Alumnos y
+> Profesores, elegir de la búsqueda abre sin ningún campo editable, con
+> "Editar" → formulario → "Cancelar" → vuelve a la vista; la ficha de Nadine
+> Salek en modo ver muestra su Instagram con link y su documento. 75/75
+> tests, `tsc`, lint y build limpios.
+>
+> **2026-09-24 (antes)** — **El `@usuario` de una red social
+> abre el perfil, y el WhatsApp abre el chat, con el ícono de cada red.**
 >
 > Pedido de Javier tras usar C3-0a en producción: que el `@usuario` de
 > Instagram/Facebook/TikTok abra el perfil en una pestaña nueva, que el

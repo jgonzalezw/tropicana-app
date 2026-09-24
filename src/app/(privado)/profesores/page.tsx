@@ -21,6 +21,7 @@ export default async function PaginaProfesores() {
     { data: estilosRaw },
     { data: profEstilos },
     contactoListas,
+    puedeEditar,
   ] = await Promise.all([
     supabase.from("profesores").select("*, contacto:contactos(*, privados:contactos_privados(numero))"),
     supabase.from("cursos").select("*").eq("activo", true).order("nombre"),
@@ -29,6 +30,7 @@ export default async function PaginaProfesores() {
     supabase.from("estilos").select("*").eq("activo", true).order("orden"),
     supabase.from("profesor_estilos").select("profesor_id, estilo"),
     cargarListasContacto(),
+    tienePermiso("profesores", "editar"),
   ]);
 
   const padron = (profesoresRaw as Profesor[]) ?? [];
@@ -72,6 +74,7 @@ export default async function PaginaProfesores() {
         matriz={contactoListas.matriz}
         listasContacto={contactoListas.listas}
         puedeVerPrivados={contactoListas.puedeVerPrivados}
+        puedeEditar={puedeEditar}
       />
     </div>
   );

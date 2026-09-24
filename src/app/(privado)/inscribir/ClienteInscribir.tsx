@@ -301,7 +301,7 @@ export default function ClienteInscribir({
     !!alumno && !!plan && !!fechaSel && limiteOk && diasConteo.length > 0 && !pendiente && !yaTiene;
 
   return (
-    <div className="p-6 sm:p-8 max-w-3xl mx-auto pb-28">
+    <div className="p-6 sm:p-8 max-w-3xl pb-28">
       <div className="mb-6">
         <h1 className="text-3xl">Inscribir y cobrar</h1>
         <p className="text-[var(--texto-tenue)] mt-2 text-lg">

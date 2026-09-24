@@ -14,6 +14,9 @@ import IconoRed from "./IconoRed";
 import AbrirChatWhatsapp from "./AbrirChatWhatsapp";
 import { nivelesDe, faltantes, presenteDesdeExtra } from "@/lib/matrizMinimos";
 import CamposContacto, { DATOS_CONTACTO_EXTRA_VACIO, type ListasContacto } from "./CamposContacto";
+import VistaContacto, { Dato, type ModoFicha } from "./VistaContacto";
+import EnlaceWhatsapp from "./EnlaceWhatsapp";
+import { gs } from "@/lib/inscripcion";
 import { detalleContacto } from "@/app/(privado)/contactos/acciones";
 
 type Cuenta = { id: string; etiqueta: string };
@@ -38,9 +41,12 @@ export default function EntidadProfesor({
   permitirBaja = false,
   abrirAlElegir = true,
   valor = null,
+  modoInicial = "editar",
+  puedeEditar = false,
   depsDe,
   onGuardar,
   onBaja,
+  onActivar,
   onSelect,
   onCancelar,
 }: {
@@ -53,14 +59,33 @@ export default function EntidadProfesor({
   permitirBaja?: boolean;
   abrirAlElegir?: boolean;
   valor?: Profesor | null;
+  /** Cómo se abre `valor`: editando (el usuario pidió editar) o para ver. */
+  modoInicial?: ModoFicha;
+  /** Si el rol puede editar un profesor existente (`profesores` · `editar`). */
+  puedeEditar?: boolean;
   depsDe?: (id: number) => DepsProfesor | undefined;
   onGuardar?: (datos: DatosProfesor, id: number | null) => Promise<{ error?: string }>;
   onBaja?: (id: number) => Promise<{ error?: string; accion?: string }>;
+  onActivar?: (id: number) => Promise<{ error?: string }>;
   onSelect?: (prof: Profesor) => void;
   onCancelar?: () => void;
 }) {
   const [ficha, setFicha] = useState<Profesor | "nuevo" | null>(valor);
+  // Elegir a alguien lo abre para VER; editar es un paso explícito, y solo
+  // si el rol puede (Javier, 2026-09-24).
+  const [modo, setModo] = useState<ModoFicha>(valor ? modoInicial : "editar");
+  const [volverAVista, setVolverAVista] = useState(false);
   const [q, setQ] = useState("");
+
+  function abrir(p: Profesor | "nuevo", m: ModoFicha) {
+    setFicha(p);
+    setModo(m);
+    setVolverAVista(false);
+  }
+  function cerrar() {
+    setFicha(null);
+    onCancelar?.();
+  }
 
   const resultados = padron
     .filter((p) => coincideBusqueda(q, { contacto: p.contacto, documento: p.contacto.privados?.numero }))
@@ -68,9 +93,14 @@ export default function EntidadProfesor({
     .slice(0, 5);
 
   if (ficha) {
+    const existente = ficha === "nuevo" ? null : ficha;
     return (
       <FichaProfesor
-        inicial={ficha === "nuevo" ? null : ficha}
+        // Cambiar de modo remonta la ficha: volver a la vista descarta lo tipeado.
+        key={`${existente?.id ?? "nuevo"}-${modo}`}
+        inicial={existente}
+        viendo={!!existente && modo === "ver"}
+        puedeEditar={puedeEditar}
         cuentas={cuentas}
         estilos={estilos}
         matriz={matriz}
@@ -78,13 +108,21 @@ export default function EntidadProfesor({
         puedeVerPrivados={puedeVerPrivados}
         padron={padron}
         permitirBaja={permitirBaja}
-        deps={ficha !== "nuevo" && depsDe ? depsDe(ficha.id) : undefined}
+        deps={existente && depsDe ? depsDe(existente.id) : undefined}
+        onEditar={() => {
+          setModo("editar");
+          setVolverAVista(true);
+        }}
         onGuardar={onGuardar}
         onBaja={onBaja}
-        onCerrar={() => {
-          setFicha(null);
-          onCancelar?.();
+        onActivar={onActivar}
+        onCancelar={() => {
+          if (volverAVista) {
+            setModo("ver");
+            setVolverAVista(false);
+          } else cerrar();
         }}
+        onCerrar={cerrar}
       />
     );
   }
@@ -111,7 +149,7 @@ export default function EntidadProfesor({
           {resultados.map((p) => (
             <button
               key={p.id}
-              onClick={() => (abrirAlElegir ? setFicha(p) : onSelect?.(p))}
+              onClick={() => (abrirAlElegir ? abrir(p, "ver") : onSelect?.(p))}
               className="w-full text-left bg-[var(--fondo-elevado)] border border-[var(--borde)] rounded-[var(--radio-panel)] px-4 py-3 hover:border-[var(--primario)] transition-colors"
             >
               <div className="flex items-center justify-between gap-3">
@@ -131,7 +169,7 @@ export default function EntidadProfesor({
       )}
 
       <button
-        onClick={() => setFicha("nuevo")}
+        onClick={() => abrir("nuevo", "editar")}
         className="w-full px-5 py-3 text-base font-semibold rounded-[var(--radio-control)] bg-[var(--fondo-elevado)] border border-[var(--borde)] hover:border-[var(--primario)]"
       >
         + Profesor nuevo
@@ -146,6 +184,8 @@ function etiquetasDe(claves: string[] | undefined, estilos: Estilo[]): string[] 
 
 function FichaProfesor({
   inicial,
+  viendo,
+  puedeEditar,
   cuentas,
   estilos,
   matriz,
@@ -154,11 +194,16 @@ function FichaProfesor({
   padron,
   permitirBaja,
   deps,
+  onEditar,
   onGuardar,
   onBaja,
+  onActivar,
+  onCancelar,
   onCerrar,
 }: {
   inicial: Profesor | null;
+  viendo: boolean;
+  puedeEditar: boolean;
   cuentas: Cuenta[];
   estilos: Estilo[];
   matriz: MatrizMinimo[];
@@ -167,8 +212,11 @@ function FichaProfesor({
   padron: Profesor[];
   permitirBaja: boolean;
   deps?: DepsProfesor;
+  onEditar: () => void;
   onGuardar?: (datos: DatosProfesor, id: number | null) => Promise<{ error?: string }>;
   onBaja?: (id: number) => Promise<{ error?: string; accion?: string }>;
+  onActivar?: (id: number) => Promise<{ error?: string }>;
+  onCancelar: () => void;
   onCerrar: () => void;
 }) {
   const [nombre, setNombre] = useState(inicial?.contacto.nombre ?? "");
@@ -187,12 +235,14 @@ function FichaProfesor({
   });
   const [error, setError] = useState<string | null>(null);
   const [pendiente, startTransition] = useTransition();
+  const [detalleListo, setDetalleListo] = useState(!inicial);
 
   useEffect(() => {
     if (!inicial) return;
     let vivo = true;
     detalleContacto(inicial.contacto_id).then((d) => {
       if (!vivo) return;
+      setDetalleListo(true);
       setExtra((e) => ({
         ...e,
         redes: d.redes.map((r) => ({ red: r.red, usuario: r.usuario })),
@@ -270,6 +320,16 @@ function FichaProfesor({
     });
   }
 
+  function activar() {
+    if (!inicial) return;
+    setError(null);
+    startTransition(async () => {
+      const res = await onActivar?.(inicial.id);
+      if (res?.error) setError(res.error);
+      else onCerrar();
+    });
+  }
+
   const tieneHistorial =
     deps && deps.asignaciones + deps.comisiones + deps.liquidaciones + deps.sala > 0;
   const dependencias: string[] = [];
@@ -280,12 +340,94 @@ function FichaProfesor({
     if (deps.sala) dependencias.push("paquetes de sala");
   }
 
+  if (viendo && inicial) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xl">Profesor</h3>
+          <button onClick={onCerrar} className="text-[var(--texto-tenue)] hover:text-[var(--texto)] text-base">
+            Cerrar
+          </button>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="text-lg font-semibold">
+            {nombreCompleto(inicial.contacto)}
+            {!inicial.activo && <span className="ml-2 text-sm font-normal text-[var(--texto-tenue)]">(inactivo)</span>}
+          </div>
+          <TagTipo tipo={inicial.tipo} />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Dato etiqueta="WhatsApp">
+            <EnlaceWhatsapp numero={inicial.contacto.whatsapp} vacio="—" />
+          </Dato>
+          <Dato etiqueta="Estilos">{etiquetasDe(inicial.estilos, estilos).join(", ") || "—"}</Dato>
+          <Dato etiqueta="Tarifa por clase como reemplazante">
+            {inicial.tarifa_reemplazo == null ? "Sin cargar" : gs(inicial.tarifa_reemplazo)}
+          </Dato>
+          <Dato etiqueta="Cuenta de acceso">
+            {inicial.usuario_id
+              ? cuentas.find((c) => c.id === inicial.usuario_id)?.etiqueta ?? "Con cuenta"
+              : "Sin cuenta"}
+          </Dato>
+          <VistaContacto
+            niveles={niveles}
+            listas={listasContacto}
+            valor={extra}
+            puedeVerPrivados={puedeVerPrivados}
+            cargando={!detalleListo}
+          />
+        </div>
+
+        {error && (
+          <p className="text-[var(--peligro)] text-base" role="alert">
+            {error}
+          </p>
+        )}
+
+        {/* Las mismas acciones que la fila del padrón. */}
+        <div className="flex flex-wrap gap-2">
+          {puedeEditar && (
+            <button onClick={onEditar} className={BOTON_FILA}>
+              Editar
+            </button>
+          )}
+          {permitirBaja &&
+            (inicial.activo ? (
+              <button
+                onClick={baja}
+                disabled={pendiente}
+                className={`${BOTON_FILA_BASE} border-[var(--peligro)] text-[var(--peligro)] disabled:opacity-40`}
+              >
+                {tieneHistorial ? "Desactivar" : "Eliminar"}
+              </button>
+            ) : (
+              <button
+                onClick={activar}
+                disabled={pendiente}
+                className={`${BOTON_FILA_BASE} border-[var(--exito)] text-[var(--exito)] disabled:opacity-40`}
+              >
+                Activar
+              </button>
+            ))}
+        </div>
+        {permitirBaja && tieneHistorial && inicial.activo && (
+          <p className="text-xs text-[var(--texto-tenue)]">Tiene historial: se desactiva, no se elimina.</p>
+        )}
+        {!puedeEditar && (
+          <p className="text-sm text-[var(--texto-tenue)]">Tu rol puede ver este profesor, no editarlo.</p>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-xl">{inicial ? "Editar profesor" : "Profesor nuevo"}</h3>
         <button
-          onClick={onCerrar}
+          onClick={onCancelar}
           className="text-[var(--texto-tenue)] hover:text-[var(--texto)] text-base"
         >
           Cancelar
@@ -468,6 +610,9 @@ function FichaProfesor({
     </div>
   );
 }
+
+const BOTON_FILA_BASE = "px-4 py-1.5 text-sm rounded-[var(--radio-control)] border";
+const BOTON_FILA = `${BOTON_FILA_BASE} border-[var(--borde)] hover:border-[var(--primario)]`;
 
 export function TagTipo({ tipo }: { tipo: TipoProfesor }) {
   return (
