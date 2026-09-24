@@ -4,6 +4,7 @@ import SinAcceso from "@/components/SinAcceso";
 import { exigir } from "@/lib/datos";
 import ClienteAsistencia from "./ClienteAsistencia";
 import type { Curso } from "@/lib/tipos";
+import Pagina from "@/components/Pagina";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,7 @@ export default async function PaginaAsistencia() {
   const profesorActual = alcance === "propio" ? await obtenerProfesorActual() : null;
   if (alcance === "propio" && !profesorActual) {
     return (
-      <div className="p-8 max-w-lg">
+      <Pagina ancho="lg">
         <div className="border border-[var(--primario)] bg-[color-mix(in_srgb,var(--primario)_12%,transparent)] rounded-[var(--radio-tarjeta)] p-5">
           <div className="font-semibold text-base">Tu cuenta no está vinculada a un profesor</div>
           <p className="text-base mt-1">
@@ -27,7 +28,7 @@ export default async function PaginaAsistencia() {
             Profesores → Profesores y cursos → Cuenta de acceso.
           </p>
         </div>
-      </div>
+      </Pagina>
     );
   }
 

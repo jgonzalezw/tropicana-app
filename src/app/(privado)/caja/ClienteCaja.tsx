@@ -7,6 +7,7 @@ import MovimientoCaja from "@/components/MovimientoCaja";
 import { etiquetaMotivo, type EntradaMovimiento, type LineaPendiente } from "@/lib/caja";
 import { gs } from "@/lib/inscripcion";
 import { registrarMovimiento } from "./acciones";
+import Pagina from "@/components/Pagina";
 
 type Movimiento = {
   id: number;
@@ -130,7 +131,7 @@ export default function ClienteCaja({
   }
 
   return (
-    <div className="p-6 sm:p-8 max-w-5xl mx-auto pb-20">
+    <Pagina ancho="5xl" className="pb-20">
       <div className="mb-5">
         <h1 className="text-3xl">Caja</h1>
         <p className="text-base text-[var(--texto-tenue)] mt-1">
@@ -361,7 +362,7 @@ export default function ClienteCaja({
           )}
         </section>
       </div>
-    </div>
+    </Pagina>
   );
 }
 

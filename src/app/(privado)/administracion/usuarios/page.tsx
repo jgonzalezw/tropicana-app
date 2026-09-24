@@ -5,6 +5,7 @@ import SinAcceso from "@/components/SinAcceso";
 import FilaUsuario from "./FilaUsuario";
 import FormularioNuevoUsuario from "./FormularioNuevoUsuario";
 import type { PerfilConRol, Rol } from "@/lib/tipos";
+import Pagina from "@/components/Pagina";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +27,7 @@ export default async function PaginaUsuarios() {
   const listaRoles = (roles as Rol[]) ?? [];
 
   return (
-    <div className="p-8 max-w-5xl">
+    <Pagina ancho="5xl">
       <EncabezadoPagina
         titulo="Usuarios"
         descripcion="Cuentas de acceso al sistema. Creá una cuenta nueva con nombre, correo, contraseña y rol; queda lista para ingresar."
@@ -59,6 +60,6 @@ export default async function PaginaUsuarios() {
           </table>
         </div>
       )}
-    </div>
+    </Pagina>
   );
 }

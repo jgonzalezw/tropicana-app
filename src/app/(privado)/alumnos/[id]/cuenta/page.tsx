@@ -7,6 +7,7 @@ import { gs, rotuloDiasMembresia } from "@/lib/inscripcion";
 import SinAcceso from "@/components/SinAcceso";
 import ImprimirCuenta from "./ImprimirCuenta";
 import type { CuotaCuenta, MembresiaCuenta } from "@/lib/tipos";
+import Pagina from "@/components/Pagina";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +35,7 @@ export default async function PaginaCuenta({ params }: { params: Promise<{ id: s
   const { alumno, membresias, pagos, deuda } = cuenta;
 
   return (
-    <div className="p-6 sm:p-8 max-w-4xl mx-auto pb-20">
+    <Pagina ancho="4xl" className="pb-20">
       <div className="mb-5 flex items-start justify-between gap-4 flex-wrap">
         <div>
           <Link href="/alumnos" className="text-[var(--primario)] text-base">
@@ -120,7 +121,7 @@ export default async function PaginaCuenta({ params }: { params: Promise<{ id: s
           </ul>
         )}
       </section>
-    </div>
+    </Pagina>
   );
 }
 

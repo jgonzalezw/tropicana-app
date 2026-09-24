@@ -5,6 +5,7 @@ import SinAcceso from "@/components/SinAcceso";
 import GestionRoles from "./GestionRoles";
 import MatrizPermisos from "./MatrizPermisos";
 import type { Rol, RolPermiso, RolVisibilidad } from "@/lib/tipos";
+import Pagina from "@/components/Pagina";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +31,7 @@ export default async function PaginaRoles() {
   }
 
   return (
-    <div className="p-8 max-w-4xl">
+    <Pagina ancho="4xl">
       <EncabezadoPagina
         titulo="Roles y permisos"
         descripcion="Creá los roles que necesite la escuela y definí qué puede hacer cada uno en cada módulo."
@@ -48,6 +49,6 @@ export default async function PaginaRoles() {
         permisos={(permisos as RolPermiso[]) ?? []}
         visibilidad={(visibilidad as RolVisibilidad[]) ?? []}
       />
-    </div>
+    </Pagina>
   );
 }

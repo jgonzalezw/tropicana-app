@@ -4,6 +4,7 @@ import EncabezadoPagina from "@/components/EncabezadoPagina";
 import SinAcceso from "@/components/SinAcceso";
 import ClienteLiquidaciones from "./ClienteLiquidaciones";
 import { cargarLiquidaciones } from "./acciones";
+import Pagina from "@/components/Pagina";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,7 @@ export default async function PaginaLiquidaciones() {
     .filter(Boolean);
 
   return (
-    <div className="p-8 max-w-5xl">
+    <Pagina ancho="5xl">
       <EncabezadoPagina
         titulo="Liquidaciones"
         descripcion="Comisiones devengadas por membresías cobradas y completadas (criterio 1). Generá la liquidación del profesor, pagá y descargá el comprobante."
@@ -31,6 +32,6 @@ export default async function PaginaLiquidaciones() {
         medios={medios}
         puedeCrear={await tienePermiso("liquidaciones", "crear")}
       />
-    </div>
+    </Pagina>
   );
 }

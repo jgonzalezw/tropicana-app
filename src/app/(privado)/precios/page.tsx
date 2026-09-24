@@ -5,6 +5,7 @@ import EncabezadoPagina from "@/components/EncabezadoPagina";
 import SinAcceso from "@/components/SinAcceso";
 import ClientePrecios from "./ClientePrecios";
 import type { Curso, Estilo } from "@/lib/tipos";
+import Pagina from "@/components/Pagina";
 
 export const dynamic = "force-dynamic";
 
@@ -124,7 +125,7 @@ export default async function PaginaPrecios() {
   }));
 
   return (
-    <div className="p-8 max-w-6xl">
+    <Pagina ancho="6xl">
       <EncabezadoPagina
         titulo="Precios y paquetes"
         descripcion="Todo precio que cobra la escuela se carga acá. Si un valor no está en estas cinco tablas, el sistema no lo puede cobrar."
@@ -153,6 +154,6 @@ export default async function PaginaPrecios() {
         estilos={estilos as Estilo[]}
         salas={salas as { id: number; nombre: string }[]}
       />
-    </div>
+    </Pagina>
   );
 }

@@ -5,6 +5,7 @@ import { opcionesDuracion } from "@/lib/horarios";
 import EncabezadoPagina from "@/components/EncabezadoPagina";
 import SinAcceso from "@/components/SinAcceso";
 import ClientePanelSala from "./ClientePanelSala";
+import Pagina from "@/components/Pagina";
 
 export const dynamic = "force-dynamic";
 
@@ -60,7 +61,7 @@ export default async function PaginaSala() {
   const opcionesDuracionMin = opcionesDuracion(incrementoMin, minimoMin);
 
   return (
-    <div className="p-8 max-w-6xl">
+    <Pagina ancho="6xl">
       <EncabezadoPagina
         titulo="Disponibilidad de sala"
         descripcion="Qué ocupa cada sala hoy y qué queda libre. El horario base (feriados, franjas semanales) se edita en Administración → Sala y horarios."
@@ -74,6 +75,6 @@ export default async function PaginaSala() {
         opcionesDuracionMin={opcionesDuracionMin}
         puedeEditar={puedeEditar}
       />
-    </div>
+    </Pagina>
   );
 }

@@ -1,6 +1,7 @@
 import { obtenerPerfilActual } from "@/lib/sesion";
 import EncabezadoPagina from "@/components/EncabezadoPagina";
 import Link from "next/link";
+import Pagina from "@/components/Pagina";
 
 export default async function Inicio() {
   const perfil = await obtenerPerfilActual();
@@ -8,7 +9,7 @@ export default async function Inicio() {
   const nombre = perfil?.nombre || "";
 
   return (
-    <div className="p-8 max-w-5xl">
+    <Pagina ancho="5xl">
       <EncabezadoPagina
         titulo={`Hola${nombre ? `, ${nombre}` : ""}`}
         descripcion="Bienvenido al sistema de gestión de Tropicana."
@@ -44,7 +45,7 @@ export default async function Inicio() {
           </p>
         </div>
       )}
-    </div>
+    </Pagina>
   );
 }
 

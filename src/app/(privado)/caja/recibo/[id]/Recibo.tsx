@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { gs } from "@/lib/inscripcion";
 import { etiquetaMotivo } from "@/lib/caja";
+import Pagina from "@/components/Pagina";
 
 export type DatosRecibo = {
   id: number;
@@ -85,7 +86,7 @@ export default function Recibo({ datos }: { datos: DatosRecibo }) {
   }
 
   return (
-    <div className="p-6 sm:p-10 max-w-2xl mx-auto">
+    <Pagina ancho="2xl">
       <div className="flex justify-between items-center mb-6">
         <Link href="/caja" className="text-[var(--primario)] text-base">
           ← Volver a Caja
@@ -195,7 +196,7 @@ export default function Recibo({ datos }: { datos: DatosRecibo }) {
           </div>
         </div>
       </div>
-    </div>
+    </Pagina>
   );
 }
 

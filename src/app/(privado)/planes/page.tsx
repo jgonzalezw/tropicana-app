@@ -5,6 +5,7 @@ import SinAcceso from "@/components/SinAcceso";
 import ClientePlanes from "./ClientePlanes";
 import type { Curso, Plan } from "@/lib/tipos";
 import type { TarifasDeCurso } from "@/lib/precios";
+import Pagina from "@/components/Pagina";
 
 export const dynamic = "force-dynamic";
 
@@ -52,7 +53,7 @@ export default async function PaginaPlanes() {
   }));
 
   return (
-    <div className="p-8 max-w-6xl">
+    <Pagina ancho="6xl">
       <EncabezadoPagina
         titulo="Planes"
         descripcion="Lo que se vende: cada plan da acceso a uno o varios cursos, con su cantidad de clases (N) y precio por ciclo."
@@ -66,6 +67,6 @@ export default async function PaginaPlanes() {
         tarifas={tarifas}
         factorMedioMes={factorMedioMes}
       />
-    </div>
+    </Pagina>
   );
 }

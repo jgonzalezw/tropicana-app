@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { gs } from "@/lib/inscripcion";
+import Pagina from "@/components/Pagina";
 
 export type ItemComprobante = {
   alumno: string;
@@ -395,7 +396,7 @@ export default function Comprobante({ datos }: { datos: DatosComprobante }) {
   }
 
   return (
-    <div className="p-6 sm:p-10 max-w-3xl mx-auto">
+    <Pagina ancho="3xl">
       {/* Barra de acciones */}
       <div className="flex justify-between items-center mb-6">
         <Link href="/liquidaciones" className="text-[var(--primario)] text-base">
@@ -616,7 +617,7 @@ export default function Comprobante({ datos }: { datos: DatosComprobante }) {
           <div className="border-t border-[var(--texto-tenue)] pt-2 text-center">Firma academia</div>
         </div>
       </div>
-    </div>
+    </Pagina>
   );
 }
 

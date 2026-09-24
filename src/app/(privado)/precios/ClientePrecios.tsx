@@ -499,8 +499,8 @@ export default function ClientePrecios({
       )}
 
       {/* Barra de acción fija: el estado de los cambios y las dos salidas. */}
-      <div className="fixed left-0 right-0 bottom-0 bg-[var(--fondo-panel)] border-t border-[var(--borde)] px-6 py-3">
-        <div className="max-w-6xl mx-auto flex items-center gap-4 flex-wrap">
+      <div className="fixed left-0 right-0 bottom-0 min-[900px]:left-64 bg-[var(--fondo-panel)] border-t border-[var(--borde)] py-3">
+        <div className="px-6 sm:px-8 max-w-6xl flex items-center gap-4 flex-wrap">
           <div className="flex-1 min-w-[16rem] text-base">
             {error ? (
               <span className="text-[var(--peligro)]">{error}</span>

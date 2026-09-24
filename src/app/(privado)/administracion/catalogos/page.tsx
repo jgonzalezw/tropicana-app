@@ -5,6 +5,7 @@ import EncabezadoPagina from "@/components/EncabezadoPagina";
 import SinAcceso from "@/components/SinAcceso";
 import ClienteCatalogos from "./ClienteCatalogos";
 import type { Catalogo, CatalogoValor, Estilo, MatrizMinimo } from "@/lib/tipos";
+import Pagina from "@/components/Pagina";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +23,7 @@ export default async function PaginaCatalogos() {
   const matriz = exigir<MatrizMinimo[]>(rMatriz, "la matriz de mínimos");
 
   return (
-    <div className="p-8 max-w-4xl">
+    <Pagina ancho="4xl">
       <EncabezadoPagina
         titulo="Catálogos"
         descripcion="Listas configurables que se usan en toda la app. Agregá o desactivá valores sin tocar el código."
@@ -33,6 +34,6 @@ export default async function PaginaCatalogos() {
         estilos={(estilos as Estilo[]) ?? []}
         matriz={matriz}
       />
-    </div>
+    </Pagina>
   );
 }

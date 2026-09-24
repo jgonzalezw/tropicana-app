@@ -4,6 +4,7 @@ import { exigir, exigirUno } from "@/lib/datos";
 import EncabezadoPagina from "@/components/EncabezadoPagina";
 import SinAcceso from "@/components/SinAcceso";
 import ClienteSalaHorario from "./ClienteSalaHorario";
+import Pagina from "@/components/Pagina";
 
 export const dynamic = "force-dynamic";
 
@@ -69,7 +70,7 @@ export default async function PaginaSalaHorario() {
     : [];
 
   return (
-    <div className="p-8 max-w-4xl">
+    <Pagina ancho="4xl">
       <EncabezadoPagina
         titulo="Salas y horarios"
         descripcion="Cuándo abre cada sala. Es el lienzo del que depende todo lo demás: fuera de este horario no se puede reservar ni vender una hora."
@@ -100,6 +101,6 @@ export default async function PaginaSalaHorario() {
         }
         motivos={motivos}
       />
-    </div>
+    </Pagina>
   );
 }

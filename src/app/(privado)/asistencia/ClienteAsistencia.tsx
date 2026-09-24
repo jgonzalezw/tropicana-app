@@ -6,6 +6,7 @@ import type { Curso, FilaAsistencia, MarcaAsistencia } from "@/lib/tipos";
 import { ETIQUETA_MODALIDAD, diaIso, fechaLarga, gs, isoFecha } from "@/lib/inscripcion";
 import { enVigencia, etiquetaVigencia } from "@/lib/vigencia";
 import { cargarPadron, guardarAsistencia, suspenderClase, reabrirSesion } from "./acciones";
+import Pagina from "@/components/Pagina";
 
 type Estado = "presente" | "ausente";
 type EstadoSesion = "completada" | "incompleta" | "suspendida" | "sin_alumnos";
@@ -282,7 +283,7 @@ export default function ClienteAsistencia({
     : { t: "Sin tomar", c: "bg-[var(--fondo-elevado)] text-[var(--texto-tenue)]" };
 
   return (
-    <div className="p-6 sm:p-8 max-w-3xl mx-auto pb-28">
+    <Pagina ancho="3xl" className="pb-28">
       <div className="mb-4">
         <h1 className="text-3xl">Tomar asistencia</h1>
       </div>
@@ -789,7 +790,7 @@ export default function ClienteAsistencia({
           </button>
         </div>
       )}
-    </div>
+    </Pagina>
   );
 }
 

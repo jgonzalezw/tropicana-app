@@ -6,7 +6,33 @@
 > `docs/design/README.md` (fuente de verdad del **diseño**), `docs/CONTEXTO_AVANCE.md`
 > (bitácora larga de Etapa 0), `docs/DESIGN_SYNC.md` (cómo entran los handoffs).
 >
-> **Última actualización:** 2026-09-24 — **Inscribir alineado, la clase de
+> **Última actualización:** 2026-09-24 — **Todas las pantallas arrancan en el
+> mismo borde. En dev** (rama `wip/pantallas-estandar`), esperando prueba y OK
+> de Javier. Sin migración.
+>
+> Javier encontró la Cuenta del alumno centrada, igual que Inscribir un rato
+> antes, y pidió estandarizar todas las pantallas. Pieza nueva
+> **`<Pagina ancho=…>`** (`src/components/Pagina.tsx`): `p-6 sm:p-8`, sin
+> `mx-auto`, cada pantalla elige solo su ancho. Se montó en las 25 pantallas y
+> piezas que armaban su propio contenedor (Inicio, Alumnos, Cuenta del
+> alumno, Profesores, Cursos, Planes, Precios, Sala, Inscribir, Asistencia,
+> Caja, Recibo, Liquidaciones y su comprobante, las 5 de Administración, el
+> error y "sin acceso"), **conservando el ancho de cada una**. Cambios
+> visibles: Cuenta del alumno, Asistencia, Caja, Recibo, el comprobante de
+> liquidación y la pantalla de error dejan de centrarse; Recibo, comprobante
+> y error pasan de `sm:p-10` a `sm:p-8`; las demás ganan `p-6` en celular
+> (antes `p-8`). Las **barras fijas** de Precios y de Sala (Administración)
+> tapaban la barra lateral y centraban los botones: ahora arrancan después
+> de ella (`min-[900px]:left-64`, el mismo corte de 900px de `BarraLateral`)
+> y alinean los botones con el contenido. Regla de calidad **8** en
+> `REGLAS.md`, y `src/lib/pantallas.test.ts` la hace cumplir (falla ante un
+> `mx-auto` o un contenedor de pantalla propio).
+>
+> **Pendiente de verificar en el navegador** (lo hace Javier en local: la
+> sesión en la nube no tiene `.env.local`, regla de proceso 9): que el
+> título de cada pantalla arranque en el mismo `left` a 1600px y a 375px.
+>
+> **2026-09-24 (antes)** — **Inscribir alineado, la clase de
 > prueba deja de quedar ambigua al elegir alumno, y la ficha de Alumnos/
 > Profesores abre para VER, no para editar. En dev**, esperando prueba y OK
 > de Javier.

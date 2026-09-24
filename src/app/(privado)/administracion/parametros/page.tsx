@@ -4,6 +4,7 @@ import EncabezadoPagina from "@/components/EncabezadoPagina";
 import SinAcceso from "@/components/SinAcceso";
 import FilaParametro from "./FilaParametro";
 import type { Parametro } from "@/lib/tipos";
+import Pagina from "@/components/Pagina";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +26,7 @@ export default async function PaginaParametros() {
   }, {});
 
   return (
-    <div className="p-8 max-w-4xl">
+    <Pagina ancho="4xl">
       <EncabezadoPagina
         titulo="Parámetros"
         descripcion="Políticas y valores configurables que usan todos los módulos."
@@ -46,6 +47,6 @@ export default async function PaginaParametros() {
           </section>
         ))}
       </div>
-    </div>
+    </Pagina>
   );
 }

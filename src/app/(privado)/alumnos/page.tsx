@@ -5,6 +5,7 @@ import SinAcceso from "@/components/SinAcceso";
 import ClienteAlumnos from "./ClienteAlumnos";
 import type { Alumno, Contacto } from "@/lib/tipos";
 import { cargarListasContacto } from "@/app/(privado)/contactos/acciones";
+import Pagina from "@/components/Pagina";
 
 export const dynamic = "force-dynamic";
 
@@ -61,7 +62,7 @@ export default async function PaginaAlumnos() {
   }
 
   return (
-    <div className="p-8 max-w-6xl">
+    <Pagina ancho="6xl">
       <EncabezadoPagina
         titulo="Alumnos"
         descripcion="Padrón de alumnos. El WhatsApp identifica al adulto; para un menor, el WhatsApp del tutor más su nombre."
@@ -75,6 +76,6 @@ export default async function PaginaAlumnos() {
         puedeVerPrivados={contactoListas.puedeVerPrivados}
         puedeEditar={puedeEditar}
       />
-    </div>
+    </Pagina>
   );
 }

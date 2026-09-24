@@ -4,6 +4,7 @@ import { tienePermiso } from "@/lib/sesion";
 import { cursosDeMembresias, finDeMembresia } from "@/lib/cuentas";
 import SinAcceso from "@/components/SinAcceso";
 import Recibo, { type DatosRecibo } from "./Recibo";
+import Pagina from "@/components/Pagina";
 
 export const dynamic = "force-dynamic";
 
@@ -43,7 +44,7 @@ export default async function PaginaRecibo({ params }: { params: Promise<{ id: s
   // que no explica nada y manda a buscar el problema donde no está.
   if (error) {
     return (
-      <div className="p-6 sm:p-10 max-w-2xl mx-auto">
+      <Pagina ancho="2xl">
         <h1 className="text-2xl titulo mb-2">No se pudo abrir el recibo</h1>
         <p className="text-base text-[var(--texto-tenue)] mb-4">
           El movimiento N° {pagoId} existe, pero la consulta falló.
@@ -51,7 +52,7 @@ export default async function PaginaRecibo({ params }: { params: Promise<{ id: s
         <pre className="text-sm bg-[var(--fondo-panel)] border border-[var(--borde)] rounded-[var(--radio-panel)] p-4 whitespace-pre-wrap">
           {error.message}
         </pre>
-      </div>
+      </Pagina>
     );
   }
   if (!data) notFound();

@@ -6,6 +6,7 @@ import EncabezadoPagina from "@/components/EncabezadoPagina";
 import SinAcceso from "@/components/SinAcceso";
 import ClienteCursos from "./ClienteCursos";
 import type { Curso, TarifasCurso, Estilo } from "@/lib/tipos";
+import Pagina from "@/components/Pagina";
 
 export const dynamic = "force-dynamic";
 
@@ -67,7 +68,7 @@ export default async function PaginaCursos() {
   const opcionesDuracionMin = opcionesDuracion(incrementoMin, duracionMinimaMin);
 
   return (
-    <div className="p-8 max-w-6xl">
+    <Pagina ancho="6xl">
       <EncabezadoPagina
         titulo="Cursos"
         descripcion="Los cursos de la escuela, su precio mensual y las tarifas parciales (una clase, una semana, medio mes)."
@@ -80,6 +81,6 @@ export default async function PaginaCursos() {
         opcionesDuracion={opcionesDuracionMin}
         salas={salas as { id: number; nombre: string }[]}
       />
-    </div>
+    </Pagina>
   );
 }

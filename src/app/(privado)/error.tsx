@@ -1,4 +1,5 @@
 "use client";
+import Pagina from "@/components/Pagina";
 
 /**
  * Qué se ve cuando una pantalla no pudo cargar lo que necesitaba.
@@ -16,7 +17,7 @@ export default function ErrorPrivado({
   reset: () => void;
 }) {
   return (
-    <div className="p-6 sm:p-10 max-w-2xl mx-auto">
+    <Pagina ancho="2xl">
       <h1 className="text-2xl titulo mb-2">No se pudo cargar esta pantalla</h1>
       <p className="text-base text-[var(--texto-tenue)] mb-4">
         Es un error al leer los datos, no que falten datos. El detalle de abajo dice qué falló.
@@ -31,6 +32,6 @@ export default function ErrorPrivado({
       >
         Reintentar
       </button>
-    </div>
+    </Pagina>
   );
 }

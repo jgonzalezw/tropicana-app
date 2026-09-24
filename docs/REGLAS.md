@@ -371,6 +371,18 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
    actualizaba. El pase del 2026-09-12 no los llevó, y la pantalla de
    Parámetros mostró 4 en dev y 2 en producción. Lo corrigió la **0031**.*
 
+8. **Toda pantalla arranca en el mismo borde: se arma con `<Pagina>`**
+   (`src/components/Pagina.tsx`), **nunca** con su propio contenedor ni con
+   `mx-auto`. `<Pagina>` fija el padding y el borde izquierdo; cada pantalla
+   elige solo su ancho máximo (`ancho="lg" … "6xl"`). Una barra fija abajo
+   arranca después de la barra lateral (`min-[900px]:left-64`) y alinea sus
+   botones con el mismo padding, sin centrarlos. Lo hace cumplir
+   `src/lib/pantallas.test.ts`: falla si aparece un `mx-auto` o un contenedor
+   de pantalla propio.
+   *Costó dos veces el mismo día (Inscribir y Cuenta del alumno,
+   2026-09-24): cada pantalla tenía su contenedor y algunas se centraban
+   solas. Javier: "estandarizar que siempre se comporten igual".*
+
 ## 5. Controles
 
 `scripts/control_migracion.sql` — controles de solo lectura que verifican

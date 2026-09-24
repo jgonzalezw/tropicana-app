@@ -5,6 +5,7 @@ import SinAcceso from "@/components/SinAcceso";
 import ClienteProfesores from "./ClienteProfesores";
 import type { Profesor, Curso, Asignacion, DepsProfesor, Estilo } from "@/lib/tipos";
 import { cargarListasContacto } from "@/app/(privado)/contactos/acciones";
+import Pagina from "@/components/Pagina";
 
 export const dynamic = "force-dynamic";
 
@@ -59,7 +60,7 @@ export default async function PaginaProfesores() {
   );
 
   return (
-    <div className="p-8 max-w-6xl">
+    <Pagina ancho="6xl">
       <EncabezadoPagina
         titulo="Profesores y cursos"
         descripcion="El padrón de profesores y los porcentajes que gana cada uno por curso."
@@ -76,6 +77,6 @@ export default async function PaginaProfesores() {
         puedeVerPrivados={contactoListas.puedeVerPrivados}
         puedeEditar={puedeEditar}
       />
-    </div>
+    </Pagina>
   );
 }

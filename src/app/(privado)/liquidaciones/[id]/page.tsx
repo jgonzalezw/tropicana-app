@@ -4,6 +4,7 @@ import { exigirUno } from "@/lib/datos";
 import SinAcceso from "@/components/SinAcceso";
 import Comprobante, { type DatosComprobante } from "./Comprobante";
 import type { LineaReparto } from "../acciones";
+import Pagina from "@/components/Pagina";
 
 export const dynamic = "force-dynamic";
 
@@ -39,13 +40,13 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
   } | null;
   if (!liq)
     return (
-      <div className="p-8 max-w-lg">
+      <Pagina ancho="lg">
         <h1 className="text-xl titulo mb-2">Esa liquidación no existe</h1>
         <p className="text-base text-[var(--texto-tenue)]">
           No es un error de lectura: la consulta funcionó y no hay ninguna liquidación con el
           número {liquidacionId}. Puede haberse dado de baja para regenerarla.
         </p>
-      </div>
+      </Pagina>
     );
 
   // Visibilidad "propio" (0043): el permiso de módulo no alcanza — sin esto,
