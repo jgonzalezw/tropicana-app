@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { Alumno, ListasContacto, MatrizMinimo } from "@/lib/tipos";
 import ClienteInscribir, { type PlanVenta } from "./ClienteInscribir";
 import VenderPrueba from "./VenderPrueba";
+import Pagina from "@/components/Pagina";
 
 type Canal = { valor: string; etiqueta: string };
 type Modo = "inscripcion" | "prueba";
@@ -58,35 +59,33 @@ export default function MostradorVenta(props: {
     .filter((p) => p.cursos.length > 0);
 
   return (
-    <div>
-      <div className="px-6 sm:px-8 pt-6">
-        <div className="flex gap-2 max-w-md">
-          {(
-            [
-              ["inscripcion", "Inscripción"],
-              ["prueba", "Clase de prueba"],
-            ] as [Modo, string][]
-          ).map(([m, etiqueta]) => (
-            <button
-              key={m}
-              type="button"
-              onClick={() => setModo(m)}
-              className={`flex-1 px-4 py-2.5 text-base rounded-[var(--radio-control)] border ${
-                modo === m
-                  ? "bg-[var(--primario)] text-[var(--primario-texto)] border-[var(--primario)] font-semibold"
-                  : "border-[var(--borde)] hover:border-[var(--primario)]"
-              }`}
-            >
-              {etiqueta}
-            </button>
-          ))}
-        </div>
+    <Pagina ancho="3xl">
+      <div className="flex gap-2 max-w-md mb-6">
+        {(
+          [
+            ["inscripcion", "Inscripción"],
+            ["prueba", "Clase de prueba"],
+          ] as [Modo, string][]
+        ).map(([m, etiqueta]) => (
+          <button
+            key={m}
+            type="button"
+            onClick={() => setModo(m)}
+            className={`flex-1 px-4 py-2.5 text-base rounded-[var(--radio-control)] border ${
+              modo === m
+                ? "bg-[var(--primario)] text-[var(--primario-texto)] border-[var(--primario)] font-semibold"
+                : "border-[var(--borde)] hover:border-[var(--primario)]"
+            }`}
+          >
+            {etiqueta}
+          </button>
+        ))}
       </div>
 
       {modo === "inscripcion" ? (
         <ClienteInscribir {...props} />
       ) : vendibles.length > 0 ? (
-        <div className="p-6 sm:p-8 max-w-3xl">
+        <div>
           <VenderPrueba
             alumnos={props.alumnos}
             planes={vendibles}
@@ -100,7 +99,7 @@ export default function MostradorVenta(props: {
           />
         </div>
       ) : (
-        <div className="p-6 sm:p-8 max-w-3xl">
+        <div>
           <h2 className="text-xl titulo mb-2">Todavía no hay nada que vender a prueba</h2>
           <p className="text-base text-[var(--texto-tenue)] mb-4">
             Para ofrecer una clase de prueba hacen falta las dos cosas: que el plan la
@@ -129,6 +128,6 @@ export default function MostradorVenta(props: {
           </div>
         </div>
       )}
-    </div>
+    </Pagina>
   );
 }
