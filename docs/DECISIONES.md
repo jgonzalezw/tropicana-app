@@ -360,12 +360,21 @@ proceso 1). No es un backlog de decisiones: es el estado del release.
   **antes de cargar el primer documento**. Detalle en `docs/ESTADO.md`.
   *Ese mismo día Javier empezó a cargar documentos en producción y apareció
   un bug al guardarlos. El arreglo, la búsqueda por documento y la migración
-  **0050** (que cierra ese hallazgo) están en dev, confirmadas por Javier
-  ("confirmo mi ok con el arreglo del documento +0050 aplicados en DEV") y
-  esperan pasar junto con lo de abajo.*
-- **Abrir el perfil de una red social y el chat de WhatsApp con un clic**
-  (pedido de Javier, 2026-09-24, tras probar C3-0a en producción), con el
-  ícono de cada red para reconocerla de un vistazo. Migración **0051**
-  siembra `redes_sociales.patron_url` (vacío desde la 0048). Detalle
-  completo en `docs/ESTADO.md`. **En dev**, esperando el OK — Javier pidió
-  pasarlo junto con el arreglo del documento + 0050, no por separado.
+  **0050** (que cierra ese hallazgo) se confirmaron en dev (*"confirmo mi ok
+  con el arreglo del documento +0050 aplicados en DEV"*) y pasaron junto con
+  lo de abajo.*
+- **Arreglo del documento + 0050 y abrir perfil de red / chat de WhatsApp +
+  0051 — EN PRODUCCIÓN el 2026-09-24.** Las dos migraciones figuran
+  aplicadas en `pnvhpbxjbdmbktpwebtx` a las 16:06 UTC (`list_migrations`) y
+  el código está en `main` (`baba6c7`, `f995dee`). **Este registro se
+  escribió después**: el pase se hizo sin actualizar este documento, que
+  seguía diciendo "en dev". Medido al registrarlo: 4/4 redes con
+  `patron_url`; `anon` ya no ejecuta ninguna función `SECURITY DEFINER` de
+  la 0048 (solo `es_admin` y `handle_new_user`, viejas e idénticas en dev).
+- **Todas las pantallas arrancan en el mismo borde (`<Pagina>`, regla de
+  calidad 8) + Inscribir alineado, prueba sin estado ambiguo y ficha que
+  abre para ver — PASADO A PRODUCCIÓN el 2026-09-24**, con el OK explícito
+  de Javier (*"estoy listo para pasar a prod"*), después de la verificación
+  en navegador de las 19 pantallas a 1600px y 375px (detalle en
+  `docs/ESTADO.md`). **Sin migración.** `main` fast-forward desde `f995dee`,
+  en un solo push (§3).

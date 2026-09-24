@@ -7,8 +7,19 @@
 > (bitácora larga de Etapa 0), `docs/DESIGN_SYNC.md` (cómo entran los handoffs).
 >
 > **Última actualización:** 2026-09-24 — **Todas las pantallas arrancan en el
-> mismo borde. En dev** (rama `wip/pantallas-estandar`), esperando prueba y OK
-> de Javier. Sin migración.
+> mismo borde. PASADO A PRODUCCIÓN**, con el OK explícito de Javier (*"estoy
+> listo para pasar a prod"*), junto con el bloque de abajo (Inscribir
+> alineado, prueba sin estado ambiguo, ficha que abre para ver). Sin
+> migración: los 3 commits de la rama `wip/pantallas-estandar-u3c84u` entran
+> a `main` en un solo push (fast-forward desde `f995dee`).
+>
+> **Registro que faltaba:** la **0050** y la **0051** ya estaban aplicadas en
+> producción (`list_migrations`: 2026-09-24 16:06 UTC) y su código ya estaba
+> en `main` (`baba6c7`, `f995dee`), pero este documento y `DECISIONES.md`
+> seguían diciendo "solo en dev". Medido en producción al preparar este pase:
+> las 4 redes tienen `patron_url`, y las únicas funciones `SECURITY DEFINER`
+> que `anon` todavía puede ejecutar son `es_admin` y `handle_new_user`
+> —viejas, las mismas en dev—, ninguna de la 0048.
 >
 > Javier encontró la Cuenta del alumno centrada, igual que Inscribir un rato
 > antes, y pidió estandarizar todas las pantallas. Pieza nueva
@@ -28,14 +39,23 @@
 > `REGLAS.md`, y `src/lib/pantallas.test.ts` la hace cumplir (falla ante un
 > `mx-auto` o un contenedor de pantalla propio).
 >
-> **Pendiente de verificar en el navegador** (lo hace Javier en local: la
-> sesión en la nube no tiene `.env.local`, regla de proceso 9): que el
-> título de cada pantalla arranque en el mismo `left` a 1600px y a 375px.
+> **Verificado en el navegador**, desde una sesión en la nube con las
+> variables de dev cargadas en el entorno y la red hacia
+> `hyhijzuomqpylcmrzdvw.supabase.co` habilitada: Playwright, logueado con un
+> usuario de prueba de dev (`qa-cloud@tropicana.local`, Administrador; la
+> contraseña no se guarda en el repo), recorrió las 19 pantallas a 1600px y
+> 375px. Todas 200, cero errores de consola, cero `mx-auto`. El `<h1>`
+> arranca en **306px / 26px** en 17 de ellas; Recibo y comprobante miden
+> 341px / 52px porque su título vive dentro de la tarjeta del documento
+> imprimible (que sí arranca en el borde de `<Pagina>`) — es el diseño, no un
+> desvío. Las barras fijas de Precios y de Sala arrancan en 272px, justo
+> después de la barra lateral (termina en 271px), con el contenido alineado
+> al título. 77/77 tests, `tsc`, lint y build limpios.
 >
 > **2026-09-24 (antes)** — **Inscribir alineado, la clase de
 > prueba deja de quedar ambigua al elegir alumno, y la ficha de Alumnos/
-> Profesores abre para VER, no para editar. En dev**, esperando prueba y OK
-> de Javier.
+> Profesores abre para VER, no para editar. PASADO A PRODUCCIÓN** junto con
+> el bloque de arriba.
 >
 > Tres fallas que Javier encontró probando en producción:
 >
@@ -166,8 +186,9 @@
 > funciones `SECURITY DEFINER` de la 0048. `buscar_por_documento` también
 > se cierra a `authenticated` (la app no la usa). Era el hallazgo abierto
 > del pase, y su disparador ("antes de cargar el primer documento") se
-> cumplió con esta prueba. Aplicada **solo en dev**: `get_advisors` ya no
-> las marca para `anon`.
+> cumplió con esta prueba. Aplicada en dev y **en producción** (ver el
+> registro al principio de este documento): `get_advisors` ya no las marca
+> para `anon`.
 >
 > **Verificado en dev:** reproducido el error exacto (Luz Marina Araujo,
 > fila solo con fecha) y guardado bien después del arreglo, con la fecha
