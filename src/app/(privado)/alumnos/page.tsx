@@ -4,6 +4,7 @@ import EncabezadoPagina from "@/components/EncabezadoPagina";
 import SinAcceso from "@/components/SinAcceso";
 import ClienteAlumnos from "./ClienteAlumnos";
 import type { Alumno, Contacto } from "@/lib/tipos";
+import { cargarListasContacto } from "@/app/(privado)/contactos/acciones";
 
 export const dynamic = "force-dynamic";
 
@@ -12,12 +13,14 @@ export default async function PaginaAlumnos() {
 
   const supabase = await createClient();
 
-  const [{ data: alumnosRaw }, { data: cat }, { data: insc }, { data: pagosAl }] = await Promise.all([
-    supabase.from("alumnos").select("*, contacto:contactos(*)"),
-    supabase.from("catalogos").select("id").eq("clave", "canal_captacion").maybeSingle(),
-    supabase.from("membresias").select("alumno_id"),
-    supabase.from("pagos").select("alumno_id"),
-  ]);
+  const [{ data: alumnosRaw }, { data: cat }, { data: insc }, { data: pagosAl }, contactoListas] =
+    await Promise.all([
+      supabase.from("alumnos").select("*, contacto:contactos(*)"),
+      supabase.from("catalogos").select("id").eq("clave", "canal_captacion").maybeSingle(),
+      supabase.from("membresias").select("alumno_id"),
+      supabase.from("pagos").select("alumno_id"),
+      cargarListasContacto(),
+    ]);
 
   const alumnos = ((alumnosRaw as Alumno[]) ?? []).slice();
 
@@ -62,7 +65,14 @@ export default async function PaginaAlumnos() {
         titulo="Alumnos"
         descripcion="Padrón de alumnos. El WhatsApp identifica al adulto; para un menor, el WhatsApp del tutor más su nombre."
       />
-      <ClienteAlumnos alumnos={alumnos} canales={canales} deps={deps} />
+      <ClienteAlumnos
+        alumnos={alumnos}
+        canales={canales}
+        deps={deps}
+        matriz={contactoListas.matriz}
+        listasContacto={contactoListas.listas}
+        puedeVerPrivados={contactoListas.puedeVerPrivados}
+      />
     </div>
   );
 }

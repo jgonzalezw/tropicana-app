@@ -139,6 +139,54 @@ export type ContactoRelacion = {
   desde_fecha: string;
 };
 
+// ── Redes, documento y consentimiento (0048, campos de C3-0a.3) ────────
+
+export type RedSocial = { clave: string; nombre: string; patron_url: string | null; orden: number; activo: boolean };
+
+export type ContactoRed = { id: number; contacto_id: number; red: string; usuario: string };
+
+export type TipoDocumento = { clave: string; nombre: string; patron: string | null; orden: number; activo: boolean };
+
+export type ContactoPrivadoDatos = {
+  tipo_documento: string;
+  numero: string;
+  complemento: string | null;
+  expedido: string | null;
+};
+
+/** El último consentimiento otorgado por un contacto para "contacto" (vista `consentimientos_vigentes`). */
+export type ConsentimientoVigente = {
+  contacto_id: number;
+  otorgado: boolean;
+  medio: string;
+  version_politica: string | null;
+  creado_en: string;
+};
+
+/**
+ * Lo que un formulario de contacto (alumno, profesor) envía además de su
+ * identidad — controlado por la matriz de mínimos (C3-0a.3): un campo en
+ * `-` no se manda; el formulario solo arma lo que muestra.
+ */
+export type DatosContactoExtra = {
+  email: string | null;
+  sexo: string | null;
+  redes: { red: string; usuario: string }[];
+  documento: ContactoPrivadoDatos | null;
+  fecha_nacimiento: string | null;
+  /** `null` = no se tocó el consentimiento (no se registra nada nuevo). */
+  consentimiento: { otorgado: boolean; medio: string } | null;
+};
+
+/** Catálogos de apoyo que `CamposContacto` necesita para renderizar sus listas (regla de calidad 6). */
+export type ListasContacto = {
+  redesDisponibles: RedSocial[];
+  tiposDocumento: TipoDocumento[];
+  mediosConsentimiento: { valor: string; etiqueta: string }[];
+  sexoOpciones: { valor: string; etiqueta: string }[];
+  textoPolitica: string;
+};
+
 /** Estilo de baile (D12, migración 0048) — catálogo propio, no texto libre. */
 export type Estilo = { clave: string; nombre: string; orden: number; activo: boolean };
 
@@ -178,6 +226,7 @@ export const CAMPOS_MINIMO = [
   "documento",
   "facturacion",
   "nacimiento",
+  "sexo",
 ] as const;
 export type CampoMinimo = (typeof CAMPOS_MINIMO)[number];
 
@@ -211,6 +260,7 @@ export const ETIQUETA_CAMPO_MINIMO: Record<CampoMinimo, string> = {
   documento: "Documento",
   facturacion: "Facturación",
   nacimiento: "Fecha de nacimiento",
+  sexo: "Sexo",
 };
 
 export const ETIQUETA_NIVEL_MINIMO: Record<NivelMinimo, string> = {
@@ -282,7 +332,7 @@ export type Curso = {
 };
 
 /** Datos que el componente de Profesor envía al host para crear/editar. */
-export type DatosProfesor = {
+export type DatosProfesor = DatosContactoExtra & {
   nombre: string;
   apellido: string;
   whatsapp: string;
@@ -312,7 +362,7 @@ export type Alumno = {
 };
 
 /** Datos que el componente de Alumno envía al host para crear/editar. */
-export type DatosAlumno = {
+export type DatosAlumno = DatosContactoExtra & {
   nombre: string;
   apellido: string;
   whatsapp: string;
@@ -322,6 +372,8 @@ export type DatosAlumno = {
   tutorNombre: string;
   tutorWhatsapp: string;
   canal_captacion: string | null;
+  /** Si este alumno se está cargando desde la clase de prueba (elige el contexto de la matriz). */
+  enPrueba?: boolean;
 };
 
 /** Tarifas parciales por curso (tabla A). null = no cargada → cae al mensual. */

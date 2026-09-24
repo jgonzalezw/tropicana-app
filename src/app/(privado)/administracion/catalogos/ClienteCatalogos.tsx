@@ -2,8 +2,10 @@
 
 import { useState, useTransition } from "react";
 import type {
+  CampoMinimo,
   Catalogo,
   CatalogoValor,
+  ContextoMinimo,
   Estilo,
   MatrizMinimo,
   NivelMinimo,
@@ -15,6 +17,7 @@ import {
   ETIQUETA_CAMPO_MINIMO,
   ETIQUETA_NIVEL_MINIMO,
 } from "@/lib/tipos";
+import { celdaBloqueada, CAMPOS_SIN_ALMACENAMIENTO } from "@/lib/matrizMinimos";
 import {
   agregarValor,
   actualizarValor,
@@ -22,6 +25,9 @@ import {
   actualizarEstilo,
   fijarNivelMinimo,
 } from "./acciones";
+
+const SIN_ALMACENAMIENTO_MOTIVO =
+  "Todavía no tiene dónde guardarse (C3-0a.3): cambiar esta celda no tendría efecto.";
 
 const ESTILOS = "estilos" as const;
 const MATRIZ = "matriz" as const;
@@ -147,9 +153,9 @@ export default function ClienteCatalogos({
   );
 }
 
-function celdaClase(nivel: NivelMinimo) {
-  const base =
-    "w-8 h-8 rounded-[10px] border-2 text-sm font-bold transition-colors disabled:opacity-40";
+function celdaClase(nivel: NivelMinimo, bloqueada = false) {
+  const base = "w-8 h-8 rounded-[10px] border-2 text-sm font-bold transition-colors disabled:opacity-40";
+  if (bloqueada) return `${base} border-[var(--borde)] text-[var(--texto-tenue)] cursor-not-allowed`;
   if (nivel === "O")
     return `${base} bg-[var(--primario)] border-[var(--primario)] text-[var(--primario-texto)]`;
   if (nivel === "V") return `${base} border-[var(--primario)] text-[var(--primario)]`;
@@ -179,7 +185,8 @@ function SeccionMatrizMinimos({ matriz }: { matriz: MatrizMinimo[] }) {
   const [pendiente, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  function ciclar(contexto: string, campo: string) {
+  function ciclar(contexto: ContextoMinimo, campo: CampoMinimo) {
+    if (celdaBloqueada(contexto, campo) || CAMPOS_SIN_ALMACENAMIENTO.includes(campo)) return;
     const clave = `${contexto}:${campo}`;
     const actualNivel = estado.get(clave) ?? "-";
     const siguiente: NivelMinimo =
@@ -232,16 +239,19 @@ function SeccionMatrizMinimos({ matriz }: { matriz: MatrizMinimo[] }) {
                 </td>
                 {CONTEXTOS_MINIMO.map((contexto) => {
                   const nivel = estado.get(`${contexto}:${campo}`) ?? "-";
+                  const bloqueo = celdaBloqueada(contexto, campo);
+                  const sinAlmacenamiento = CAMPOS_SIN_ALMACENAMIENTO.includes(campo);
+                  const motivo = bloqueo?.motivo ?? (sinAlmacenamiento ? SIN_ALMACENAMIENTO_MOTIVO : null);
                   return (
                     <td key={contexto} className="py-2 px-2 text-center">
                       <button
                         onClick={() => ciclar(contexto, campo)}
-                        disabled={pendiente}
-                        aria-label={`${ETIQUETA_CAMPO_MINIMO[campo]} en ${ETIQUETA_CONTEXTO_MINIMO[contexto]}: ${ETIQUETA_NIVEL_MINIMO[nivel]}`}
-                        title={ETIQUETA_NIVEL_MINIMO[nivel]}
-                        className={celdaClase(nivel)}
+                        disabled={pendiente || !!motivo}
+                        aria-label={`${ETIQUETA_CAMPO_MINIMO[campo]} en ${ETIQUETA_CONTEXTO_MINIMO[contexto]}: ${ETIQUETA_NIVEL_MINIMO[nivel]}${motivo ? ` — ${motivo}` : ""}`}
+                        title={motivo ?? ETIQUETA_NIVEL_MINIMO[nivel]}
+                        className={celdaClase(nivel, !!motivo)}
                       >
-                        {nivel === "-" ? "–" : nivel}
+                        {motivo ? "🔒" : nivel === "-" ? "–" : nivel}
                       </button>
                     </td>
                   );
@@ -251,6 +261,9 @@ function SeccionMatrizMinimos({ matriz }: { matriz: MatrizMinimo[] }) {
           </tbody>
         </table>
       </div>
+      <p className="text-sm text-[var(--texto-tenue)] mt-3">
+        🔒 = no editable: de una lógica del sistema, o todavía sin dónde guardarse (pasá el mouse para el motivo).
+      </p>
 
       {error && (
         <p className="text-[var(--peligro)] text-base mt-4" role="alert">

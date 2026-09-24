@@ -4,11 +4,23 @@ import {
   normalizarWhatsapp,
   whatsappEnFormato,
   nombreCompleto,
+  apellidoNombre,
   apellidoDe,
   normalizarRed,
   validarDocumento,
   compararContactosPorApellido,
+  validarIdentidadAlumno,
+  edadDesde,
+  validarFechaNacimiento,
 } from "./contactos.ts";
+
+/** Fecha ISO de hace `anios` años (y algunos días de margen para no depender del día de la corrida). */
+function haceAnios(anios: number, margenDias = 0): string {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - anios);
+  d.setDate(d.getDate() - margenDias);
+  return d.toISOString().slice(0, 10);
+}
 
 test("normalizarWhatsapp: 8 dígitos locales → +591", () => {
   assert.equal(normalizarWhatsapp("77311069"), "+59177311069");
@@ -52,6 +64,13 @@ test("nombreCompleto: persona, organización y faltante", () => {
   assert.equal(nombreCompleto(null), "—");
 });
 
+test('apellidoNombre: "Apellido, Nombre" — para listas ordenadas por apellido (Javier, 2026-09-24)', () => {
+  assert.equal(apellidoNombre({ tipo: "persona", nombre: "Natalia", apellido: "Salek", razon_social: null }), "Salek, Natalia");
+  assert.equal(apellidoNombre({ tipo: "persona", nombre: "Jessica", apellido: null, razon_social: null }), "Jessica");
+  assert.equal(apellidoNombre({ tipo: "organizacion", nombre: null, apellido: null, razon_social: "Sala XYZ" }), "Sala XYZ");
+  assert.equal(apellidoNombre(null), "—");
+});
+
 test("apellidoDe: usa nombre si no hay apellido (caso tutor de texto)", () => {
   assert.equal(apellidoDe({ apellido: "Vivancos", nombre: "Sebastian" }), "Vivancos");
   assert.equal(apellidoDe({ apellido: null, nombre: "Jessica Galvis" }), "Jessica Galvis");
@@ -68,6 +87,58 @@ test("validarDocumento: sin patrón siempre pasa; con patrón lo exige", () => {
   assert.equal(validarDocumento("^[0-9]{5,10}$", "1234567"), true);
   assert.equal(validarDocumento("^[0-9]{5,10}$", "abc"), false);
   assert.equal(validarDocumento("^[0-9]{5,10}$", ""), false);
+});
+
+test("validarIdentidadAlumno: adulto necesita 6+ dígitos de WhatsApp propio", () => {
+  const base = { es_menor: false, whatsapp: "", tutorContactoId: null, tutorWhatsapp: "" };
+  assert.match(validarIdentidadAlumno(base) ?? "", /WhatsApp/);
+  assert.equal(validarIdentidadAlumno({ ...base, whatsapp: "77644222" }), null);
+});
+
+test("validarIdentidadAlumno: menor necesita tutor con WhatsApp o ya vinculado", () => {
+  const base = { es_menor: true, whatsapp: "", tutorContactoId: null, tutorWhatsapp: "" };
+  assert.match(validarIdentidadAlumno(base) ?? "", /tutor/);
+  assert.equal(validarIdentidadAlumno({ ...base, tutorWhatsapp: "77311069" }), null);
+  assert.equal(validarIdentidadAlumno({ ...base, tutorContactoId: 5 }), null);
+});
+
+test("validarIdentidadAlumno: nombre/apellido ya NO se validan acá (C3-0a.3 — pasan a la matriz)", () => {
+  // Antes de C3-0a.3 esto hubiera fallado por nombre/apellido vacíos; ahora
+  // esa exigencia vive en la matriz de mínimos (`validarContraMatriz`), no
+  // en esta identidad — la firma de la función ya ni recibe esos campos.
+  assert.equal(
+    validarIdentidadAlumno({ es_menor: false, whatsapp: "77644222", tutorContactoId: null, tutorWhatsapp: "" }),
+    null
+  );
+});
+
+test("edadDesde: cuenta años cumplidos, no solo la resta de años calendario", () => {
+  assert.equal(edadDesde(haceAnios(30, 5)), 30);
+  // Cumpleaños todavía no llegó este año: un año menos que la resta simple.
+  assert.equal(edadDesde(haceAnios(30, -5)), 29);
+});
+
+test("validarFechaNacimiento: sin fecha no valida nada (campo opcional/oculto)", () => {
+  assert.equal(validarFechaNacimiento(null, false), null);
+});
+
+test("validarFechaNacimiento: rechaza una fecha futura", () => {
+  const manana = new Date();
+  manana.setDate(manana.getDate() + 1);
+  assert.match(validarFechaNacimiento(manana.toISOString().slice(0, 10), false) ?? "", /futura/);
+});
+
+test("validarFechaNacimiento: menor de 18 sin \"es menor\" se rechaza", () => {
+  assert.match(validarFechaNacimiento(haceAnios(17), false) ?? "", /menor de edad/);
+});
+
+test("validarFechaNacimiento: menor de 18 CON \"es menor\" pasa", () => {
+  assert.equal(validarFechaNacimiento(haceAnios(17), true), null);
+});
+
+test("validarFechaNacimiento: 18 o más no exige es_menor", () => {
+  assert.equal(validarFechaNacimiento(haceAnios(18, 5), false), null);
+  assert.equal(validarFechaNacimiento(haceAnios(40), false), null);
 });
 
 test("compararContactosPorApellido: ordena por apellido, luego nombre", () => {

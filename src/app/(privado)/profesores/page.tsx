@@ -4,6 +4,7 @@ import EncabezadoPagina from "@/components/EncabezadoPagina";
 import SinAcceso from "@/components/SinAcceso";
 import ClienteProfesores from "./ClienteProfesores";
 import type { Profesor, Curso, Asignacion, DepsProfesor, Estilo } from "@/lib/tipos";
+import { cargarListasContacto } from "@/app/(privado)/contactos/acciones";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,7 @@ export default async function PaginaProfesores() {
     { data: perfiles },
     { data: estilosRaw },
     { data: profEstilos },
+    contactoListas,
   ] = await Promise.all([
     supabase.from("profesores").select("*, contacto:contactos(*)"),
     supabase.from("cursos").select("*").eq("activo", true).order("nombre"),
@@ -26,6 +28,7 @@ export default async function PaginaProfesores() {
     supabase.from("perfiles").select("id, nombre, apellido, email"),
     supabase.from("estilos").select("*").eq("activo", true).order("orden"),
     supabase.from("profesor_estilos").select("profesor_id, estilo"),
+    cargarListasContacto(),
   ]);
 
   const padron = (profesoresRaw as Profesor[]) ?? [];
@@ -66,6 +69,9 @@ export default async function PaginaProfesores() {
         cuentas={cuentas}
         estilos={estilos}
         deps={deps}
+        matriz={contactoListas.matriz}
+        listasContacto={contactoListas.listas}
+        puedeVerPrivados={contactoListas.puedeVerPrivados}
       />
     </div>
   );

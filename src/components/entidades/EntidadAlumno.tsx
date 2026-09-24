@@ -1,9 +1,12 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import type { Alumno, DatosAlumno } from "@/lib/tipos";
+import { useEffect, useState, useTransition } from "react";
+import type { Alumno, DatosAlumno, MatrizMinimo } from "@/lib/tipos";
 import { soloDigitos } from "@/lib/texto";
-import { nombreCompleto, compararContactosPorApellido } from "@/lib/contactos";
+import { nombreCompleto, apellidoNombre, compararContactosPorApellido, validarFechaNacimiento } from "@/lib/contactos";
+import { contextoAlumno, nivelesDe, faltantes, presenteDesdeExtra } from "@/lib/matrizMinimos";
+import CamposContacto, { DATOS_CONTACTO_EXTRA_VACIO, type ListasContacto } from "./CamposContacto";
+import { detalleContacto } from "@/app/(privado)/contactos/acciones";
 
 type Canal = { valor: string; etiqueta: string };
 
@@ -19,6 +22,10 @@ type Canal = { valor: string; etiqueta: string };
 export default function EntidadAlumno({
   padron,
   canales,
+  matriz,
+  listasContacto,
+  puedeVerPrivados,
+  enPrueba = false,
   permitirBaja = false,
   abrirAlElegir = true,
   valor = null,
@@ -30,6 +37,11 @@ export default function EntidadAlumno({
 }: {
   padron: Alumno[];
   canales: Canal[];
+  matriz: MatrizMinimo[];
+  listasContacto: ListasContacto;
+  puedeVerPrivados: boolean;
+  /** Si este formulario se abre desde la clase de prueba (contexto `prueba` cuando no es menor). */
+  enPrueba?: boolean;
   permitirBaja?: boolean;
   abrirAlElegir?: boolean;
   valor?: Alumno | null;
@@ -63,6 +75,10 @@ export default function EntidadAlumno({
         inicial={ficha === "nuevo" ? null : ficha}
         padron={padron}
         canales={canales}
+        matriz={matriz}
+        listasContacto={listasContacto}
+        puedeVerPrivados={puedeVerPrivados}
+        enPrueba={enPrueba}
         permitirBaja={permitirBaja}
         deps={ficha !== "nuevo" && depsDe ? depsDe(ficha.id) : undefined}
         onAbrir={(a) => setFicha(a)}
@@ -93,7 +109,7 @@ export default function EntidadAlumno({
               onClick={() => (abrirAlElegir ? setFicha(a) : onSelect?.(a))}
               className="w-full text-left bg-[var(--fondo-elevado)] border border-[var(--borde)] rounded-[var(--radio-panel)] px-4 py-3 hover:border-[var(--primario)]"
             >
-              <div className="font-medium">{nombreCompleto(a.contacto)}</div>
+              <div className="font-medium">{apellidoNombre(a.contacto)}</div>
               <div className="text-sm text-[var(--texto-tenue)]">
                 {a.es_menor
                   ? `menor · tutor ${a.tutor?.whatsapp || "—"}`
@@ -117,6 +133,10 @@ function FichaAlumno({
   inicial,
   padron,
   canales,
+  matriz,
+  listasContacto,
+  puedeVerPrivados,
+  enPrueba,
   permitirBaja,
   deps,
   onAbrir,
@@ -127,6 +147,10 @@ function FichaAlumno({
   inicial: Alumno | null;
   padron: Alumno[];
   canales: Canal[];
+  matriz: MatrizMinimo[];
+  listasContacto: ListasContacto;
+  puedeVerPrivados: boolean;
+  enPrueba: boolean;
   permitirBaja: boolean;
   deps?: number;
   onAbrir: (a: Alumno) => void;
@@ -138,6 +162,35 @@ function FichaAlumno({
   const [apellido, setApellido] = useState(inicial?.contacto.apellido ?? "");
   const [wa, setWa] = useState(inicial?.contacto.whatsapp ?? "");
   const [esMenor, setEsMenor] = useState(inicial?.es_menor ?? false);
+  const [extra, setExtra] = useState({
+    ...DATOS_CONTACTO_EXTRA_VACIO,
+    email: inicial?.contacto.email ?? null,
+    sexo: inicial?.contacto.sexo ?? null,
+  });
+
+  // Redes/documento/consentimiento no viajan en el padrón (tablas aparte):
+  // se piden al abrir la ficha de un alumno existente, no para toda la lista.
+  useEffect(() => {
+    if (!inicial) return;
+    let vivo = true;
+    detalleContacto(inicial.contacto_id).then((d) => {
+      if (!vivo) return;
+      setExtra((e) => ({
+        ...e,
+        redes: d.redes.map((r) => ({ red: r.red, usuario: r.usuario })),
+        documento: d.documento,
+        fecha_nacimiento: d.fecha_nacimiento,
+        consentimiento: d.consentimiento ? { otorgado: d.consentimiento.otorgado, medio: d.consentimiento.medio } : null,
+      }));
+    });
+    return () => {
+      vivo = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inicial?.id]);
+
+  const contexto = contextoAlumno({ esMenor, enPrueba });
+  const niveles = nivelesDe(matriz, contexto);
   const [tutorNom, setTutorNom] = useState(inicial?.tutor ? nombreCompleto(inicial.tutor) : "");
   const [tutorWa, setTutorWa] = useState(inicial?.tutor?.whatsapp ?? "");
   // tutorLink solo representa "el tutor ES un alumno ya cargado" (como el
@@ -184,8 +237,16 @@ function FichaAlumno({
 
   const identidadOk = esMenor ? tutWaDig.length >= 6 && !!nombre.trim() : waDig.length >= 6;
   const panelAbierto = !!dupAdulto || !!dupMenor || !!tutorEsAlumno;
+  const faltanExtra = faltantes(niveles, {
+    apellido: !!apellido.trim(),
+    canal_captacion: !!canal,
+    ...presenteDesdeExtra(extra),
+  }).filter((c) => c !== "nombre" && c !== "whatsapp" && c !== "tutor" && c !== "es_menor");
+  // Misma regla que el servidor (`validarFechaNacimiento`): una fecha de
+  // nacimiento que da menor de edad exige el camino de menor, con tutor.
+  const errEdad = validarFechaNacimiento(extra.fecha_nacimiento, esMenor);
   const puedeGuardar =
-    !pendiente && !!nombre.trim() && !!apellido.trim() && identidadOk && !panelAbierto;
+    !pendiente && !!nombre.trim() && identidadOk && !panelAbierto && faltanExtra.length === 0 && !errEdad;
 
   function guardar() {
     setError(null);
@@ -200,6 +261,8 @@ function FichaAlumno({
           tutorNombre: tutorNom,
           tutorWhatsapp: tutorWa,
           canal_captacion: canal || null,
+          enPrueba,
+          ...extra,
         },
         inicial?.id ?? null
       );
@@ -231,9 +294,11 @@ function FichaAlumno({
         <Campo etiqueta="Nombre">
           <input value={nombre} onChange={(e) => setNombre(e.target.value)} className="entrada" autoFocus />
         </Campo>
-        <Campo etiqueta="Apellido">
-          <input value={apellido} onChange={(e) => setApellido(e.target.value)} className="entrada" />
-        </Campo>
+        {niveles.apellido !== "-" && (
+          <Campo etiqueta={niveles.apellido === "O" ? "Apellido" : "Apellido (opcional)"}>
+            <input value={apellido} onChange={(e) => setApellido(e.target.value)} className="entrada" />
+          </Campo>
+        )}
       </div>
 
       <Campo etiqueta={esMenor ? "WhatsApp (opcional si hay tutor)" : "WhatsApp · identifica al alumno"}>
@@ -350,16 +415,32 @@ function FichaAlumno({
         </div>
       )}
 
-      <Campo etiqueta="Canal de captación (opcional)">
-        <select value={canal ?? ""} onChange={(e) => setCanal(e.target.value)} className="entrada">
-          <option value="">— Sin definir —</option>
-          {canales.map((c) => (
-            <option key={c.valor} value={c.valor}>
-              {c.etiqueta}
-            </option>
-          ))}
-        </select>
-      </Campo>
+      {niveles.canal_captacion !== "-" && (
+        <Campo etiqueta={niveles.canal_captacion === "O" ? "Canal de captación" : "Canal de captación (opcional)"}>
+          <select value={canal ?? ""} onChange={(e) => setCanal(e.target.value)} className="entrada">
+            <option value="">— Sin definir —</option>
+            {canales.map((c) => (
+              <option key={c.valor} value={c.valor}>
+                {c.etiqueta}
+              </option>
+            ))}
+          </select>
+        </Campo>
+      )}
+
+      <CamposContacto
+        niveles={niveles}
+        listas={listasContacto}
+        valor={extra}
+        onChange={setExtra}
+        puedeVerPrivados={puedeVerPrivados}
+      />
+
+      {errEdad && (
+        <p className="text-[var(--peligro)] text-base" role="alert">
+          {errEdad}
+        </p>
+      )}
 
       {error && (
         <p className="text-[var(--peligro)] text-base" role="alert">

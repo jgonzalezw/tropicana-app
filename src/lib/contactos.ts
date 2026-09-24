@@ -46,6 +46,22 @@ export function nombreCompleto(c: Pick<Contacto, "tipo" | "nombre" | "apellido" 
   return partes.length ? partes.join(" ") : "—";
 }
 
+/**
+ * "Apellido, Nombre" — para las listas que ya ordenan por apellido (regla
+ * de negocio 15): mostrar nombre primero rompe la lectura del agrupamiento
+ * alfabético (Javier, 2026-09-24: "se ve el nombre primero, no se
+ * distingue"). `nombreCompleto` sigue siendo "Nombre Apellido" para el
+ * resto de la app (recibos, fichas, texto corrido).
+ */
+export function apellidoNombre(c: Pick<Contacto, "tipo" | "nombre" | "apellido" | "razon_social"> | null | undefined): string {
+  if (!c) return "—";
+  if (c.tipo === "organizacion") return c.razon_social?.trim() || "—";
+  const apellido = c.apellido?.trim();
+  const nombre = c.nombre?.trim();
+  if (apellido && nombre) return `${apellido}, ${nombre}`;
+  return apellido || nombre || "—";
+}
+
 /** Apellido para ordenar/mostrar en listas (regla 15: siempre por apellido). */
 export function apellidoDe(c: Pick<Contacto, "apellido" | "nombre"> | null | undefined): string {
   return c?.apellido?.trim() || c?.nombre?.trim() || "";
@@ -86,24 +102,51 @@ export function validarDocumento(patron: string | null, numero: string): boolean
   }
 }
 
-export type NivelMinimo = "O" | "V" | "-";
+/** Edad en años cumplidos a hoy, a partir de una fecha ISO (YYYY-MM-DD). */
+export function edadDesde(fechaISO: string): number {
+  const nacimiento = new Date(`${fechaISO}T00:00:00`);
+  const hoy = new Date();
+  let edad = hoy.getFullYear() - nacimiento.getFullYear();
+  const antesDelCumple =
+    hoy.getMonth() < nacimiento.getMonth() ||
+    (hoy.getMonth() === nacimiento.getMonth() && hoy.getDate() < nacimiento.getDate());
+  if (antesDelCumple) edad--;
+  return edad;
+}
 
 /**
- * Validación compartida de identidad para un alumno: se identifica por su
- * propio WhatsApp, o por el del tutor si es menor (o un tutor ya elegido).
+ * La fecha de nacimiento tiene que ser consistente con "es menor" (C3-0a.3,
+ * Javier 2026-09-24): si la edad calculada da menos de 18, el formulario
+ * tiene que estar en el camino de menor —con tutor—, no alcanza con cargar
+ * el dato y dejarlo contradicho. También descarta una fecha futura.
+ */
+export function validarFechaNacimiento(fecha: string | null, esMenor: boolean): string | null {
+  if (!fecha) return null;
+  const nacimiento = new Date(`${fecha}T00:00:00`);
+  if (Number.isNaN(nacimiento.getTime())) return "La fecha de nacimiento no es válida.";
+  if (nacimiento.getTime() > Date.now()) return "La fecha de nacimiento no puede ser futura.";
+  if (edadDesde(fecha) < 18 && !esMenor)
+    return 'Esa fecha de nacimiento corresponde a un menor de edad: marcá "Es menor" y cargá el tutor.';
+  return null;
+}
+
+/**
+ * Validación de IDENTIDAD para un alumno: se identifica por su propio
+ * WhatsApp, o por el del tutor si es menor (o un tutor ya elegido) — es lo
+ * que detecta duplicados, y por eso queda hardcodeada, no en la matriz de
+ * mínimos (C3-0a.3): cambiar esa celda no puede apagar la detección.
+ * Nombre/apellido y el resto de los campos SÍ pasan por la matriz —
+ * ver `faltantes()` en `matrizMinimos.ts`, que valida el resto.
  * Es pura a propósito — vive acá, no en las acciones del servidor, porque
  * Next.js exige que todo lo exportado de un archivo "use server" sea
  * async, y esto no necesita serlo.
  */
 export function validarIdentidadAlumno(d: {
-  nombre: string;
-  apellido: string;
   es_menor: boolean;
   whatsapp: string;
   tutorContactoId: number | null;
   tutorWhatsapp: string;
 }): string | null {
-  if (!d.nombre.trim() || !d.apellido.trim()) return "Nombre y apellido son obligatorios.";
   if (d.es_menor) {
     if (!d.tutorContactoId && soloDigitos(d.tutorWhatsapp).length < 6)
       return "El WhatsApp del tutor identifica al menor (6+ dígitos), o elegí un tutor ya cargado.";

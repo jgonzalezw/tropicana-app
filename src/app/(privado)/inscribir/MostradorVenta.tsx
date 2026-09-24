@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Alumno } from "@/lib/tipos";
+import type { Alumno, ListasContacto, MatrizMinimo } from "@/lib/tipos";
 import ClienteInscribir, { type PlanVenta } from "./ClienteInscribir";
 import VenderPrueba from "./VenderPrueba";
 
@@ -31,6 +31,9 @@ export default function MostradorVenta(props: {
   suspendidas: string[];
   /** Crédito de una clase de prueba sin convertir, por alumno y plan. */
   creditoPruebaPorAlumnoPlan: Record<number, Record<number, { monto: number; fecha: string; personas: number; pagado: number }>>;
+  matriz: MatrizMinimo[];
+  listasContacto: ListasContacto;
+  puedeVerPrivados: boolean;
 }) {
   const { suspendidas } = props;
   const [modo, setModo] = useState<Modo>("inscripcion");
@@ -91,6 +94,9 @@ export default function MostradorVenta(props: {
             medios={props.medios}
             canales={props.canales}
             suspendidas={suspendidas}
+            matriz={props.matriz}
+            listasContacto={props.listasContacto}
+            puedeVerPrivados={props.puedeVerPrivados}
           />
         </div>
       ) : (

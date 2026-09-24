@@ -3,8 +3,8 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { Alumno, DatosAlumno } from "@/lib/tipos";
-import { nombreCompleto, compararContactosPorApellido } from "@/lib/contactos";
+import type { Alumno, DatosAlumno, ListasContacto, MatrizMinimo } from "@/lib/tipos";
+import { nombreCompleto, apellidoNombre, compararContactosPorApellido } from "@/lib/contactos";
 import EntidadAlumno from "@/components/entidades/EntidadAlumno";
 import { crearAlumno, actualizarAlumno, eliminarODesactivarAlumno, activarAlumno } from "./acciones";
 
@@ -14,10 +14,16 @@ export default function ClienteAlumnos({
   alumnos,
   canales,
   deps,
+  matriz,
+  listasContacto,
+  puedeVerPrivados,
 }: {
   alumnos: Alumno[];
   canales: Canal[];
   deps: Record<number, number>;
+  matriz: MatrizMinimo[];
+  listasContacto: ListasContacto;
+  puedeVerPrivados: boolean;
 }) {
   const router = useRouter();
   const [editSel, setEditSel] = useState<Alumno | null>(null);
@@ -69,6 +75,9 @@ export default function ClienteAlumnos({
           key={remount}
           padron={alumnos}
           canales={canales}
+          matriz={matriz}
+          listasContacto={listasContacto}
+          puedeVerPrivados={puedeVerPrivados}
           permitirBaja
           valor={editSel}
           depsDe={(id) => deps[id]}
@@ -96,7 +105,7 @@ export default function ClienteAlumnos({
               return (
                 <tr key={a.id} className={`border-t border-[var(--borde)] ${a.activo ? "" : "opacity-50"}`}>
                   <td className="py-3 px-4">
-                    <div className="font-medium">{nombreCompleto(a.contacto)}</div>
+                    <div className="font-medium">{apellidoNombre(a.contacto)}</div>
                     {a.es_menor && (
                       <div className="text-xs text-[var(--texto-tenue)]">menor</div>
                     )}

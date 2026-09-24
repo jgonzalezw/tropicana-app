@@ -4,12 +4,15 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { tienePermiso } from "@/lib/sesion";
 import type { DatosAlumno } from "@/lib/tipos";
-import { validarIdentidadAlumno } from "@/lib/contactos";
+import { validarIdentidadAlumno, validarFechaNacimiento } from "@/lib/contactos";
+import { contextoAlumno, presenteDesdeExtra } from "@/lib/matrizMinimos";
 import {
   crearOReusarContactoPersona,
   actualizarContactoPersona,
   resolverTutor,
   vincularTutor,
+  guardarDatosExtra,
+  validarContraMatriz,
 } from "@/app/(privado)/contactos/acciones";
 
 type Resultado = { ok?: true; error?: string; accion?: "eliminado" | "desactivado" };
@@ -24,12 +27,25 @@ export async function crearAlumno(d: DatosAlumno): Promise<Resultado> {
   if (!(await tienePermiso("alumnos", "crear"))) return { error: "Sin permiso." };
   const err = validarIdentidadAlumno(d);
   if (err) return { error: err };
+  const errEdad = validarFechaNacimiento(d.fecha_nacimiento, d.es_menor);
+  if (errEdad) return { error: errEdad };
+
+  const contexto = contextoAlumno({ esMenor: d.es_menor, enPrueba: d.enPrueba ?? false });
+  const errMatriz = await validarContraMatriz(contexto, {
+    nombre: !!d.nombre.trim(),
+    apellido: !!d.apellido.trim(),
+    canal_captacion: !!d.canal_captacion,
+    ...presenteDesdeExtra(d),
+  });
+  if (errMatriz) return { error: errMatriz };
 
   const { contacto, error: errContacto } = await crearOReusarContactoPersona({
     nombre: d.nombre,
     apellido: d.apellido,
     whatsapp: d.es_menor ? null : d.whatsapp,
     canal_captacion: d.canal_captacion,
+    sexo: d.sexo,
+    email: d.email,
     reusarSiExiste: false,
   });
   if (errContacto || !contacto) return { error: errContacto ?? "No se pudo crear el contacto." };
@@ -43,6 +59,10 @@ export async function crearAlumno(d: DatosAlumno): Promise<Resultado> {
 
   const { error } = await admin().from("alumnos").insert({ contacto_id: contacto.id, es_menor: d.es_menor });
   if (error) return { error: error.message };
+
+  const errExtra = await guardarDatosExtra(contacto.id, d);
+  if (errExtra.error) return { error: errExtra.error };
+
   revalidatePath("/alumnos");
   return { ok: true };
 }
@@ -51,6 +71,17 @@ export async function actualizarAlumno(id: number, d: DatosAlumno): Promise<Resu
   if (!(await tienePermiso("alumnos", "editar"))) return { error: "Sin permiso." };
   const err = validarIdentidadAlumno(d);
   if (err) return { error: err };
+  const errEdad = validarFechaNacimiento(d.fecha_nacimiento, d.es_menor);
+  if (errEdad) return { error: errEdad };
+
+  const contexto = contextoAlumno({ esMenor: d.es_menor, enPrueba: d.enPrueba ?? false });
+  const errMatriz = await validarContraMatriz(contexto, {
+    nombre: !!d.nombre.trim(),
+    apellido: !!d.apellido.trim(),
+    canal_captacion: !!d.canal_captacion,
+    ...presenteDesdeExtra(d),
+  });
+  if (errMatriz) return { error: errMatriz };
 
   const { data: fila, error: errFila } = await admin().from("alumnos").select("contacto_id").eq("id", id).single();
   if (errFila || !fila) return { error: errFila?.message ?? "Alumno no encontrado." };
@@ -60,6 +91,8 @@ export async function actualizarAlumno(id: number, d: DatosAlumno): Promise<Resu
     apellido: d.apellido,
     whatsapp: d.es_menor ? null : d.whatsapp,
     canal_captacion: d.canal_captacion,
+    sexo: d.sexo,
+    email: d.email,
   });
   if (errContacto.error) return { error: errContacto.error };
 
@@ -69,6 +102,9 @@ export async function actualizarAlumno(id: number, d: DatosAlumno): Promise<Resu
     const { error: errRel } = await vincularTutor(tutor.id, fila.contacto_id);
     if (errRel) return { error: errRel };
   }
+
+  const errExtra = await guardarDatosExtra(fila.contacto_id, d);
+  if (errExtra.error) return { error: errExtra.error };
 
   const { error } = await admin()
     .from("alumnos")

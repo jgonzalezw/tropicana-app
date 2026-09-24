@@ -6,6 +6,7 @@ import { isoFecha } from "@/lib/inscripcion";
 import MostradorVenta from "./MostradorVenta";
 import type { PlanVenta } from "./ClienteInscribir";
 import type { Alumno, Contacto, Curso } from "@/lib/tipos";
+import { cargarListasContacto } from "@/app/(privado)/contactos/acciones";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,7 @@ export default async function PaginaInscribir() {
     { data: catCanal },
     mediosParam,
     diasCompromisoParam,
+    contactoListas,
   ] = await Promise.all([
     supabase.from("alumnos").select("*, contacto:contactos(*)").eq("activo", true),
     supabase.from("cursos").select("*").eq("activo", true).order("nombre"),
@@ -35,6 +37,7 @@ export default async function PaginaInscribir() {
     supabase.from("catalogos").select("id").eq("clave", "canal_captacion").maybeSingle(),
     obtenerParametro("medios_pago"),
     obtenerParametro("dias_compromiso_pago"),
+    cargarListasContacto(),
   ]);
 
   // Sin planes no hay venta: un fallo acá no puede pasar por "no hay ninguno".
@@ -300,6 +303,9 @@ export default async function PaginaInscribir() {
       bonoPorAlumnoPlan={bonoPorAlumnoPlan}
       suspendidas={suspendidas}
       creditoPruebaPorAlumnoPlan={creditoPruebaPorAlumnoPlan}
+      matriz={contactoListas.matriz}
+      listasContacto={contactoListas.listas}
+      puedeVerPrivados={contactoListas.puedeVerPrivados}
     />
   );
 }

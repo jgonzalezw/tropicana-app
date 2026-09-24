@@ -601,6 +601,33 @@ select '26. cursos activos sin estilo' as control,
  where activo and estilo is null;
 
 -- ---------------------------------------------------------------------
+-- 27. CELDAS BLOQUEADAS DE LA MATRIZ DE MINIMOS CON OTRO VALOR
+--     C3-0a.3: nombre/whatsapp/tutor/es_menor/tipo_profesor en ciertos
+--     contextos son de los que depende la logica del sistema (deteccion de
+--     duplicados, el check de la base que exige nombre u organizacion). El
+--     editor (Administracion > Catalogos > Matriz de minimos) las bloquea
+--     con candado; este control detecta si alguien las cambio por SQL
+--     directo. Lista identica a CELDAS_BLOQUEADAS en src/lib/matrizMinimos.ts
+--     -- si una cambia, la otra tiene que cambiar tambien.
+-- ---------------------------------------------------------------------
+with fijas(contexto, campo, nivel) as (values
+  ('prospecto','nombre','O'), ('prueba','nombre','O'), ('alumno_adulto','nombre','O'),
+  ('alumno_menor','nombre','O'), ('profesor','nombre','O'), ('tercero_persona','nombre','O'),
+  ('proveedor','nombre','O'), ('form_publico','nombre','O'),
+  ('tercero_org','nombre','-'), ('tercero_org','razon_social','O'),
+  ('alumno_adulto','whatsapp','O'), ('prueba','whatsapp','O'), ('alumno_menor','whatsapp','-'),
+  ('alumno_menor','tutor','O'),
+  ('alumno_adulto','es_menor','O'), ('alumno_menor','es_menor','O'),
+  ('profesor','tipo_profesor','O')
+)
+select '27. celdas bloqueadas de la matriz con otro valor' as control,
+       count(*) as n,
+       case when count(*) = 0 then 'OK' else 'REVISAR' end as estado
+  from public.matriz_minimos m
+  join fijas f on f.contexto = m.contexto and f.campo = m.campo
+ where m.nivel <> f.nivel;
+
+-- ---------------------------------------------------------------------
 -- Detalle, por si algun control da REVISAR:
 -- ---------------------------------------------------------------------
 -- select id, alumno_id, curso_id, estado, fecha_inicio, fecha_fin,

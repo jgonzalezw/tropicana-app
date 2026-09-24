@@ -2,8 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import type { Profesor, Curso, Asignacion, DepsProfesor, DatosProfesor, Estilo } from "@/lib/tipos";
-import { nombreCompleto, compararContactosPorApellido } from "@/lib/contactos";
+import type { Profesor, Curso, Asignacion, DepsProfesor, DatosProfesor, Estilo, ListasContacto, MatrizMinimo } from "@/lib/tipos";
+import { nombreCompleto, apellidoNombre, compararContactosPorApellido } from "@/lib/contactos";
 import EntidadProfesor, { TagTipo } from "@/components/entidades/EntidadProfesor";
 import {
   crearProfesor,
@@ -23,6 +23,9 @@ export default function ClienteProfesores({
   cuentas,
   estilos,
   deps,
+  matriz,
+  listasContacto,
+  puedeVerPrivados,
 }: {
   padron: Profesor[];
   cursos: Curso[];
@@ -30,6 +33,9 @@ export default function ClienteProfesores({
   cuentas: Cuenta[];
   estilos: Estilo[];
   deps: Record<number, DepsProfesor>;
+  matriz: MatrizMinimo[];
+  listasContacto: ListasContacto;
+  puedeVerPrivados: boolean;
 }) {
   const [tab, setTab] = useState<"listado" | "asignacion">("listado");
 
@@ -57,6 +63,9 @@ export default function ClienteProfesores({
           cuentas={cuentas}
           estilos={estilos}
           deps={deps}
+          matriz={matriz}
+          listasContacto={listasContacto}
+          puedeVerPrivados={puedeVerPrivados}
         />
       ) : (
         <TabAsignacion padron={padron} cursos={cursos} asignaciones={asignaciones} estilos={estilos} />
@@ -75,11 +84,17 @@ function TabListado({
   cuentas,
   estilos,
   deps,
+  matriz,
+  listasContacto,
+  puedeVerPrivados,
 }: {
   padron: Profesor[];
   cuentas: Cuenta[];
   estilos: Estilo[];
   deps: Record<number, DepsProfesor>;
+  matriz: MatrizMinimo[];
+  listasContacto: ListasContacto;
+  puedeVerPrivados: boolean;
 }) {
   const router = useRouter();
   const [editSel, setEditSel] = useState<Profesor | null>(null);
@@ -131,6 +146,9 @@ function TabListado({
           padron={padron}
           cuentas={cuentas}
           estilos={estilos}
+          matriz={matriz}
+          listasContacto={listasContacto}
+          puedeVerPrivados={puedeVerPrivados}
           permitirBaja
           valor={editSel}
           depsDe={(id) => deps[id]}
@@ -164,7 +182,7 @@ function TabListado({
                   className={`border-t border-[var(--borde)] ${p.activo ? "" : "opacity-50"}`}
                 >
                   <td className="py-3 px-4">
-                    <div className="font-medium">{nombreCompleto(p.contacto)}</div>
+                    <div className="font-medium">{apellidoNombre(p.contacto)}</div>
                     <div className="text-sm text-[var(--texto-tenue)]">{p.contacto.whatsapp || "—"}</div>
                   </td>
                   <td className="py-3 px-4 text-[var(--texto-tenue)]">
@@ -352,7 +370,7 @@ function TabAsignacion({
                     : "bg-[var(--fondo-elevado)] border-[var(--borde)] hover:border-[var(--primario)]"
                 }`}
               >
-                {nombreCompleto(p.contacto)}
+                {apellidoNombre(p.contacto)}
                 <span className="text-sm text-[var(--texto-tenue)]">
                   {" "}
                   · {(p.estilos ?? []).map((c) => etiquetaEstilo(c, estilos)).join(", ") || "sin especialidad"}

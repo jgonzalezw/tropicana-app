@@ -1,9 +1,12 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import type { Profesor, DepsProfesor, TipoProfesor, DatosProfesor, Estilo } from "@/lib/tipos";
+import { useEffect, useState, useTransition } from "react";
+import type { Profesor, DepsProfesor, TipoProfesor, DatosProfesor, Estilo, MatrizMinimo } from "@/lib/tipos";
 import { soloDigitos } from "@/lib/texto";
-import { nombreCompleto, compararContactosPorApellido } from "@/lib/contactos";
+import { nombreCompleto, apellidoNombre, compararContactosPorApellido } from "@/lib/contactos";
+import { nivelesDe, faltantes, presenteDesdeExtra } from "@/lib/matrizMinimos";
+import CamposContacto, { DATOS_CONTACTO_EXTRA_VACIO, type ListasContacto } from "./CamposContacto";
+import { detalleContacto } from "@/app/(privado)/contactos/acciones";
 
 type Cuenta = { id: string; etiqueta: string };
 
@@ -21,6 +24,9 @@ export default function EntidadProfesor({
   padron,
   cuentas,
   estilos,
+  matriz,
+  listasContacto,
+  puedeVerPrivados,
   permitirBaja = false,
   abrirAlElegir = true,
   valor = null,
@@ -33,6 +39,9 @@ export default function EntidadProfesor({
   padron: Profesor[];
   cuentas: Cuenta[];
   estilos: Estilo[];
+  matriz: MatrizMinimo[];
+  listasContacto: ListasContacto;
+  puedeVerPrivados: boolean;
   permitirBaja?: boolean;
   abrirAlElegir?: boolean;
   valor?: Profesor | null;
@@ -62,6 +71,9 @@ export default function EntidadProfesor({
         inicial={ficha === "nuevo" ? null : ficha}
         cuentas={cuentas}
         estilos={estilos}
+        matriz={matriz}
+        listasContacto={listasContacto}
+        puedeVerPrivados={puedeVerPrivados}
         padron={padron}
         permitirBaja={permitirBaja}
         deps={ficha !== "nuevo" && depsDe ? depsDe(ficha.id) : undefined}
@@ -102,7 +114,7 @@ export default function EntidadProfesor({
             >
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <div className="font-medium">{nombreCompleto(p.contacto)}</div>
+                  <div className="font-medium">{apellidoNombre(p.contacto)}</div>
                   <div className="text-sm text-[var(--texto-tenue)]">
                     {p.contacto.whatsapp || "sin WhatsApp"} ·{" "}
                     {etiquetasDe(p.estilos, estilos).join(", ") || "sin especialidad"}
@@ -133,6 +145,9 @@ function FichaProfesor({
   inicial,
   cuentas,
   estilos,
+  matriz,
+  listasContacto,
+  puedeVerPrivados,
   padron,
   permitirBaja,
   deps,
@@ -143,6 +158,9 @@ function FichaProfesor({
   inicial: Profesor | null;
   cuentas: Cuenta[];
   estilos: Estilo[];
+  matriz: MatrizMinimo[];
+  listasContacto: ListasContacto;
+  puedeVerPrivados: boolean;
   padron: Profesor[];
   permitirBaja: boolean;
   deps?: DepsProfesor;
@@ -159,8 +177,34 @@ function FichaProfesor({
   const [tarifaRee, setTarifaRee] = useState(
     inicial?.tarifa_reemplazo == null ? "" : String(inicial.tarifa_reemplazo)
   );
+  const [extra, setExtra] = useState({
+    ...DATOS_CONTACTO_EXTRA_VACIO,
+    email: inicial?.contacto.email ?? null,
+    sexo: inicial?.contacto.sexo ?? null,
+  });
   const [error, setError] = useState<string | null>(null);
   const [pendiente, startTransition] = useTransition();
+
+  useEffect(() => {
+    if (!inicial) return;
+    let vivo = true;
+    detalleContacto(inicial.contacto_id).then((d) => {
+      if (!vivo) return;
+      setExtra((e) => ({
+        ...e,
+        redes: d.redes.map((r) => ({ red: r.red, usuario: r.usuario })),
+        documento: d.documento,
+        fecha_nacimiento: d.fecha_nacimiento,
+        consentimiento: d.consentimiento ? { otorgado: d.consentimiento.otorgado, medio: d.consentimiento.medio } : null,
+      }));
+    });
+    return () => {
+      vivo = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inicial?.id]);
+
+  const niveles = nivelesDe(matriz, "profesor");
 
   // Aviso suave de WhatsApp duplicado (además del control duro en el servidor).
   const dupe = padron.find(
@@ -179,6 +223,11 @@ function FichaProfesor({
     });
   }
 
+  const faltanExtra = faltantes(niveles, {
+    apellido: !!apellido.trim(),
+    ...presenteDesdeExtra(extra),
+  }).filter((c) => c !== "nombre" && c !== "whatsapp" && c !== "tipo_profesor");
+
   function guardar() {
     setError(null);
     startTransition(async () => {
@@ -192,6 +241,7 @@ function FichaProfesor({
           usuario_id: usuarioId,
           tarifa_reemplazo:
             tarifaRee.trim() === "" ? null : Number(tarifaRee.replace(/[^\d.]/g, "")) || 0,
+          ...extra,
         },
         inicial?.id ?? null
       );
@@ -236,9 +286,11 @@ function FichaProfesor({
         <Campo etiqueta="Nombre">
           <input value={nombre} onChange={(e) => setNombre(e.target.value)} className="entrada" autoFocus />
         </Campo>
-        <Campo etiqueta="Apellido">
-          <input value={apellido} onChange={(e) => setApellido(e.target.value)} className="entrada" />
-        </Campo>
+        {niveles.apellido !== "-" && (
+          <Campo etiqueta={niveles.apellido === "O" ? "Apellido" : "Apellido (opcional)"}>
+            <input value={apellido} onChange={(e) => setApellido(e.target.value)} className="entrada" />
+          </Campo>
+        )}
       </div>
 
       {/* Lo que cobra por dictar una clase como reemplazante (regla 20): el
@@ -342,6 +394,14 @@ function FichaProfesor({
         </select>
       </Campo>
 
+      <CamposContacto
+        niveles={niveles}
+        listas={listasContacto}
+        valor={extra}
+        onChange={setExtra}
+        puedeVerPrivados={puedeVerPrivados}
+      />
+
       {error && (
         <p className="text-[var(--peligro)] text-base" role="alert">
           {error}
@@ -351,7 +411,7 @@ function FichaProfesor({
       <div className="flex gap-3">
         <button
           onClick={guardar}
-          disabled={pendiente || !!dupe}
+          disabled={pendiente || !!dupe || faltanExtra.length > 0}
           className="px-5 py-2.5 text-base font-semibold rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)] hover:bg-[var(--primario-hover)] disabled:opacity-40"
         >
           {pendiente ? "Guardando…" : "Guardar profesor"}

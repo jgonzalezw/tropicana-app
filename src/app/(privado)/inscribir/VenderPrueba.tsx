@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import type { Alumno, DatosAlumno } from "@/lib/tipos";
+import type { Alumno, DatosAlumno, ListasContacto, MatrizMinimo } from "@/lib/tipos";
 import { nombreCompleto } from "@/lib/contactos";
 import EntidadAlumno from "@/components/entidades/EntidadAlumno";
 import Cobro, { type PayloadCobro } from "@/components/Cobro";
@@ -32,6 +32,9 @@ export default function VenderPrueba({
   medios,
   canales,
   suspendidas,
+  matriz,
+  listasContacto,
+  puedeVerPrivados,
 }: {
   alumnos: Alumno[];
   planes: PlanVenta[];
@@ -39,6 +42,9 @@ export default function VenderPrueba({
   medios: string[];
   canales: Canal[];
   suspendidas: string[];
+  matriz: MatrizMinimo[];
+  listasContacto: ListasContacto;
+  puedeVerPrivados: boolean;
 }) {
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
@@ -240,6 +246,10 @@ export default function VenderPrueba({
               key={remountAlumno}
               padron={alumnos}
               canales={canales}
+              matriz={matriz}
+              listasContacto={listasContacto}
+              puedeVerPrivados={puedeVerPrivados}
+              enPrueba
               abrirAlElegir={false}
               // Cambiar de alumno reinicia todo lo que viene después: si no,
               // una venta a medias deja el plan y los cursos del anterior.

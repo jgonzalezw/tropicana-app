@@ -4,12 +4,15 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { tienePermiso, obtenerParametro, obtenerPerfilActual } from "@/lib/sesion";
-import { validarIdentidadAlumno } from "@/lib/contactos";
+import { validarIdentidadAlumno, validarFechaNacimiento } from "@/lib/contactos";
+import { contextoAlumno, presenteDesdeExtra } from "@/lib/matrizMinimos";
 import type { Alumno, Contacto, DatosAlumno, EntradaInscripcion } from "@/lib/tipos";
 import {
   crearOReusarContactoPersona,
   resolverTutor,
   vincularTutor,
+  guardarDatosExtra,
+  validarContraMatriz,
 } from "@/app/(privado)/contactos/acciones";
 import {
   fechaClaseN,
@@ -53,12 +56,25 @@ export async function crearAlumnoDesdeInscripcion(
   if (!(await tienePermiso("alumnos", "crear"))) return { error: "Sin permiso para crear alumnos." };
   const err = validarIdentidadAlumno(d);
   if (err) return { error: err };
+  const errEdad = validarFechaNacimiento(d.fecha_nacimiento, d.es_menor);
+  if (errEdad) return { error: errEdad };
+
+  const contexto = contextoAlumno({ esMenor: d.es_menor, enPrueba: d.enPrueba ?? false });
+  const errMatriz = await validarContraMatriz(contexto, {
+    nombre: !!d.nombre.trim(),
+    apellido: !!d.apellido.trim(),
+    canal_captacion: !!d.canal_captacion,
+    ...presenteDesdeExtra(d),
+  });
+  if (errMatriz) return { error: errMatriz };
 
   const { contacto, error: errContacto } = await crearOReusarContactoPersona({
     nombre: d.nombre,
     apellido: d.apellido,
     whatsapp: d.es_menor ? null : d.whatsapp,
     canal_captacion: d.canal_captacion,
+    sexo: d.sexo,
+    email: d.email,
     reusarSiExiste: false,
   });
   if (errContacto || !contacto) return { error: errContacto ?? "No se pudo crear el contacto." };
@@ -79,6 +95,10 @@ export async function crearAlumnoDesdeInscripcion(
     .single();
 
   if (error) return { error: error.message };
+
+  const errExtra = await guardarDatosExtra(contacto.id, d);
+  if (errExtra.error) return { error: errExtra.error };
+
   revalidatePath("/inscribir");
   return { alumno: { ...(data as Omit<Alumno, "contacto" | "tutor">), contacto, tutor } };
 }

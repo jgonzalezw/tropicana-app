@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import type { Alumno, DatosAlumno } from "@/lib/tipos";
+import type { Alumno, DatosAlumno, ListasContacto, MatrizMinimo } from "@/lib/tipos";
 import { nombreCompleto } from "@/lib/contactos";
 import EntidadAlumno from "@/components/entidades/EntidadAlumno";
 import Cobro, { type PayloadCobro } from "@/components/Cobro";
@@ -54,6 +54,9 @@ export default function ClienteInscribir({
   bonoPorAlumnoPlan,
   suspendidas,
   creditoPruebaPorAlumnoPlan,
+  matriz,
+  listasContacto,
+  puedeVerPrivados,
 }: {
   alumnos: Alumno[];
   planes: PlanVenta[];
@@ -68,6 +71,9 @@ export default function ClienteInscribir({
   suspendidas: string[];
   /** Crédito de una clase de prueba sin convertir, por alumno y plan. */
   creditoPruebaPorAlumnoPlan: Record<number, Record<number, { monto: number; fecha: string; personas: number; pagado: number }>>;
+  matriz: MatrizMinimo[];
+  listasContacto: ListasContacto;
+  puedeVerPrivados: boolean;
 }) {
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
@@ -353,6 +359,9 @@ export default function ClienteInscribir({
             key={remountAlumno}
             padron={alumnos}
             canales={canales}
+            matriz={matriz}
+            listasContacto={listasContacto}
+            puedeVerPrivados={puedeVerPrivados}
             abrirAlElegir={false}
             onSelect={elegirAlumno}
             onGuardar={guardarAlumnoNuevo}

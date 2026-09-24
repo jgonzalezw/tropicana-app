@@ -6,7 +6,133 @@
 > `docs/design/README.md` (fuente de verdad del **diseño**), `docs/CONTEXTO_AVANCE.md`
 > (bitácora larga de Etapa 0), `docs/DESIGN_SYNC.md` (cómo entran los handoffs).
 >
-> **Última actualización:** 2026-09-24 — **C3-0a.2: editor de la matriz de
+> **Última actualización:** 2026-09-24 — **C3-0a.3: la matriz de mínimos
+> tiene efecto real en los formularios, en dev.** C3-0a.2 (abajo) había
+> construido el editor, pero nada leía la matriz: Javier probó dando de alta
+> un alumno y "Red social" en `V` no aparecía. Medido: ningún formulario
+> consultaba `matriz_minimos`, y además "Red social" (como email, documento,
+> nacimiento y consentimiento) **no existía como campo** en ningún
+> formulario, aunque sus tablas viven desde la 0048. Javier sumó el paso
+> como **C3-0a.3, antes que C3-0b** (captación pública, que deja de ser
+> urgente — espera a C3/Paso 5) — detalle completo del orden y las tres
+> decisiones de diseño en `docs/DECISIONES.md` §1.b.
+>
+> **Qué se construyó:** `src/lib/matrizMinimos.ts` (lógica pura: qué
+> contexto aplica según `es_menor`/`enPrueba`, qué falta por completar,
+> qué celdas están bloqueadas), un componente nuevo `CamposContacto.tsx`
+> (red social, email, documento, fecha de nacimiento, consentimiento —
+> pieza reutilizable, regla de proceso 4) montado igual en `EntidadAlumno`
+> y `EntidadProfesor`, y las 5 acciones de alta/edición (`crearAlumno`,
+> `actualizarAlumno`, `crearAlumnoDesdeInscripcion`, `crearProfesor`,
+> `actualizarProfesor`) ahora leen la matriz y **rechazan del lado
+> servidor** si falta un campo `O` — nunca solo la pantalla (regla de
+> calidad 6). `contactos/acciones.ts` suma `guardarRedes`, `guardarPrivados`
+> (documento + nacimiento, con permiso `contactos_privados`),
+> `registrarConsentimiento` (solo inserta si cambia — `consentimientos` es
+> de solo agregar) y `detalleContacto` (los carga al abrir una ficha
+> existente, no para todo el padrón).
+>
+> **Las celdas de las que depende la lógica quedan bloqueadas** con candado
+> y motivo, del lado servidor también (`fijarNivelMinimo` las rechaza):
+> nombre/razón social por `tipo` (lo exige la base), WhatsApp del alumno
+> adulto y de la prueba, tutor del menor, tipo de profesor. `interes` y
+> `facturacion` quedan sembrados en la matriz pero sin columna donde
+> guardarse: no editables, con aviso (regla de calidad 5) en vez de fallar
+> en silencio. **Control 27 nuevo** en `control_migracion.sql`: detecta si
+> alguna celda bloqueada cambió por SQL directo (dio OK en dev).
+>
+> **La decisión de Javier sobre menor+prueba, verificada en el navegador:**
+> abrir "Clase de prueba" y marcar "Es menor" cambia el contexto a
+> `alumno_menor` (tutor obligatorio, WhatsApp propio desaparece) — no se
+> queda en las reglas de `prueba`, que no exigen tutor.
+>
+> **Verificado en dev, de punta a punta:** `tsc --noEmit` y `npm test`
+> (56/56, incluye 10 tests nuevos de `matrizMinimos.ts` + 3 de
+> `validarIdentidadAlumno` recortado) limpios. En el navegador: puse
+> `alumno_adulto.red_social` en `O` desde el editor, el formulario de
+> Alumnos lo exigió (botón deshabilitado hasta completarlo) y el servidor
+> lo rechazó si se forzaba sin él; guardé un alumno de prueba con una red
+> social real y se confirmó en `contacto_redes` por consulta directa;
+> deshice el cambio de la matriz y borré el alumno de prueba después. Sin
+> errores de consola en Alumnos, Profesores, Inscribir ni el editor.
+>
+> **De paso, un hallazgo al escribir `validarContraMatriz`:** una primera
+> versión filtraba "nombre" de la lista de campos reportados junto con
+> whatsapp/tutor/es_menor/tipo_profesor (los que ya exige la identidad
+> hardcodeada) — pero nombre nunca tuvo esa otra validación, así que un
+> alumno se podía crear con `nombre=""` (la base solo exige `not null`, no
+> `<> ''`). Corregido antes de probar nada: nombre se sigue reportando en el
+> mensaje de la matriz, es el único de los cinco que no tiene otro lugar
+> que lo cubra.
+>
+> **Revisión de Javier sobre C3-0a.3, tres correcciones el mismo día:**
+> 1. **Layout roto en "Redes sociales"**: el input de usuario se veía
+>    angosto, casi sin espacio para escribir. Causa medida: `.entrada` fija
+>    `width: 100%` en `globals.css`, y esa regla le gana a la utilidad
+>    `w-40` de Tailwind (misma especificidad, orden de cascada) — el select
+>    de red terminaba ocupando 429px en vez de 160px. El patrón que ya usa
+>    el resto del código (`entrada max-w-[...]`, visto en `ClienteInscribir`,
+>    `VenderPrueba`, `MovimientoCaja`) sí funciona porque `max-width` no
+>    compite con el `width:100%` de `.entrada`. Corregido en
+>    `CamposContacto.tsx` (`max-w-[160px] shrink-0` en el select,
+>    `min-w-0` en el input) — debí buscar el patrón existente antes de
+>    escribir uno nuevo (regla: buscar código reusable antes de inventar).
+> 2. **Faltaba `sexo`**: `contactos.sexo` existe desde la 0048 con su
+>    catálogo ya sembrado, pero nunca se sumó a los 15 campos originales de
+>    `matriz_minimos` — nadie podía cargarlo. **Migración 0049** agrega
+>    `sexo` como campo #16 (9 filas, una por contexto), visible-opcional
+>    solo para `alumno_adulto` por ahora (Javier puede activarlo para otros
+>    contextos desde el editor, sin código). Wired en `CamposContacto`,
+>    `contactos/acciones.ts` (las dos funciones de alta/edición) y las 5
+>    acciones de alumno/profesor.
+> 3. **Sin validar edad vs. "es menor"**: se podía cargar una fecha de
+>    nacimiento de menor de edad sin marcar "Es menor" ni cargar tutor.
+>    Nuevo `validarFechaNacimiento()` en `lib/contactos.ts` (edad < 18 y no
+>    `es_menor` → rechaza; también rechaza fecha futura), llamado en las 3
+>    acciones de alumno **y** en el cliente (mismo mensaje, botón
+>    deshabilitado antes de llegar al servidor). La reordenación de campos
+>    que Javier sugirió como posible ("fecha antes que el toggle") **no se
+>    hizo** — se optó por el aviso claro en el momento de guardar en vez de
+>    reestructurar `CamposContacto`; queda para pedirlo si el aviso no
+>    alcanza.
+>
+> **Verificado en el navegador, con el server reiniciado en limpio
+> (`rm -rf .next`) para descartar cache** — mismo patrón de la regla de
+> calidad 4: un error de consola ("presenteDesdeExtra is not defined") no
+> desaparecía ni con reload duro ni con rebuild limpio, pero el formulario
+> renderizaba y **guardaba de verdad** sin problema (confirmado por
+> consulta directa a la base): era ruido del log de la herramienta de
+> navegador, no un error vigente — igual que el hallazgo anterior de esta
+> sesión con el log de `contactos/acciones.ts`. Probado de punta a punta:
+> el selector de red ya no queda angosto, "Sexo" aparece en Alumno nuevo,
+> una fecha de menor sin "Es menor" bloquea "Guardar" con el mensaje
+> correcto y se destraba al marcar "Es menor". `tsc` y `npm test` (62/62,
+> 8 tests nuevos: `edadDesde`/`validarFechaNacimiento`) limpios. Alumno de
+> prueba creado y verificado en la base (documento, fecha de nacimiento)
+> y borrado después.
+>
+> **Cuarta corrección, la misma tanda:** Javier reportó "se perdió el orden
+> alfabético" en Alumnos — medido: el orden **sí** era correcto (verificado
+> fila por fila contra la base, en Alumnos y Profesores), lo que cambió es
+> que las listas muestran "Nombre Apellido" (`nombreCompleto`) en vez de
+> "Apellido, Nombre": ordenado por apellido pero **mostrando el nombre
+> primero**, el agrupamiento alfabético no se sigue a simple vista. Nueva
+> función `apellidoNombre()` en `lib/contactos.ts` ("Apellido, Nombre";
+> `nombreCompleto` se mantiene para el resto de la app — recibos, fichas,
+> texto corrido). Aplicada en las listas que de verdad se recorren
+> alfabéticamente (regla de negocio 15): el padrón de Alumnos y de
+> Profesores, los resultados de "Buscar por nombre o WhatsApp" en las dos
+> entidades, y la lista de elegibles al asignar un titular a un curso. Se
+> deja `nombreCompleto` donde el nombre aparece en una oración (el label
+> "profesor: X" de una asignación) — ahí "Apellido, Nombre" leería raro.
+> Verificado en el navegador (Alumnos y Profesores, antes/después) y con
+> un test nuevo (`apellidoNombre`, 63/63 en `npm test`).
+>
+> **Pendiente**: pase a producción de C3-0a.1 + C3-0a.2 + C3-0a.3
+> (migraciones 0048 + 0049 + todo este código), con el OK explícito de
+> Javier — nada de esto se pasó a producción, nada se pusheó al remoto.
+>
+> **2026-09-24 (antes)** — **C3-0a.2: editor de la matriz de
 > mínimos, en dev.** La 0048 (C3-0a.1) había dejado `matriz_minimos` sembrada
 > con sus 135 filas (9 contextos × 15 campos) pero "sin pantalla, la
 > consultan solo las acciones del servidor". Se construyó esa pantalla:
@@ -39,10 +165,26 @@
 > dev, no un error vigente — confirmado navegando `/inscribir` en vivo, sin
 > problema. Ninguna corrección hizo falta.
 >
-> **Sigue pendiente dentro de C3-0**: **C3-0b** (captación pública:
-> `solicitudes_contacto`/`enlaces_captacion`, sin pantalla) y el pase a
-> producción de C3-0a.1 (migración 0048 + D12), que necesita el OK explícito
-> de Javier antes de que C3-0a.2 pueda pasar también.
+> **Hueco encontrado al probar C3-0a.2 (Javier, dando de alta un alumno):**
+> cambiar la matriz no movía nada en la pantalla — "Red social" seguía sin
+> aparecer aunque estuviera en `V`. Medido: **nada en el código lee
+> `matriz_minimos`** todavía, fuera del editor mismo; el comentario de la
+> 0048 ("la consultan las acciones del servidor") describía una intención,
+> no algo construido. Y de paso, "Red social" ni siquiera existe como campo
+> en `EntidadAlumno.tsx` — no es que la matriz lo esconda, es que nunca se
+> construyó el input. Sin numeración propia en el plan: no es C3-0a.2 (la
+> pantalla que **edita** la matriz, ya cerrada), ni C3-0b (captación
+> pública), ni C3 (la venta). Javier decidió: se suma como **C3-0a.3**.
+>
+> **Orden dentro de C3-0, decidido por Javier (2026-09-24):** **C3-0a.3
+> antes que C3-0b**. C3-0b (captación pública) deja de ser urgente — puede
+> esperar hasta que arranque **C3** (Paso 5: venta de particulares/alquiler
+> apoyada en disponibilidad de sala). Orden actualizado: C3-0a.1 ✅ →
+> C3-0a.2 ✅ → **C3-0a.3** (que los formularios de alta lean la matriz y
+> muestren/oculten/exijan campos por contexto) → C3-0b (cuando arranque C3).
+>
+> **Además sigue pendiente**: el pase a producción de C3-0a.1 (migración
+> 0048 + D12) y de C3-0a.2, que necesita el OK explícito de Javier.
 >
 > **2026-09-24 (antes)** — **C3-0a.1 (contactos): modelo,
 > migración y adaptación completa, en DEV — sin pase a producción todavía.**

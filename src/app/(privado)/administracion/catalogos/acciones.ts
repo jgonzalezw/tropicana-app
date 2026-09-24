@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { tienePermiso } from "@/lib/sesion";
+import { celdaBloqueada, CAMPOS_SIN_ALMACENAMIENTO } from "@/lib/matrizMinimos";
+import type { CampoMinimo, ContextoMinimo } from "@/lib/tipos";
 
 function admin() {
   const a = createAdminClient();
@@ -128,10 +130,24 @@ export async function actualizarEstilo(clave: string, nombre: string, activo: bo
 /**
  * Matriz de mínimos (C3-0a.2): la 0048 ya sembró las 135 filas (9 contextos ×
  * 15 campos), así que siempre es un UPDATE — nunca hace falta insertar.
+ * Desde C3-0a.3 la matriz tiene efecto real en Alumnos/Profesores/Inscribir
+ * (`CamposContacto`), así que dos cosas quedan protegidas del lado
+ * servidor, no solo en la pantalla: las celdas de las que depende la
+ * lógica (`CELDAS_BLOQUEADAS`) y las dos que todavía no tienen dónde
+ * guardarse (`CAMPOS_SIN_ALMACENAMIENTO`).
  */
-export async function fijarNivelMinimo(contexto: string, campo: string, nivel: "O" | "V" | "-") {
+export async function fijarNivelMinimo(
+  contexto: ContextoMinimo,
+  campo: CampoMinimo,
+  nivel: "O" | "V" | "-"
+) {
   if (!(await tienePermiso("administracion", "editar")))
     return { error: "No tenés permiso para editar catálogos." };
+
+  const bloqueada = celdaBloqueada(contexto, campo);
+  if (bloqueada) return { error: bloqueada.motivo };
+  if (CAMPOS_SIN_ALMACENAMIENTO.includes(campo))
+    return { error: "Este campo todavía no tiene dónde guardarse: no tiene efecto cambiarlo." };
 
   const { error } = await admin()
     .from("matriz_minimos")
@@ -142,5 +158,8 @@ export async function fijarNivelMinimo(contexto: string, campo: string, nivel: "
   if (error) return { error: error.message };
 
   revalidatePath("/administracion/catalogos");
+  revalidatePath("/alumnos");
+  revalidatePath("/profesores");
+  revalidatePath("/inscribir");
   return { ok: true };
 }

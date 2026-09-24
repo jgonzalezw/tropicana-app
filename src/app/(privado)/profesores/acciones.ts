@@ -4,7 +4,13 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { tienePermiso } from "@/lib/sesion";
 import type { DatosProfesor } from "@/lib/tipos";
-import { crearOReusarContactoPersona, actualizarContactoPersona } from "@/app/(privado)/contactos/acciones";
+import { presenteDesdeExtra } from "@/lib/matrizMinimos";
+import {
+  crearOReusarContactoPersona,
+  actualizarContactoPersona,
+  guardarDatosExtra,
+  validarContraMatriz,
+} from "@/app/(privado)/contactos/acciones";
 
 type Resultado = { ok?: true; error?: string; accion?: "eliminada" | "desactivada" };
 
@@ -23,9 +29,13 @@ function mapearError(e: { code?: string; message?: string }): string {
   return e.message ?? "No se pudo guardar.";
 }
 
+/**
+ * Identidad y estructura del profesor — hardcodeado, no en la matriz (igual
+ * criterio que `validarIdentidadAlumno`): el WhatsApp lo identifica, y
+ * estilos/tipo son propios del rol, no campos de contacto. Nombre y
+ * apellido SÍ pasan por la matriz (`validarContraMatriz`, más abajo).
+ */
 function validar(d: DatosProfesor): string | null {
-  if (!d.nombre.trim() || !d.apellido.trim())
-    return "Nombre y apellido son obligatorios.";
   if (!d.whatsapp.trim()) return "El WhatsApp identifica al profesor: cargalo.";
   if (d.estilos.length === 0) return "Elegí al menos un estilo.";
   if (d.tipo !== "activo" && d.tipo !== "externo") return "Tipo inválido.";
@@ -49,10 +59,19 @@ export async function crearProfesor(d: DatosProfesor): Promise<Resultado> {
   const err = validar(d);
   if (err) return { error: err };
 
+  const errMatriz = await validarContraMatriz("profesor", {
+    nombre: !!d.nombre.trim(),
+    apellido: !!d.apellido.trim(),
+    ...presenteDesdeExtra(d),
+  });
+  if (errMatriz) return { error: errMatriz };
+
   const { contacto, error: errContacto } = await crearOReusarContactoPersona({
     nombre: d.nombre,
     apellido: d.apellido,
     whatsapp: d.whatsapp,
+    email: d.email,
+    sexo: d.sexo,
     reusarSiExiste: false,
   });
   if (errContacto || !contacto) return { error: errContacto ?? "No se pudo crear el contacto." };
@@ -72,6 +91,9 @@ export async function crearProfesor(d: DatosProfesor): Promise<Resultado> {
   const errEst = await guardarEstilos(fila.id, d.estilos);
   if (errEst.error) return { error: errEst.error };
 
+  const errExtra = await guardarDatosExtra(contacto.id, d);
+  if (errExtra.error) return { error: errExtra.error };
+
   revalidatePath("/profesores");
   return { ok: true };
 }
@@ -84,6 +106,13 @@ export async function actualizarProfesor(
   const err = validar(d);
   if (err) return { error: err };
 
+  const errMatriz = await validarContraMatriz("profesor", {
+    nombre: !!d.nombre.trim(),
+    apellido: !!d.apellido.trim(),
+    ...presenteDesdeExtra(d),
+  });
+  if (errMatriz) return { error: errMatriz };
+
   const { data: fila, error: errFila } = await admin().from("profesores").select("contacto_id").eq("id", id).single();
   if (errFila || !fila) return { error: errFila?.message ?? "Profesor no encontrado." };
 
@@ -91,8 +120,13 @@ export async function actualizarProfesor(
     nombre: d.nombre,
     apellido: d.apellido,
     whatsapp: d.whatsapp,
+    email: d.email,
+    sexo: d.sexo,
   });
   if (errContacto.error) return { error: mapearError({ message: errContacto.error }) };
+
+  const errExtra = await guardarDatosExtra(fila.contacto_id, d);
+  if (errExtra.error) return { error: errExtra.error };
 
   const { error } = await admin()
     .from("profesores")
