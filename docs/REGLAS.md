@@ -241,7 +241,20 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
 4. **Piezas reutilizables por entidad.** Un componente por entidad, montado
    idéntico en todos lados (contrato tipo `Cobro` / `EntidadAlumno`).
 5. **Un cambio de datos en producción se respalda antes**, si no es reversible
-   por sí solo, y se reporta con el antes/después exacto.
+   por sí solo, y se reporta con el antes/después exacto. Si el respaldo es un
+   **script de rollback que transforma datos** (no solo estructura, como el
+   de la 0047 — un puro renombre), probarlo comparando también el
+   **contenido reconstruido, fila por fila, contra el dato real**: el hash de
+   esquema solo prueba que la forma quedó idéntica, no que el dato que el
+   script reconstruye adentro de esa forma es correcto.
+   *Costó: el rollback de la 0048 (`scripts/rollback_0048_contactos.sql`)
+   pasó el hash de esquema contra producción a la primera, pero tenía dos
+   bugs de datos que el hash no podía ver — el whatsapp quedaba normalizado
+   con `+591` en vez del formato crudo original, y `tutor_nombre`/
+   `tutor_whatsapp` se anulaban cuando el tutor también era alumno,
+   contradiciendo el dato real de producción (que tiene las dos cosas a la
+   vez). Los encontró recién la comparación fila por fila contra producción,
+   2026-09-24.*
 6. **Nunca pegar cadenas de conexión ni contraseñas** en el chat ni en el repo.
 7. **`docs/ESTADO.md` se actualiza con cada hito cerrado.**
 8. **Una decisión tomada se respeta hasta que otra decisión la cambie.** No se

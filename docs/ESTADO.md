@@ -148,10 +148,14 @@
 > la prueba porque lo que se estaba verificando es el **script**, no la
 > fidelidad de los datos de dev en sí.
 >
-> **Pendiente antes de proponer el pase a producción**: actualizar
-> `docs/REGLAS.md` (glosario) y `docs/DECISIONES.md` (cerrar D12, registrar
-> las postergadas nuevas), y el commit local de todo este trabajo — nada de
-> esto se pasó a producción, nada se pusheó.
+> **`docs/REGLAS.md` (glosario) y `docs/DECISIONES.md` (D12 cerrada, D22–D27
+> registradas) ya estaban al día antes de esta actualización** — quedaron
+> resueltos en el mismo commit que el modelo de contactos (`c1d935d`). Lo que
+> sí sumó esta ronda: la regla de proceso 5 de `REGLAS.md` ahora documenta
+> que un script de rollback que transforma datos se prueba comparando el
+> contenido fila por fila contra el dato real, no solo el hash de esquema —
+> la lección del propio rollback de la 0048 (arriba). Nada de este trabajo
+> se pasó a producción todavía, nada se pusheó al remoto.
 >
 > **2026-09-24 (antes)** — **D1 + D3: la membresía queda con un
 > solo nombre, en producción.** Migración **0047** (`inscripciones`→`membresias`,
