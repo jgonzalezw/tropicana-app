@@ -25,7 +25,7 @@ export default async function PaginaInscribir() {
     diasCompromisoParam,
     contactoListas,
   ] = await Promise.all([
-    supabase.from("alumnos").select("*, contacto:contactos(*)").eq("activo", true),
+    supabase.from("alumnos").select("*, contacto:contactos(*, privados:contactos_privados(numero))").eq("activo", true),
     supabase.from("cursos").select("*").eq("activo", true).order("nombre"),
     supabase
       .from("planes")

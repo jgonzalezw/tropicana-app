@@ -3,7 +3,13 @@
 import { useEffect, useState, useTransition } from "react";
 import type { Profesor, DepsProfesor, TipoProfesor, DatosProfesor, Estilo, MatrizMinimo } from "@/lib/tipos";
 import { soloDigitos } from "@/lib/texto";
-import { nombreCompleto, apellidoNombre, compararContactosPorApellido } from "@/lib/contactos";
+import {
+  nombreCompleto,
+  apellidoNombre,
+  compararContactosPorApellido,
+  coincideBusqueda,
+  documentoComparable,
+} from "@/lib/contactos";
 import { nivelesDe, faltantes, presenteDesdeExtra } from "@/lib/matrizMinimos";
 import CamposContacto, { DATOS_CONTACTO_EXTRA_VACIO, type ListasContacto } from "./CamposContacto";
 import { detalleContacto } from "@/app/(privado)/contactos/acciones";
@@ -55,13 +61,7 @@ export default function EntidadProfesor({
   const [q, setQ] = useState("");
 
   const resultados = padron
-    .filter((p) => {
-      const s = q.trim().toLowerCase();
-      if (s.length < 2) return false;
-      const nom = nombreCompleto(p.contacto).toLowerCase();
-      const d = soloDigitos(q);
-      return nom.includes(s) || (d.length >= 3 && soloDigitos(p.contacto.whatsapp).includes(d));
-    })
+    .filter((p) => coincideBusqueda(q, { contacto: p.contacto, documento: p.contacto.privados?.numero }))
     .sort((a, b) => compararContactosPorApellido(a.contacto, b.contacto))
     .slice(0, 5);
 
@@ -91,7 +91,7 @@ export default function EntidadProfesor({
     <div className="space-y-3">
       <label className="block">
         <span className="block text-base font-medium mb-1.5">
-          Buscar por nombre o WhatsApp
+          {puedeVerPrivados ? "Buscar por nombre, WhatsApp o documento" : "Buscar por nombre o WhatsApp"}
         </span>
         <input
           value={q}
@@ -213,6 +213,13 @@ function FichaProfesor({
       soloDigitos(p.contacto.whatsapp) &&
       soloDigitos(p.contacto.whatsapp) === soloDigitos(whatsapp)
   );
+
+  // Documento de otro profesor: misma persona (la base igual lo impide).
+  const docTipeado = documentoComparable(extra.documento?.numero);
+  const dupeDoc =
+    docTipeado.length >= 3
+      ? padron.find((p) => p.id !== inicial?.id && documentoComparable(p.contacto.privados?.numero) === docTipeado)
+      : undefined;
 
   function toggleEsp(clave: string) {
     setEsp((prev) => {
@@ -402,6 +409,12 @@ function FichaProfesor({
         puedeVerPrivados={puedeVerPrivados}
       />
 
+      {dupeDoc && (
+        <div className="p-3 rounded-[var(--radio-panel)] border border-[var(--primario)] bg-[var(--accent-100)] text-[var(--peligro-texto)] text-sm">
+          Ese documento ya es de un profesor: {nombreCompleto(dupeDoc.contacto)} ({dupeDoc.tipo}).
+        </div>
+      )}
+
       {error && (
         <p className="text-[var(--peligro)] text-base" role="alert">
           {error}
@@ -411,7 +424,7 @@ function FichaProfesor({
       <div className="flex gap-3">
         <button
           onClick={guardar}
-          disabled={pendiente || !!dupe || faltanExtra.length > 0}
+          disabled={pendiente || !!dupe || !!dupeDoc || faltanExtra.length > 0}
           className="px-5 py-2.5 text-base font-semibold rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)] hover:bg-[var(--primario-hover)] disabled:opacity-40"
         >
           {pendiente ? "Guardando…" : "Guardar profesor"}

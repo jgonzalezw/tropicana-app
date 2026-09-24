@@ -189,7 +189,12 @@ function DocumentoContacto({
   tipos: TipoDocumento[];
   onChange: (v: DatosContactoExtra["documento"]) => void;
 }) {
-  const v = valor ?? { tipo_documento: tipos[0]?.clave ?? "", numero: "", complemento: null, expedido: null };
+  const base = valor ?? { tipo_documento: "", numero: "", complemento: null, expedido: null };
+  // Un tipo que no está en la lista se mostraba como el primero sin serlo:
+  // lo que se ve tiene que ser lo que se guarda.
+  const v = tipos.some((t) => t.clave === base.tipo_documento)
+    ? base
+    : { ...base, tipo_documento: tipos[0]?.clave ?? "" };
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
       <select

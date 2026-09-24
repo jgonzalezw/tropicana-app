@@ -22,7 +22,7 @@ export default async function PaginaProfesores() {
     { data: profEstilos },
     contactoListas,
   ] = await Promise.all([
-    supabase.from("profesores").select("*, contacto:contactos(*)"),
+    supabase.from("profesores").select("*, contacto:contactos(*, privados:contactos_privados(numero))"),
     supabase.from("cursos").select("*").eq("activo", true).order("nombre"),
     supabase.from("asignaciones").select("*"),
     supabase.from("perfiles").select("id, nombre, apellido, email"),

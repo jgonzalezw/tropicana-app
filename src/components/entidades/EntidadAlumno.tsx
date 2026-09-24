@@ -3,7 +3,14 @@
 import { useEffect, useState, useTransition } from "react";
 import type { Alumno, DatosAlumno, MatrizMinimo } from "@/lib/tipos";
 import { soloDigitos } from "@/lib/texto";
-import { nombreCompleto, apellidoNombre, compararContactosPorApellido, validarFechaNacimiento } from "@/lib/contactos";
+import {
+  nombreCompleto,
+  apellidoNombre,
+  compararContactosPorApellido,
+  validarFechaNacimiento,
+  coincideBusqueda,
+  documentoComparable,
+} from "@/lib/contactos";
 import { contextoAlumno, nivelesDe, faltantes, presenteDesdeExtra } from "@/lib/matrizMinimos";
 import CamposContacto, { DATOS_CONTACTO_EXTRA_VACIO, type ListasContacto } from "./CamposContacto";
 import { detalleContacto } from "@/app/(privado)/contactos/acciones";
@@ -55,17 +62,13 @@ export default function EntidadAlumno({
   const [q, setQ] = useState("");
 
   const resultados = padron
-    .filter((a) => {
-      const s = q.trim().toLowerCase();
-      if (s.length < 2) return false;
-      const nom = nombreCompleto(a.contacto).toLowerCase();
-      const d = soloDigitos(q);
-      return (
-        nom.includes(s) ||
-        (d.length >= 3 &&
-          (soloDigitos(a.contacto.whatsapp).includes(d) || soloDigitos(a.tutor?.whatsapp).includes(d)))
-      );
-    })
+    .filter((a) =>
+      coincideBusqueda(q, {
+        contacto: a.contacto,
+        tutorWhatsapp: a.tutor?.whatsapp,
+        documento: a.contacto.privados?.numero,
+      })
+    )
     .sort((a, b) => compararContactosPorApellido(a.contacto, b.contacto))
     .slice(0, 5);
 
@@ -95,7 +98,9 @@ export default function EntidadAlumno({
   return (
     <div className="space-y-3">
       <label className="block">
-        <span className="block text-base font-medium mb-1.5">Buscar por nombre o WhatsApp</span>
+        <span className="block text-base font-medium mb-1.5">
+          {puedeVerPrivados ? "Buscar por nombre, WhatsApp o documento" : "Buscar por nombre o WhatsApp"}
+        </span>
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="ej. Martínez · 7105" className="entrada" />
       </label>
 
@@ -235,8 +240,16 @@ function FichaAlumno({
       ? padron.find((a) => !a.es_menor && soloDigitos(a.contacto.whatsapp) === tutWaDig)
       : undefined;
 
+  // Documento de otro alumno: misma persona, sin "es otra" posible (la base
+  // lo impide igual con su índice único; esto lo avisa antes de guardar).
+  const docTipeado = documentoComparable(extra.documento?.numero);
+  const dupDocumento =
+    docTipeado.length >= 3
+      ? padron.find((a) => a.id !== curId && documentoComparable(a.contacto.privados?.numero) === docTipeado)
+      : undefined;
+
   const identidadOk = esMenor ? tutWaDig.length >= 6 && !!nombre.trim() : waDig.length >= 6;
-  const panelAbierto = !!dupAdulto || !!dupMenor || !!tutorEsAlumno;
+  const panelAbierto = !!dupAdulto || !!dupMenor || !!tutorEsAlumno || !!dupDocumento;
   const faltanExtra = faltantes(niveles, {
     apellido: !!apellido.trim(),
     canal_captacion: !!canal,
@@ -436,6 +449,15 @@ function FichaAlumno({
         puedeVerPrivados={puedeVerPrivados}
       />
 
+      {dupDocumento && (
+        <PanelDupe
+          titulo="Ese documento ya es de otro alumno"
+          alumno={dupDocumento}
+          textoUsar="Abrir ese alumno"
+          onUsar={() => onAbrir(dupDocumento)}
+        />
+      )}
+
       {errEdad && (
         <p className="text-[var(--peligro)] text-base" role="alert">
           {errEdad}
@@ -494,7 +516,7 @@ function PanelDupe({
   alumno: Alumno;
   textoUsar?: string;
   onUsar: () => void;
-  onOtra: () => void;
+  onOtra?: () => void;
 }) {
   return (
     <div className="p-4 rounded-[var(--radio-panel)] border border-[var(--primario)] bg-[var(--accent-100)]">
@@ -508,13 +530,15 @@ function PanelDupe({
         >
           {textoUsar}
         </button>
-        <button
-          type="button"
-          onClick={onOtra}
-          className="px-4 py-2 text-sm rounded-[var(--radio-control)] border border-[var(--borde)]"
-        >
-          Es otra persona
-        </button>
+        {onOtra && (
+          <button
+            type="button"
+            onClick={onOtra}
+            className="px-4 py-2 text-sm rounded-[var(--radio-control)] border border-[var(--borde)]"
+          >
+            Es otra persona
+          </button>
+        )}
       </div>
     </div>
   );

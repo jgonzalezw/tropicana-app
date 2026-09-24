@@ -12,7 +12,7 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { normalizarWhatsapp, normalizarRed, validarDocumento } from "@/lib/contactos";
+import { normalizarWhatsapp, normalizarRed, validarDocumento, documentoNormalizado } from "@/lib/contactos";
 import { tienePermiso, obtenerPerfilActual } from "@/lib/sesion";
 import { exigir } from "@/lib/datos";
 import { nivelesDe, faltantes } from "@/lib/matrizMinimos";
@@ -199,13 +199,14 @@ export async function guardarPrivados(
 
   const a = admin();
 
-  if (datos.documento) {
-    const { data: tipo } = await a
-      .from("tipos_documento")
-      .select("patron")
-      .eq("clave", datos.documento.tipo_documento)
-      .maybeSingle();
-    if (!validarDocumento(tipo?.patron ?? null, datos.documento.numero))
+  const { data: tipos, error: errTipos } = await a.from("tipos_documento").select("clave, patron");
+  if (errTipos) return { error: `No se pudieron leer los tipos de documento: ${errTipos.message}` };
+  const norm = documentoNormalizado(datos.documento, (tipos ?? []).map((t) => t.clave as string));
+  if (norm.error) return { error: norm.error };
+  const doc = norm.documento;
+  if (doc) {
+    const patron = (tipos ?? []).find((t) => t.clave === doc.tipo_documento)?.patron ?? null;
+    if (!validarDocumento(patron, doc.numero))
       return { error: "El número de documento no tiene el formato de ese tipo." };
   }
 
@@ -222,13 +223,18 @@ export async function guardarPrivados(
     fecha_nacimiento: string | null;
   } | null;
 
+  if (!doc && !datos.fecha_nacimiento && !prev) return {};
+
+  // `datos.documento` presente = el formulario mostró el campo: su valor
+  // manda, y vacío quiere decir "sin documento". Ausente = no se tocó.
+  const tocado = datos.documento !== null && datos.documento !== undefined;
   const { error } = await a.from("contactos_privados").upsert(
     {
       contacto_id: contactoId,
-      tipo_documento: datos.documento?.tipo_documento ?? prev?.tipo_documento ?? null,
-      numero: datos.documento ? datos.documento.numero.trim() : (prev?.numero ?? null),
-      complemento: datos.documento ? datos.documento.complemento?.trim() || null : (prev?.complemento ?? null),
-      expedido: datos.documento ? datos.documento.expedido?.trim() || null : (prev?.expedido ?? null),
+      tipo_documento: tocado ? (doc?.tipo_documento ?? null) : (prev?.tipo_documento ?? null),
+      numero: tocado ? (doc?.numero ?? null) : (prev?.numero ?? null),
+      complemento: tocado ? (doc?.complemento ?? null) : (prev?.complemento ?? null),
+      expedido: tocado ? (doc?.expedido ?? null) : (prev?.expedido ?? null),
       fecha_nacimiento: datos.fecha_nacimiento ?? prev?.fecha_nacimiento ?? null,
       actualizado_en: new Date().toISOString(),
     },
@@ -323,7 +329,9 @@ export async function detalleContacto(contactoId: number): Promise<{
 
   return {
     redes: (redes as ContactoRed[]) ?? [],
-    documento: privados
+    // Una fila de datos privados con solo la fecha de nacimiento NO tiene
+    // documento: devolver uno vacío hacía viajar `tipo_documento = ""`.
+    documento: (privados as { numero: string | null } | null)?.numero
       ? {
           tipo_documento: (privados as { tipo_documento: string | null }).tipo_documento ?? "",
           numero: (privados as { numero: string | null }).numero ?? "",

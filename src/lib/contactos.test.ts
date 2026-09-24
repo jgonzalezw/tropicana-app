@@ -12,6 +12,8 @@ import {
   validarIdentidadAlumno,
   edadDesde,
   validarFechaNacimiento,
+  documentoNormalizado,
+  coincideBusqueda,
 } from "./contactos.ts";
 
 /** Fecha ISO de hace `anios` años (y algunos días de margen para no depender del día de la corrida). */
@@ -139,6 +141,62 @@ test("validarFechaNacimiento: menor de 18 CON \"es menor\" pasa", () => {
 test("validarFechaNacimiento: 18 o más no exige es_menor", () => {
   assert.equal(validarFechaNacimiento(haceAnios(18, 5), false), null);
   assert.equal(validarFechaNacimiento(haceAnios(40), false), null);
+});
+
+const TIPOS = ["ci", "ci_extranjero", "pasaporte", "nit"];
+
+test("documentoNormalizado: sin número es null, no un documento vacío (caso Nadine, prod 2026-09-24)", () => {
+  assert.deepEqual(documentoNormalizado(null, TIPOS), { documento: null });
+  assert.deepEqual(
+    documentoNormalizado({ tipo_documento: "", numero: "", complemento: null, expedido: null }, TIPOS),
+    { documento: null }
+  );
+  assert.deepEqual(
+    documentoNormalizado({ tipo_documento: "ci", numero: "   ", complemento: "1A", expedido: null }, TIPOS),
+    { documento: null }
+  );
+});
+
+test("documentoNormalizado: un tipo fuera del catálogo se rechaza con mensaje, no llega a la base", () => {
+  const r = documentoNormalizado({ tipo_documento: "", numero: "4455667", complemento: null, expedido: null }, TIPOS);
+  assert.match(r.error ?? "", /tipo de documento/);
+});
+
+test("documentoNormalizado: válido pasa recortado", () => {
+  assert.deepEqual(
+    documentoNormalizado({ tipo_documento: "ci", numero: " 4455667 ", complemento: " ", expedido: null }, TIPOS),
+    { documento: { tipo_documento: "ci", numero: "4455667", complemento: null, expedido: null } }
+  );
+});
+
+const ANA = {
+  contacto: { tipo: "persona" as const, nombre: "Ana", apellido: "Martínez", razon_social: null, whatsapp: "+59171051234" },
+};
+const MENOR = {
+  contacto: { tipo: "persona" as const, nombre: "Loana", apellido: "Barrientos", razon_social: null, whatsapp: null },
+  tutorWhatsapp: "+59170878081",
+};
+
+test("coincideBusqueda: los criterios de siempre siguen encontrando igual, con y sin documento", () => {
+  for (const conDoc of [null, "4455667"]) {
+    const ana = { ...ANA, documento: conDoc };
+    assert.equal(coincideBusqueda("martí", ana), true, "por apellido");
+    assert.equal(coincideBusqueda("Ana Mar", ana), true, "por nombre completo");
+    assert.equal(coincideBusqueda("7105", ana), true, "por WhatsApp");
+    assert.equal(coincideBusqueda("a", ana), false, "menos de 2 caracteres no busca");
+    assert.equal(coincideBusqueda("Pérez", ana), false);
+    const menor = { ...MENOR, documento: conDoc };
+    assert.equal(coincideBusqueda("0878", menor), true, "por WhatsApp del tutor");
+  }
+});
+
+test("coincideBusqueda: el documento se suma como criterio (parcial, sin espacios ni mayúsculas)", () => {
+  const ana = { ...ANA, documento: "4455667" };
+  assert.equal(coincideBusqueda("4455", ana), true);
+  assert.equal(coincideBusqueda("445 5667", ana), true);
+  assert.equal(coincideBusqueda("9999", ana), false);
+  assert.equal(coincideBusqueda("4455", ANA), false, "sin documento no aparece por un número que no tiene");
+  assert.equal(coincideBusqueda("ab12", { ...ANA, documento: "AB123456" }), true, "pasaporte con letras");
 });
 
 test("compararContactosPorApellido: ordena por apellido, luego nombre", () => {

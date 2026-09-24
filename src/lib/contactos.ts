@@ -102,6 +102,60 @@ export function validarDocumento(patron: string | null, numero: string): boolean
   }
 }
 
+type Documento = { tipo_documento: string; numero: string; complemento: string | null; expedido: string | null };
+
+/**
+ * Un documento sin número es "sin documento" (`null`), nunca un objeto vacío:
+ * uno vacío viajaba con `tipo_documento = ""` y la base lo rechazaba por la
+ * clave foránea (caso Nadine Salek, producción 2026-09-24). Un tipo que no
+ * está en el catálogo se rechaza acá con un mensaje claro.
+ */
+export function documentoNormalizado(
+  doc: Documento | null | undefined,
+  tiposValidos: string[]
+): { documento: Documento | null; error?: undefined } | { documento?: undefined; error: string } {
+  if (!doc || !doc.numero.trim()) return { documento: null };
+  if (!tiposValidos.includes(doc.tipo_documento)) return { error: "Elegí el tipo de documento." };
+  return {
+    documento: {
+      tipo_documento: doc.tipo_documento,
+      numero: doc.numero.trim(),
+      complemento: doc.complemento?.trim() || null,
+      expedido: doc.expedido?.trim() || null,
+    },
+  };
+}
+
+/** Documento comparable: sin espacios ni guiones, en mayúsculas (un pasaporte lleva letras). */
+export function documentoComparable(texto: string | null | undefined): string {
+  return (texto ?? "").replace(/[\s-]/g, "").toUpperCase();
+}
+
+/**
+ * El filtro de "Buscar" de Alumnos y Profesores, en un solo lugar. Los
+ * criterios de siempre quedan intactos —nombre, WhatsApp propio y WhatsApp
+ * del tutor, desde 3 dígitos—; el documento es uno más que se SUMA, no
+ * reemplaza nada (Javier, 2026-09-24). Un contacto sin documento se
+ * encuentra exactamente igual que antes.
+ */
+export function coincideBusqueda(
+  q: string,
+  c: {
+    contacto: Pick<Contacto, "tipo" | "nombre" | "apellido" | "razon_social" | "whatsapp">;
+    tutorWhatsapp?: string | null;
+    documento?: string | null;
+  }
+): boolean {
+  const s = q.trim().toLowerCase();
+  if (s.length < 2) return false;
+  if (nombreCompleto(c.contacto).toLowerCase().includes(s)) return true;
+  const d = soloDigitos(q);
+  if (d.length >= 3 && (soloDigitos(c.contacto.whatsapp).includes(d) || soloDigitos(c.tutorWhatsapp).includes(d)))
+    return true;
+  const qDoc = documentoComparable(q);
+  return qDoc.length >= 3 && documentoComparable(c.documento).includes(qDoc);
+}
+
 /** Edad en años cumplidos a hoy, a partir de una fecha ISO (YYYY-MM-DD). */
 export function edadDesde(fechaISO: string): number {
   const nacimiento = new Date(`${fechaISO}T00:00:00`);

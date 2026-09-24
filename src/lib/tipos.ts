@@ -108,6 +108,12 @@ export type Contacto = {
   activo: boolean;
   creado_en: string;
   actualizado_en: string;
+  /**
+   * Solo el número de documento, para buscar y detectar duplicados. Lo trae
+   * el padrón embebido (`contactos_privados`), y su RLS lo deja vacío para
+   * quien no tiene el permiso `contactos_privados`.
+   */
+  privados?: { numero: string | null } | null;
 };
 
 /** Datos que el selector/ficha de contacto envía al crear o actualizar la persona. */

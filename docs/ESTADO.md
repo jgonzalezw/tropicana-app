@@ -6,7 +6,117 @@
 > `docs/design/README.md` (fuente de verdad del **diseño**), `docs/CONTEXTO_AVANCE.md`
 > (bitácora larga de Etapa 0), `docs/DESIGN_SYNC.md` (cómo entran los handoffs).
 >
-> **Última actualización:** 2026-09-24 — **C3-0a.3: la matriz de mínimos
+> **Última actualización:** 2026-09-24 — **El documento de un contacto no
+> se podía guardar, y ahora también sirve para buscar. En dev**, esperando
+> el OK del pase.
+>
+> **Cómo apareció:** Javier probó en producción, ya con C3-0a publicado,
+> completar los datos de Nadine Salek. Habilitó en la matriz sexo, fecha de
+> nacimiento y documento para varios contextos (a revalidar con Natalia).
+> Primero guardó la fecha de nacimiento; después habilitó el documento, lo
+> cargó y falló: `violates foreign key constraint
+> "contactos_privados_tipo_documento_fkey"`. Esa prueba sirve además como
+> verificación funcional del pase: las pantallas cargaron y los demás campos
+> se guardaron.
+>
+> **Causa, medida y reproducida en dev antes de tocar código:** el primer
+> guardado creó la fila de `contactos_privados` con solo la fecha. Al
+> reabrir la ficha, `detalleContacto` devolvía un documento **vacío pero no
+> nulo** (`tipo_documento: ""`). El `<select>` mostraba "Cédula de
+> identidad" porque ninguna opción coincidía, pero el valor real seguía
+> vacío (regla de calidad 1: la pantalla decía una cosa y el dato era otra).
+> `guardarPrivados` no encontraba el patrón de `""`, lo dejaba pasar y la
+> base lo rechazaba. Peor que el caso reportado: **cualquier contacto con
+> esa fila sin documento no se podía volver a guardar**, aunque no se tocara
+> el documento. En dev no había aparecido porque la prueba cargó fecha y
+> documento de una sola vez.
+>
+> **Arreglo:** un documento sin número es `null` en los tres lugares
+> (`detalleContacto`, `DocumentoContacto` y `guardarPrivados`). El servidor
+> rechaza un tipo que no está en el catálogo con "Elegí el tipo de
+> documento", no con el error de la clave foránea, y vaciar el número borra
+> el documento. Toda la lógica vive en `documentoNormalizado()`
+> (`lib/contactos.ts`) y está testeada.
+>
+> **Buscar por documento** (pedido de Javier): se **suma** como criterio,
+> sin sacar ninguno. Nombre, WhatsApp y WhatsApp del tutor encuentran lo
+> mismo que antes; el filtro pasó a `coincideBusqueda()` con tests de no
+> regresión. Vale para Alumnos, Profesores, Inscribir y Clase de prueba. El
+> padrón embebe solo el número (`contactos_privados(numero)`), y **el RLS
+> decide quién lo recibe**: medido en dev, un profesor ve 0 filas y un
+> asistente, que tiene el permiso, las ve. Nota para Javier: Asistente
+> heredó `contactos_privados` de "alumnos" en la 0048. Si no debe ver
+> documentos, se cambia en Roles y Permisos. Además, si el documento tipeado
+> ya es de otro alumno o profesor del padrón, la ficha lo avisa y bloquea
+> Guardar, sin opción de "es otra persona": mismo documento, misma persona.
+>
+> **Migración 0050:** cierra por RPC, a quien no inició sesión, las 5
+> funciones `SECURITY DEFINER` de la 0048. `buscar_por_documento` también
+> se cierra a `authenticated` (la app no la usa). Era el hallazgo abierto
+> del pase, y su disparador ("antes de cargar el primer documento") se
+> cumplió con esta prueba. Aplicada **solo en dev**: `get_advisors` ya no
+> las marca para `anon`.
+>
+> **Verificado en dev:** reproducido el error exacto (Luz Marina Araujo,
+> fila solo con fecha) y guardado bien después del arreglo, con la fecha
+> conservada. Búsquedas de siempre y por documento en las tres pantallas,
+> aviso de duplicado, 68/68 tests, `tsc` y build limpios.
+>
+> **2026-09-24 (antes)** — **C3-0a.1 + C3-0a.2 + C3-0a.3
+> PASADAS A PRODUCCIÓN** (migraciones 0048 y 0049 + código), con el OK
+> explícito de Javier (*"procede con los commits pendientes y a
+> producción"*), trabajando en local.
+>
+> **Lo que se encontró al revisar el plan, antes de tocar nada:** la 0048 del
+> archivo **no era idéntica** a la que corrió en dev. Difería en 3 secciones,
+> las 3 correcciones hechas después y a propósito: `normalizar_whatsapp`
+> respeta el "+" escrito a mano (caso Manuel Aguilar), `search_path` en
+> `consentimientos_solo_insert`, y —la que importaba— el relleno crea los
+> **tutores antes que los alumnos** (caso Sebastian Vivancos / Jessica
+> Galvis). Dev ya tenía las dos funciones corregidas, pero **ese orden del
+> relleno nunca había corrido de punta a punta**. Por eso se hizo un
+> **ensayo en seco en producción**: la 0048 entera dentro de un bloque que
+> termina en un error provocado, con los conteos en el mensaje y todo
+> deshecho al final (verificado: `contactos` no existía después). El ensayo
+> devolvió además el hash del SQL recibido, idéntico al del archivo
+> (`0b6ab8ac…`, sin comentarios ni espacios), así que lo que se ensayó y lo
+> que se aplicó es exactamente el archivo del repo.
+>
+> **Antes/después (regla de proceso 5):** producción tenía 43 alumnos (9
+> menores) y 7 profesores, ningún dato nuevo desde que se midió para la 0048
+> (último alumno del 22/09), 0 sesiones abiertas. Después de la 0048:
+> **53 contactos** (43 + 7 + 3 tutores de texto), 0 alumnos y 0 profesores
+> sin contacto, **9 de 9 menores con su tutor vinculado**, 8 estilos, 12
+> filas en `profesor_estilos`. Respaldos: `alumnos_previo_0048` (43) y
+> `profesores_previo_0048` (7). `contactos_revision_0048` tiene exactamente
+> los 2 casos esperados: Natalia Salek fusionada (profesora y tutora, mismo
+> nombre y número) y Sebastian Vivancos creado sin el número de su tutora.
+> Idéntico al ensayo. La 0049 dejó `matriz_minimos` en **144** filas.
+>
+> **Orden:** build local + tests (63/63) + `tsc` → ensayo en seco → 0048 →
+> 0049 → controles → push. El push lo hizo Javier (el de esta sesión lo
+> frenó el control de permisos). `main` `94308d4..2590c96`, **un solo
+> push**, confirmado por Javier con el chip PROD `#2590c96`. Entre la 0048 y
+> el deploy hubo una ventana en la que el código viejo no podía dar de alta
+> alumnos; sin nadie conectado, no afectó a nadie.
+>
+> **Controles en producción:** todos OK (1–22 y 24–27, incluido el 27
+> nuevo), salvo el **23** en REVISAR a propósito: los 2 WhatsApp fuera de
+> formato ya medidos (`34625844863` y `776326266`), que el control recuerda
+> hasta que alguien los corrija a mano. En dev el de Manuel Aguilar ya se
+> corrigió a `+34…`; en producción falta hacerlo desde la ficha.
+>
+> **Hallazgo de `get_advisors`, nuevo con la 0048:** las 5 funciones
+> `SECURITY DEFINER` que crea (`tiene_permiso`, `alcance_de`,
+> `profesor_actual_id`, `contacto_visible_por_profesor`,
+> `buscar_por_documento`) se pueden ejecutar por RPC incluso sin sesión
+> (`anon`). Las cuatro primeras sin sesión devuelven falso/vacío.
+> `buscar_por_documento` confirmaría si un documento existe — hoy
+> `contactos_privados` tiene 0 filas, así que no expone nada, pero hay que
+> cerrarlo **antes de que se cargue el primer documento**. Queda para una
+> migración chica (revocar `execute` a `anon`), primero en dev.
+>
+> **2026-09-24 (antes)** — **C3-0a.3: la matriz de mínimos
 > tiene efecto real en los formularios, en dev.** C3-0a.2 (abajo) había
 > construido el editor, pero nada leía la matriz: Javier probó dando de alta
 > un alumno y "Red social" en `V` no aparecía. Medido: ningún formulario
@@ -128,9 +238,7 @@
 > Verificado en el navegador (Alumnos y Profesores, antes/después) y con
 > un test nuevo (`apellidoNombre`, 63/63 en `npm test`).
 >
-> **Pendiente**: pase a producción de C3-0a.1 + C3-0a.2 + C3-0a.3
-> (migraciones 0048 + 0049 + todo este código), con el OK explícito de
-> Javier — nada de esto se pasó a producción, nada se pusheó al remoto.
+> **Pase a producción**: hecho el mismo día — ver la entrada de arriba.
 >
 > **2026-09-24 (antes)** — **C3-0a.2: editor de la matriz de
 > mínimos, en dev.** La 0048 (C3-0a.1) había dejado `matriz_minimos` sembrada
