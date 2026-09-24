@@ -45,7 +45,8 @@ export default function EntidadProfesor({
       const s = q.trim().toLowerCase();
       if (s.length < 2) return false;
       const nom = `${p.nombre} ${p.apellido}`.toLowerCase();
-      return nom.includes(s) || soloDigitos(p.whatsapp).includes(soloDigitos(q));
+      const d = soloDigitos(q);
+      return nom.includes(s) || (d.length >= 3 && soloDigitos(p.whatsapp).includes(d));
     })
     .sort(compararPorApellido)
     .slice(0, 5);
