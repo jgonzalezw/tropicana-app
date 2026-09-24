@@ -7,20 +7,20 @@
 > (bitácora larga de Etapa 0), `docs/DESIGN_SYNC.md` (cómo entran los handoffs).
 >
 > **Última actualización:** 2026-09-24 — **D1 + D3: la membresía queda con un
-> solo nombre, en dev.** Migración **0047** (`inscripciones`→`membresias`,
+> solo nombre, en producción.** Migración **0047** (`inscripciones`→`membresias`,
 > `inscripcion_cursos`→`membresia_cursos`, `inscripcion_id`→`membresia_id` en
-> las 5 tablas que lo tenían) aplicada en dev, más el renombre de
+> las 5 tablas que lo tenían) aplicada primero en dev y, con el OK explícito
+> de Javier, después en producción, más el renombre de
 > `ClienteVentas.tsx`→`MostradorVenta.tsx` (D3). Javier decidió hacerla ahora,
 > antes de C3-0a.1, para que el código de contactos se escriba una sola vez
-> con el nombre correcto (evaluación completa en el plan de C3-0). Verificado:
-> los 21 controles de `control_migracion.sql` en OK (control 15, la deuda de
-> este mismo D1, pasa de REVISAR-a-propósito a **OK**), `tsc` y `npm test`
-> (33/33) limpios, y 6 pantallas recorridas en el navegador incluyendo un
-> guardado real de asistencia confirmado a nivel de fila. Detalle abajo.
-> **Solo en dev — no commiteado a producción**; Javier pidió pausar ahí
-> (*"pausa al terminar d1 y d3 en dev"*) hasta dar el OK del pase, que además
-> necesita una ventana sin operación (el renombre no es aditivo: rompe el
-> código publicado unos 3-5 min hasta que Vercel termina el deploy nuevo).
+> con el nombre correcto (evaluación completa en el plan de C3-0). Antes del
+> pase se armó y se probó de punta a punta un **script de rollback**
+> (`scripts/rollback_0047_d1_membresias.sql`), verificado por hash contra el
+> esquema real de producción. En producción: los **21 controles en OK**
+> (control 15, la deuda de este mismo D1, pasa de REVISAR-a-propósito a
+> **OK**), ningún dato tocado (mismas 39/39/145/39/38/44 filas antes y
+> después), `get_advisors` sin hallazgos nuevos. Código: `main`
+> `f91be80..574636c`, un solo push. Detalle abajo.
 >
 > **2026-09-23 (antes)** — **D2 (mudanza del repo fuera de
 > OneDrive) cerrada definitivamente.** La carpeta vieja de OneDrive ya fue
@@ -2758,12 +2758,41 @@ demás controles) se renombró en bloque.
 disparador en `DECISIONES.md` era "junto con D1, que es el mismo tipo de
 trabajo".
 
+### El script de rollback, probado antes del pase
+
+Antes de tocar producción, Javier pidió preparar y probar un camino de vuelta.
+Se armó `scripts/rollback_0047_d1_membresias.sql` (no vive en
+`supabase/migrations/`: es un script de guardia, no una migración más) que
+deshace la 0047 en el orden inverso exacto. Se verificó de punta a punta en
+dev: se aplicó la 0047 (ya estaba), se corrió el rollback, y se tomó el hash
+MD5 de los 18 restricciones + 9 índices sueltos + 2 secuencias + 4 políticas
+de las 6 tablas — comparado contra el mismo hash tomado en producción (que
+todavía tenía el esquema pre-D1 intacto). **Los dos hashes dieron idénticos**
+(`16f59f494766254151e63085520f593d`), confirmando que el rollback reproduce el
+esquema original objeto por objeto, no solo aproximadamente. Los 6 conteos de
+filas no cambiaron. Después se volvió a aplicar la 0047 para dejar dev en su
+estado normal: control 15 en OK, `tsc` y `npm test` (33/33) limpios.
+
+### El pase a producción
+
+Con el rollback listo, Javier dio el OK (*"pasamos a PROD los cambios
+pendientes"*). Orden seguido (regla de proceso, §3 de `DECISIONES.md`):
+
+1. Migración **0047** aplicada en `pnvhpbxjbdmbktpwebtx` primero. Verificado
+   de inmediato: las 6 tablas con sus mismas 39/39/145/39/38/44 filas, sin
+   ningún dato tocado.
+2. **Un solo push** con los tres commits pendientes (D1+D3, el fix de
+   búsqueda de profesores por nombre, y el script de rollback): `main`
+   `f91be80..574636c`.
+3. Los **21 controles de `control_migracion.sql` en OK** en producción,
+   incluido el 15 (la deuda de D1, resuelta).
+4. `get_advisors` (seguridad): sin hallazgos nuevos atribuibles a la 0047 —
+   los 5 lints que aparecen son preexistentes (RLS sin política en tablas de
+   respaldo histórico, la extensión `btree_gist` en `public`, dos funciones
+   `SECURITY DEFINER`, protección de contraseñas filtradas deshabilitada).
+
 ### Estado
 
-**Solo en dev — nada commiteado ni pusheado.** Migración `0047_d1_membresias.sql`
-aplicada en `hyhijzuomqpylcmrzdvw`, no en `pnvhpbxjbdmbktpwebtx`. El pase a
-producción espera el OK explícito de Javier (regla de proceso 1) y necesita
-una **ventana sin operación**: el renombre no es aditivo, así que el código
-publicado se cae contra el esquema renombrado durante los ~3-5 minutos entre
-correr la migración y que Vercel termine el deploy del código nuevo — y, como
-siempre, **un solo push** (Vercel construye cada commit en paralelo).
+**En producción.** Migración `0047_d1_membresias.sql` aplicada en las dos
+bases. Código en `main`, commit `574636c`. Control 15 pasa a **OK** en las dos
+bases — D1 y D3 quedan cerradas en `DECISIONES.md`.
