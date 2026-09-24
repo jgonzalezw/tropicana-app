@@ -153,11 +153,12 @@ export function finDeMembresia(
 export async function estadoDeCuenta(sb: ClienteLectura, alumnoId: number): Promise<EstadoCuenta | null> {
   const { data: al } = await sb
     .from("alumnos")
-    .select("id, nombre, apellido")
+    .select("id, contacto:contactos(nombre, apellido)")
     .eq("id", alumnoId)
     .maybeSingle();
   if (!al) return null;
-  const alumno = al as { id: number; nombre: string; apellido: string };
+  const alRow = al as unknown as { id: number; contacto: { nombre: string | null; apellido: string | null } | null };
+  const alumno = { id: alRow.id, nombre: alRow.contacto?.nombre ?? "", apellido: alRow.contacto?.apellido ?? "" };
 
   const { data: inscRows } = await sb
     .from("membresias")
@@ -373,7 +374,7 @@ export async function lineasPorCobrar(
     .from("cuotas")
     .select(
       "id, membresia_id, monto_devengado, descuento_adelanto, vencimiento, fecha_compromiso, " +
-        "inscripcion:membresias(id, alumno_id, alumno:alumnos(id, nombre, apellido), " +
+        "inscripcion:membresias(id, alumno_id, alumno:alumnos(id, contacto:contactos(nombre, apellido)), " +
         "plan:planes(nombre), curso:cursos(nombre))"
     )
     .neq("estado", "pagada");
@@ -388,7 +389,7 @@ export async function lineasPorCobrar(
     inscripcion: {
       id: number;
       alumno_id: number;
-      alumno: { id: number; nombre: string; apellido: string } | null;
+      alumno: { id: number; contacto: { nombre: string | null; apellido: string | null } | null } | null;
       plan: { nombre: string } | null;
       curso: { nombre: string } | null;
     } | null;
@@ -418,7 +419,7 @@ export async function lineasPorCobrar(
         cuotaId: f.id,
         sujetoTipo: "alumno" as const,
         sujetoId: al.id,
-        sujeto: `${al.apellido}, ${al.nombre}`,
+        sujeto: `${al.contacto?.apellido ?? ""}, ${al.contacto?.nombre ?? ""}`,
         detalle: servicio,
         saldo: saldoCuota(num(f.monto_devengado), num(f.descuento_adelanto), cubierto[f.id] ?? 0),
         // Si se pactó una fecha de compromiso, esa manda sobre el vencimiento
@@ -589,7 +590,7 @@ export async function lineasPorPagar(sb: ClienteLectura): Promise<LineaPendiente
   const { data } = await sb
     .from("liquidaciones")
     .select(
-      "id, profesor_id, periodo, total_devengado, total_descuentos, total_pagado, profesor:profesores(id, nombre, apellido)"
+      "id, profesor_id, periodo, total_devengado, total_descuentos, total_pagado, profesor:profesores(id, contacto:contactos(nombre, apellido))"
     );
   const filas =
     (data as unknown as {
@@ -599,7 +600,7 @@ export async function lineasPorPagar(sb: ClienteLectura): Promise<LineaPendiente
       total_devengado: number;
       total_descuentos: number | null;
       total_pagado: number;
-      profesor: { id: number; nombre: string; apellido: string } | null;
+      profesor: { id: number; contacto: { nombre: string | null; apellido: string | null } | null } | null;
     }[]) ?? [];
 
   const porProfesor = new Map<
@@ -610,7 +611,7 @@ export async function lineasPorPagar(sb: ClienteLectura): Promise<LineaPendiente
     if (!f.profesor) continue;
     const neto = num(f.total_devengado) - num(f.total_descuentos) - num(f.total_pagado);
     const ya = porProfesor.get(f.profesor.id) ?? {
-      nombre: `${f.profesor.apellido}, ${f.profesor.nombre}`,
+      nombre: `${f.profesor.contacto?.apellido ?? ""}, ${f.profesor.contacto?.nombre ?? ""}`,
       saldo: 0,
       periodos: 0,
       porDescontar: 0,
@@ -629,10 +630,13 @@ export async function lineasPorPagar(sb: ClienteLectura): Promise<LineaPendiente
   const porDescontar = await cargarDescuentosPendientes(sb);
   const sinLiquidaciones = [...porDescontar.keys()].filter((id) => !porProfesor.has(id));
   if (sinLiquidaciones.length) {
-    const { data: profs } = await sb.from("profesores").select("id, nombre, apellido").in("id", sinLiquidaciones);
-    for (const p of (profs as { id: number; nombre: string; apellido: string }[]) ?? [])
+    const { data: profs } = await sb
+      .from("profesores")
+      .select("id, contacto:contactos(nombre, apellido)")
+      .in("id", sinLiquidaciones);
+    for (const p of (profs as unknown as { id: number; contacto: { nombre: string | null; apellido: string | null } | null }[]) ?? [])
       porProfesor.set(p.id, {
-        nombre: `${p.apellido}, ${p.nombre}`,
+        nombre: `${p.contacto?.apellido ?? ""}, ${p.contacto?.nombre ?? ""}`,
         saldo: 0,
         periodos: 0,
         porDescontar: 0,
@@ -736,7 +740,9 @@ export async function cargarReemplazos(
 ): Promise<Map<number, { nombre: string; clases: ClaseReemplazo[]; pagadoSinClase: number }>> {
   let consulta = sb
     .from("sesiones")
-    .select("id, fecha, profesor_id, reemplazo_costo, profesor:profesores!sesiones_profesor_id_fkey(nombre, apellido)")
+    .select(
+      "id, fecha, profesor_id, reemplazo_costo, profesor:profesores!sesiones_profesor_id_fkey(contacto:contactos(nombre, apellido))"
+    )
     .eq("estado", "dictada")
     .not("reemplazo_motivo", "is", null)
     .gt("reemplazo_costo", 0);
@@ -746,7 +752,7 @@ export async function cargarReemplazos(
     fecha: string;
     profesor_id: number | null;
     reemplazo_costo: number;
-    profesor: { nombre: string; apellido: string } | null;
+    profesor: { contacto: { nombre: string | null; apellido: string | null } | null } | null;
   }[];
 
   let consultaPagos = sb.from("pagos").select("profesor_id, sesion_id, monto").eq("motivo", "pago_reemplazante");
@@ -763,7 +769,7 @@ export async function cargarReemplazos(
     if (s.profesor_id == null) continue;
     vigentes.add(s.id);
     const ya = salida.get(s.profesor_id) ?? {
-      nombre: s.profesor ? `${s.profesor.apellido}, ${s.profesor.nombre}` : `#${s.profesor_id}`,
+      nombre: s.profesor ? `${s.profesor.contacto?.apellido ?? ""}, ${s.profesor.contacto?.nombre ?? ""}` : `#${s.profesor_id}`,
       clases: [],
       pagadoSinClase: 0,
     };

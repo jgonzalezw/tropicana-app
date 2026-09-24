@@ -3,7 +3,7 @@ import { tienePermiso } from "@/lib/sesion";
 import EncabezadoPagina from "@/components/EncabezadoPagina";
 import SinAcceso from "@/components/SinAcceso";
 import ClienteAlumnos from "./ClienteAlumnos";
-import type { Alumno } from "@/lib/tipos";
+import type { Alumno, Contacto } from "@/lib/tipos";
 
 export const dynamic = "force-dynamic";
 
@@ -12,12 +12,30 @@ export default async function PaginaAlumnos() {
 
   const supabase = await createClient();
 
-  const [{ data: alumnos }, { data: cat }, { data: insc }, { data: pagosAl }] = await Promise.all([
-    supabase.from("alumnos").select("*").order("apellido").order("nombre"),
+  const [{ data: alumnosRaw }, { data: cat }, { data: insc }, { data: pagosAl }] = await Promise.all([
+    supabase.from("alumnos").select("*, contacto:contactos(*)"),
     supabase.from("catalogos").select("id").eq("clave", "canal_captacion").maybeSingle(),
     supabase.from("membresias").select("alumno_id"),
     supabase.from("pagos").select("alumno_id"),
   ]);
+
+  const alumnos = ((alumnosRaw as Alumno[]) ?? []).slice();
+
+  // El tutor no viaja en el select de arriba (es una relación aparte, no una
+  // columna de alumnos): se resuelve en un segundo round trip, batido por
+  // los contacto_id de los menores.
+  const idsMenores = alumnos.filter((a) => a.es_menor).map((a) => a.contacto_id);
+  if (idsMenores.length) {
+    const { data: rels } = await supabase
+      .from("contacto_relaciones")
+      .select("hacia_id, tutor:contactos!contacto_relaciones_desde_id_fkey(*)")
+      .eq("tipo", "tutor_de")
+      .in("hacia_id", idsMenores);
+    const tutorPorHijo = new Map<number, Contacto>();
+    for (const r of (rels as unknown as { hacia_id: number; tutor: Contacto }[]) ?? [])
+      tutorPorHijo.set(r.hacia_id, r.tutor);
+    for (const a of alumnos) a.tutor = tutorPorHijo.get(a.contacto_id) ?? null;
+  }
 
   // Historial dependiente por alumno = inscripciones + pagos. Con historial se
   // desactiva (conservando lo registrado); sin historial se elimina de verdad.
@@ -44,7 +62,7 @@ export default async function PaginaAlumnos() {
         titulo="Alumnos"
         descripcion="Padrón de alumnos. El WhatsApp identifica al adulto; para un menor, el WhatsApp del tutor más su nombre."
       />
-      <ClienteAlumnos alumnos={(alumnos as Alumno[]) ?? []} canales={canales} deps={deps} />
+      <ClienteAlumnos alumnos={alumnos} canales={canales} deps={deps} />
     </div>
   );
 }

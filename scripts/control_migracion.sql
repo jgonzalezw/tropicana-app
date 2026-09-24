@@ -508,6 +508,99 @@ select '21. membresias que se salen de la vigencia de su curso' as control,
              or (c.vigente_hasta is not null and ic.fecha > c.vigente_hasta)));
 
 -- ---------------------------------------------------------------------
+-- 22. ALUMNO O PROFESOR SIN CONTACTO
+--     Desde la 0048, `alumnos.contacto_id` y `profesores.contacto_id` son
+--     NOT NULL + UNIQUE: son extensiones de rol, no dueños de su propia
+--     identidad. Si alguno quedara sin contacto, ninguna pantalla podria
+--     mostrar su nombre ni su WhatsApp.
+-- ---------------------------------------------------------------------
+select '22. alumnos o profesores sin contacto' as control,
+       count(*) as n,
+       case when count(*) = 0 then 'OK' else 'REVISAR' end as estado
+  from (
+    select id from public.alumnos where contacto_id is null
+    union all
+    select id from public.profesores where contacto_id is null
+  ) t;
+
+-- ---------------------------------------------------------------------
+-- 23. WHATSAPP FUERA DE FORMATO
+--     `normalizar_whatsapp()` deja en +591 + 8 digitos todo numero
+--     boliviano reconocible; lo que no encaja se deja en digitos crudos y
+--     queda marcado aca, en vez de inventarse un numero (regla de calidad
+--     1). Los dos casos medidos en produccion (uno de 9 digitos que
+--     empieza con 776 y uno de 11 que empieza con 346) van a seguir
+--     apareciendo hasta que alguien los corrija a mano: el control
+--     recuerda que existen, no los oculta.
+-- ---------------------------------------------------------------------
+select '23. whatsapp de contacto fuera de formato +591' as control,
+       count(*) as n,
+       case when count(*) = 0 then 'OK'
+            else 'REVISAR (detalle: ' ||
+                 string_agg(id || '=' || whatsapp, ', ' order by id) || ')' end as estado
+  from public.contactos
+ where whatsapp is not null
+   and whatsapp !~ '^\+591[0-9]{8}$';
+
+-- ---------------------------------------------------------------------
+-- 24. MENOR REPETIDO
+--     Un menor sin WhatsApp propio se identifica por el WhatsApp del tutor
+--     mas su propio nombre (`claveMenor` en lib/contactos.ts). Si dos
+--     alumnos activos comparten esa clave, son la misma persona cargada
+--     dos veces: cada uno arrastra su propio historial de asistencia y
+--     membresias, partido en dos.
+-- ---------------------------------------------------------------------
+with menores as (
+  select a.id as alumno_id, c.id as contacto_id,
+         lower(trim(coalesce(c.nombre, '') || ' ' || coalesce(c.apellido, ''))) as nombre_clave,
+         tutor.whatsapp as tutor_whatsapp
+    from public.alumnos a
+    join public.contactos c on c.id = a.contacto_id
+    left join public.contacto_relaciones cr on cr.hacia_id = c.id and cr.tipo = 'tutor_de'
+    left join public.contactos tutor on tutor.id = cr.desde_id
+   where a.es_menor and a.activo and c.activo
+)
+select '24. menores repetidos (mismo tutor + mismo nombre)' as control,
+       count(*) as n,
+       case when count(*) = 0 then 'OK' else 'REVISAR' end as estado
+  from (
+    select tutor_whatsapp, nombre_clave, count(*) as veces
+      from menores
+     where tutor_whatsapp is not null and nombre_clave <> ''
+     group by tutor_whatsapp, nombre_clave
+    having count(*) > 1
+  ) t;
+
+-- ---------------------------------------------------------------------
+-- 25. EL TRIGGER DE CONSENTIMIENTOS EXISTE
+--     `consentimientos` es de solo agregar (regla de negocio: un
+--     consentimiento no se edita ni se borra, se reemplaza con uno nuevo).
+--     Si el trigger `consentimientos_no_update` desaparece, una migracion o
+--     un cambio de permisos abrio la puerta a reescribir el historial de
+--     consentimiento, que es exactamente lo que no puede pasar.
+-- ---------------------------------------------------------------------
+select '25. trigger consentimientos_no_update presente' as control,
+       count(*) as n,
+       case when count(*) = 1 then 'OK' else 'REVISAR' end as estado
+  from pg_trigger
+ where tgname = 'consentimientos_no_update'
+   and tgrelid = 'public.consentimientos'::regclass
+   and not tgisinternal;
+
+-- ---------------------------------------------------------------------
+-- 26. CURSO ACTIVO SIN ESTILO VALIDO
+--     D12: `cursos.estilo` reemplaza a `linea` (texto libre). Un curso
+--     activo sin `estilo` no aparece bien clasificado en Precios, en el
+--     filtro de titulares de Profesores ni en las tarifas de particular
+--     que se cobran por estilo.
+-- ---------------------------------------------------------------------
+select '26. cursos activos sin estilo' as control,
+       count(*) as n,
+       case when count(*) = 0 then 'OK' else 'REVISAR' end as estado
+  from public.cursos
+ where activo and estilo is null;
+
+-- ---------------------------------------------------------------------
 -- Detalle, por si algun control da REVISAR:
 -- ---------------------------------------------------------------------
 -- select id, alumno_id, curso_id, estado, fecha_inicio, fecha_fin,

@@ -58,7 +58,7 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
   }
 
   const [{ data: prof }, { data: comis }, { data: pagosLiq }, { data: descLiq }] = await Promise.all([
-    sb.from("profesores").select("nombre, apellido, whatsapp").eq("id", liq.profesor_id).maybeSingle(),
+    sb.from("profesores").select("contacto:contactos(nombre, apellido, whatsapp)").eq("id", liq.profesor_id).maybeSingle(),
     sb.from("comisiones_devengadas").select("id, membresia_id, curso_id, profesor_id, base, monto, reparto, tipo, origen").eq("liquidacion_id", liquidacionId).order("id"),
     sb.from("pagos").select("fecha, monto, medio, motivo").eq("tipo", "pago").eq("liquidacion_id", liquidacionId).order("fecha"),
     sb.from("descuentos_liquidacion").select("motivo, monto, origen").eq("liquidacion_id", liquidacionId).order("id"),
@@ -182,14 +182,14 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
     ];
     const planIds = [...new Set([...inscById.values()].map((i) => i.plan_id).filter((x): x is number => x != null))];
     const [{ data: al }, { data: cu }, { data: pl }] = await Promise.all([
-      sb.from("alumnos").select("id, nombre, apellido").in("id", alIds),
+      sb.from("alumnos").select("id, contacto:contactos(nombre, apellido)").in("id", alIds),
       sb.from("cursos").select("id, nombre").in("id", cuIds),
       planIds.length
         ? sb.from("planes").select("id, nombre, tipo_servicio").in("id", planIds)
         : Promise.resolve({ data: [] }),
     ]);
-    for (const a of (al as { id: number; nombre: string; apellido: string }[]) ?? [])
-      alNombre.set(a.id, `${a.apellido}, ${a.nombre}`);
+    for (const a of (al as unknown as { id: number; contacto: { nombre: string | null; apellido: string | null } | null }[]) ?? [])
+      alNombre.set(a.id, `${a.contacto?.apellido ?? ""}, ${a.contacto?.nombre ?? ""}`);
     for (const c of (cu as { id: number; nombre: string }[]) ?? []) cuNombre.set(c.id, c.nombre);
     for (const p of (pl as { id: number; nombre: string; tipo_servicio: string }[]) ?? []) {
       planNombre.set(p.id, p.nombre);
@@ -259,10 +259,11 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
     obtenerParametro("liquidacion_reparto_impreso"),
   ]);
 
+  const profContacto = (prof as unknown as { contacto: { nombre: string | null; apellido: string | null; whatsapp: string | null } | null } | null)?.contacto;
   const datos: DatosComprobante = {
     id: liq.id as number,
-    profesor: prof ? `${prof.nombre} ${prof.apellido}` : `#${liq.profesor_id}`,
-    whatsapp: (prof?.whatsapp as string | null) ?? null,
+    profesor: profContacto ? `${profContacto.nombre ?? ""} ${profContacto.apellido ?? ""}`.trim() : `#${liq.profesor_id}`,
+    whatsapp: profContacto?.whatsapp ?? null,
     periodo: liq.periodo as string,
     periodicidad: liq.periodicidad as string,
     estado: liq.estado as string,

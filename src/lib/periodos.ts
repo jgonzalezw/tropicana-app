@@ -82,18 +82,18 @@ export async function cargarImpacto(sb: Cliente): Promise<Impacto> {
   // 1. Comisiones cuya liquidación ya tiene plata encima.
   const { data: com } = await sb
     .from("comisiones_devengadas")
-    .select("membresia_id, profesor:profesores(nombre, apellido), liquidacion:liquidaciones(estado, periodo)");
+    .select("membresia_id, profesor:profesores(contacto:contactos(nombre, apellido)), liquidacion:liquidaciones(estado, periodo)");
   const porMembresia = new Map<number, LiquidacionTocada[]>();
   for (const c of (com as unknown as {
     membresia_id: number | null;
-    profesor: { nombre: string; apellido: string } | null;
+    profesor: { contacto: { nombre: string | null; apellido: string | null } | null } | null;
     liquidacion: { estado: string; periodo: string } | null;
   }[]) ?? []) {
     if (c.membresia_id == null) continue;
     if (c.liquidacion?.estado !== "pagada" && c.liquidacion?.estado !== "cerrada") continue;
     const ya = porMembresia.get(c.membresia_id) ?? [];
     ya.push({
-      profesor: c.profesor ? `${c.profesor.apellido}, ${c.profesor.nombre}` : "un profesor",
+      profesor: c.profesor?.contacto ? `${c.profesor.contacto.apellido ?? ""}, ${c.profesor.contacto.nombre ?? ""}` : "un profesor",
       periodo: c.liquidacion.periodo,
       estado: c.liquidacion.estado,
       alumno: "",
@@ -123,7 +123,7 @@ export async function cargarImpacto(sb: Cliente): Promise<Impacto> {
 
   const { data: insc } = await sb
     .from("membresias")
-    .select("id, fecha_inicio, fecha_fin, alumno:alumnos(nombre, apellido)")
+    .select("id, fecha_inicio, fecha_fin, alumno:alumnos(contacto:contactos(nombre, apellido))")
     .in("id", ids);
   const cursos = new Map<number, number[]>();
   const vigencias = new Map<number, VigenciaCurso>();
@@ -140,10 +140,10 @@ export async function cargarImpacto(sb: Cliente): Promise<Impacto> {
     id: number;
     fecha_inicio: string;
     fecha_fin: string | null;
-    alumno: { nombre: string; apellido: string } | null;
+    alumno: { contacto: { nombre: string | null; apellido: string | null } | null } | null;
   }[]) ?? []) {
     if (!m.fecha_fin) continue;
-    const quien = m.alumno ? `${m.alumno.apellido}, ${m.alumno.nombre}` : `#${m.id}`;
+    const quien = m.alumno?.contacto ? `${m.alumno.contacto.apellido ?? ""}, ${m.alumno.contacto.nombre ?? ""}` : `#${m.id}`;
     const tocadas = (porMembresia.get(m.id) ?? []).map((l) => ({ ...l, alumno: quien }));
     for (const f of porInsc.get(m.id) ?? []) {
       if (f.fecha) {

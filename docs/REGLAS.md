@@ -33,6 +33,11 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
 | **Membresía de prueba** | `membresias.es_prueba` | Preliminar: 1 clase por curso elegido, sin tolerancia, bono ni renovación. Cuelga del **mismo plan regular**. `acompanantes` guarda la gente sin nombre del grupo. |
 | **Conversión** | `membresias.membresia_anterior_id` | De dónde viene la membresía: el ciclo anterior (renovación) o la prueba (el prospecto se convirtió). |
 | **Cuota** | `cuotas` | Lo devengado por una venta. Toda venta tiene la suya. |
+| **Contacto** | `contactos` | Desde la migración **0048 (C3-0a.1, D12)**: el único registro de una persona u organización. Nombre, WhatsApp, canal de captación, documento (en `contactos_privados`) y relaciones (tutor, referido) viven acá, **una sola vez**, sea cual sea el rol que después tenga. |
+| **Extensión de rol** | `alumnos`, `profesores` | Lo que hace un contacto en la academia, no quién es. Apuntan a `contactos` por `contacto_id` (NOT NULL + UNIQUE desde la 0048): un contacto puede tener cero, uno o los dos roles, pero su identidad —nombre, WhatsApp— vive una sola vez. **Nunca** se le agrega nombre/apellido/whatsapp propio a una tabla de rol nueva: eso va en `contactos`. |
+| **Prospecto** | `contactos` sin fila en `alumnos` ni `profesores` | Un contacto sin ningún rol todavía. Es un estado **válido** del modelo, no un error a mitad de alta: si falla la escritura del rol después de crear el contacto, no hace falta compensar nada — queda un prospecto. |
+| **Consentimiento vigente** | vista `consentimientos_vigentes` | El último consentimiento otorgado por un contacto para una finalidad. `consentimientos` es **de solo agregar** (trigger `consentimientos_no_update`): un consentimiento es un hecho que pasó, nunca se edita ni se borra — para cambiarlo se registra uno nuevo y la vista muestra el más reciente. |
+| **Referencias ≠ Referido** | catálogo `canal_captacion` | Dos cosas distintas que suenan igual. **Referencias** = boca a boca, sin una persona identificada detrás (un canal de captación más, como Instagram o un letrero). **Referido** = `contacto_relaciones` tipo `referido_por`, una relación con un contacto concreto que lo trajo. Confundirlos pierde la trazabilidad de a quién agradecer o, eventualmente, comisionar por el referido. |
 
 ## 2. Reglas de negocio
 
@@ -216,6 +221,13 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
     *(Javier, 2026-09-12: "Si una clase no se canceló y se registró la
     asistencia, alguien la dictó, no podés asumirlo, mala decisión." Y la
     corrección de las dos ramas, el mismo día.)*
+21. **Toda contraparte nueva apunta a `contacto_id`.** Desde la migración 0048
+    (C3-0a.1), ninguna tabla nueva guarda su propio nombre/apellido/whatsapp:
+    si necesita una persona u organización, referencia a `contactos` por
+    `contacto_id`. `alumnos` y `profesores` son extensiones de rol con este
+    mismo patrón (ver glosario); una clase particular, un alquiler de sala o
+    cualquier venta futura a un tercero se cuelgan igual, nunca con un campo
+    de texto libre ni un tercer camino de identidad.
 
 ## 3. Reglas de proceso
 

@@ -6,7 +6,102 @@
 > `docs/design/README.md` (fuente de verdad del **diseño**), `docs/CONTEXTO_AVANCE.md`
 > (bitácora larga de Etapa 0), `docs/DESIGN_SYNC.md` (cómo entran los handoffs).
 >
-> **Última actualización:** 2026-09-24 — **D1 + D3: la membresía queda con un
+> **Última actualización:** 2026-09-24 — **C3-0a.1 (contactos): modelo,
+> migración y adaptación completa, en DEV — sin pase a producción todavía.**
+> `contactos` nace como el único registro de una persona; `alumnos` y
+> `profesores` pasan a ser **extensiones de rol** que apuntan a `contacto_id`
+> (NOT NULL + UNIQUE). De paso cierra **D12**: los estilos de baile dejan de
+> ser un parámetro de texto (`especialidades`) y pasan a la tabla `estilos`
+> (clave, como `sala_tamanos`), con `cursos.estilo`, `profesor_estilos` y
+> `tarifas_particular`/`paquetes_particular.estilo` como FK. Deja listo,
+> vacío y sin pantalla, el modelo de consentimiento (`consentimientos`,
+> insert-only por trigger), la matriz de mínimos por contexto y las dos
+> tablas de captación de C3-0b (`solicitudes_contacto`, `enlaces_captacion`).
+>
+> **Corrección de concepción, antes de aprobar el plan (Javier, 2026-09-24):**
+> la primera versión ponía el RLS de `contactos` en el mismo camino que el
+> padrón de asistencia. Javier la frenó: *"los alumnos de un curso asignado a
+> un profesor titular deben poderse ver siempre... si quedan alumnos fuera de
+> la lista de asistencia... hay un error de concepción."* Se corrigió: la
+> autorización de una clase es **por curso** (¿puede este usuario operar la
+> asistencia de este curso?), y una vez autorizado el padrón se lee
+> **completo** con la clave de servicio. El RLS de `contactos` queda como
+> barrera solo para lecturas directas — ninguna pantalla depende de él para
+> armar una lista. Mismo criterio para el detalle de una liquidación.
+>
+> **Migración 0048** (~970 líneas): aditiva con relleno, salvo dos cierres no
+> reversibles sin este mismo rollback (`alumnos.contacto_id` /
+> `profesores.contacto_id` NOT NULL + UNIQUE, y se sacan los NOT NULL viejos
+> de `nombre`/`apellido`). El relleno crea un contacto por profesor, después
+> los tutores que solo existían como texto (**antes** que los alumnos, a
+> propósito), y recién después un contacto por alumno — así el WhatsApp
+> familiar compartido siempre lo reclama el adulto primero. Medido contra
+> producción antes de escribirla: 0 fusiones alumno-profesor, 0 alumnos
+> repetidos, 2 WhatsApp fuera de formato (9 y 11 dígitos) que el control 23
+> señala sin inventar. **Corrección de datos exigida por Javier, con foto de
+> PROD**: Sebastian Vivancos (menor) tenía en su propio `whatsapp` el mismo
+> número que sus hermanos anotan como el de su tutora Jessica Galvis — un
+> dato cargado en el campo equivocado, no su número. Se corrigió el dato ya
+> migrado en dev y se reordenó la lógica del relleno (tutores antes que
+> alumnos) para que una futura aplicación —producción— lo resuelva bien desde
+> el origen, sin necesitar el parche manual. Verificado por simulación
+> read-only contra las tablas `*_previo_0048` que la lógica corregida
+> reproduce exactamente la corrección manual.
+>
+> **Bug real encontrado probando en vivo (Javier, editando a Manuel Aguilar):**
+> `normalizarWhatsapp`/`normalizar_whatsapp()` descartaban cualquier `+`
+> escrito a mano en un número no boliviano — el usuario agregaba el prefijo de
+> su país (`+34...`) y al guardar volvía a quedar en dígitos crudos. Corregido
+> en las dos implementaciones (TS y SQL, que tienen que dar el mismo
+> resultado): si el texto ya empieza con `+`, esa decisión explícita se
+> respeta. Corregido también el dato de Manuel Aguilar en dev
+> (`+34625844863`) y agregado un caso de prueba con su nombre. De paso se
+> corrigió un import roto (`contactos.ts` usaba el alias `@/lib/texto`, que
+> Next.js resuelve pero `node --test` no — la convención del repo para
+> archivos que corren bajo pruebas puras es la ruta relativa con extensión
+> `.ts`, como en `liquidacion/motor.ts`).
+>
+> **Verificado:** `tsc --noEmit` limpio, `npm test` 43/43 (9 nuevas de
+> `contactos.test.ts`). Navegador en dev, sin regresiones: Alumnos,
+> Profesores, Cursos, Precios, Inscribir (tutor de los 3 hermanos Vivancos
+> correcto), Caja, Asistencia (padrón completo — Salsa y Bachata Inicial,
+> 16/09, 8 alumnos con nombre y apellido correctos, titular Salek mostrado
+> bien) y Liquidaciones (comprobante de Angel Caceres, reparto multi-curso
+> con nombres de alumno correctos). Dos falsas alarmas descartadas por
+> medición: un apellido "??" en un alumno resultó ser un dato sucio
+> **preexistente** a la migración (confirmado contra `alumnos_previo_0048`),
+> y un mojibake visto en la respuesta cruda de red ("DoÃ±a Petrona") resultó
+> ser un artefacto de cómo esa herramienta mostraba los bytes — la pantalla
+> renderiza "Doña Petrona" y "Nuñez, Oscar" con acentos correctos.
+> **Controles 22–26 agregados a `scripts/control_migracion.sql`** (alumno o
+> profesor sin contacto, WhatsApp fuera de formato, menor repetido, trigger
+> de consentimientos presente, curso activo sin estilo), corridos contra dev:
+> todos OK salvo el 23 (2 casos, señalados a propósito). **`refresh-dev.mjs`**
+> actualizado: `estilos`/`contactos` entran antes que profesores/alumnos;
+> `contactos_privados`/`contacto_relaciones`/`contacto_redes`/
+> `consentimientos`/`profesor_estilos` después. **Pantalla nueva**: Catálogos
+> suma la sección **Estilos** (agregar, renombrar, activar/desactivar).
+>
+> **`scripts/rollback_0048_contactos.sql` escrito, sin probar todavía.** A
+> diferencia del rollback de la 0047 (puro renombre, simétrico), este es un
+> **resincronizado**: copia hacia las columnas viejas todo lo que hoy vive en
+> `contactos` y las tablas nuevas —para TODAS las filas, no solo las de antes
+> de la 0048, porque el código nuevo ya dejó de escribir ahí— y recién
+> después borra lo nuevo. Documenta explícitamente qué no es perfectamente
+> reversible (el remapeo de `canal_captacion`, el texto exacto de estilos
+> escritos a mano después de la 0048) y por qué los catálogos sembrados no se
+> borran (mismo criterio que `refresh-dev.mjs`: aditivos, nunca se sabe con
+> certeza cuáles ya existían en producción). **Falta**: correrlo en dev,
+> comparar por hash contra el esquema pre-0048 de producción, y volver a
+> aplicar la 0048 — Javier prefirió dejarlo para más adelante, antes del pase,
+> en vez de ahora.
+>
+> **Pendiente antes de proponer el pase a producción**: probar el rollback
+> (arriba), actualizar `docs/REGLAS.md` (glosario) y `docs/DECISIONES.md`
+> (cerrar D12, registrar las postergadas nuevas), y el commit local de todo
+> este trabajo — nada de esto se pasó a producción, nada se pusheó.
+>
+> **2026-09-24 (antes)** — **D1 + D3: la membresía queda con un
 > solo nombre, en producción.** Migración **0047** (`inscripciones`→`membresias`,
 > `inscripcion_cursos`→`membresia_cursos`, `inscripcion_id`→`membresia_id` en
 > las 5 tablas que lo tenían) aplicada primero en dev y, con el OK explícito

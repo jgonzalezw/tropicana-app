@@ -33,8 +33,18 @@ const { Client } = pg;
 
 // Orden padre -> hijo (respeta las llaves foraneas al insertar).
 const ORDEN = [
+  // Contactos (0048): alumnos/profesores son extensiones de rol que
+  // apuntan a contacto_id, asi que contactos entra antes. estilos (D12)
+  // tambien, porque cursos.estilo y profesor_estilos lo referencian.
+  "estilos",
+  "contactos",
   "profesores",
   "alumnos",
+  "contactos_privados",
+  "contacto_relaciones",
+  "contacto_redes",
+  "consentimientos",
+  "profesor_estilos",
   "cursos",
   "curso_tarifas",
   "planes",

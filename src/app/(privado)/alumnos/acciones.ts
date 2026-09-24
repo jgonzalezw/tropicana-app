@@ -3,8 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { tienePermiso } from "@/lib/sesion";
-import { soloDigitos } from "@/lib/texto";
 import type { DatosAlumno } from "@/lib/tipos";
+import { validarIdentidadAlumno } from "@/lib/contactos";
+import {
+  crearOReusarContactoPersona,
+  actualizarContactoPersona,
+  resolverTutor,
+  vincularTutor,
+} from "@/app/(privado)/contactos/acciones";
 
 type Resultado = { ok?: true; error?: string; accion?: "eliminado" | "desactivado" };
 
@@ -14,59 +20,61 @@ function admin() {
   return a;
 }
 
-function mapearError(e: { code?: string; message?: string }): string {
-  if (e.code === "23505") {
-    if (e.message?.includes("menor")) return "Ese menor ya está cargado (mismo tutor y nombre).";
-    return "Ese WhatsApp ya es de un alumno.";
-  }
-  return e.message ?? "No se pudo guardar.";
-}
-
-function validar(d: DatosAlumno): string | null {
-  if (!d.nombre.trim() || !d.apellido.trim()) return "Nombre y apellido son obligatorios.";
-  if (d.es_menor) {
-    if (soloDigitos(d.tutor_whatsapp).length < 6)
-      return "El WhatsApp del tutor identifica al menor (6+ dígitos).";
-  } else if (soloDigitos(d.whatsapp).length < 6) {
-    return "El WhatsApp identifica al alumno (6+ dígitos).";
-  }
-  return null;
-}
-
-function payload(d: DatosAlumno) {
-  return {
-    nombre: d.nombre.trim(),
-    apellido: d.apellido.trim(),
-    whatsapp: d.whatsapp.trim() || null,
-    es_menor: d.es_menor,
-    tutor_alumno_id: d.es_menor ? d.tutor_alumno_id : null,
-    tutor_nombre: d.es_menor ? d.tutor_nombre.trim() || null : null,
-    tutor_whatsapp: d.es_menor ? d.tutor_whatsapp.trim() || null : null,
-    canal_captacion: d.canal_captacion,
-  };
-}
-
 export async function crearAlumno(d: DatosAlumno): Promise<Resultado> {
   if (!(await tienePermiso("alumnos", "crear"))) return { error: "Sin permiso." };
-  const err = validar(d);
+  const err = validarIdentidadAlumno(d);
   if (err) return { error: err };
 
-  const { error } = await admin().from("alumnos").insert(payload(d));
-  if (error) return { error: mapearError(error) };
+  const { contacto, error: errContacto } = await crearOReusarContactoPersona({
+    nombre: d.nombre,
+    apellido: d.apellido,
+    whatsapp: d.es_menor ? null : d.whatsapp,
+    canal_captacion: d.canal_captacion,
+    reusarSiExiste: false,
+  });
+  if (errContacto || !contacto) return { error: errContacto ?? "No se pudo crear el contacto." };
+
+  if (d.es_menor) {
+    const { contacto: tutor, error: errTutor } = await resolverTutor(d);
+    if (errTutor || !tutor) return { error: errTutor ?? "No se pudo resolver el tutor." };
+    const { error: errRel } = await vincularTutor(tutor.id, contacto.id);
+    if (errRel) return { error: errRel };
+  }
+
+  const { error } = await admin().from("alumnos").insert({ contacto_id: contacto.id, es_menor: d.es_menor });
+  if (error) return { error: error.message };
   revalidatePath("/alumnos");
   return { ok: true };
 }
 
 export async function actualizarAlumno(id: number, d: DatosAlumno): Promise<Resultado> {
   if (!(await tienePermiso("alumnos", "editar"))) return { error: "Sin permiso." };
-  const err = validar(d);
+  const err = validarIdentidadAlumno(d);
   if (err) return { error: err };
+
+  const { data: fila, error: errFila } = await admin().from("alumnos").select("contacto_id").eq("id", id).single();
+  if (errFila || !fila) return { error: errFila?.message ?? "Alumno no encontrado." };
+
+  const errContacto = await actualizarContactoPersona(fila.contacto_id, {
+    nombre: d.nombre,
+    apellido: d.apellido,
+    whatsapp: d.es_menor ? null : d.whatsapp,
+    canal_captacion: d.canal_captacion,
+  });
+  if (errContacto.error) return { error: errContacto.error };
+
+  if (d.es_menor) {
+    const { contacto: tutor, error: errTutor } = await resolverTutor(d);
+    if (errTutor || !tutor) return { error: errTutor ?? "No se pudo resolver el tutor." };
+    const { error: errRel } = await vincularTutor(tutor.id, fila.contacto_id);
+    if (errRel) return { error: errRel };
+  }
 
   const { error } = await admin()
     .from("alumnos")
-    .update({ ...payload(d), actualizado_en: new Date().toISOString() })
+    .update({ es_menor: d.es_menor, actualizado_en: new Date().toISOString() })
     .eq("id", id);
-  if (error) return { error: mapearError(error) };
+  if (error) return { error: error.message };
   revalidatePath("/alumnos");
   return { ok: true };
 }

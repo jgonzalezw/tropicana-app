@@ -74,3 +74,53 @@ export async function actualizarValor(id: number, etiqueta: string, activo: bool
   revalidatePath("/administracion/catalogos");
   return { ok: true };
 }
+
+/**
+ * `estilos` (D12) es una tabla propia, no `catalogo_valores`: la llave es
+ * `clave` (texto), igual criterio que `sala_tamanos` (⚠2 del plan de
+ * contactos), para que dev y producción no dependan de que coincidan ids.
+ */
+export async function agregarEstilo(nombre: string) {
+  if (!(await tienePermiso("administracion", "editar")))
+    return { error: "No tenés permiso para editar catálogos." };
+
+  const limpio = nombre.trim();
+  if (!limpio) return { error: "El nombre no puede estar vacío." };
+
+  const a = admin();
+  const { data: max } = await a
+    .from("estilos")
+    .select("orden")
+    .order("orden", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const orden = (max?.orden ?? 0) + 1;
+  const clave = claveDesde(limpio);
+  if (!clave) return { error: "El nombre tiene que tener al menos una letra o número." };
+
+  const { error } = await a.from("estilos").insert({ clave, nombre: limpio, orden, activo: true });
+
+  if (error) {
+    if (error.code === "23505") return { error: "Ya existe un estilo con ese nombre." };
+    return { error: error.message };
+  }
+
+  revalidatePath("/administracion/catalogos");
+  return { ok: true };
+}
+
+export async function actualizarEstilo(clave: string, nombre: string, activo: boolean) {
+  if (!(await tienePermiso("administracion", "editar")))
+    return { error: "No tenés permiso para editar catálogos." };
+
+  const limpio = nombre.trim();
+  if (!limpio) return { error: "El nombre no puede estar vacío." };
+
+  const { error } = await admin().from("estilos").update({ nombre: limpio, activo }).eq("clave", clave);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/administracion/catalogos");
+  return { ok: true };
+}

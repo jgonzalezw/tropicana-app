@@ -42,6 +42,7 @@ export const PLANTILLAS: {
 // Recepción / Asistente: acciones permitidas por módulo.
 const RECEPCION: Partial<Record<ModuloClave, AccionClave[]>> = {
   alumnos: ["ver", "crear", "editar"],
+  contactos: ["ver", "crear", "editar"],
   inscripciones: ["ver", "crear", "editar"],
   asistencia: ["ver", "crear", "editar"],
   pagos: ["ver", "crear"],

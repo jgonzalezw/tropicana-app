@@ -1,10 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
-import { tienePermiso, obtenerParametro } from "@/lib/sesion";
+import { tienePermiso } from "@/lib/sesion";
 import { exigir } from "@/lib/datos";
 import EncabezadoPagina from "@/components/EncabezadoPagina";
 import SinAcceso from "@/components/SinAcceso";
 import ClientePrecios from "./ClientePrecios";
-import type { Curso } from "@/lib/tipos";
+import type { Curso, Estilo } from "@/lib/tipos";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +32,7 @@ export default async function PaginaPrecios() {
     usoPaquetes,
     usoAlquiler,
     salas,
-    especialidadesParam,
+    estilos,
   ] = await Promise.all([
     sb.from("cursos").select("*").order("nombre").then((r) => exigir(r, "los cursos")),
     sb
@@ -83,7 +83,7 @@ export default async function PaginaPrecios() {
       .order("orden")
       .order("id")
       .then((r) => exigir(r, "las salas")),
-    obtenerParametro("especialidades"),
+    sb.from("estilos").select("*").eq("activo", true).order("orden").then((r) => exigir(r, "los estilos")),
   ]);
 
   // Tarifas por curso, indexadas para la grilla de los bloques A y C.
@@ -123,11 +123,6 @@ export default async function PaginaPrecios() {
     precio: t.precio,
   }));
 
-  const especialidades = (especialidadesParam ?? "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-
   return (
     <div className="p-8 max-w-6xl">
       <EncabezadoPagina
@@ -155,7 +150,7 @@ export default async function PaginaPrecios() {
         horasPaquete={horasPaquete as { id: number; horas: number; orden: number }[]}
         usoPorHoras={usoPorHoras}
         precios={precios}
-        especialidades={especialidades}
+        estilos={estilos as Estilo[]}
         salas={salas as { id: number; nombre: string }[]}
       />
     </div>

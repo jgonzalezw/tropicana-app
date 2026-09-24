@@ -1,9 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
-import { tienePermiso, obtenerParametro } from "@/lib/sesion";
+import { tienePermiso } from "@/lib/sesion";
 import EncabezadoPagina from "@/components/EncabezadoPagina";
 import SinAcceso from "@/components/SinAcceso";
 import ClienteProfesores from "./ClienteProfesores";
-import type { Profesor, Curso, Asignacion, DepsProfesor } from "@/lib/tipos";
+import type { Profesor, Curso, Asignacion, DepsProfesor, Estilo } from "@/lib/tipos";
 
 export const dynamic = "force-dynamic";
 
@@ -13,21 +13,30 @@ export default async function PaginaProfesores() {
   const supabase = await createClient();
 
   const [
-    { data: profesores },
+    { data: profesoresRaw },
     { data: cursos },
     { data: asignaciones },
     { data: perfiles },
-    especialidadesParam,
+    { data: estilosRaw },
+    { data: profEstilos },
   ] = await Promise.all([
-    supabase.from("profesores").select("*").order("apellido").order("nombre"),
+    supabase.from("profesores").select("*, contacto:contactos(*)"),
     supabase.from("cursos").select("*").eq("activo", true).order("nombre"),
     supabase.from("asignaciones").select("*"),
     supabase.from("perfiles").select("id, nombre, apellido, email"),
-    obtenerParametro("especialidades"),
+    supabase.from("estilos").select("*").eq("activo", true).order("orden"),
+    supabase.from("profesor_estilos").select("profesor_id, estilo"),
   ]);
 
-  const padron = (profesores as Profesor[]) ?? [];
+  const padron = (profesoresRaw as Profesor[]) ?? [];
   const listaAsignaciones = (asignaciones as Asignacion[]) ?? [];
+  const estilos = (estilosRaw as Estilo[]) ?? [];
+
+  const estilosPorProfesor: Record<number, string[]> = {};
+  for (const r of (profEstilos as { profesor_id: number; estilo: string }[]) ?? []) {
+    (estilosPorProfesor[r.profesor_id] ??= []).push(r.estilo);
+  }
+  for (const p of padron) p.estilos = estilosPorProfesor[p.id] ?? [];
 
   // Dependencias por profesor (por ahora solo asignaciones; comisiones/
   // liquidaciones/sala llegan en 0007).
@@ -44,11 +53,6 @@ export default async function PaginaProfesores() {
     })
   );
 
-  const especialidades = (especialidadesParam ?? "Salsa,Bachata,Zumba,Urbano,Heels")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-
   return (
     <div className="p-8 max-w-6xl">
       <EncabezadoPagina
@@ -60,7 +64,7 @@ export default async function PaginaProfesores() {
         cursos={(cursos as Curso[]) ?? []}
         asignaciones={listaAsignaciones}
         cuentas={cuentas}
-        especialidades={especialidades}
+        estilos={estilos}
         deps={deps}
       />
     </div>

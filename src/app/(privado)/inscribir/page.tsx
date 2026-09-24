@@ -5,7 +5,7 @@ import { exigir } from "@/lib/datos";
 import { isoFecha } from "@/lib/inscripcion";
 import MostradorVenta from "./MostradorVenta";
 import type { PlanVenta } from "./ClienteInscribir";
-import type { Alumno, Curso } from "@/lib/tipos";
+import type { Alumno, Contacto, Curso } from "@/lib/tipos";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +23,7 @@ export default async function PaginaInscribir() {
     mediosParam,
     diasCompromisoParam,
   ] = await Promise.all([
-    supabase.from("alumnos").select("*").eq("activo", true).order("apellido").order("nombre"),
+    supabase.from("alumnos").select("*, contacto:contactos(*)").eq("activo", true),
     supabase.from("cursos").select("*").eq("activo", true).order("nombre"),
     supabase
       .from("planes")
@@ -39,6 +39,20 @@ export default async function PaginaInscribir() {
 
   // Sin planes no hay venta: un fallo acá no puede pasar por "no hay ninguno".
   if (errPlanes) throw new Error(`No se pudieron cargar los planes: ${errPlanes.message}`);
+
+  const padronAlumnos = ((alumnos as Alumno[]) ?? []).slice();
+  const idsMenores = padronAlumnos.filter((a) => a.es_menor).map((a) => a.contacto_id);
+  if (idsMenores.length) {
+    const { data: rels } = await supabase
+      .from("contacto_relaciones")
+      .select("hacia_id, tutor:contactos!contacto_relaciones_desde_id_fkey(*)")
+      .eq("tipo", "tutor_de")
+      .in("hacia_id", idsMenores);
+    const tutorPorHijo = new Map<number, Contacto>();
+    for (const r of (rels as unknown as { hacia_id: number; tutor: Contacto }[]) ?? [])
+      tutorPorHijo.set(r.hacia_id, r.tutor);
+    for (const a of padronAlumnos) a.tutor = tutorPorHijo.get(a.contacto_id) ?? null;
+  }
 
   const cursosById = new Map<number, Curso>(((cursos as Curso[]) ?? []).map((c) => [c.id, c]));
 
@@ -275,7 +289,7 @@ export default async function PaginaInscribir() {
 
   return (
     <MostradorVenta
-      alumnos={(alumnos as Alumno[]) ?? []}
+      alumnos={padronAlumnos}
       planes={planesVenta}
       diasCompromiso={Math.max(1, Number(diasCompromisoParam) || 30)}
       medios={medios}

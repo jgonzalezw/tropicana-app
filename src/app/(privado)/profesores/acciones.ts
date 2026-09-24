@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { tienePermiso } from "@/lib/sesion";
 import type { DatosProfesor } from "@/lib/tipos";
+import { crearOReusarContactoPersona, actualizarContactoPersona } from "@/app/(privado)/contactos/acciones";
 
 type Resultado = { ok?: true; error?: string; accion?: "eliminada" | "desactivada" };
 
@@ -17,7 +18,7 @@ function mapearError(e: { code?: string; message?: string }): string {
   if (e.code === "23505") {
     if (e.message?.includes("usuario_id"))
       return "Esa cuenta ya está vinculada a otro profesor.";
-    return "Ese WhatsApp ya es de un profesor.";
+    return "Ese WhatsApp ya es de otro contacto.";
   }
   return e.message ?? "No se pudo guardar.";
 }
@@ -26,9 +27,21 @@ function validar(d: DatosProfesor): string | null {
   if (!d.nombre.trim() || !d.apellido.trim())
     return "Nombre y apellido son obligatorios.";
   if (!d.whatsapp.trim()) return "El WhatsApp identifica al profesor: cargalo.";
-  if (d.especialidades.length === 0) return "Elegí al menos una especialidad.";
+  if (d.estilos.length === 0) return "Elegí al menos un estilo.";
   if (d.tipo !== "activo" && d.tipo !== "externo") return "Tipo inválido.";
   return null;
+}
+
+async function guardarEstilos(profesorId: number, estilos: string[]): Promise<{ error?: string }> {
+  const a = admin();
+  const { error: errDel } = await a.from("profesor_estilos").delete().eq("profesor_id", profesorId);
+  if (errDel) return { error: errDel.message };
+  if (estilos.length === 0) return {};
+  const { error } = await a
+    .from("profesor_estilos")
+    .insert(estilos.map((estilo) => ({ profesor_id: profesorId, estilo })));
+  if (error) return { error: error.message };
+  return {};
 }
 
 export async function crearProfesor(d: DatosProfesor): Promise<Resultado> {
@@ -36,16 +49,28 @@ export async function crearProfesor(d: DatosProfesor): Promise<Resultado> {
   const err = validar(d);
   if (err) return { error: err };
 
-  const { error } = await admin().from("profesores").insert({
-    nombre: d.nombre.trim(),
-    apellido: d.apellido.trim(),
-    whatsapp: d.whatsapp.trim(),
-    tipo: d.tipo,
-    especialidades: d.especialidades,
-    tarifa_reemplazo: d.tarifa_reemplazo,
-    usuario_id: d.usuario_id,
+  const { contacto, error: errContacto } = await crearOReusarContactoPersona({
+    nombre: d.nombre,
+    apellido: d.apellido,
+    whatsapp: d.whatsapp,
+    reusarSiExiste: false,
   });
-  if (error) return { error: mapearError(error) };
+  if (errContacto || !contacto) return { error: errContacto ?? "No se pudo crear el contacto." };
+
+  const { data: fila, error } = await admin()
+    .from("profesores")
+    .insert({
+      contacto_id: contacto.id,
+      tipo: d.tipo,
+      tarifa_reemplazo: d.tarifa_reemplazo,
+      usuario_id: d.usuario_id,
+    })
+    .select("id")
+    .single();
+  if (error || !fila) return { error: error ? mapearError(error) : "No se pudo crear el profesor." };
+
+  const errEst = await guardarEstilos(fila.id, d.estilos);
+  if (errEst.error) return { error: errEst.error };
 
   revalidatePath("/profesores");
   return { ok: true };
@@ -59,20 +84,29 @@ export async function actualizarProfesor(
   const err = validar(d);
   if (err) return { error: err };
 
+  const { data: fila, error: errFila } = await admin().from("profesores").select("contacto_id").eq("id", id).single();
+  if (errFila || !fila) return { error: errFila?.message ?? "Profesor no encontrado." };
+
+  const errContacto = await actualizarContactoPersona(fila.contacto_id, {
+    nombre: d.nombre,
+    apellido: d.apellido,
+    whatsapp: d.whatsapp,
+  });
+  if (errContacto.error) return { error: mapearError({ message: errContacto.error }) };
+
   const { error } = await admin()
     .from("profesores")
     .update({
-      nombre: d.nombre.trim(),
-      apellido: d.apellido.trim(),
-      whatsapp: d.whatsapp.trim(),
       tipo: d.tipo,
-      especialidades: d.especialidades,
       tarifa_reemplazo: d.tarifa_reemplazo,
       usuario_id: d.usuario_id,
       actualizado_en: new Date().toISOString(),
     })
     .eq("id", id);
   if (error) return { error: mapearError(error) };
+
+  const errEst = await guardarEstilos(id, d.estilos);
+  if (errEst.error) return { error: errEst.error };
 
   revalidatePath("/profesores");
   return { ok: true };

@@ -2,8 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import type { Profesor, Curso, Asignacion, DepsProfesor, DatosProfesor } from "@/lib/tipos";
-import { compararPorApellido } from "@/lib/texto";
+import type { Profesor, Curso, Asignacion, DepsProfesor, DatosProfesor, Estilo } from "@/lib/tipos";
+import { nombreCompleto, compararContactosPorApellido } from "@/lib/contactos";
 import EntidadProfesor, { TagTipo } from "@/components/entidades/EntidadProfesor";
 import {
   crearProfesor,
@@ -21,14 +21,14 @@ export default function ClienteProfesores({
   cursos,
   asignaciones,
   cuentas,
-  especialidades,
+  estilos,
   deps,
 }: {
   padron: Profesor[];
   cursos: Curso[];
   asignaciones: Asignacion[];
   cuentas: Cuenta[];
-  especialidades: string[];
+  estilos: Estilo[];
   deps: Record<number, DepsProfesor>;
 }) {
   const [tab, setTab] = useState<"listado" | "asignacion">("listado");
@@ -55,26 +55,30 @@ export default function ClienteProfesores({
         <TabListado
           padron={padron}
           cuentas={cuentas}
-          especialidades={especialidades}
+          estilos={estilos}
           deps={deps}
         />
       ) : (
-        <TabAsignacion padron={padron} cursos={cursos} asignaciones={asignaciones} />
+        <TabAsignacion padron={padron} cursos={cursos} asignaciones={asignaciones} estilos={estilos} />
       )}
     </div>
   );
+}
+
+function etiquetaEstilo(clave: string, estilos: Estilo[]): string {
+  return estilos.find((e) => e.clave === clave)?.nombre ?? clave;
 }
 
 // ── Tab Listado ───────────────────────────────────────────────────────
 function TabListado({
   padron,
   cuentas,
-  especialidades,
+  estilos,
   deps,
 }: {
   padron: Profesor[];
   cuentas: Cuenta[];
-  especialidades: string[];
+  estilos: Estilo[];
   deps: Record<number, DepsProfesor>;
 }) {
   const router = useRouter();
@@ -83,7 +87,7 @@ function TabListado({
   const [pendiente, startTransition] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
 
-  const ordenado = [...padron].sort(compararPorApellido);
+  const ordenado = [...padron].sort((a, b) => compararContactosPorApellido(a.contacto, b.contacto));
 
   async function onGuardar(datos: DatosProfesor, id: number | null) {
     const res = id ? await actualizarProfesor(id, datos) : await crearProfesor(datos);
@@ -126,7 +130,7 @@ function TabListado({
           key={remount}
           padron={padron}
           cuentas={cuentas}
-          especialidades={especialidades}
+          estilos={estilos}
           permitirBaja
           valor={editSel}
           depsDe={(id) => deps[id]}
@@ -160,13 +164,11 @@ function TabListado({
                   className={`border-t border-[var(--borde)] ${p.activo ? "" : "opacity-50"}`}
                 >
                   <td className="py-3 px-4">
-                    <div className="font-medium">
-                      {p.apellido}, {p.nombre}
-                    </div>
-                    <div className="text-sm text-[var(--texto-tenue)]">{p.whatsapp || "—"}</div>
+                    <div className="font-medium">{nombreCompleto(p.contacto)}</div>
+                    <div className="text-sm text-[var(--texto-tenue)]">{p.contacto.whatsapp || "—"}</div>
                   </td>
                   <td className="py-3 px-4 text-[var(--texto-tenue)]">
-                    {p.especialidades.join(", ") || "—"}
+                    {(p.estilos ?? []).map((c) => etiquetaEstilo(c, estilos)).join(", ") || "—"}
                   </td>
                   <td className="py-3 px-4">
                     <TagTipo tipo={p.tipo} />
@@ -236,10 +238,12 @@ function TabAsignacion({
   padron,
   cursos,
   asignaciones,
+  estilos,
 }: {
   padron: Profesor[];
   cursos: Curso[];
   asignaciones: Asignacion[];
+  estilos: Estilo[];
 }) {
   const router = useRouter();
   const [cursoId, setCursoId] = useState<number | null>(null);
@@ -251,22 +255,20 @@ function TabAsignacion({
 
   const nombreProf = (id: number) => {
     const p = padron.find((x) => x.id === id);
-    return p ? `${p.apellido}, ${p.nombre}` : "—";
+    return p ? nombreCompleto(p.contacto) : "—";
   };
   const nombreCurso = (id: number) => cursos.find((c) => c.id === id)?.nombre ?? "—";
   const vigenteDe = (cId: number) => asignaciones.find((a) => a.curso_id === cId && a.hasta === null);
 
-  const estiloCurso = cursoId ? cursos.find((c) => c.id === cursoId)?.linea ?? null : null;
+  const estiloCurso = cursoId ? cursos.find((c) => c.id === cursoId)?.estilo ?? null : null;
   const elegibles = padron
     .filter(
       (p) =>
         p.activo &&
         p.tipo === "activo" &&
-        (!estiloCurso ||
-          p.especialidades.length === 0 ||
-          p.especialidades.includes(estiloCurso))
+        (!estiloCurso || (p.estilos ?? []).length === 0 || (p.estilos ?? []).includes(estiloCurso))
     )
-    .sort(compararPorApellido);
+    .sort((a, b) => compararContactosPorApellido(a.contacto, b.contacto));
 
   const num = (s: string) => Number(s.replace(/\D/g, "").slice(0, 3));
 
@@ -350,10 +352,10 @@ function TabAsignacion({
                     : "bg-[var(--fondo-elevado)] border-[var(--borde)] hover:border-[var(--primario)]"
                 }`}
               >
-                {p.apellido}, {p.nombre}
+                {nombreCompleto(p.contacto)}
                 <span className="text-sm text-[var(--texto-tenue)]">
                   {" "}
-                  · {p.especialidades.join(", ") || "sin especialidad"}
+                  · {(p.estilos ?? []).map((c) => etiquetaEstilo(c, estilos)).join(", ") || "sin especialidad"}
                 </span>
               </button>
             ))}

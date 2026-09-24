@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from "react";
 import type { Alumno, DatosAlumno } from "@/lib/tipos";
-import { soloDigitos, compararPorApellido } from "@/lib/texto";
+import { soloDigitos } from "@/lib/texto";
+import { nombreCompleto, compararContactosPorApellido } from "@/lib/contactos";
 
 type Canal = { valor: string; etiqueta: string };
 
@@ -11,6 +12,9 @@ type Canal = { valor: string; etiqueta: string };
  * Incluye: duplicado por WhatsApp, bloque de tutor si es menor, clave compuesta
  * de menor (WhatsApp del tutor + nombre) y tutor que puede ser un alumno
  * existente (vincular en vez de duplicar). Datos por prop, avisa por callbacks.
+ *
+ * Desde la 0048 (C3-0a.1), `nombre`/`apellido`/`whatsapp` viven en
+ * `a.contacto` — `alumnos` es una extensión de rol, no la persona.
  */
 export default function EntidadAlumno({
   padron,
@@ -42,15 +46,15 @@ export default function EntidadAlumno({
     .filter((a) => {
       const s = q.trim().toLowerCase();
       if (s.length < 2) return false;
-      const nom = `${a.nombre} ${a.apellido}`.toLowerCase();
+      const nom = nombreCompleto(a.contacto).toLowerCase();
       const d = soloDigitos(q);
       return (
         nom.includes(s) ||
         (d.length >= 3 &&
-          (soloDigitos(a.whatsapp).includes(d) || soloDigitos(a.tutor_whatsapp).includes(d)))
+          (soloDigitos(a.contacto.whatsapp).includes(d) || soloDigitos(a.tutor?.whatsapp).includes(d)))
       );
     })
-    .sort(compararPorApellido)
+    .sort((a, b) => compararContactosPorApellido(a.contacto, b.contacto))
     .slice(0, 5);
 
   if (ficha) {
@@ -89,13 +93,11 @@ export default function EntidadAlumno({
               onClick={() => (abrirAlElegir ? setFicha(a) : onSelect?.(a))}
               className="w-full text-left bg-[var(--fondo-elevado)] border border-[var(--borde)] rounded-[var(--radio-panel)] px-4 py-3 hover:border-[var(--primario)]"
             >
-              <div className="font-medium">
-                {a.apellido}, {a.nombre}
-              </div>
+              <div className="font-medium">{nombreCompleto(a.contacto)}</div>
               <div className="text-sm text-[var(--texto-tenue)]">
                 {a.es_menor
-                  ? `menor · tutor ${a.tutor_whatsapp || "—"}`
-                  : a.whatsapp || "sin WhatsApp"}
+                  ? `menor · tutor ${a.tutor?.whatsapp || "—"}`
+                  : a.contacto.whatsapp || "sin WhatsApp"}
               </div>
             </button>
           ))
@@ -132,14 +134,20 @@ function FichaAlumno({
   onBaja?: (id: number) => Promise<{ error?: string; accion?: string }>;
   onCerrar: () => void;
 }) {
-  const [nombre, setNombre] = useState(inicial?.nombre ?? "");
-  const [apellido, setApellido] = useState(inicial?.apellido ?? "");
-  const [wa, setWa] = useState(inicial?.whatsapp ?? "");
+  const [nombre, setNombre] = useState(inicial?.contacto.nombre ?? "");
+  const [apellido, setApellido] = useState(inicial?.contacto.apellido ?? "");
+  const [wa, setWa] = useState(inicial?.contacto.whatsapp ?? "");
   const [esMenor, setEsMenor] = useState(inicial?.es_menor ?? false);
-  const [tutorNom, setTutorNom] = useState(inicial?.tutor_nombre ?? "");
-  const [tutorWa, setTutorWa] = useState(inicial?.tutor_whatsapp ?? "");
-  const [tutorLink, setTutorLink] = useState<number | null>(inicial?.tutor_alumno_id ?? null);
-  const [canal, setCanal] = useState(inicial?.canal_captacion ?? "");
+  const [tutorNom, setTutorNom] = useState(inicial?.tutor ? nombreCompleto(inicial.tutor) : "");
+  const [tutorWa, setTutorWa] = useState(inicial?.tutor?.whatsapp ?? "");
+  // tutorLink solo representa "el tutor ES un alumno ya cargado" (como el
+  // viejo tutor_alumno_id): si el tutor guardado es un contacto suelto (p.
+  // ej. Jessica Galvis, sin ficha de alumno), queda como texto libre y
+  // `resolverTutor` lo reusa por WhatsApp al guardar, sin duplicarlo.
+  const [tutorLink, setTutorLink] = useState<number | null>(
+    inicial?.tutor && padron.some((a) => a.contacto.id === inicial.tutor!.id) ? inicial.tutor.id : null
+  );
+  const [canal, setCanal] = useState(inicial?.contacto.canal_captacion ?? "");
   const [descAdulto, setDescAdulto] = useState(false);
   const [descMenor, setDescMenor] = useState(false);
   const [descTutor, setDescTutor] = useState(false);
@@ -153,7 +161,7 @@ function FichaAlumno({
   // Duplicado por WhatsApp (adulto).
   const dupAdulto =
     !esMenor && !descAdulto && waDig.length >= 6
-      ? padron.find((a) => !a.es_menor && a.id !== curId && soloDigitos(a.whatsapp) === waDig)
+      ? padron.find((a) => !a.es_menor && a.id !== curId && soloDigitos(a.contacto.whatsapp) === waDig)
       : undefined;
 
   // Duplicado de menor por clave compuesta (tutor + nombre).
@@ -163,15 +171,15 @@ function FichaAlumno({
           (a) =>
             a.es_menor &&
             a.id !== curId &&
-            soloDigitos(a.tutor_whatsapp) === tutWaDig &&
-            (a.nombre ?? "").toLowerCase() === nombre.trim().toLowerCase()
+            soloDigitos(a.tutor?.whatsapp) === tutWaDig &&
+            (a.contacto.nombre ?? "").toLowerCase() === nombre.trim().toLowerCase()
         )
       : undefined;
 
   // El WhatsApp del tutor ya es de un alumno adulto → ofrecer vincular.
   const tutorEsAlumno =
     esMenor && !tutorLink && !descTutor && tutWaDig.length >= 6
-      ? padron.find((a) => !a.es_menor && soloDigitos(a.whatsapp) === tutWaDig)
+      ? padron.find((a) => !a.es_menor && soloDigitos(a.contacto.whatsapp) === tutWaDig)
       : undefined;
 
   const identidadOk = esMenor ? tutWaDig.length >= 6 && !!nombre.trim() : waDig.length >= 6;
@@ -188,9 +196,9 @@ function FichaAlumno({
           apellido,
           whatsapp: wa,
           es_menor: esMenor,
-          tutor_alumno_id: tutorLink,
-          tutor_nombre: tutorNom,
-          tutor_whatsapp: tutorWa,
+          tutorContactoId: tutorLink,
+          tutorNombre: tutorNom,
+          tutorWhatsapp: tutorWa,
           canal_captacion: canal || null,
         },
         inicial?.id ?? null
@@ -304,8 +312,8 @@ function FichaAlumno({
           {tutorLink && (
             <div className="p-3 rounded-[var(--radio-panel)] border border-[var(--exito)] bg-[var(--exito-fill)] text-[var(--exito-texto)] text-sm flex items-center justify-between gap-3">
               <span>
-                Vinculado a {padron.find((a) => a.id === tutorLink)?.apellido},{" "}
-                {padron.find((a) => a.id === tutorLink)?.nombre}, que ya está cargado como alumno.
+                Vinculado a {nombreCompleto(padron.find((a) => a.contacto.id === tutorLink)?.contacto ?? null)},
+                que ya está cargado como alumno.
               </span>
               <button
                 type="button"
@@ -323,9 +331,9 @@ function FichaAlumno({
               alumno={tutorEsAlumno}
               textoUsar="Vincular a esta persona"
               onUsar={() => {
-                setTutorLink(tutorEsAlumno.id);
-                setTutorNom(`${tutorEsAlumno.nombre} ${tutorEsAlumno.apellido}`);
-                setTutorWa(tutorEsAlumno.whatsapp ?? tutorWa);
+                setTutorLink(tutorEsAlumno.contacto.id);
+                setTutorNom(nombreCompleto(tutorEsAlumno.contacto));
+                setTutorWa(tutorEsAlumno.contacto.whatsapp ?? tutorWa);
               }}
               onOtra={() => setDescTutor(true)}
             />
@@ -343,7 +351,7 @@ function FichaAlumno({
       )}
 
       <Campo etiqueta="Canal de captación (opcional)">
-        <select value={canal} onChange={(e) => setCanal(e.target.value)} className="entrada">
+        <select value={canal ?? ""} onChange={(e) => setCanal(e.target.value)} className="entrada">
           <option value="">— Sin definir —</option>
           {canales.map((c) => (
             <option key={c.valor} value={c.valor}>
@@ -410,9 +418,7 @@ function PanelDupe({
   return (
     <div className="p-4 rounded-[var(--radio-panel)] border border-[var(--primario)] bg-[var(--accent-100)]">
       <div className="font-semibold text-[var(--peligro-texto)]">{titulo}</div>
-      <div className="mt-1">
-        {alumno.apellido}, {alumno.nombre}
-      </div>
+      <div className="mt-1">{nombreCompleto(alumno.contacto)}</div>
       <div className="flex gap-2 mt-3">
         <button
           type="button"

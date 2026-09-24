@@ -148,10 +148,10 @@ async function calcularDescuentos(
     ...new Set(pendientes.flatMap((s) => [s.titular_id, s.profesor_id]).filter((x): x is number => x != null)),
   ];
   const profs = exigir(
-    await sb.from("profesores").select("id, nombre, apellido").in("id", profIds),
+    await sb.from("profesores").select("id, contacto:contactos(nombre, apellido)").in("id", profIds),
     "los profesores"
-  ) as { id: number; nombre: string; apellido: string }[];
-  const prNombre = new Map(profs.map((p) => [p.id, `${p.apellido}, ${p.nombre}`]));
+  ) as unknown as { id: number; contacto: { nombre: string | null; apellido: string | null } | null }[];
+  const prNombre = new Map(profs.map((p) => [p.id, `${p.contacto?.apellido ?? ""}, ${p.contacto?.nombre ?? ""}`]));
 
   return pendientes.map((s) => {
     const curso = cuNombre.get(s.curso_id) ?? `#${s.curso_id}`;
@@ -286,21 +286,33 @@ async function leerDatosMotor(
     "las asignaciones de profesores"
   ) as AsignacionVigencia[];
 
-  // 8. Nombres.
-  const alumnos = exigir(
+  // 8. Nombres — se leen vía contacto y se aplanan a {id, nombre, apellido},
+  //    la forma que espera el motor (no vale la pena hacerle conocer contactos
+  //    a una pieza pura y certificada con pruebas deterministas).
+  const alumnosRaw = exigir(
     await sb
       .from("alumnos")
-      .select("id, nombre, apellido")
+      .select("id, contacto:contactos(nombre, apellido)")
       .in("id", [...new Set(membresias.map((m) => m.alumno_id))]),
     "los alumnos"
-  ) as DatosMotor["alumnos"];
-  const profesores = exigir(
+  ) as unknown as { id: number; contacto: { nombre: string | null; apellido: string | null } | null }[];
+  const alumnos = alumnosRaw.map((a) => ({
+    id: a.id,
+    nombre: a.contacto?.nombre ?? "",
+    apellido: a.contacto?.apellido ?? "",
+  })) as DatosMotor["alumnos"];
+  const profesoresRaw = exigir(
     await sb
       .from("profesores")
-      .select("id, nombre, apellido")
+      .select("id, contacto:contactos(nombre, apellido)")
       .in("id", [...new Set(asignaciones.map((a) => a.profesor_id))]),
     "los profesores"
-  ) as DatosMotor["profesores"];
+  ) as unknown as { id: number; contacto: { nombre: string | null; apellido: string | null } | null }[];
+  const profesores = profesoresRaw.map((p) => ({
+    id: p.id,
+    nombre: p.contacto?.nombre ?? "",
+    apellido: p.contacto?.apellido ?? "",
+  })) as DatosMotor["profesores"];
 
   return {
     membresias,
@@ -395,24 +407,29 @@ export async function cargarLiquidaciones(): Promise<{
       else trabadasPorProf.set(id, [b]);
     }
 
-  const { data: profs } = await sb.from("profesores").select("id, nombre, apellido").order("apellido");
-  const profesores: FilaProfesor[] = ((profs as { id: number; nombre: string; apellido: string }[]) ?? [])
+  const { data: profs } = await sb.from("profesores").select("id, contacto:contactos(nombre, apellido)");
+  const profesores: FilaProfesor[] = (
+    (profs as unknown as { id: number; contacto: { nombre: string | null; apellido: string | null } | null }[]) ?? []
+  )
     .map((p) => ({
       profesorId: p.id,
-      nombre: `${p.apellido}, ${p.nombre}`,
+      nombre: `${p.contacto?.apellido ?? ""}, ${p.contacto?.nombre ?? ""}`,
       pendienteMonto: porProf.get(p.id)?.monto ?? 0,
       pendienteCount: porProf.get(p.id)?.count ?? 0,
       sinRegistrar: porCurso(trabadasPorProf.get(p.id) ?? []),
       ventasEsperando: (trabadasPorProf.get(p.id) ?? []).length,
     }))
-    .filter((p) => p.pendienteCount > 0 || p.ventasEsperando > 0);
+    .filter((p) => p.pendienteCount > 0 || p.ventasEsperando > 0)
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 
   const { data: liqs } = await sb
     .from("liquidaciones")
     .select("id, profesor_id, periodo, periodicidad, estado, total_devengado, total_descuentos, total_pagado, neto")
     .order("periodo", { ascending: false });
   const profNombre = new Map(
-    ((profs as { id: number; nombre: string; apellido: string }[]) ?? []).map((p) => [p.id, `${p.apellido}, ${p.nombre}`])
+    (
+      (profs as unknown as { id: number; contacto: { nombre: string | null; apellido: string | null } | null }[]) ?? []
+    ).map((p) => [p.id, `${p.contacto?.apellido ?? ""}, ${p.contacto?.nombre ?? ""}`])
   );
   const liquidaciones: FilaLiquidacion[] = ((liqs as {
     id: number;

@@ -25,6 +25,7 @@ function curso(id: number, nombre: string, dias: number[], extra: Partial<Curso>
     id,
     nombre,
     linea: null,
+    estilo: null,
     nivel: null,
     dias_semana: dias,
     hora: "19:00",

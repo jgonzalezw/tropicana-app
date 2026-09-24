@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Alumno, DatosAlumno } from "@/lib/tipos";
-import { compararPorApellido } from "@/lib/texto";
+import { nombreCompleto, compararContactosPorApellido } from "@/lib/contactos";
 import EntidadAlumno from "@/components/entidades/EntidadAlumno";
 import { crearAlumno, actualizarAlumno, eliminarODesactivarAlumno, activarAlumno } from "./acciones";
 
@@ -25,7 +25,7 @@ export default function ClienteAlumnos({
   const [pendiente, startTransition] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
 
-  const ordenado = [...alumnos].sort(compararPorApellido);
+  const ordenado = [...alumnos].sort((a, b) => compararContactosPorApellido(a.contacto, b.contacto));
   const etiquetaCanal = (v: string | null) =>
     v ? canales.find((c) => c.valor === v)?.etiqueta ?? v : "—";
 
@@ -96,19 +96,17 @@ export default function ClienteAlumnos({
               return (
                 <tr key={a.id} className={`border-t border-[var(--borde)] ${a.activo ? "" : "opacity-50"}`}>
                   <td className="py-3 px-4">
-                    <div className="font-medium">
-                      {a.apellido}, {a.nombre}
-                    </div>
+                    <div className="font-medium">{nombreCompleto(a.contacto)}</div>
                     {a.es_menor && (
                       <div className="text-xs text-[var(--texto-tenue)]">menor</div>
                     )}
                   </td>
                   <td className="py-3 px-4 text-[var(--texto-tenue)]">
                     {a.es_menor
-                      ? `Tutor ${a.tutor_nombre || "—"} · ${a.tutor_whatsapp || "—"}`
-                      : a.whatsapp || "—"}
+                      ? `Tutor ${a.tutor ? nombreCompleto(a.tutor) : "—"} · ${a.tutor?.whatsapp || "—"}`
+                      : a.contacto.whatsapp || "—"}
                   </td>
-                  <td className="py-3 px-4 text-[var(--texto-tenue)]">{etiquetaCanal(a.canal_captacion)}</td>
+                  <td className="py-3 px-4 text-[var(--texto-tenue)]">{etiquetaCanal(a.contacto.canal_captacion)}</td>
                   <td className="py-3 px-4">
                     <div className="flex flex-wrap gap-2 justify-end">
                       <Link

@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { Alumno, DatosAlumno } from "@/lib/tipos";
+import { nombreCompleto } from "@/lib/contactos";
 import EntidadAlumno from "@/components/entidades/EntidadAlumno";
 import Cobro, { type PayloadCobro } from "@/components/Cobro";
 import Toggle from "@/components/Toggle";
@@ -258,9 +259,7 @@ export default function VenderPrueba({
             />
             {alumno && (
               <div className="mt-3 rounded-[var(--radio-panel)] border border-[var(--borde)] p-3">
-                <div className="text-lg font-semibold">
-                  {alumno.apellido}, {alumno.nombre}
-                </div>
+                <div className="text-lg font-semibold">{nombreCompleto(alumno.contacto)}</div>
                 <label className="block mt-3 max-w-[260px]">
                   <span className="block text-base font-medium mb-1.5">
                     ¿Cuántos vienen con él o ella?
@@ -451,7 +450,7 @@ export default function VenderPrueba({
                 .
               </p>
               <Cobro
-                sujeto={alumno ? `${alumno.apellido}, ${alumno.nombre}` : undefined}
+                sujeto={alumno ? nombreCompleto(alumno.contacto) : undefined}
                 detalle={`Clase de prueba · ${plan.nombre}`}
                 referencia={total}
                 referenciaLabel="Precio de la prueba"

@@ -18,7 +18,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import type { Curso } from "@/lib/tipos";
+import type { Curso, Estilo } from "@/lib/tipos";
 import { rangoHorario } from "@/lib/horarios";
 import {
   costoDeSala,
@@ -80,7 +80,7 @@ export default function ClientePrecios({
   horasPaquete,
   usoPorHoras,
   precios,
-  especialidades,
+  estilos,
   salas,
 }: {
   cursos: Curso[];
@@ -92,7 +92,8 @@ export default function ClientePrecios({
   horasPaquete: { id: number; horas: number; orden: number }[];
   usoPorHoras: Record<number, number>;
   precios: CeldaSala[];
-  especialidades: string[];
+  /** D12 — catálogo de estilos, no texto libre. */
+  estilos: Estilo[];
   /** Salas activas: la matriz de alquiler dice a cuántas se aplica (0037). */
   salas: { id: number; nombre: string }[];
 }) {
@@ -399,9 +400,9 @@ export default function ClientePrecios({
                         }
                       >
                         <option value="">Elegí el estilo</option>
-                        {especialidades.map((e) => (
-                          <option key={e} value={e}>
-                            {e}
+                        {estilos.map((e) => (
+                          <option key={e.clave} value={e.clave}>
+                            {e.nombre}
                           </option>
                         ))}
                       </select>

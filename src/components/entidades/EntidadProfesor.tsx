@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import type { Profesor, DepsProfesor, TipoProfesor, DatosProfesor } from "@/lib/tipos";
-import { soloDigitos, compararPorApellido } from "@/lib/texto";
+import type { Profesor, DepsProfesor, TipoProfesor, DatosProfesor, Estilo } from "@/lib/tipos";
+import { soloDigitos } from "@/lib/texto";
+import { nombreCompleto, compararContactosPorApellido } from "@/lib/contactos";
 
 type Cuenta = { id: string; etiqueta: string };
 
@@ -11,11 +12,15 @@ type Cuenta = { id: string; etiqueta: string };
  * baja en un solo lugar, montado idéntico donde el profesor participe. No tiene
  * los datos: el padrón entra por prop y avisa hacia afuera por callbacks.
  * Mismo contrato que `Cobro`.
+ *
+ * Desde la 0048 (C3-0a.1), `nombre`/`apellido`/`whatsapp` viven en
+ * `p.contacto`, y las especialidades son `estilos` (D12, catálogo propio en
+ * vez de texto libre) en vez de `p.especialidades`.
  */
 export default function EntidadProfesor({
   padron,
   cuentas,
-  especialidades,
+  estilos,
   permitirBaja = false,
   abrirAlElegir = true,
   valor = null,
@@ -27,7 +32,7 @@ export default function EntidadProfesor({
 }: {
   padron: Profesor[];
   cuentas: Cuenta[];
-  especialidades: string[];
+  estilos: Estilo[];
   permitirBaja?: boolean;
   abrirAlElegir?: boolean;
   valor?: Profesor | null;
@@ -44,11 +49,11 @@ export default function EntidadProfesor({
     .filter((p) => {
       const s = q.trim().toLowerCase();
       if (s.length < 2) return false;
-      const nom = `${p.nombre} ${p.apellido}`.toLowerCase();
+      const nom = nombreCompleto(p.contacto).toLowerCase();
       const d = soloDigitos(q);
-      return nom.includes(s) || (d.length >= 3 && soloDigitos(p.whatsapp).includes(d));
+      return nom.includes(s) || (d.length >= 3 && soloDigitos(p.contacto.whatsapp).includes(d));
     })
-    .sort(compararPorApellido)
+    .sort((a, b) => compararContactosPorApellido(a.contacto, b.contacto))
     .slice(0, 5);
 
   if (ficha) {
@@ -56,7 +61,7 @@ export default function EntidadProfesor({
       <FichaProfesor
         inicial={ficha === "nuevo" ? null : ficha}
         cuentas={cuentas}
-        especialidades={especialidades}
+        estilos={estilos}
         padron={padron}
         permitirBaja={permitirBaja}
         deps={ficha !== "nuevo" && depsDe ? depsDe(ficha.id) : undefined}
@@ -97,12 +102,10 @@ export default function EntidadProfesor({
             >
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <div className="font-medium">
-                    {p.apellido}, {p.nombre}
-                  </div>
+                  <div className="font-medium">{nombreCompleto(p.contacto)}</div>
                   <div className="text-sm text-[var(--texto-tenue)]">
-                    {p.whatsapp || "sin WhatsApp"} ·{" "}
-                    {p.especialidades.join(", ") || "sin especialidad"}
+                    {p.contacto.whatsapp || "sin WhatsApp"} ·{" "}
+                    {etiquetasDe(p.estilos, estilos).join(", ") || "sin especialidad"}
                   </div>
                 </div>
                 <TagTipo tipo={p.tipo} />
@@ -122,10 +125,14 @@ export default function EntidadProfesor({
   );
 }
 
+function etiquetasDe(claves: string[] | undefined, estilos: Estilo[]): string[] {
+  return (claves ?? []).map((c) => estilos.find((e) => e.clave === c)?.nombre ?? c);
+}
+
 function FichaProfesor({
   inicial,
   cuentas,
-  especialidades,
+  estilos,
   padron,
   permitirBaja,
   deps,
@@ -135,7 +142,7 @@ function FichaProfesor({
 }: {
   inicial: Profesor | null;
   cuentas: Cuenta[];
-  especialidades: string[];
+  estilos: Estilo[];
   padron: Profesor[];
   permitirBaja: boolean;
   deps?: DepsProfesor;
@@ -143,11 +150,11 @@ function FichaProfesor({
   onBaja?: (id: number) => Promise<{ error?: string; accion?: string }>;
   onCerrar: () => void;
 }) {
-  const [nombre, setNombre] = useState(inicial?.nombre ?? "");
-  const [apellido, setApellido] = useState(inicial?.apellido ?? "");
-  const [whatsapp, setWhatsapp] = useState(inicial?.whatsapp ?? "");
+  const [nombre, setNombre] = useState(inicial?.contacto.nombre ?? "");
+  const [apellido, setApellido] = useState(inicial?.contacto.apellido ?? "");
+  const [whatsapp, setWhatsapp] = useState(inicial?.contacto.whatsapp ?? "");
   const [tipo, setTipo] = useState<TipoProfesor>(inicial?.tipo ?? "activo");
-  const [esp, setEsp] = useState<Set<string>>(new Set(inicial?.especialidades ?? []));
+  const [esp, setEsp] = useState<Set<string>>(new Set(inicial?.estilos ?? []));
   const [usuarioId, setUsuarioId] = useState<string | null>(inicial?.usuario_id ?? null);
   const [tarifaRee, setTarifaRee] = useState(
     inicial?.tarifa_reemplazo == null ? "" : String(inicial.tarifa_reemplazo)
@@ -159,15 +166,15 @@ function FichaProfesor({
   const dupe = padron.find(
     (p) =>
       p.id !== inicial?.id &&
-      soloDigitos(p.whatsapp) &&
-      soloDigitos(p.whatsapp) === soloDigitos(whatsapp)
+      soloDigitos(p.contacto.whatsapp) &&
+      soloDigitos(p.contacto.whatsapp) === soloDigitos(whatsapp)
   );
 
-  function toggleEsp(e: string) {
+  function toggleEsp(clave: string) {
     setEsp((prev) => {
       const n = new Set(prev);
-      if (n.has(e)) n.delete(e);
-      else n.add(e);
+      if (n.has(clave)) n.delete(clave);
+      else n.add(clave);
       return n;
     });
   }
@@ -181,7 +188,7 @@ function FichaProfesor({
           apellido,
           whatsapp,
           tipo,
-          especialidades: [...esp],
+          estilos: [...esp],
           usuario_id: usuarioId,
           tarifa_reemplazo:
             tarifaRee.trim() === "" ? null : Number(tarifaRee.replace(/[^\d.]/g, "")) || 0,
@@ -262,20 +269,20 @@ function FichaProfesor({
       </Campo>
       {dupe && (
         <div className="p-3 rounded-[var(--radio-panel)] border border-[var(--primario)] bg-[var(--accent-100)] text-[var(--peligro-texto)] text-sm">
-          Ese WhatsApp ya es de un profesor: {dupe.apellido}, {dupe.nombre} ({dupe.tipo}).
+          Ese WhatsApp ya es de un profesor: {nombreCompleto(dupe.contacto)} ({dupe.tipo}).
         </div>
       )}
 
       <div>
-        <span className="block text-base font-medium mb-1.5">Especialidades</span>
+        <span className="block text-base font-medium mb-1.5">Estilos</span>
         <div className="flex flex-wrap gap-2">
-          {especialidades.map((e) => {
-            const on = esp.has(e);
+          {estilos.map((e) => {
+            const on = esp.has(e.clave);
             return (
               <button
-                key={e}
+                key={e.clave}
                 type="button"
-                onClick={() => toggleEsp(e)}
+                onClick={() => toggleEsp(e.clave)}
                 className={`px-4 py-2 text-sm rounded-[var(--radio-control)] border transition-colors ${
                   on
                     ? "bg-[var(--exito-fill)] text-[var(--exito-texto)] border-[var(--exito)]"
@@ -283,13 +290,15 @@ function FichaProfesor({
                 }`}
               >
                 {on ? "✓ " : ""}
-                {e}
+                {e.nombre}
               </button>
             );
           })}
         </div>
         <p className="text-sm text-[var(--texto-tenue)] mt-1.5">
-          {esp.size ? `Dicta ${[...esp].join(", ")}.` : "Al menos una: filtra los cursos que se le pueden asignar."}
+          {esp.size
+            ? `Dicta ${etiquetasDe([...esp], estilos).join(", ")}.`
+            : "Al menos uno: filtra los cursos que se le pueden asignar."}
         </p>
       </div>
 

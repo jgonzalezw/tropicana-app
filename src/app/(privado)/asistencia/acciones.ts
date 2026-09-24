@@ -302,7 +302,7 @@ export async function cargarPadron(
   const idsPorCurso = [...new Set(icRows.map((r) => r.membresia_id))];
 
   const COLS =
-    "id, alumno_id, estado, modalidad, fecha_inicio, clases_total, plan_id, clases_plan, fecha_fin, tolerancia_faltas, bono_generado, es_prueba, acompanantes, creado_en, alumno:alumnos(id, nombre, apellido, activo)";
+    "id, alumno_id, estado, modalidad, fecha_inicio, clases_total, plan_id, clases_plan, fecha_fin, tolerancia_faltas, bono_generado, es_prueba, acompanantes, creado_en, alumno:alumnos(id, activo, contacto:contactos(nombre, apellido))";
   // Dos lecturas y se unen por id: las que declaran este curso en
   // `membresia_cursos`, y las viejas que solo tienen `curso_id` (legado).
   const [porCursoPrincipal, porInscCursos] = await Promise.all([
@@ -333,7 +333,7 @@ export async function cargarPadron(
     es_prueba: boolean | null;
     acompanantes: number | null;
     creado_en: string | null;
-    alumno: { id: number; nombre: string; apellido: string; activo: boolean } | null;
+    alumno: { id: number; activo: boolean; contacto: { nombre: string | null; apellido: string | null } | null } | null;
   };
   const membresias = ((insc as unknown as InscRow[]) ?? []).filter((r) => r.alumno?.activo);
   /**
@@ -519,14 +519,14 @@ export async function cargarPadron(
     motivoSuspension = (sesion.motivo as string | null) ?? null;
     const { data } = await sb
       .from("asistencias")
-      .select("estado, con_licencia, membresia_id, alumno:alumnos(id, nombre, apellido)")
+      .select("estado, con_licencia, membresia_id, alumno:alumnos(id, contacto:contactos(nombre, apellido))")
       .eq("sesion_id", sesion.id);
     const idsBase = new Set(alumnoIds);
     for (const r of (data as unknown as {
       estado: Estado;
       con_licencia: boolean;
       membresia_id: number | null;
-      alumno: { id: number; nombre: string; apellido: string } | null;
+      alumno: { id: number; contacto: { nombre: string | null; apellido: string | null } | null } | null;
     }[]) ?? []) {
       if (!r.alumno) continue;
       marcas[r.alumno.id] = r.estado;
@@ -535,8 +535,8 @@ export async function cargarPadron(
         extrasCrudos.push({
           inscripcionId: r.membresia_id,
           alumnoId: r.alumno.id,
-          apellido: r.alumno.apellido,
-          nombre: r.alumno.nombre,
+          apellido: r.alumno.contacto?.apellido ?? "",
+          nombre: r.alumno.contacto?.nombre ?? "",
         });
     }
   }
@@ -621,8 +621,8 @@ export async function cargarPadron(
       return {
         inscripcionId: r.id,
         alumnoId: r.alumno!.id,
-        apellido: r.alumno!.apellido,
-        nombre: r.alumno!.nombre,
+        apellido: r.alumno!.contacto?.apellido ?? "",
+        nombre: r.alumno!.contacto?.nombre ?? "",
         modalidad: r.modalidad,
         restantes,
         faltasCiclo: faltasCicloPorInsc[r.id] ?? 0,
@@ -649,14 +649,14 @@ export async function cargarPadron(
 
   const { data: profRows } = await sb
     .from("profesores")
-    .select("id, nombre, apellido, tarifa_reemplazo")
+    .select("id, tarifa_reemplazo, contacto:contactos(nombre, apellido)")
     .eq("activo", true);
-  const profesores = ((profRows as {
-    id: number; nombre: string; apellido: string; tarifa_reemplazo: number | null;
+  const profesores = ((profRows as unknown as {
+    id: number; tarifa_reemplazo: number | null; contacto: { nombre: string | null; apellido: string | null } | null;
   }[]) ?? [])
     .map((p) => ({
       id: p.id,
-      nombre: `${p.apellido}, ${p.nombre}`,
+      nombre: `${p.contacto?.apellido ?? ""}, ${p.contacto?.nombre ?? ""}`,
       tarifa: p.tarifa_reemplazo == null ? null : Number(p.tarifa_reemplazo),
     }))
     .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));

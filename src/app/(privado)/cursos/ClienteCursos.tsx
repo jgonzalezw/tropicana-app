@@ -2,24 +2,29 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import type { Curso, TarifasCurso, DatosCurso } from "@/lib/tipos";
+import type { Curso, TarifasCurso, DatosCurso, Estilo } from "@/lib/tipos";
 import EntidadCurso, { etiquetaDias } from "@/components/entidades/EntidadCurso";
 import { etiquetaVigencia } from "@/lib/vigencia";
 import { rangoHorario } from "@/lib/horarios";
 import { crearCurso, actualizarCurso, eliminarODesactivarCurso, activarCurso } from "./acciones";
 
+function etiquetaEstilo(clave: string | null, estilos: Estilo[]): string {
+  if (!clave) return "—";
+  return estilos.find((e) => e.clave === clave)?.nombre ?? clave;
+}
+
 export default function ClienteCursos({
   cursos,
   tarifas,
   deps,
-  especialidades,
+  estilos,
   opcionesDuracion,
   salas,
 }: {
   cursos: Curso[];
   tarifas: Record<number, TarifasCurso>;
   deps: Record<number, number>;
-  especialidades: string[];
+  estilos: Estilo[];
   opcionesDuracion: number[];
   salas: { id: number; nombre: string }[];
 }) {
@@ -81,7 +86,7 @@ export default function ClienteCursos({
           key={remount}
           padron={cursos}
           tarifasDe={(id) => tarifas[id]}
-          especialidades={especialidades}
+          estilos={estilos}
           opcionesDuracion={opcionesDuracion}
           salas={salas}
           permitirBaja
@@ -115,7 +120,7 @@ export default function ClienteCursos({
                   <td className="py-3 px-4">
                     <div className="font-medium">{c.nombre}</div>
                     <div className="text-sm text-[var(--texto-tenue)]">
-                      {[c.linea, c.nivel].filter(Boolean).join(" · ") || "—"}
+                      {[etiquetaEstilo(c.estilo, estilos), c.nivel].filter((x) => x && x !== "—").join(" · ") || "—"}
                       {rangoHorario(c.hora, c.duracion_min)
                         ? ` · ${rangoHorario(c.hora, c.duracion_min)}`
                         : ""}

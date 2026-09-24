@@ -60,7 +60,7 @@ export default async function PaginaCaja({
       // Todos los profesores: un pago suelto (multa, bonificación) no depende
       // de que tengan liquidaciones, y a uno dado de baja se le puede seguir
       // debiendo o descontando algo.
-      sb.from("profesores").select("id, nombre, apellido, activo"),
+      sb.from("profesores").select("id, activo, contacto:contactos(nombre, apellido)"),
       motivosDe(sb, "motivo_cobro"),
       motivosDe(sb, "motivo_pago"),
       obtenerParametro("medios_pago"),
@@ -70,11 +70,13 @@ export default async function PaginaCaja({
 
   const profesores = (exigir(profesoresRows, "los profesores") as unknown as {
     id: number;
-    nombre: string;
-    apellido: string;
     activo: boolean;
+    contacto: { nombre: string | null; apellido: string | null } | null;
   }[])
-    .map((p) => ({ id: p.id, nombre: `${p.apellido}, ${p.nombre}${p.activo ? "" : " (inactivo)"}` }))
+    .map((p) => ({
+      id: p.id,
+      nombre: `${p.contacto?.apellido ?? ""}, ${p.contacto?.nombre ?? ""}${p.activo ? "" : " (inactivo)"}`,
+    }))
     .sort((x, y) => x.nombre.localeCompare(y.nombre, "es"));
   const porPagar = [...porPagarLiquidaciones, ...porPagarReemplazos];
   const motivosIngreso = catIngreso.valores;
@@ -88,8 +90,8 @@ export default async function PaginaCaja({
     .from("pagos")
     .select(
       "id, tipo, motivo, monto, descuento, medio, glosa, fecha, fecha_efectiva, " +
-        "alumno:alumnos(nombre, apellido), " +
-        "profesor:profesores(nombre, apellido), " +
+        "alumno:alumnos(contacto:contactos(nombre, apellido)), " +
+        "profesor:profesores(contacto:contactos(nombre, apellido)), " +
         "inscripcion:membresias(plan:planes(nombre), curso:cursos(nombre))"
     );
   let consultaSaldo = sb.from("pagos").select("tipo, monto, medio");
@@ -136,8 +138,8 @@ export default async function PaginaCaja({
           glosa: string | null;
           fecha: string;
           fecha_efectiva: string | null;
-          alumno: { nombre: string; apellido: string } | null;
-          profesor: { nombre: string; apellido: string } | null;
+          alumno: { contacto: { nombre: string | null; apellido: string | null } | null } | null;
+          profesor: { contacto: { nombre: string | null; apellido: string | null } | null } | null;
           inscripcion: { plan: { nombre: string } | null; curso: { nombre: string } | null } | null;
         }[]) ?? []).map((m) => ({
           id: m.id,
@@ -149,10 +151,10 @@ export default async function PaginaCaja({
           glosa: m.glosa,
           fecha: m.fecha,
           fechaEfectiva: m.fecha_efectiva,
-          sujeto: m.alumno
-            ? `${m.alumno.apellido}, ${m.alumno.nombre}`
-            : m.profesor
-            ? `${m.profesor.apellido}, ${m.profesor.nombre}`
+          sujeto: m.alumno?.contacto
+            ? `${m.alumno.contacto.apellido ?? ""}, ${m.alumno.contacto.nombre ?? ""}`
+            : m.profesor?.contacto
+            ? `${m.profesor.contacto.apellido ?? ""}, ${m.profesor.contacto.nombre ?? ""}`
             : null,
           detalle: m.inscripcion?.plan?.nombre ?? m.inscripcion?.curso?.nombre ?? null,
         }))

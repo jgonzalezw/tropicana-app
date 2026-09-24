@@ -3,7 +3,7 @@ import { tienePermiso } from "@/lib/sesion";
 import EncabezadoPagina from "@/components/EncabezadoPagina";
 import SinAcceso from "@/components/SinAcceso";
 import ClienteCatalogos from "./ClienteCatalogos";
-import type { Catalogo, CatalogoValor } from "@/lib/tipos";
+import type { Catalogo, CatalogoValor, Estilo } from "@/lib/tipos";
 
 export const dynamic = "force-dynamic";
 
@@ -12,9 +12,10 @@ export default async function PaginaCatalogos() {
 
   const supabase = await createClient();
 
-  const [{ data: catalogos }, { data: valores }] = await Promise.all([
+  const [{ data: catalogos }, { data: valores }, { data: estilos }] = await Promise.all([
     supabase.from("catalogos").select("*").order("nombre"),
     supabase.from("catalogo_valores").select("*").order("orden"),
+    supabase.from("estilos").select("*").order("orden"),
   ]);
 
   return (
@@ -26,6 +27,7 @@ export default async function PaginaCatalogos() {
       <ClienteCatalogos
         catalogos={(catalogos as Catalogo[]) ?? []}
         valores={(valores as CatalogoValor[]) ?? []}
+        estilos={(estilos as Estilo[]) ?? []}
       />
     </div>
   );

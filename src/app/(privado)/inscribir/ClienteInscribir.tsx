@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { Alumno, DatosAlumno } from "@/lib/tipos";
+import { nombreCompleto } from "@/lib/contactos";
 import EntidadAlumno from "@/components/entidades/EntidadAlumno";
 import Cobro, { type PayloadCobro } from "@/components/Cobro";
 import Toggle from "@/components/Toggle";
@@ -318,13 +319,11 @@ export default function ClienteInscribir({
           <div className="rounded-[var(--radio-panel)] bg-[var(--fondo-elevado)] p-4">
             <div className="flex items-start gap-3">
               <div className="flex-1 min-w-0">
-                <div className="text-lg font-semibold">
-                  {alumno.apellido}, {alumno.nombre}
-                </div>
+                <div className="text-lg font-semibold">{nombreCompleto(alumno.contacto)}</div>
                 <div className="text-sm text-[var(--texto-tenue)] mt-0.5">
                   {alumno.es_menor
-                    ? `menor · tutor ${alumno.tutor_whatsapp || "—"}`
-                    : alumno.whatsapp || "sin WhatsApp"}
+                    ? `menor · tutor ${alumno.tutor?.whatsapp || "—"}`
+                    : alumno.contacto.whatsapp || "sin WhatsApp"}
                 </div>
               </div>
               <button

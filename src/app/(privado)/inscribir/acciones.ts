@@ -4,8 +4,13 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { tienePermiso, obtenerParametro, obtenerPerfilActual } from "@/lib/sesion";
-import { soloDigitos } from "@/lib/texto";
-import type { Alumno, DatosAlumno, EntradaInscripcion } from "@/lib/tipos";
+import { validarIdentidadAlumno } from "@/lib/contactos";
+import type { Alumno, Contacto, DatosAlumno, EntradaInscripcion } from "@/lib/tipos";
+import {
+  crearOReusarContactoPersona,
+  resolverTutor,
+  vincularTutor,
+} from "@/app/(privado)/contactos/acciones";
 import {
   fechaClaseN,
   fechaLarga,
@@ -38,47 +43,44 @@ function admin() {
 }
 
 // ── Alta rápida de alumno desde la inscripción ──────────────────────────
-
-function validarAlumno(d: DatosAlumno): string | null {
-  if (!d.nombre.trim() || !d.apellido.trim()) return "Nombre y apellido son obligatorios.";
-  if (d.es_menor) {
-    if (soloDigitos(d.tutor_whatsapp).length < 6)
-      return "El WhatsApp del tutor identifica al menor (6+ dígitos).";
-  } else if (soloDigitos(d.whatsapp).length < 6) {
-    return "El WhatsApp identifica al alumno (6+ dígitos).";
-  }
-  return null;
-}
+// Mismo camino que `alumnos/acciones.ts:crearAlumno` — un contacto por
+// persona, creado o reusado antes que la fila de alumno — para no repetir
+// la validación ni la normalización del WhatsApp (estaba duplicada acá).
 
 export async function crearAlumnoDesdeInscripcion(
   d: DatosAlumno
 ): Promise<{ alumno?: Alumno; error?: string }> {
   if (!(await tienePermiso("alumnos", "crear"))) return { error: "Sin permiso para crear alumnos." };
-  const err = validarAlumno(d);
+  const err = validarIdentidadAlumno(d);
   if (err) return { error: err };
+
+  const { contacto, error: errContacto } = await crearOReusarContactoPersona({
+    nombre: d.nombre,
+    apellido: d.apellido,
+    whatsapp: d.es_menor ? null : d.whatsapp,
+    canal_captacion: d.canal_captacion,
+    reusarSiExiste: false,
+  });
+  if (errContacto || !contacto) return { error: errContacto ?? "No se pudo crear el contacto." };
+
+  let tutor: Contacto | null = null;
+  if (d.es_menor) {
+    const r = await resolverTutor(d);
+    if (r.error || !r.contacto) return { error: r.error ?? "No se pudo resolver el tutor." };
+    tutor = r.contacto;
+    const errRel = await vincularTutor(tutor.id, contacto.id);
+    if (errRel.error) return { error: errRel.error };
+  }
 
   const { data, error } = await admin()
     .from("alumnos")
-    .insert({
-      nombre: d.nombre.trim(),
-      apellido: d.apellido.trim(),
-      whatsapp: d.whatsapp.trim() || null,
-      es_menor: d.es_menor,
-      tutor_alumno_id: d.es_menor ? d.tutor_alumno_id : null,
-      tutor_nombre: d.es_menor ? d.tutor_nombre.trim() || null : null,
-      tutor_whatsapp: d.es_menor ? d.tutor_whatsapp.trim() || null : null,
-      canal_captacion: d.canal_captacion,
-    })
-    .select("*")
+    .insert({ contacto_id: contacto.id, es_menor: d.es_menor })
+    .select("id, contacto_id, es_menor, activo, creado_en, actualizado_en")
     .single();
 
-  if (error) {
-    if (error.code === "23505")
-      return { error: d.es_menor ? "Ese menor ya está cargado." : "Ese WhatsApp ya es de un alumno." };
-    return { error: error.message };
-  }
+  if (error) return { error: error.message };
   revalidatePath("/inscribir");
-  return { alumno: data as Alumno };
+  return { alumno: { ...(data as Omit<Alumno, "contacto" | "tutor">), contacto, tutor } };
 }
 
 // ── Vender plan y cobrar ────────────────────────────────────────────────
@@ -104,12 +106,14 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
   // prorrateo ya pagado — eso vive en Asistencia, donde se toca la clase.
 
   // 1. Alumno y plan (datos autoritativos del servidor).
-  const { data: alumno } = await sb
+  const { data: alumnoRowRaw } = await sb
     .from("alumnos")
-    .select("id, nombre, apellido")
+    .select("id, contacto:contactos(nombre, apellido)")
     .eq("id", e.alumnoId)
     .maybeSingle();
-  if (!alumno) return { error: "El alumno no existe." };
+  const alumnoRow = alumnoRowRaw as unknown as { id: number; contacto: { nombre: string | null; apellido: string | null } | null } | null;
+  if (!alumnoRow) return { error: "El alumno no existe." };
+  const alumno = { nombre: alumnoRow.contacto?.nombre ?? "", apellido: alumnoRow.contacto?.apellido ?? "" };
 
   const { data: plan } = await sb
     .from("planes")
@@ -533,12 +537,14 @@ export async function venderPrueba(
   // membresía ya liquidada da otro número, la diferencia sale como un ajuste al
   // liquidar (0044) sin reescribir lo pagado. Una venta retroactiva no se traba.
 
-  const { data: alumno } = await sb
+  const { data: alumnoRowRaw } = await sb
     .from("alumnos")
-    .select("id, nombre, apellido")
+    .select("id, contacto:contactos(nombre, apellido)")
     .eq("id", e.alumnoId)
     .maybeSingle();
-  if (!alumno) return { error: "El alumno no existe." };
+  const alumnoRow = alumnoRowRaw as unknown as { id: number; contacto: { nombre: string | null; apellido: string | null } | null } | null;
+  if (!alumnoRow) return { error: "El alumno no existe." };
+  const alumno = { nombre: alumnoRow.contacto?.nombre ?? "", apellido: alumnoRow.contacto?.apellido ?? "" };
 
   const { data: plan } = await sb
     .from("planes")

@@ -399,17 +399,34 @@ export async function guardarHorarioSala(
   if (porAlumno.size) {
     const { data: alRows } = await a
       .from("alumnos")
-      .select("id, nombre, apellido, whatsapp")
+      .select("id, contacto_id, es_menor, contacto:contactos(nombre, apellido, whatsapp)")
       .in("id", [...porAlumno.keys()]);
-    const datos = new Map(
-      ((alRows as { id: number; nombre: string; apellido: string; whatsapp: string | null }[]) ?? []).map((x) => [
-        x.id,
-        x,
-      ])
-    );
+    type AlumnoAviso = {
+      id: number;
+      contacto_id: number;
+      es_menor: boolean;
+      contacto: { nombre: string | null; apellido: string | null; whatsapp: string | null } | null;
+    };
+    const filas = (alRows as unknown as AlumnoAviso[]) ?? [];
+    const datos = new Map(filas.map((x) => [x.id, x]));
+
+    // Un menor sin WhatsApp propio: se usa el del tutor (contacto_relaciones
+    // tipo tutor_de), si tiene uno cargado.
+    const idsMenoresSinWa = filas.filter((x) => x.es_menor && !x.contacto?.whatsapp).map((x) => x.contacto_id);
+    const waTutorPorContacto = new Map<number, string>();
+    if (idsMenoresSinWa.length) {
+      const { data: rels } = await a
+        .from("contacto_relaciones")
+        .select("hacia_id, tutor:contactos!contacto_relaciones_desde_id_fkey(whatsapp)")
+        .eq("tipo", "tutor_de")
+        .in("hacia_id", idsMenoresSinWa);
+      for (const r of (rels as unknown as { hacia_id: number; tutor: { whatsapp: string | null } | null }[]) ?? [])
+        if (r.tutor?.whatsapp) waTutorPorContacto.set(r.hacia_id, r.tutor.whatsapp);
+    }
+
     for (const [alumnoId, clases] of porAlumno) {
       const al = datos.get(alumnoId);
-      const nombre = al ? `${al.nombre} ${al.apellido}` : `Alumno #${alumnoId}`;
+      const nombre = al?.contacto ? `${al.contacto.nombre ?? ""} ${al.contacto.apellido ?? ""}`.trim() : `Alumno #${alumnoId}`;
       const detalle = clases
         .map((cl) => `${cl.curso} del ${fmtLarga(cl.fecha)}`)
         .join(clases.length > 1 ? ", " : "");
@@ -420,13 +437,14 @@ export async function guardarHorarioSala(
       // de uno — anotado en el ROADMAP junto con el resto de notificaciones.
       const motivoTexto = clases[0].motivoTexto;
       const partesMsg = [
-        `Hola ${al?.nombre ?? nombre}! Te avisamos que tu clase de ${detalle} qued${
+        `Hola ${al?.contacto?.nombre ?? nombre}! Te avisamos que tu clase de ${detalle} qued${
           clases.length > 1 ? "aron suspendidas" : "ó suspendida"
         } por ${motivoTexto}.`,
       ];
       if (finCiclo) partesMsg.push(`Tu ciclo se corrió: ahora vence el ${fmtLarga(finCiclo)}.`);
       partesMsg.push("Cualquier duda, escribinos por acá. ¡Gracias!");
-      avisos.push({ alumnoId, nombre, whatsapp: al?.whatsapp ?? null, mensaje: partesMsg.join(" ") });
+      const whatsapp = al?.contacto?.whatsapp ?? (al ? waTutorPorContacto.get(al.contacto_id) ?? null : null);
+      avisos.push({ alumnoId, nombre, whatsapp, mensaje: partesMsg.join(" ") });
     }
     avisos.sort((x, y) => x.nombre.localeCompare(y.nombre, "es"));
   }

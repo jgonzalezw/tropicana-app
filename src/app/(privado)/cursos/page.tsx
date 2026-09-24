@@ -5,7 +5,7 @@ import { opcionesDuracion } from "@/lib/horarios";
 import EncabezadoPagina from "@/components/EncabezadoPagina";
 import SinAcceso from "@/components/SinAcceso";
 import ClienteCursos from "./ClienteCursos";
-import type { Curso, TarifasCurso } from "@/lib/tipos";
+import type { Curso, TarifasCurso, Estilo } from "@/lib/tipos";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +19,7 @@ export default async function PaginaCursos() {
     salas,
     { data: tarifasRows },
     { data: asigRows },
-    especialidadesParam,
+    { data: estilosRows },
     incrementoParam,
     duracionMinimaParam,
   ] = await Promise.all([
@@ -35,7 +35,7 @@ export default async function PaginaCursos() {
         .then((r) => exigir(r, "las salas")),
       supabase.from("curso_tarifas").select("curso_id, modalidad, precio"),
       supabase.from("asignaciones").select("curso_id"),
-      obtenerParametro("especialidades"),
+      supabase.from("estilos").select("*").eq("activo", true).order("orden"),
       obtenerParametro("tiempos_incremento_min"),
       obtenerParametro("duracion_minima_curso_min"),
     ]);
@@ -66,11 +66,6 @@ export default async function PaginaCursos() {
   const duracionMinimaMin = Math.max(1, Number(duracionMinimaParam) || 30);
   const opcionesDuracionMin = opcionesDuracion(incrementoMin, duracionMinimaMin);
 
-  const especialidades = (especialidadesParam ?? "Salsa,Bachata,Zumba,Urbano,Heels")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-
   return (
     <div className="p-8 max-w-6xl">
       <EncabezadoPagina
@@ -81,7 +76,7 @@ export default async function PaginaCursos() {
         cursos={(cursos as Curso[]) ?? []}
         tarifas={tarifas}
         deps={deps}
-        especialidades={especialidades}
+        estilos={(estilosRows as Estilo[]) ?? []}
         opcionesDuracion={opcionesDuracionMin}
         salas={salas as { id: number; nombre: string }[]}
       />

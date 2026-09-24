@@ -31,8 +31,8 @@ export default async function PaginaRecibo({ params }: { params: Promise<{ id: s
     .select(
       "id, tipo, motivo, monto, descuento, descuento_motivo, medio, glosa, fecha, fecha_efectiva, " +
         "cuota_id, registrado_por, " +
-        "alumno:alumnos(nombre, apellido, whatsapp), " +
-        "profesor:profesores(nombre, apellido, whatsapp), " +
+        "alumno:alumnos(contacto:contactos(nombre, apellido, whatsapp)), " +
+        "profesor:profesores(contacto:contactos(nombre, apellido, whatsapp)), " +
         "inscripcion:membresias(id, fecha_inicio, fecha_fin, clases_total, curso_id, " +
         "plan:planes(nombre), curso:cursos(nombre, dias_semana))"
     )
@@ -69,8 +69,8 @@ export default async function PaginaRecibo({ params }: { params: Promise<{ id: s
     fecha_efectiva: string | null;
     cuota_id: number | null;
     registrado_por: string | null;
-    alumno: { nombre: string; apellido: string; whatsapp: string | null } | null;
-    profesor: { nombre: string; apellido: string; whatsapp: string | null } | null;
+    alumno: { contacto: { nombre: string | null; apellido: string | null; whatsapp: string | null } | null } | null;
+    profesor: { contacto: { nombre: string | null; apellido: string | null; whatsapp: string | null } | null } | null;
     inscripcion: {
       id: number;
       fecha_inicio: string;
@@ -148,12 +148,12 @@ export default async function PaginaRecibo({ params }: { params: Promise<{ id: s
     registradoPor = texto || null;
   }
 
-  const persona = p.alumno ?? p.profesor;
+  const persona = p.alumno?.contacto ?? p.profesor?.contacto;
   const datos: DatosRecibo = {
     id: p.id,
     direccion: p.tipo === "cobro" ? "ingreso" : "egreso",
     motivo: p.motivo,
-    titular: persona ? `${persona.nombre} ${persona.apellido}` : null,
+    titular: persona ? `${persona.nombre ?? ""} ${persona.apellido ?? ""}`.trim() : null,
     whatsapp: persona?.whatsapp ?? null,
     servicio: p.inscripcion?.plan?.nombre ?? null,
     curso: cursosTexto,

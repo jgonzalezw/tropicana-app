@@ -234,7 +234,7 @@ export async function crearCurso(d: DatosCurso): Promise<Resultado> {
     .from("cursos")
     .insert({
       nombre: d.nombre.trim(),
-      linea: d.linea.trim() || null,
+      estilo: d.estilo.trim() || null,
       nivel: d.nivel.trim() || null,
       dias_semana: d.dias_semana,
       hora: d.hora,
@@ -271,7 +271,7 @@ export async function actualizarCurso(id: number, d: DatosCurso): Promise<Result
     .from("cursos")
     .update({
       nombre: d.nombre.trim(),
-      linea: d.linea.trim() || null,
+      estilo: d.estilo.trim() || null,
       nivel: d.nivel.trim() || null,
       dias_semana: d.dias_semana,
       hora: d.hora,

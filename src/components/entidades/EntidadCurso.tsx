@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import type { Curso, TarifasCurso, DatosCurso } from "@/lib/tipos";
+import type { Curso, TarifasCurso, DatosCurso, Estilo } from "@/lib/tipos";
 import { rangoHorario, etiquetaDuracion } from "@/lib/horarios";
 
 export const DIAS: { n: number; label: string }[] = [
@@ -28,7 +28,7 @@ export function etiquetaDias(dias: number[]): string {
 export default function EntidadCurso({
   padron,
   tarifasDe,
-  especialidades,
+  estilos,
   opcionesDuracion,
   salas,
   permitirBaja = false,
@@ -40,7 +40,8 @@ export default function EntidadCurso({
 }: {
   padron: Curso[];
   tarifasDe?: (id: number) => TarifasCurso | undefined;
-  especialidades: string[];
+  /** D12 — catálogo de estilos, no texto libre. */
+  estilos: Estilo[];
   /** Múltiplos del incremento vigente, desde la duración mínima (ítem 3):
    *  de acá sale la lista de la que se elige, no del código (regla de
    *  negocio 13) ni escrita a mano (regla de calidad 6). */
@@ -66,7 +67,7 @@ export default function EntidadCurso({
       <FichaCurso
         inicial={ficha === "nuevo" ? null : ficha}
         tarifasIniciales={ficha !== "nuevo" && tarifasDe ? tarifasDe(ficha.id) : undefined}
-        especialidades={especialidades}
+        estilos={estilos}
         opcionesDuracion={opcionesDuracion}
         salas={salas}
         permitirBaja={permitirBaja}
@@ -96,7 +97,7 @@ export default function EntidadCurso({
           >
             <div className="font-medium">{c.nombre}</div>
             <div className="text-sm text-[var(--texto-tenue)]">
-              {[c.linea, c.nivel].filter(Boolean).join(" · ")} · {etiquetaDias(c.dias_semana)}
+              {[etiquetaEstilo(c.estilo, estilos), c.nivel].filter(Boolean).join(" · ")} · {etiquetaDias(c.dias_semana)}
             </div>
           </button>
         ))}
@@ -110,10 +111,15 @@ export default function EntidadCurso({
   );
 }
 
+function etiquetaEstilo(clave: string | null, estilos: Estilo[]): string | null {
+  if (!clave) return null;
+  return estilos.find((e) => e.clave === clave)?.nombre ?? clave;
+}
+
 function FichaCurso({
   inicial,
   tarifasIniciales,
-  especialidades,
+  estilos,
   opcionesDuracion,
   salas,
   permitirBaja,
@@ -124,7 +130,7 @@ function FichaCurso({
 }: {
   inicial: Curso | null;
   tarifasIniciales?: TarifasCurso;
-  especialidades: string[];
+  estilos: Estilo[];
   opcionesDuracion: number[];
   salas: { id: number; nombre: string }[];
   permitirBaja: boolean;
@@ -134,7 +140,7 @@ function FichaCurso({
   onCerrar: () => void;
 }) {
   const [nombre, setNombre] = useState(inicial?.nombre ?? "");
-  const [linea, setLinea] = useState(inicial?.linea ?? "");
+  const [estilo, setEstilo] = useState(inicial?.estilo ?? "");
   const [nivel, setNivel] = useState(inicial?.nivel ?? "");
   const [dias, setDias] = useState<number[]>(inicial?.dias_semana ?? []);
   const [hora, setHora] = useState(inicial?.hora?.slice(0, 5) ?? "");
@@ -177,7 +183,7 @@ function FichaCurso({
       const res = await onGuardar?.(
         {
           nombre,
-          linea,
+          estilo,
           nivel,
           dias_semana: dias,
           hora: hora ? hora : null,
@@ -228,12 +234,12 @@ function FichaCurso({
       </Campo>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Campo etiqueta="Línea / estilo">
-          <select value={linea} onChange={(e) => setLinea(e.target.value)} className="entrada">
+        <Campo etiqueta="Estilo">
+          <select value={estilo} onChange={(e) => setEstilo(e.target.value)} className="entrada">
             <option value="">— Sin definir —</option>
-            {especialidades.map((e) => (
-              <option key={e} value={e}>
-                {e}
+            {estilos.map((e) => (
+              <option key={e.clave} value={e.clave}>
+                {e.nombre}
               </option>
             ))}
           </select>

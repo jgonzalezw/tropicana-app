@@ -83,17 +83,81 @@ export type CatalogoValor = {
   activo: boolean;
 };
 
+// ── Contactos (C3-0a.1, migración 0048) ────────────────────────────────
+// Una persona u organización, un solo registro. `alumnos`/`profesores` son
+// EXTENSIONES DE ROL que apuntan acá por `contacto_id`: ya no tienen su
+// propio nombre/apellido/whatsapp. Ver docs/REGLAS.md, glosario.
+
+export type TipoContacto = "persona" | "organizacion";
+
+export type Contacto = {
+  id: number;
+  tipo: TipoContacto;
+  nombre: string | null;
+  apellido: string | null;
+  razon_social: string | null;
+  sexo: string | null;
+  /** Formato internacional boliviano `+591...`, o crudo si no se pudo normalizar. */
+  whatsapp: string | null;
+  telefono_alt: string | null;
+  email: string | null;
+  canal_captacion: string | null;
+  fecha_primer_contacto: string;
+  no_contactar: boolean;
+  anonimizado_en: string | null;
+  activo: boolean;
+  creado_en: string;
+  actualizado_en: string;
+};
+
+/** Datos que el selector/ficha de contacto envía al crear o actualizar la persona. */
+export type DatosContacto = {
+  nombre: string;
+  apellido: string;
+  whatsapp: string;
+  canal_captacion: string | null;
+};
+
+export type ContactoPrivado = {
+  contacto_id: number;
+  tipo_documento: string | null;
+  pais_emisor: string;
+  numero: string | null;
+  complemento: string | null;
+  expedido: string | null;
+  fecha_nacimiento: string | null;
+  actualizado_en: string;
+};
+
+export type TipoRelacionContacto = "tutor_de" | "referido_por" | "trabaja_en" | "contacto_emergencia";
+
+export type ContactoRelacion = {
+  id: number;
+  desde_id: number;
+  hacia_id: number;
+  tipo: TipoRelacionContacto;
+  desde_fecha: string;
+};
+
+/** Estilo de baile (D12, migración 0048) — catálogo propio, no texto libre. */
+export type Estilo = { clave: string; nombre: string; orden: number; activo: boolean };
+
 // ── Etapa 1 — entidades base ──────────────────────────────────────────
 
 export type TipoProfesor = "activo" | "externo";
 
 export type Profesor = {
   id: number;
-  nombre: string;
-  apellido: string;
-  whatsapp: string | null;
+  contacto_id: number;
+  /** Siempre presente: `contacto_id` es NOT NULL y único desde la 0048. */
+  contacto: Contacto;
   tipo: TipoProfesor;
-  especialidades: string[];
+  /**
+   * Claves de `estilos` (D12, vía `profesor_estilos`). Se llena solo en las
+   * lecturas que lo piden, igual que `Alumno.tutor` — no todo `select` de
+   * profesores lo necesita.
+   */
+  estilos?: string[];
   /**
    * Lo que se le paga por clase cuando dicta como **reemplazante** (0030).
    * Es una **referencia**: el monto real se confirma al registrar la
@@ -118,7 +182,10 @@ export type DepsProfesor = {
 export type Curso = {
   id: number;
   nombre: string;
+  /** @deprecated desde 0048 — usar `estilo` (FK a `estilos.clave`). Se borra en la 0049. */
   linea: string | null;
+  /** Clave de `estilos` (D12). */
+  estilo: string | null;
   nivel: string | null;
   dias_semana: number[];
   hora: string | null;
@@ -143,7 +210,8 @@ export type DatosProfesor = {
   apellido: string;
   whatsapp: string;
   tipo: TipoProfesor;
-  especialidades: string[];
+  /** Claves de `estilos` (D12) — reemplaza al array de texto libre. */
+  estilos: string[];
   usuario_id: string | null;
   /** Referencia de pago por clase como reemplazante. null = sin cargar. */
   tarifa_reemplazo: number | null;
@@ -151,15 +219,16 @@ export type DatosProfesor = {
 
 export type Alumno = {
   id: number;
-  nombre: string;
-  apellido: string;
-  whatsapp: string | null;
+  contacto_id: number;
+  /** Siempre presente: `contacto_id` es NOT NULL y único desde la 0048. */
+  contacto: Contacto;
   es_menor: boolean;
-  tutor_alumno_id: number | null;
-  tutor_nombre: string | null;
-  tutor_whatsapp: string | null;
-  referido_por_alumno_id: number | null;
-  canal_captacion: string | null;
+  /**
+   * El tutor, ya resuelto (vía `contacto_relaciones` tipo `tutor_de`), o
+   * `null` si no tiene uno cargado. Se llena solo en las lecturas que lo
+   * piden — no todo `select` de alumnos lo necesita.
+   */
+  tutor?: Contacto | null;
   activo: boolean;
   creado_en: string;
   actualizado_en: string;
@@ -171,9 +240,10 @@ export type DatosAlumno = {
   apellido: string;
   whatsapp: string;
   es_menor: boolean;
-  tutor_alumno_id: number | null;
-  tutor_nombre: string;
-  tutor_whatsapp: string;
+  /** Contacto existente a reusar como tutor (otro alumno-tutor, un profesor, o cualquier contacto ya cargado). */
+  tutorContactoId: number | null;
+  tutorNombre: string;
+  tutorWhatsapp: string;
   canal_captacion: string | null;
 };
 
@@ -190,7 +260,8 @@ export type TarifasCurso = {
 /** Datos que el componente de Curso envía al host para crear/editar. */
 export type DatosCurso = {
   nombre: string;
-  linea: string;
+  /** Clave de `estilos` (D12). */
+  estilo: string;
   nivel: string;
   dias_semana: number[];
   hora: string | null;
@@ -481,6 +552,15 @@ export const MODULOS = [
   "liquidaciones",
   "precios",
   "sala",
+  // Contactos (C3-0a.1, 2026-09-24, regla de proceso 11): "contactos" hereda
+  // los permisos de alumnos+profesores en la migración 0048, así ningún rol
+  // pierde acceso a lo que ya veía. "contactos_privados", "solicitudes" y
+  // "enlaces_captacion" son nuevos, sin pantalla todavía los dos últimos
+  // (nacen para C3-0b) — aparecen en Roles y Permisos con esa nota.
+  "contactos",
+  "contactos_privados",
+  "solicitudes",
+  "enlaces_captacion",
 ] as const;
 
 export const ACCIONES = ["ver", "crear", "editar", "eliminar"] as const;
@@ -491,12 +571,13 @@ export type AccionClave = (typeof ACCIONES)[number];
 /**
  * Módulos que tienen "dueño" de la fila y por eso admiten un alcance de
  * visibilidad propio/todo (0043): Asistencia (el profesor de cada curso),
- * Liquidaciones (el profesor liquidado), Caja (quién registró el movimiento).
+ * Liquidaciones (el profesor liquidado), Caja (quién registró el movimiento),
+ * Contactos (el profesor ve los contactos de sus alumnos, vía RLS — 0048).
  * La UI de Roles ofrece el selector solo para estos, y solo estos consultan
  * `alcanceDe`. Agregar un módulo acá es todo lo que hace falta para que gane
  * la opción — el resto (tabla, helper) ya es genérico.
  */
-export const MODULOS_CON_ALCANCE = ["asistencia", "liquidaciones", "caja"] as const;
+export const MODULOS_CON_ALCANCE = ["asistencia", "liquidaciones", "caja", "contactos"] as const;
 export type ModuloConAlcance = (typeof MODULOS_CON_ALCANCE)[number];
 
 export const ETIQUETA_MODULO: Record<string, string> = {
@@ -517,6 +598,10 @@ export const ETIQUETA_MODULO: Record<string, string> = {
   liquidaciones: "Liquidaciones",
   precios: "Precios y paquetes",
   sala: "Sala y horarios",
+  contactos: "Contactos",
+  contactos_privados: "Contactos · datos privados",
+  solicitudes: "Solicitudes (se usa desde C3-0b)",
+  enlaces_captacion: "Enlaces de captación (se usa desde C3-0b)",
 };
 
 export const ETIQUETA_ACCION: Record<string, string> = {
