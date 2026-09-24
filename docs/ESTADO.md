@@ -6,7 +6,45 @@
 > `docs/design/README.md` (fuente de verdad del **diseño**), `docs/CONTEXTO_AVANCE.md`
 > (bitácora larga de Etapa 0), `docs/DESIGN_SYNC.md` (cómo entran los handoffs).
 >
-> **Última actualización:** 2026-09-24 — **C3-0a.1 (contactos): modelo,
+> **Última actualización:** 2026-09-24 — **C3-0a.2: editor de la matriz de
+> mínimos, en dev.** La 0048 (C3-0a.1) había dejado `matriz_minimos` sembrada
+> con sus 135 filas (9 contextos × 15 campos) pero "sin pantalla, la
+> consultan solo las acciones del servidor". Se construyó esa pantalla:
+> pestaña nueva **Matriz de mínimos** dentro de Administración → Catálogos
+> (junto a Estilos), grilla contexto×campo con un botón de 3 estados por
+> celda (Obligatorio/Visible/Oculto, cíclico), reusando el patrón visual de
+> la grilla de Roles y Permisos (`MatrizPermisos.tsx`). Usa el permiso
+> `administracion` — igual que su hermana Estilos en la misma pantalla, sin
+> módulo nuevo que dar de alta (regla de proceso 11 ya satisfecha por el
+> patrón compartido). Server action `fijarNivelMinimo` (`update`, nunca
+> `insert`: las 135 filas ya existen). **Javier eligió el criterio antes de
+> construir** (regla de proceso 3): "Código v1, Design refina" y "pestaña
+> nueva en Catálogos", sobre una propuesta concreta que incluía reusar el
+> patrón de Roles y Permisos.
+>
+> **Verificado en dev, navegador:** la grilla carga los 135 valores reales
+> sembrados por la 0048 (confirmado contra el detalle de la migración, celda
+> por celda en la muestra visible); un clic cicla el estado, persiste en
+> `matriz_minimos` (confirmado por consulta directa) y sobrevive un reload.
+> `tsc --noEmit` limpio. De paso se confirmó que los otros 4 catálogos que
+> sembró la 0048 (`sexo`, `tipo_relacion`, `finalidad_consentimiento`,
+> `medio_consentimiento`) **ya eran editables** sin código nuevo — la
+> pantalla de Catálogos los lee genéricamente, como a cualquier catálogo.
+>
+> **Falsa alarma descartada (regla de calidad 3/4):** el log del servidor
+> mostraba, en `preview_logs`, un error histórico ("Server Actions must be
+> async functions" en `contactos/acciones.ts`) que en el código actual ya no
+> existe (`validarIdentidadAlumno` vive en `lib/contactos.ts`, no en el
+> archivo `"use server"`). Era ruido acumulado desde que arrancó el server de
+> dev, no un error vigente — confirmado navegando `/inscribir` en vivo, sin
+> problema. Ninguna corrección hizo falta.
+>
+> **Sigue pendiente dentro de C3-0**: **C3-0b** (captación pública:
+> `solicitudes_contacto`/`enlaces_captacion`, sin pantalla) y el pase a
+> producción de C3-0a.1 (migración 0048 + D12), que necesita el OK explícito
+> de Javier antes de que C3-0a.2 pueda pasar también.
+>
+> **2026-09-24 (antes)** — **C3-0a.1 (contactos): modelo,
 > migración y adaptación completa, en DEV — sin pase a producción todavía.**
 > `contactos` nace como el único registro de una persona; `alumnos` y
 > `profesores` pasan a ser **extensiones de rol** que apuntan a `contacto_id`

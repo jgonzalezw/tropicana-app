@@ -142,6 +142,83 @@ export type ContactoRelacion = {
 /** Estilo de baile (D12, migración 0048) — catálogo propio, no texto libre. */
 export type Estilo = { clave: string; nombre: string; orden: number; activo: boolean };
 
+// ── Matriz de mínimos por contexto (0048, editable desde C3-0a.2) ──────
+// Qué tan obligatorio es cada campo según el contexto en que se carga un
+// contacto: O = obligatorio, V = visible opcional, - = oculto.
+
+export const NIVELES_MINIMO = ["O", "V", "-"] as const;
+export type NivelMinimo = (typeof NIVELES_MINIMO)[number];
+
+export const CONTEXTOS_MINIMO = [
+  "prospecto",
+  "prueba",
+  "alumno_adulto",
+  "alumno_menor",
+  "profesor",
+  "tercero_persona",
+  "tercero_org",
+  "proveedor",
+  "form_publico",
+] as const;
+export type ContextoMinimo = (typeof CONTEXTOS_MINIMO)[number];
+
+export const CAMPOS_MINIMO = [
+  "nombre",
+  "apellido",
+  "razon_social",
+  "whatsapp",
+  "red_social",
+  "es_menor",
+  "tutor",
+  "tipo_profesor",
+  "canal_captacion",
+  "interes",
+  "consentimiento",
+  "email",
+  "documento",
+  "facturacion",
+  "nacimiento",
+] as const;
+export type CampoMinimo = (typeof CAMPOS_MINIMO)[number];
+
+export type MatrizMinimo = { contexto: ContextoMinimo; campo: CampoMinimo; nivel: NivelMinimo };
+
+export const ETIQUETA_CONTEXTO_MINIMO: Record<ContextoMinimo, string> = {
+  prospecto: "Prospecto",
+  prueba: "Prueba",
+  alumno_adulto: "Alumno adulto",
+  alumno_menor: "Alumno menor",
+  profesor: "Profesor",
+  tercero_persona: "Tercero (persona)",
+  tercero_org: "Tercero (organización)",
+  proveedor: "Proveedor",
+  form_publico: "Formulario público",
+};
+
+export const ETIQUETA_CAMPO_MINIMO: Record<CampoMinimo, string> = {
+  nombre: "Nombre",
+  apellido: "Apellido",
+  razon_social: "Razón social",
+  whatsapp: "WhatsApp",
+  red_social: "Red social",
+  es_menor: "Es menor",
+  tutor: "Tutor",
+  tipo_profesor: "Tipo de profesor",
+  canal_captacion: "Canal de captación",
+  interes: "Interés",
+  consentimiento: "Consentimiento",
+  email: "Email",
+  documento: "Documento",
+  facturacion: "Facturación",
+  nacimiento: "Fecha de nacimiento",
+};
+
+export const ETIQUETA_NIVEL_MINIMO: Record<NivelMinimo, string> = {
+  O: "Obligatorio",
+  V: "Visible (opcional)",
+  "-": "Oculto",
+};
+
 // ── Etapa 1 — entidades base ──────────────────────────────────────────
 
 export type TipoProfesor = "activo" | "externo";

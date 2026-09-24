@@ -1,21 +1,43 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import type { Catalogo, CatalogoValor, Estilo } from "@/lib/tipos";
-import { agregarValor, actualizarValor, agregarEstilo, actualizarEstilo } from "./acciones";
+import type {
+  Catalogo,
+  CatalogoValor,
+  Estilo,
+  MatrizMinimo,
+  NivelMinimo,
+} from "@/lib/tipos";
+import {
+  CONTEXTOS_MINIMO,
+  CAMPOS_MINIMO,
+  ETIQUETA_CONTEXTO_MINIMO,
+  ETIQUETA_CAMPO_MINIMO,
+  ETIQUETA_NIVEL_MINIMO,
+} from "@/lib/tipos";
+import {
+  agregarValor,
+  actualizarValor,
+  agregarEstilo,
+  actualizarEstilo,
+  fijarNivelMinimo,
+} from "./acciones";
 
 const ESTILOS = "estilos" as const;
+const MATRIZ = "matriz" as const;
 
 export default function ClienteCatalogos({
   catalogos,
   valores,
   estilos,
+  matriz,
 }: {
   catalogos: Catalogo[];
   valores: CatalogoValor[];
   estilos: Estilo[];
+  matriz: MatrizMinimo[];
 }) {
-  const [activo, setActivo] = useState<number | typeof ESTILOS>(catalogos[0]?.id ?? 0);
+  const [activo, setActivo] = useState<number | typeof ESTILOS | typeof MATRIZ>(catalogos[0]?.id ?? 0);
   const catalogo = typeof activo === "number" ? catalogos.find((c) => c.id === activo) : undefined;
   const valoresCatalogo = valores
     .filter((v) => v.catalogo_id === activo)
@@ -49,6 +71,18 @@ export default function ClienteCatalogos({
               }`}
             >
               Estilos
+            </button>
+          </li>
+          <li>
+            <button
+              onClick={() => setActivo(MATRIZ)}
+              className={`w-full text-left px-4 py-2.5 rounded-[var(--radio-control)] text-base transition-colors ${
+                activo === MATRIZ
+                  ? "bg-[var(--primario)] text-[var(--primario-texto)] font-semibold"
+                  : "hover:bg-[var(--fondo-elevado)]"
+              }`}
+            >
+              Matriz de mínimos
             </button>
           </li>
         </ul>
@@ -106,7 +140,123 @@ export default function ClienteCatalogos({
             <NuevoEstilo />
           </div>
         )}
+
+        {activo === MATRIZ && <SeccionMatrizMinimos matriz={matriz} />}
       </div>
+    </div>
+  );
+}
+
+function celdaClase(nivel: NivelMinimo) {
+  const base =
+    "w-8 h-8 rounded-[10px] border-2 text-sm font-bold transition-colors disabled:opacity-40";
+  if (nivel === "O")
+    return `${base} bg-[var(--primario)] border-[var(--primario)] text-[var(--primario-texto)]`;
+  if (nivel === "V") return `${base} border-[var(--primario)] text-[var(--primario)]`;
+  return `${base} border-[var(--borde)] text-[var(--texto-tenue)]`;
+}
+
+function Leyenda({ nivel }: { nivel: NivelMinimo }) {
+  const colorClase =
+    nivel === "O"
+      ? "bg-[var(--primario)]"
+      : nivel === "V"
+        ? "border-2 border-[var(--primario)]"
+        : "border-2 border-[var(--borde)]";
+  return (
+    <span className="flex items-center gap-1.5 text-[var(--texto-tenue)]">
+      <span className={`w-4 h-4 rounded-[6px] ${colorClase}`} />
+      {ETIQUETA_NIVEL_MINIMO[nivel]}
+    </span>
+  );
+}
+
+function SeccionMatrizMinimos({ matriz }: { matriz: MatrizMinimo[] }) {
+  const inicial = new Map<string, NivelMinimo>();
+  for (const m of matriz) inicial.set(`${m.contexto}:${m.campo}`, m.nivel);
+
+  const [estado, setEstado] = useState(inicial);
+  const [pendiente, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  function ciclar(contexto: string, campo: string) {
+    const clave = `${contexto}:${campo}`;
+    const actualNivel = estado.get(clave) ?? "-";
+    const siguiente: NivelMinimo =
+      actualNivel === "O" ? "V" : actualNivel === "V" ? "-" : "O";
+    setEstado((prev) => new Map(prev).set(clave, siguiente));
+    setError(null);
+    startTransition(async () => {
+      const res = await fijarNivelMinimo(contexto, campo, siguiente);
+      if (res?.error) {
+        setError(res.error);
+        setEstado((prev) => new Map(prev).set(clave, actualNivel));
+      }
+    });
+  }
+
+  return (
+    <div className="bg-[var(--fondo-panel)] border border-[var(--borde)] rounded-[var(--radio-tarjeta)] p-6">
+      <h2 className="text-xl">Matriz de mínimos</h2>
+      <p className="text-[var(--texto-tenue)] mt-1 mb-4">
+        Qué tan obligatorio es cada campo según el contexto en que se carga un contacto.
+        Clic en una celda para pasar de Obligatorio a Visible a Oculto.
+      </p>
+
+      <div className="flex gap-4 mb-4 flex-wrap text-sm">
+        <Leyenda nivel="O" />
+        <Leyenda nivel="V" />
+        <Leyenda nivel="-" />
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="text-left border-collapse">
+          <thead>
+            <tr>
+              <th className="py-2 px-3 sticky left-0 bg-[var(--fondo-panel)]" />
+              {CONTEXTOS_MINIMO.map((c) => (
+                <th
+                  key={c}
+                  className="py-2 px-2 text-xs font-medium text-[var(--texto-tenue)] text-center whitespace-nowrap"
+                >
+                  {ETIQUETA_CONTEXTO_MINIMO[c]}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {CAMPOS_MINIMO.map((campo) => (
+              <tr key={campo} className="border-t border-[var(--borde)]">
+                <td className="py-2 px-3 text-sm font-medium sticky left-0 bg-[var(--fondo-panel)] whitespace-nowrap">
+                  {ETIQUETA_CAMPO_MINIMO[campo]}
+                </td>
+                {CONTEXTOS_MINIMO.map((contexto) => {
+                  const nivel = estado.get(`${contexto}:${campo}`) ?? "-";
+                  return (
+                    <td key={contexto} className="py-2 px-2 text-center">
+                      <button
+                        onClick={() => ciclar(contexto, campo)}
+                        disabled={pendiente}
+                        aria-label={`${ETIQUETA_CAMPO_MINIMO[campo]} en ${ETIQUETA_CONTEXTO_MINIMO[contexto]}: ${ETIQUETA_NIVEL_MINIMO[nivel]}`}
+                        title={ETIQUETA_NIVEL_MINIMO[nivel]}
+                        className={celdaClase(nivel)}
+                      >
+                        {nivel === "-" ? "–" : nivel}
+                      </button>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {error && (
+        <p className="text-[var(--peligro)] text-base mt-4" role="alert">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

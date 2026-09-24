@@ -124,3 +124,23 @@ export async function actualizarEstilo(clave: string, nombre: string, activo: bo
   revalidatePath("/administracion/catalogos");
   return { ok: true };
 }
+
+/**
+ * Matriz de mínimos (C3-0a.2): la 0048 ya sembró las 135 filas (9 contextos ×
+ * 15 campos), así que siempre es un UPDATE — nunca hace falta insertar.
+ */
+export async function fijarNivelMinimo(contexto: string, campo: string, nivel: "O" | "V" | "-") {
+  if (!(await tienePermiso("administracion", "editar")))
+    return { error: "No tenés permiso para editar catálogos." };
+
+  const { error } = await admin()
+    .from("matriz_minimos")
+    .update({ nivel })
+    .eq("contexto", contexto)
+    .eq("campo", campo);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/administracion/catalogos");
+  return { ok: true };
+}
