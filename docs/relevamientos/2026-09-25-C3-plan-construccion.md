@@ -103,6 +103,12 @@ se valida y pasa a producción por separado.
 
 ### Hitos
 
+> **H1: ✅ construido y validado en dev por Javier (2026-09-25).** Migración
+> `0052_plantillas_particulares.sql`, commits `cd9a179` y `ecb8566` (el
+> segundo, el ajuste de rótulo de las tarifas del profesor que pidió al
+> validar). Detalle completo en `docs/ESTADO.md`, sección "C3 — H1:
+> plantillas de plan de particulares". Sin pase a producción todavía.
+
 | Hito | Qué | Migración | Pantallas | Permisos | Design |
 |---|---|---|---|---|---|
 | **H1** Plantillas de plan de particulares | La pantalla de Planes se abre a `tipo_servicio`, con un formulario de plan particular. Todo lo que se personaliza al vender queda configurable en la plantilla: horas y tramos desde `tarifas_particular`, vigencia, modalidad de reserva A o B, salas permitidas, forma de pago al profesor, criterio 1–3, reglas de extensión y política de asistentes. | **Sí:**<br>• columnas de particular en `planes`;<br>• `criterio_liquidacion` 1–5 con check de taller;<br>• `profesores.fee_hora`;<br>• `comision_particular_pct` OBSOLETA;<br>• parámetros nuevos (gracia 7 d, cancelación 8 h, vigencia default) sembrados por migración (calidad 7). | Planes: filtro o pestaña por tipo más el formulario particular. Ficha del profesor: fee por hora. | `planes` (existe) | Code v1 + Design refina |

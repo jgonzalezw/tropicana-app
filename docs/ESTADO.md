@@ -14,10 +14,11 @@
 > registro de pases) y en `ROADMAP.md` (trabajo pendiente).
 >
 > **Última actualización:** 2026-09-25 — **C3, hito H1 (plantillas de plan de
-> particulares) construido en dev, sin validar en el navegador.** Migración
-> `0052`, pestaña de particulares en Planes, fee por hora del profesor.
-> Detalle al final de este documento, sección "C3 — H1: plantillas de plan de
-> particulares". No se tocó producción.
+> particulares) construido y validado en dev por Javier.** Migración `0052`,
+> pestaña de particulares en Planes, tarifas del profesor agrupadas y
+> renombradas tras la validación. Detalle al final de este documento, sección
+> "C3 — H1: plantillas de plan de particulares". No se tocó producción —
+> sigue esperando el OK de Javier para el pase.
 >
 > **2026-09-25 (antes)** — **C3 redefinido: definiciones v2 de
 > Natalia, contraste con el repo y plan en nueve hitos. Sin construir.**
@@ -3520,19 +3521,43 @@ propios para clases particulares — el resto de la venta (H2) y la liquidación
 - `npm test`: **88/88** en verde (11 nuevas de `planesParticular.test.ts`).
 - `npx next build`: compila y genera las 21 rutas sin error.
 
-### Lo que esta sesión NO pudo verificar, y por qué
+### Lo que esta sesión en la nube no pudo verificar sola, y por qué
 
-Sesión en la nube (`docs/ENTORNOS_CLAUDE.md`): sin `.env.local` ni server
-corriendo, no hay forma de abrir la pantalla en el navegador desde acá. La
-pestaña de particulares —el formulario completo, guardar un plan de
-particulares real y volver a editarlo— falta recorrerla en el navegador.
-Eso le queda a Javier en dev (`npm run dev` o `dev:limpio`, local), o a una
-sesión que sí tenga el server arriba.
+Contra lo que decía `docs/ENTORNOS_CLAUDE.md` ("`npm run dev` — solo en el
+local"), este contenedor en la nube **sí tenía** las variables de Supabase de
+dev cargadas (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
+`SUPABASE_SERVICE_ROLE_KEY`) y pudo levantar el server: `/login` dio 200,
+`/planes` sin sesión redirigió (307) — el server y la conexión a Supabase
+andaban bien. Lo que faltó fue el **login**: existe una cuenta de prueba
+(`qa-cloud@tropicana.local`, Administrador) pensada justo para esto, pero
+resetearle la contraseña con la `service_role` key lo bloqueó el clasificador
+de permisos de la sesión (escritura en el secret store, aun en dev). La
+sesión no insistió por otra vía. Javier guardó la contraseña como variable de
+entorno del entorno en la nube (`QA_CLOUD_PASSWORD`) para que una **sesión
+nueva** pueda loguearse y validar sola de acá en adelante — no es automático:
+esta sesión, con el contenedor ya corriendo desde antes, no la toma en
+caliente, hace falta un contenedor nuevo. Este hito, mientras tanto, lo
+validó **Javier a mano**: levantó su propio server local
+(`npm run dev:limpio`, con su `.env.local`) y probó ahí, no en el server de
+la nube.
+
+### Validado por Javier en dev local (25/09)
+
+1. **Creación de planes de particulares con distintas combinaciones: OK.**
+2. **Ficha de profesor**: apareció el campo nuevo, OK — pero pidió
+   estandarizar el rótulo: "Tarifa por clase como reemplazante" y "Fee por
+   hora (clases particulares)" quedaban sueltos y con nombres distintos entre
+   sí. Se agruparon bajo **"Tarifas del profesor"**, con etiquetas cortas y
+   paralelas: **"Por clase (como reemplazante)"** / **"Por hora (clases
+   particulares)"**, en la vista y en la edición. Commit `ecb8566`, mismos
+   controles (`tsc`, `eslint`, `npm test` 88/88) en verde.
+3. El resto, OK.
 
 ### Estado
 
-**Solo en dev, sin validar en el navegador.** No se tocó producción (regla de
-proceso 1 y 2). Antes de pedir el OK de pase: que Javier recorra la pestaña
-de particulares en dev y cree un plan de prueba. H2 (vender un plan de
-particulares) es el siguiente hito, y recién ahí un plan de particulares
-tiene con qué venderse.
+**Construido y validado en dev.** No se tocó producción (regla de proceso 1 y
+2) — sigue esperando el OK explícito de Javier para el pase, que todavía no
+se pidió. `docs/relevamientos/2026-09-25-C3-plan-construccion.md` (fila H1) y
+`DECISIONES.md` (D11) quedan anotados con este avance. Sigue **H2** (vender
+un plan de particulares): recién ahí un plan de particulares tiene con qué
+venderse.
