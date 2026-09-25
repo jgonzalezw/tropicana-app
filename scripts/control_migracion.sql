@@ -651,6 +651,48 @@ select '29. planes de particulares activos sin forma de pago al profesor' as con
  where activo and tipo_servicio = 'particular' and forma_pago_profesor is null;
 
 -- ---------------------------------------------------------------------
+-- 30. MEMBRESIAS DE PARTICULARES SIN HORAS, PROFESOR O CONTACTO
+--     0053 (C3 H2): una membresia sin curso_id es de particulares (check
+--     membresias_curso_o_horas ya lo obliga a tener horas_contratadas).
+--     Sin profesor_id ni contacto_id no hay a quien liquidar ni a quien
+--     avisarle: la venta quedo a medio hacer.
+-- ---------------------------------------------------------------------
+select '30. membresias de particulares sin horas, profesor o contacto' as control,
+       count(*) as n,
+       case when count(*) = 0 then 'OK' else 'REVISAR' end as estado
+  from public.membresias
+ where estado <> 'baja' and curso_id is null
+   and (horas_contratadas is null or profesor_id is null or contacto_id is null);
+
+-- ---------------------------------------------------------------------
+-- 31. MEMBRESIAS DE PARTICULARES SIN NINGUNA RESERVA
+--     0053 (C3 H2): al vender se crea la primera reserva real (decision
+--     de Javier, 25/09) -- una membresia particular activa sin ninguna
+--     fila en reservas_sala se vendio sin ocupar la sala, contra la razon
+--     de ser de adelantar el Paso 5 (no vender una hora sin reservarla).
+-- ---------------------------------------------------------------------
+select '31. membresias de particulares activas sin ninguna reserva' as control,
+       count(*) as n,
+       case when count(*) = 0 then 'OK' else 'REVISAR' end as estado
+  from public.membresias m
+ where m.estado = 'activa' and m.curso_id is null
+   and not exists (select 1 from public.reservas_sala r where r.membresia_id = m.id);
+
+-- ---------------------------------------------------------------------
+-- 32. RESERVAS QUE OCUPAN LA SALA EXTERNA
+--     0053 (C3 H2): la sala externa generica no se valida (definiciones-v2
+--     seccion 9); el trigger reservas_sala_set_ocupa la marca ocupa_sala =
+--     false para que el EXCLUDE la salte. Si esto da mas de 0, el trigger
+--     no esta corriendo o alguien puso ocupa_sala a mano.
+-- ---------------------------------------------------------------------
+select '32. reservas que marcan ocupa_sala en la sala externa' as control,
+       count(*) as n,
+       case when count(*) = 0 then 'OK' else 'REVISAR' end as estado
+  from public.reservas_sala r
+  join public.salas s on s.id = r.sala_id
+ where s.es_externa and r.ocupa_sala;
+
+-- ---------------------------------------------------------------------
 -- Detalle, por si algun control da REVISAR:
 -- ---------------------------------------------------------------------
 -- select id, alumno_id, curso_id, estado, fecha_inicio, fecha_fin,
