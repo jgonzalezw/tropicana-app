@@ -68,8 +68,8 @@ se valida y pasa a producción por separado.
    recursos, y que cuando todo esté coordinado el espacio horario ya se
    asignó a otra persona."*
    - `reservas_sala.solicitada_hasta` = creación + parámetro nuevo
-     `reserva_solicitud_validez_horas` (el valor por defecto lo fija Javier
-     en H3).
+     `reserva_solicitud_validez_horas`, **24 horas** por defecto (Javier,
+     25/09), sembrado por migración.
    - Mientras está vigente, ocupa: la validación de choque cuenta las
      Solicitadas vigentes.
    - Al vencer se libera sola sin cambiar de estado (se calcula, no se
@@ -92,6 +92,14 @@ se valida y pasa a producción por separado.
      (particular/alquiler), un **plan** (taller), o **nada** (bloqueo, con
      motivo). El saldo de horas se calcula por membresía; las reservas de un
      taller no descuentan saldo a nadie.
+6. **Cada slot horario es una reserva independiente** *(Javier, 25/09)*.
+   Aunque se pidan varios slots juntos al planificar una membresía, cada uno
+   es su propia fila en `reservas_sala`, con su estado, sala, profesor e
+   historial. Por eso cada uno se reagenda, suspende, cambia de sala o pasa a
+   una sala externa sin tocar a los demás. Vale para particulares (salas
+   propias o externas), alquileres y talleres. Las particulares descuentan
+   **horas de clase** y los alquileres **horas de alquiler** de su
+   membresía, según el tipo: es el mismo mecanismo con distinto nombre.
 
 ### Hitos
 
@@ -99,7 +107,7 @@ se valida y pasa a producción por separado.
 |---|---|---|---|---|---|
 | **H1** Plantillas de plan de particulares | La pantalla de Planes se abre a `tipo_servicio`, con un formulario de plan particular. Todo lo que se personaliza al vender queda configurable en la plantilla: horas y tramos desde `tarifas_particular`, vigencia, modalidad de reserva A o B, salas permitidas, forma de pago al profesor, criterio 1–3, reglas de extensión y política de asistentes. | **Sí:**<br>• columnas de particular en `planes`;<br>• `criterio_liquidacion` 1–5 con check de taller;<br>• `profesores.fee_hora`;<br>• `comision_particular_pct` OBSOLETA;<br>• parámetros nuevos (gracia 7 d, cancelación 8 h, vigencia default) sembrados por migración (calidad 7). | Planes: filtro o pestaña por tipo más el formulario particular. Ficha del profesor: fee por hora. | `planes` (existe) | Code v1 + Design refina |
 | **H2** Vender un plan de particulares | Se elige la plantilla y se personaliza: horas, salas propias o externas con nombre, estilo y profesor, vigencia, inicio y **primera reserva**, o el calendario cerrado si es agenda fija. Crea la membresía, su cuota con motivo `clase_particular` (D5) y la tarjeta de confirmación específica (D9). | **Sí:**<br>• `membresias.contacto_id`;<br>• snapshot de horas, vigencia, forma de pago y precio;<br>• `salas.es_externa` + capacidad + sala externa sembrada;<br>• `membresia_salas` (sala y nombre descriptivo);<br>• se eliminan `paquetes_particular` y el FK de `comisiones_devengadas.paquete_particular_id`, después de medir 0 filas en las dos bases. | "Vender servicio" **reemplaza** al handoff: se vende un plan, no una tarifa. Vive como pestaña de `/inscribir`. | `particulares` (ya existe sin pantalla) | Code v1 + Design refina |
-| **H3** Reservas con 7 estados | Solicitar, confirmar, reprogramar, reagendar, suspender, marcar ausente o realizada. Valida:<br>• sala propia libre y con capacidad;<br>• externa sin validar;<br>• profesor sin choque con sus cursos ni sus reservas;<br>• saldo y vigencia.<br>La Solicitada ocupa hasta su validez (decisión 2). La cancelación a pedido respeta el plazo de 8 h y deja Ausente con marca (decisión 3). Todo cambio deja historial, y cada aviso trae su texto para copiar. | **Sí:**<br>• `reservas_sala` gana el check de "membresía XOR plan XOR bloqueo" (decisión 5), `profesor_id`, `solicitada_hasta` y el check de 7 estados; los bloqueos conservan su par de estados;<br>• parámetro `reserva_solicitud_validez_horas`;<br>• EXCLUDE solo sobre los estados que ocupan la sala y sin la externa;<br>• `reservas_historial`;<br>• el saldo se calcula (`src/lib/reservas.ts` nuevo, con pruebas). | "Reservas de la membresía" (nueva), que **reemplaza a Confirmar sesión**: ya no hay duraciones fijas ni comisión por sesión, y el estado reemplaza al botón "dictada". `/sala` muestra las reservas en su lista textual. | `particulares` para reservas; `sala` para bloqueos | Code v1 + Design refina |
+| **H3** Reservas con 7 estados | Solicitar, confirmar, reprogramar, reagendar, suspender, marcar ausente o realizada. Valida:<br>• sala propia libre y con capacidad;<br>• externa sin validar;<br>• profesor sin choque con sus cursos ni sus reservas;<br>• saldo y vigencia.<br>La Solicitada ocupa hasta su validez (decisión 2). La cancelación a pedido respeta el plazo de 8 h y deja Ausente con marca (decisión 3). Todo cambio deja historial, y cada aviso trae su texto para copiar. | **Sí:**<br>• `reservas_sala` gana el check de "membresía XOR plan XOR bloqueo" (decisión 5), `profesor_id`, `solicitada_hasta` y el check de 7 estados; los bloqueos conservan su par de estados;<br>• parámetro `reserva_solicitud_validez_horas` (24 h);<br>• EXCLUDE solo sobre los estados que ocupan la sala y sin la externa;<br>• `reservas_historial`;<br>• el saldo se calcula (`src/lib/reservas.ts` nuevo, con pruebas). | "Reservas de la membresía" (nueva), que **reemplaza a Confirmar sesión**: ya no hay duraciones fijas ni comisión por sesión, y el estado reemplaza al botón "dictada". `/sala` muestra las reservas en su lista textual. | `particulares` para reservas; `sala` para bloqueos | Code v1 + Design refina |
 | **H4** Cierres de sala sobre reservas (C5 lado reservas) | Un cierre o un bloqueo que pisa reservas las lista, pide confirmación y las pasa a **Suspendida**, que devuelve la sesión al saldo, con aviso para copiar. Si se borra la excepción, se ofrece revertir (R22). | No | La confirmación de cierre existente en Administración → Sala | `sala` | No |
 | **H5** Liquidación de particulares | Criterios 1, 2 y 3 y formas de pago a/b/c en el motor. El rango del período respeta `periodicidad_liquidacion`: solo `mes` es válido hasta que se pruebe el resto. La cuenta del profesor suma particulares, con un desglose en "Por pagar" (R27). | **Sí:** `comisiones_devengadas` con `membresia_id` para particulares y el check del criterio 1–5 | Liquidaciones y comprobante: renglones de particulares | `liquidaciones` | No |
 | **H6** Extensión de membresía | Sumar horas a una membresía viva, a precio de lista o con recargo según el plan. Genera su propia cuota. | Sí, chica: registro de extensiones | Acción "Extender" desde la membresía | `particulares` | No |

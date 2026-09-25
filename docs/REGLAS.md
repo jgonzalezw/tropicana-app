@@ -265,8 +265,12 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
     taller y servicio especial (con cotización, etapa siguiente).
     *(Definiciones v2 de C3, 2026-09-25.)*
 23. **Una reserva descuenta el saldo al confirmarse, y cada estado dice qué
-    pasa con él.** *Solicitada* no descuenta, pero **ya ocupa** la sala y al
-    profesor hasta su validez máxima (parámetro); vencida, se libera sola.
+    pasa con él.** **Cada slot horario es una reserva independiente**:
+    aunque se pidan varios juntos, cada uno se reagenda, suspende o cambia de
+    sala (propia o externa) por su cuenta. Una particular descuenta **horas
+    de clase** y un alquiler **horas de alquiler** de su membresía.
+    *Solicitada* no descuenta, pero **ya ocupa** la sala y al profesor hasta
+    su validez máxima (parámetro, hoy 24 h); vencida, se libera sola.
     *Confirmada* descuenta. *Reprogramada* es historial sobre una reserva
     confirmada: sigue siendo una sola sesión descontada. *Reagendar* (lo pidió
     el alumno a tiempo) y *Suspendida* (lo decidió Tropicana) **devuelven** la
