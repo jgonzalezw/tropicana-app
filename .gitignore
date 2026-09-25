@@ -43,3 +43,7 @@ next-env.d.ts
 # reportes generados con datos reales de produccion (nombres, pagos): se
 # entregan a mano, no se versionan
 /validacion_*.xlsx
+
+# permisos personales de Claude Code por maquina/sesion: nunca se versionan.
+# Los permisos compartidos van en .claude/settings.json.
+/.claude/settings.local.json

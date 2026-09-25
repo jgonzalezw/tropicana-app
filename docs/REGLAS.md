@@ -294,7 +294,15 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
 ## 3. Reglas de proceso
 
 1. **El pase a producción requiere el OK explícito de Javier, cada vez.**
-   Validar en dev no lo dispara.
+   Validar en dev no lo dispara. **Desde el 2026-09-25 esto es un control
+   técnico, no solo una instrucción**: `.claude/settings.json` (versionado)
+   trae un hook (`.claude/hooks/guardia-produccion.mjs`) que pide aprobación
+   antes de cualquier SQL o migración contra `pnvhpbxjbdmbktpwebtx`, antes de
+   un `git push` a `main`, y antes de tocar `.claude/` — para que ninguna
+   sesión pueda aflojar este mismo control sin que Javier lo vea. Los
+   permisos personales de cada sesión van en `.claude/settings.local.json`,
+   que **no se versiona** (`.gitignore`): lo que se apruebe al paso en una
+   máquina queda en esa máquina.
 2. **Se trabaja en dev hasta que Javier pida el pase.** Dev es
    `tropicana-dev` (`hyhijzuomqpylcmrzdvw`); producción es `pnvhpbxjbdmbktpwebtx`.
 3. **Pantalla o flujo nuevo sin mockup aprobado: avisar antes de construir.**
