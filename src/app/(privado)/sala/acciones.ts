@@ -25,9 +25,6 @@ import { tienePermiso, obtenerParametro } from "@/lib/sesion";
 import { aMinutos, esMultiploDe } from "@/lib/horarios";
 import { COLS_VIGENCIA } from "@/lib/vigencia";
 import {
-  choquesCon,
-  dentroDelHorario,
-  describirBloque,
   ocupacionDeCursos,
   ocupacionDeReservas,
   ocupacionDelDia,
@@ -41,6 +38,7 @@ import {
   type Tramo,
   type Ventana,
 } from "@/lib/sala";
+import { validarReservaSala } from "@/lib/reservas";
 
 const ISO_FECHA = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -268,9 +266,6 @@ export async function crearBloqueoSala(salaId: number, datos: BloqueoNuevo): Pro
     : { data: [] as { valor: string; etiqueta: string }[] };
   const etiquetaExc = new Map(((valExcRows as { valor: string; etiqueta: string }[]) ?? []).map((v) => [v.valor, v.etiqueta]));
 
-  const horario = dentroDelHorario(patron, excepciones, datos.fecha, datos.hora, datos.duracionMin, (v) => etiquetaExc.get(v) ?? v);
-  if (!horario.ok) return { error: horario.motivo };
-
   const cursoIds = cursos.map((c) => c.id);
   const { data: susRows, error: errSus } = cursoIds.length
     ? await a.from("sesiones").select("curso_id").in("curso_id", cursoIds).eq("estado", "suspendida").eq("fecha", datos.fecha)
@@ -278,10 +273,20 @@ export async function crearBloqueoSala(salaId: number, datos: BloqueoNuevo): Pro
   if (errSus) return { error: `No se pudieron leer las clases suspendidas: ${errSus.message}` };
   const suspendidos = new Set(((susRows as { curso_id: number }[]) ?? []).map((s) => s.curso_id));
 
-  const ocupados = ocupacionDelDia(cursos, reservas, datos.fecha, suspendidos, salaId);
-  const choques = choquesCon(ocupados, datos.hora, datos.duracionMin);
-  if (choques.length)
-    return { error: `La sala ya está ocupada en ese horario: choca con ${choques.map(describirBloque).join(", ")}.` };
+  const ocupadosSala = ocupacionDelDia(cursos, reservas, datos.fecha, suspendidos, salaId);
+  const validacion = validarReservaSala({
+    fecha: datos.fecha,
+    hora: datos.hora,
+    duracionMin: datos.duracionMin,
+    incrementoMin,
+    minimoMin,
+    sala: { esExterna: false, capacidad: null },
+    patron,
+    excepciones,
+    ocupadosSala,
+    etiquetaMotivoExcepcion: (v) => etiquetaExc.get(v) ?? v,
+  });
+  if (!validacion.ok) return { error: validacion.motivo };
 
   const { error: errIns } = await a.from("reservas_sala").insert({
     sala_id: salaId,

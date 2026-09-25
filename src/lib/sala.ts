@@ -19,10 +19,10 @@
  * entre reservas vive en la base: cada uno donde está el dato.
  */
 
-import { diaIso } from "@/lib/inscripcion";
-import { aHora, aMinutos, etiquetaDuracion, seSolapan } from "@/lib/horarios";
-import { enVigencia, type VigenciaCurso } from "@/lib/vigencia";
-import type { TipoProfesor } from "@/lib/tipos";
+import { diaIso } from "./inscripcion.ts";
+import { aHora, aMinutos, etiquetaDuracion, seSolapan } from "./horarios.ts";
+import { enVigencia, type VigenciaCurso } from "./vigencia.ts";
+import type { TipoProfesor } from "./tipos.ts";
 
 /**
  * Las cuatro categorías con las que se entra a la matriz de sala. Son los
