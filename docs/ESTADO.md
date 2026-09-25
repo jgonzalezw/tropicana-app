@@ -13,7 +13,15 @@
 > vive en las tablas (§0bis, la cola C1→C5), en `DECISIONES.md` (decisiones y
 > registro de pases) y en `ROADMAP.md` (trabajo pendiente).
 >
-> **Última actualización:** 2026-09-24 — **Documentos consistentes entre sí**,
+> **Última actualización:** 2026-09-25 — **Relevamiento con Natalia puesto en
+> limpio** (reunión del 23/09): particulares, alquiler de sala, talleres,
+> reservas y liquidación por plan. Vive en
+> `docs/relevamientos/2026-09-23-natalia-particulares-sala-talleres.md`, con
+> las tres correcciones de Javier (criterio 2 al cierre del período, estado
+> "Solicitada", y la cotización como flujo de venta propio). Es la base del
+> plan de C3; su Anexo B lista lo que falta confirmar.
+>
+> **2026-09-24** — **Documentos consistentes entre sí**,
 > a pedido de Javier (*"me confunde tener contradicciones"*), antes de
 > retomar C3. Sin código ni migraciones: solo documentos y comentarios.
 > - **C5** figuraba "Pendiente" en la tabla C1→C5, pero el lado cursos
