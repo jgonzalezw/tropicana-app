@@ -628,6 +628,29 @@ select '27. celdas bloqueadas de la matriz con otro valor' as control,
  where m.nivel <> f.nivel;
 
 -- ---------------------------------------------------------------------
+-- 28. PLANES DE PARTICULARES ACTIVOS SIN ESTILO
+--     0052 (C3 H1): un plan de particulares sin estilo no tiene de donde
+--     sacar los tramos de tarifas_particular al vender (H2) -- una
+--     plantilla a medio cargar que pasaria por lista para vender.
+-- ---------------------------------------------------------------------
+select '28. planes de particulares activos sin estilo' as control,
+       count(*) as n,
+       case when count(*) = 0 then 'OK' else 'REVISAR' end as estado
+  from public.planes
+ where activo and tipo_servicio = 'particular' and estilo is null;
+
+-- ---------------------------------------------------------------------
+-- 29. PLANES DE PARTICULARES ACTIVOS SIN FORMA DE PAGO AL PROFESOR
+--     0052 (C3 H1): sin forma_pago_profesor, H5 (liquidacion) no tiene
+--     como calcular cuanto gana el profesor por este plan.
+-- ---------------------------------------------------------------------
+select '29. planes de particulares activos sin forma de pago al profesor' as control,
+       count(*) as n,
+       case when count(*) = 0 then 'OK' else 'REVISAR' end as estado
+  from public.planes
+ where activo and tipo_servicio = 'particular' and forma_pago_profesor is null;
+
+-- ---------------------------------------------------------------------
 -- Detalle, por si algun control da REVISAR:
 -- ---------------------------------------------------------------------
 -- select id, alumno_id, curso_id, estado, fecha_inicio, fecha_fin,

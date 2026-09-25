@@ -297,6 +297,12 @@ export type Profesor = {
    * asistencia, y ese es el que manda (regla 12). `null` = sin cargar.
    */
   tarifa_reemplazo: number | null;
+  /**
+   * Fee por hora de particulares (0052, C3 H1): lo que gana este profesor
+   * cuando el plan elige `forma_pago_profesor = 'fee_hora'`. Reemplaza a
+   * `comision_particular_pct` (OBSOLETA, nunca tuvo uso). `null` = sin cargar.
+   */
+  fee_hora: number | null;
   /** Cuenta de login vinculada (perfiles.id), uno a uno. */
   usuario_id: string | null;
   activo: boolean;
@@ -348,6 +354,8 @@ export type DatosProfesor = DatosContactoExtra & {
   usuario_id: string | null;
   /** Referencia de pago por clase como reemplazante. null = sin cargar. */
   tarifa_reemplazo: number | null;
+  /** Fee por hora de particulares (0052). null = sin cargar. */
+  fee_hora: number | null;
 };
 
 export type Alumno = {
@@ -412,10 +420,25 @@ export type DatosCurso = {
 /** Plan vendible (motor). Puede dar acceso a uno o varios cursos (plan_cursos). */
 export type AccesoModo = "solo" | "todas" | "excepto";
 
+/** Tipos de servicio de un plan (regla de negocio 22). */
+export type TipoServicioPlan = "curso_regular" | "taller" | "particular" | "alquiler" | "prueba";
+
+/** Modalidad de reserva de un plan de particulares (definiciones-v2, 7.5). */
+export type ReservaModalidad = "fija" | "flexible";
+
+/** A qué salas da acceso el plan (mismo patrón que `AccesoModo` de cursos). */
+export type SalasModo = "todas" | "solo";
+
+/** Cómo gana el profesor con este plan (definiciones-v2, sección 3). */
+export type FormaPagoProfesor = "fee_hora" | "pct_margen" | "monto_fijo";
+
+/** Cómo se cobra una extensión de membresía ya vendida (definiciones-v2, 7.3). */
+export type ExtensionModo = "lista" | "recargo";
+
 export type Plan = {
   id: number;
   nombre: string;
-  tipo_servicio: string;
+  tipo_servicio: TipoServicioPlan;
   curso_id: number | null;
   cantidad_clases: number | null;
   precio: number;
@@ -440,11 +463,32 @@ export type Plan = {
   /** Cursos seleccionados (desde plan_cursos): incluidos si acceso='solo',
    *  excluidos si acceso='excepto'. Poblado por la pantalla. */
   cursoIds?: number[];
+
+  // ── Particulares (0052, C3 H1) ──────────────────────────────────────
+  /** Estilo (clave de `estilos`): de ahí sale qué tramos de `tarifas_particular`
+   *  se ofrecen al vender. `null` en un plan de curso regular. */
+  estilo: string | null;
+  /** Vigencia del paquete, en días. `null` = usa el parámetro `vencimiento_paquete_meses`. */
+  vigencia_dias: number | null;
+  reserva_modalidad: ReservaModalidad | null;
+  salas_modo: SalasModo;
+  /** Salas permitidas (desde plan_salas) cuando `salas_modo='solo'`. Poblado por la pantalla. */
+  salaIds?: number[];
+  forma_pago_profesor: FormaPagoProfesor | null;
+  pago_pct_margen: number | null;
+  pago_descuenta_sala: boolean;
+  pago_monto_fijo: number | null;
+  extension_modo: ExtensionModo;
+  extension_recargo_pct: number | null;
+  /** Política de asistentes de un grupo (definiciones-v2, 7.4): si se
+   *  registran uno a uno o no. Nunca afecta la liquidación del profesor. */
+  registra_acompanantes: boolean;
 };
 
 /** Datos que la pantalla de Planes envía al host para crear/editar. */
 export type DatosPlan = {
   nombre: string;
+  tipo_servicio: TipoServicioPlan;
   precio: number;
   acceso_modo: AccesoModo;
   clases_ilimitadas: boolean;
@@ -461,6 +505,20 @@ export type DatosPlan = {
   prueba_cursos_max: number | null;
   prueba_acredita: boolean;
   prueba_plazo_dias: number | null;
+
+  // ── Particulares (0052, C3 H1) ──────────────────────────────────────
+  estilo: string | null;
+  vigencia_dias: number | null;
+  reserva_modalidad: ReservaModalidad | null;
+  salas_modo: SalasModo;
+  salaIds: number[];
+  forma_pago_profesor: FormaPagoProfesor | null;
+  pago_pct_margen: number | null;
+  pago_descuenta_sala: boolean;
+  pago_monto_fijo: number | null;
+  extension_modo: ExtensionModo;
+  extension_recargo_pct: number | null;
+  registra_acompanantes: boolean;
 };
 
 export type Asignacion = {

@@ -13,7 +13,13 @@
 > vive en las tablas (§0bis, la cola C1→C5), en `DECISIONES.md` (decisiones y
 > registro de pases) y en `ROADMAP.md` (trabajo pendiente).
 >
-> **Última actualización:** 2026-09-25 — **C3 redefinido: definiciones v2 de
+> **Última actualización:** 2026-09-25 — **C3, hito H1 (plantillas de plan de
+> particulares) construido en dev, sin validar en el navegador.** Migración
+> `0052`, pestaña de particulares en Planes, fee por hora del profesor.
+> Detalle al final de este documento, sección "C3 — H1: plantillas de plan de
+> particulares". No se tocó producción.
+>
+> **2026-09-25 (antes)** — **C3 redefinido: definiciones v2 de
 > Natalia, contraste con el repo y plan en nueve hitos. Sin construir.**
 > Javier trajo las definiciones cerradas con Natalia el 25/09
 > (`docs/relevamientos/2026-09-25-C3-definiciones-v2.md`), que reemplazan al
@@ -3447,3 +3453,86 @@ pendientes"*). Orden seguido (regla de proceso, §3 de `DECISIONES.md`):
 **En producción.** Migración `0047_d1_membresias.sql` aplicada en las dos
 bases. Código en `main`, commit `574636c`. Control 15 pasa a **OK** en las dos
 bases — D1 y D3 quedan cerradas en `DECISIONES.md`.
+
+## C3 — H1: plantillas de plan de particulares · 2026-09-25 (dev)
+
+Primer hito del plan de nueve (`docs/relevamientos/2026-09-25-C3-plan-construccion.md`).
+Abre la pantalla de Planes a `tipo_servicio`, con una pestaña y un formulario
+propios para clases particulares — el resto de la venta (H2) y la liquidación
+(H5) siguen sin construirse; este hito es solo la **plantilla**.
+
+### Qué se construyó
+
+- **Migración `0052_plantillas_particulares.sql`** (aditiva, aplicada en dev):
+  - `planes` gana `estilo`, `vigencia_dias`, `reserva_modalidad` (fija/
+    flexible), `salas_modo` + `plan_salas` (mismo patrón que `plan_cursos`),
+    `forma_pago_profesor` (fee_hora/pct_margen/monto_fijo) + `pago_pct_margen`
+    + `pago_descuenta_sala` + `pago_monto_fijo`, `extension_modo` (lista/
+    recargo) + `extension_recargo_pct`, y `registra_acompanantes`. Dos checks
+    de coherencia (`planes_forma_pago_coherente`, `planes_extension_coherente`)
+    exigen el dato que cada modo realmente usa.
+  - `criterio_liquidacion` pasa de 1-4 a **1-5** (`planes` y
+    `comisiones_devengadas`), con un check nuevo que ata el 4 y el 5 a
+    `tipo_servicio='taller'` (`planes_criterio_taller_check`).
+  - `profesores.fee_hora`. `comision_particular_pct` queda **OBSOLETA**
+    (comentario en la columna): se midió 0 usos en `src/` antes de tocarla.
+  - Parámetros nuevos: `categoria_gracia_dias` (7) y
+    `reserva_cancelacion_plazo_horas` (8), sembrados ahora aunque H3/H7 recién
+    los vayan a leer (calidad 7). `vencimiento_paquete_meses` **ya existía**
+    (0048, sin uso) y es la vigencia default que pedía el hito — no se creó
+    una segunda para lo mismo.
+  - **"Horas y tramos desde `tarifas_particular`"**: esa tabla no se tocó. La
+    plantilla solo fija el `estilo`; qué tramos ofrece se resuelve leyendo
+    `tarifas_particular` por ese estilo al vender (H2).
+- **`src/lib/planesParticular.ts`**: `vigenciaDiasEfectiva` y
+  `validarPlanParticular`, con 11 pruebas (`planesParticular.test.ts`).
+- **`planes/acciones.ts`**: `validar()` ahora bifurca por `tipo_servicio`
+  (curso regular vs. particular) y valida el criterio 4/5 contra taller;
+  `crearPlan`/`actualizarPlan` guardan las columnas nuevas
+  (`camposParticular`, neutras en cualquier otro tipo) y sincronizan
+  `plan_salas` (`guardarSalas`, igual patrón que `guardarCursos`).
+  `tipo_servicio` se fija al crear y no se reedita.
+- **`planes/page.tsx` + `ClientePlanes.tsx`**: pestañas por tipo de servicio
+  (Cursos regulares · Clases particulares · Alquiler de salas · Talleres).
+  Alquiler y Talleres muestran un panel explicando que se construyen en H7/H8
+  (calidad 5: la capacidad que falta se explica, no desaparece) — no hay
+  campo `tipo_servicio='servicio_especial'` en la base todavía, por eso no
+  tienen pestaña. El formulario de particulares cubre estilo, vigencia,
+  modalidad de reserva, salas permitidas, forma de pago al profesor,
+  criterio (acotado a 1-3 en la UI), reglas de extensión y la política de
+  asistentes del grupo (7.4: nunca afecta la liquidación).
+- **Ficha de profesor** (`EntidadProfesor.tsx` + `profesores/acciones.ts`):
+  campo "Fee por hora (clases particulares)", mismo patrón que la tarifa de
+  reemplazante.
+- **`scripts/control_migracion.sql`**: controles 28 y 29 (plan de
+  particulares activo sin estilo / sin forma de pago al profesor).
+
+### Verificado en dev
+
+- Migración aplicada contra `tropicana-dev`; `get_advisors` sin hallazgos
+  nuevos atribuibles a la 0052.
+- Controles 28 y 29 corridos contra dev: **OK** (0 planes de particulares
+  todavía, es la condición inicial esperada).
+- `npx tsc --noEmit`: limpio (los dos errores que aparecen son preexistentes
+  y no tocados por este hito — `ClienteCatalogos.tsx` sin tipos de React
+  instalados de fábrica en el contenedor, y `layout.tsx` con `LayoutProps`).
+- `npx eslint` sobre los archivos tocados: limpio.
+- `npm test`: **88/88** en verde (11 nuevas de `planesParticular.test.ts`).
+- `npx next build`: compila y genera las 21 rutas sin error.
+
+### Lo que esta sesión NO pudo verificar, y por qué
+
+Sesión en la nube (`docs/ENTORNOS_CLAUDE.md`): sin `.env.local` ni server
+corriendo, no hay forma de abrir la pantalla en el navegador desde acá. La
+pestaña de particulares —el formulario completo, guardar un plan de
+particulares real y volver a editarlo— falta recorrerla en el navegador.
+Eso le queda a Javier en dev (`npm run dev` o `dev:limpio`, local), o a una
+sesión que sí tenga el server arriba.
+
+### Estado
+
+**Solo en dev, sin validar en el navegador.** No se tocó producción (regla de
+proceso 1 y 2). Antes de pedir el OK de pase: que Javier recorra la pestaña
+de particulares en dev y cree un plan de prueba. H2 (vender un plan de
+particulares) es el siguiente hito, y recién ahí un plan de particulares
+tiene con qué venderse.

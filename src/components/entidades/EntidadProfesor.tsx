@@ -228,6 +228,7 @@ function FichaProfesor({
   const [tarifaRee, setTarifaRee] = useState(
     inicial?.tarifa_reemplazo == null ? "" : String(inicial.tarifa_reemplazo)
   );
+  const [feeHora, setFeeHora] = useState(inicial?.fee_hora == null ? "" : String(inicial.fee_hora));
   const [extra, setExtra] = useState({
     ...DATOS_CONTACTO_EXTRA_VACIO,
     email: inicial?.contacto.email ?? null,
@@ -301,6 +302,7 @@ function FichaProfesor({
           usuario_id: usuarioId,
           tarifa_reemplazo:
             tarifaRee.trim() === "" ? null : Number(tarifaRee.replace(/[^\d.]/g, "")) || 0,
+          fee_hora: feeHora.trim() === "" ? null : Number(feeHora.replace(/[^\d.]/g, "")) || 0,
           ...extra,
         },
         inicial?.id ?? null
@@ -365,6 +367,9 @@ function FichaProfesor({
           <Dato etiqueta="Estilos">{etiquetasDe(inicial.estilos, estilos).join(", ") || "—"}</Dato>
           <Dato etiqueta="Tarifa por clase como reemplazante">
             {inicial.tarifa_reemplazo == null ? "Sin cargar" : gs(inicial.tarifa_reemplazo)}
+          </Dato>
+          <Dato etiqueta="Fee por hora (clases particulares)">
+            {inicial.fee_hora == null ? "Sin cargar" : gs(inicial.fee_hora)}
           </Dato>
           <Dato etiqueta="Cuenta de acceso">
             {inicial.usuario_id
@@ -461,6 +466,19 @@ function FichaProfesor({
           Referencia: al registrar una clase dictada por él como reemplazante se propone este
           monto, y ahí se confirma.
         </p>
+      </Campo>
+
+      {/* Fee por hora de particulares (0052, C3 H1): lo usa un plan cuya forma
+          de pago al profesor sea "fee por hora" (definiciones-v2, sección 3a:
+          "el valor del fee vive en el profesor"). */}
+      <Campo etiqueta="Fee por hora (clases particulares)">
+        <input
+          value={feeHora}
+          onChange={(e) => setFeeHora(e.target.value)}
+          inputMode="decimal"
+          placeholder="Sin cargar"
+          className="entrada"
+        />
       </Campo>
 
       <Campo etiqueta="WhatsApp">
