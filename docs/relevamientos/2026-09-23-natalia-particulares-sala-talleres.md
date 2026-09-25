@@ -1,3 +1,7 @@
+> **Reemplazado** por las definiciones v2 del 25/09
+> (`docs/relevamientos/2026-09-25-C3-definiciones-v2.md`). Se conserva como
+> historia; su Anexo B quedó resuelto por el v2. Lo que vale es el v2.
+
 # Relevamiento con Natalia — clases particulares, alquiler de sala y talleres
 
 **Fecha:** 23/09/2026, 17:00–19:00 · **Participantes:** Natalia, Javier.

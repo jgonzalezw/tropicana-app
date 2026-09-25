@@ -13,7 +13,36 @@
 > vive en las tablas (§0bis, la cola C1→C5), en `DECISIONES.md` (decisiones y
 > registro de pases) y en `ROADMAP.md` (trabajo pendiente).
 >
-> **Última actualización:** 2026-09-25 — **Relevamiento con Natalia puesto en
+> **Última actualización:** 2026-09-25 — **C3 redefinido: definiciones v2 de
+> Natalia, contraste con el repo y plan en nueve hitos. Sin construir.**
+> Javier trajo las definiciones cerradas con Natalia el 25/09
+> (`docs/relevamientos/2026-09-25-C3-definiciones-v2.md`), que reemplazan al
+> relevamiento del 23/09 (queda como historia, marcado arriba). Se volcaron:
+> - **REGLAS**: regla 8 generalizada (cinco criterios elegidos por el plan,
+>   "período vencido" por `periodicidad_liquidacion`, tres formas de pago),
+>   regla 3 ampliada (paquete de horas, taller), regla 21 con el titular
+>   como contacto y el rol alumno al comprar, y reglas nuevas **22** (todo se
+>   vende por plan), **23** (qué hace cada uno de los 7 estados de reserva con
+>   el saldo) y **24** (la categoría de alquiler se propone y se guarda). Seis
+>   términos nuevos en el glosario.
+> - **DECISIONES**: fila nueva "C3 — definiciones v2" en §1.b, con las
+>   precisiones de Javier del mismo día (titular contacto; Solicitada ocupa
+>   con validez máxima; fuera de plazo → Ausente; Code v1 + Design refina,
+>   talleres Design-first; alquiler con el mismo motor de reservas; talleres
+>   con reserva a nivel de plan). D5, D9 y D11 apuntan a su hito.
+> - **ROADMAP**: sección nueva con R28–R32 (lo que el v2 deja para después);
+>   R1, R22 y R27 apuntan a su hito.
+>
+> **Contraste con el repo** (14 choques, con evidencia) y **plan H1–H9** en
+> `docs/relevamientos/2026-09-25-C3-plan-construccion.md`. Los tres más
+> caros: todo el código fuerza `tipo_servicio='curso_regular'`; el motor de
+> liquidación solo implementa el criterio 1 y el rango del período está fijo
+> en mes calendario aunque el parámetro diga otra cosa; y `membresias.alumno_id`
+> es obligatorio, que choca con alquilarle a un tercero. `paquetes_particular`
+> y `alquileres_sala` (0035) no se usan en ningún flujo y se reemplazan por
+> membresías de plan. **Espera el OK de Javier antes de construir H1.**
+>
+> **2026-09-25 (antes)** — **Relevamiento con Natalia puesto en
 > limpio** (reunión del 23/09): particulares, alquiler de sala, talleres,
 > reservas y liquidación por plan. Vive en
 > `docs/relevamientos/2026-09-23-natalia-particulares-sala-talleres.md`, con
@@ -2216,7 +2245,7 @@ habría que desacoplarla después.
 | --- | --- | --- |
 | **C1** | **Horario base de la sala**: patrón semanal de apertura + excepciones por rango de fechas. Es el lienzo — fuera de él no se puede reservar. **Vacío significa cerrado, no abierto** (confirmado por Javier): si valiera "24 h", olvidarse de configurarlo produce justo el bug que C1 evita | ✅ **CERRADO y validado en dev por Javier** (2026-09-12). Migraciones **0036** y **0037**. Javier cargó el horario real de Tropicana |
 | **C2** | Disponibilidad + reserva mínima: validar contra horario base + cursos + otras reservas, y **lista textual** de lo ocupado ese día (*"Lu 15: ocupado 9-10, 11-12:30; resto libre"*). **Sin grilla visual todavía** — 80% del beneficio, 20% del costo | ✅ **EN PRODUCCIÓN desde el 2026-09-17.** Pantalla operativa propia (`/sala`, grupo Gestión), separada de Administración → Sala y horarios. Solo bloqueos (D7) — sin C3 todavía no hay otra reserva posible |
-| **C3** | Venta de particulares/alquiler apoyada en la disponibilidad. Los dos caminos del mockup de agosto, más lo que ese mockup no tiene: elegir fecha y hora al vender | **Lo siguiente.** Su prerrequisito C3-0a (contactos + matriz de mínimos) está **en producción desde el 2026-09-24**. C3-0b (captación pública) espera a C3 |
+| **C3** | Venta de particulares/alquiler apoyada en la disponibilidad. **Redefinido el 2026-09-25** por las definiciones v2 de Natalia: todo por plan, particulares + alquiler + talleres, reservas con 7 estados, cinco criterios de liquidación | **Lo siguiente; plan H1–H9 propuesto, sin construir, esperando el OK de Javier** (`docs/relevamientos/2026-09-25-C3-plan-construccion.md`). Su prerrequisito C3-0a (contactos + matriz de mínimos) está **en producción desde el 2026-09-24**. C3-0b (captación pública) espera a C3 |
 | **C4** | Agenda visual (grilla día/semana/mes). **Pasa por Claude Design** | Pendiente, después de C3 → `ROADMAP.md` R2 |
 | **C5** | Conflicto bloqueo-vs-agendado: el sistema junta los conflictos y **el humano decide**, nunca cancelación automática silenciosa | 🟡 **A medias.** Lado cursos regulares **en producción desde el 2026-09-16** (un cierre de sala avisa, pide confirmación y suspende; ver el bloque "C5 (lado de cursos regulares)"). **Falta el lado reservas**: `calcularImpacto` no mira `reservas_sala`, y el hueco ya existe hoy con los bloqueos de C2 → `ROADMAP.md` R1 y R22 |
 

@@ -39,6 +39,12 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
 | **Consentimiento vigente** | vista `consentimientos_vigentes` | El último consentimiento otorgado por un contacto para una finalidad. `consentimientos` es **de solo agregar** (trigger `consentimientos_no_update`): un consentimiento es un hecho que pasó, nunca se edita ni se borra — para cambiarlo se registra uno nuevo y la vista muestra el más reciente. |
 | **Referencias ≠ Referido** | catálogo `canal_captacion` | Dos cosas distintas que suenan igual. **Referencias** = boca a boca, sin una persona identificada detrás (un canal de captación más, como Instagram o un letrero). **Referido** = `contacto_relaciones` tipo `referido_por`, una relación con un contacto concreto que lo trajo. Confundirlos pierde la trazabilidad de a quién agradecer o, eventualmente, comisionar por el referido. |
 | **Matriz de mínimos** | `matriz_minimos` | Qué tan obligatorio es cada campo de un contacto (nombre, WhatsApp, red social, documento...) según el **contexto** en que se carga: alumno adulto, alumno menor, prueba, profesor, tercero, etc. Tres niveles — `O` obligatorio, `V` visible opcional, `-` oculto. El formulario (`CamposContacto`, C3-0a.3) elige el contexto solo — `alumno_menor` si está marcado "es menor", **incluso viniendo de una clase de prueba** (Javier, 2026-09-24: "las reglas de alumno menor", no las de `prueba` — no se vende una prueba a un menor sin tutor). **La valida el servidor** (`validarContraMatriz`), nunca solo la pantalla. Algunas celdas están **bloqueadas** (`CELDAS_BLOQUEADAS` en `matrizMinimos.ts`, control 27): de ellas depende la detección de duplicados o un `check` de la base (nombre/razón social por `tipo`), y cambiarlas rompería eso, no solo un campo visual. `interes` y `facturacion` quedan sembradas pero **sin columna donde guardarse**: no editables, con aviso (regla de calidad 5). |
+| **Plan de servicio** | `planes` + `planes.tipo_servicio` | Lo único que se vende (regla 22). Cinco tipos: `curso_regular`, `particular`, `alquiler`, `taller` y servicio especial (etapa siguiente). El plan fija el criterio de liquidación, la forma de pago al profesor, la vigencia, la modalidad de reserva y los márgenes de extensión. *(Hasta C3 el código fuerza `curso_regular`: los otros tipos se abren con C3.)* |
+| **Reserva** | `reservas_sala` | Una franja de sala (propia o externa) para una sesión. Cuelga de **una sola** cosa: una membresía (particular, alquiler), un plan (taller) o nada (bloqueo, con motivo). Siete estados: Solicitada, Confirmada, Reprogramada, Reagendar, Suspendida, Ausente, Realizada; qué hace cada uno con el saldo, en la regla 23. *(Los 7 estados se construyen en C3; hoy existen `reservada`/`dictada`/`cancelada`.)* |
+| **Sala externa** | `salas` (genérica) | Una ubicación fuera de Tropicana —el salón de una boda, un hotel—. Hay **una sola** sala externa genérica; al vender se le pone un nombre descriptivo por membresía (en talleres, por plan). **No se valida su ocupación.** |
+| **Período vencido** | parámetro `periodicidad_liquidacion` | Se paga en la liquidación del período siguiente; el período (semana, mes o membresía) lo fija el parámetro. Reemplaza a "mes vencido". *(Hoy el cálculo está fijo en mes calendario aunque el parámetro diga otra cosa; se corrige en C3.)* |
+| **Extensión** | *(se construye en C3)* | Sumar horas a una membresía ya vendida, dentro de los márgenes que fija su plan; lo adicional se cobra a precio de lista o con recargo, según el plan, con su propia cuota. |
+| **Horario hábil** | *(se construye en C3)* | Un patrón semanal + excepciones, con la misma lógica que el horario de sala, que **no se reserva**: solo dice qué horas son hábiles para calcular recordatorios y avisos no urgentes ("10 horas hábiles antes"). |
 
 ## 2. Reglas de negocio
 
@@ -53,6 +59,10 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
    **dictadas** (la falta no alarga el ciclo, la clase pasó). Paquete por
    clase: consumió las clases compradas (solo la asistencia consume; una falta
    no gasta el paquete). Ilimitadas: terminan por fecha, no por contador.
+   **Paquete de horas** (particular o alquiler): se agota cuando se
+   consumieron sus horas, contando las reservas que consumen (regla 23), o
+   cuando vence su vigencia —lo no usado se pierde—. **Taller**: se agota con
+   su última sesión dictada. *(Definiciones v2 de C3, 2026-09-25.)*
 4. **Una clase suspendida no consume ciclo: lo corre.** El fin de ciclo es la
    fecha de la clase N contando solo las que ocurren de verdad. Como se
    **calcula** y no se guarda paso a paso, da igual el orden de los hechos: una
@@ -67,10 +77,24 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
 7. **Todo lo que se vende se cobra, y el mecanismo es la cuota.** Ninguna venta
    puede quedar con plata fuera de una cuota. Toda venta nueva crea la suya.
 8. **La comisión se calcula sobre lo efectivamente cobrado** (el descuento no
-   suma), criterio 1, a mes vencido.
-   **De dónde sale la plata del profesor, con todas las letras** *(Javier,
-   2026-09-18)*: de las membresías **completadas (agotadas) y cobradas al 100%**
-   hasta el último día del mes pasado. La liquidación toma esas y devenga:
+   suma), **según el criterio que elige el plan**, a **período vencido**.
+   **Cinco criterios** *(definiciones v2 de C3, 2026-09-25)*: **(1)** al
+   completarse la membresía —agotada y cobrada al 100%—, a período vencido;
+   **(2)** proporcional al avance de la membresía, siempre que esté cobrada al
+   100%, a período vencido; **(3)** como el 1, pero se paga al completarse,
+   sin esperar el cierre; **(4)** taller: al completarse el taller, sobre lo
+   cobrado —lo que se cobre después abre otra liquidación—; **(5)** taller:
+   monto fijo al completarse. El 4 y el 5 **solo** en planes de taller. Los
+   criterios 1 a 3 miran cada membresía sola, aunque tenga varios alumnos.
+   **Período vencido** = la liquidación del período siguiente, donde el
+   período lo fija el parámetro `periodicidad_liquidacion` (hoy `mes`).
+   **Cuánto** gana el profesor lo fija la **forma de pago** que elige el plan:
+   fee por hora (el valor vive en el profesor), % sobre el margen (precio neto
+   − costo de sala, si el plan lo descuenta) o monto fijo por membresía. Vale
+   igual para profesores de Tropicana y externos.
+   **De dónde sale la plata del profesor en el criterio 1, con todas las
+   letras** *(Javier, 2026-09-18)*: de las membresías **completadas (agotadas)
+   y cobradas al 100%** hasta el último día del período pasado. La liquidación toma esas y devenga:
    **directo** si la membresía es mono-curso, **a prorrata** si es multi-curso
    (regla 10). Una membresía agotada pero con saldo **no entra** — no terminó la
    venta (regla 1).
@@ -229,6 +253,39 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
     mismo patrón (ver glosario); una clase particular, un alquiler de sala o
     cualquier venta futura a un tercero se cuelgan igual, nunca con un campo
     de texto libre ni un tercer camino de identidad.
+    **El titular de una membresía es un contacto** *(Javier, 2026-09-25)*. En
+    curso regular, particular, taller y prueba, el titular **adquiere el rol
+    alumno al comprar** (la venta lo crea si falta); en alquiler no, y queda
+    solo como contacto, fuera del padrón.
+22. **Todo se vende por plan.** No existe un camino de venta sin plan. "Venta
+    directa" es solo el nombre de los planes sencillos, los que no pasan por
+    cotización. Las tarifas ya construidas (tramos de horas, categorías,
+    tamaños) son los **insumos** con que se arman los planes, no un camino
+    aparte. Cinco tipos de servicio: curso regular, particular, alquiler,
+    taller y servicio especial (con cotización, etapa siguiente).
+    *(Definiciones v2 de C3, 2026-09-25.)*
+23. **Una reserva descuenta el saldo al confirmarse, y cada estado dice qué
+    pasa con él.** *Solicitada* no descuenta, pero **ya ocupa** la sala y al
+    profesor hasta su validez máxima (parámetro); vencida, se libera sola.
+    *Confirmada* descuenta. *Reprogramada* es historial sobre una reserva
+    confirmada: sigue siendo una sola sesión descontada. *Reagendar* (lo pidió
+    el alumno a tiempo) y *Suspendida* (lo decidió Tropicana) **devuelven** la
+    sesión al saldo y liberan sala y profesor. *Ausente* y *Realizada*
+    consumen. Cancelar **fuera de plazo** (parámetro, hoy 8 h) deja la reserva
+    en **Ausente**, con la marca de incumplimiento en el historial. El saldo
+    **se calcula** desde las reservas, no se guarda paso a paso (como el fin
+    de ciclo, regla 4). Una **sala externa** no se valida: no tiene
+    ocupación. En un **taller**, las reservas son del plan y no descuentan el
+    saldo de nadie. *(Definiciones v2 de C3 + precisiones de Javier,
+    2026-09-25.)*
+24. **La categoría de alquiler la propone el sistema, y queda guardada con la
+    venta.** Se deduce de los datos —alumno, profesor de Tropicana, profesor
+    externo o tercero, con los días de gracia del parámetro— y se muestra por
+    qué; la persona la puede cambiar. Lo que se aplicó se guarda con la venta
+    como histórico (regla 12): cambiar después la situación del cliente no
+    reescribe lo vendido. Los **nombres** de las categorías y de los tramos de
+    personas se editan; las **claves** no, porque de ellas depende la regla
+    que propone. *(Definiciones v2 de C3, 2026-09-25.)*
 
 ## 3. Reglas de proceso
 
