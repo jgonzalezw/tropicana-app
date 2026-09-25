@@ -365,12 +365,19 @@ function FichaProfesor({
             <EnlaceWhatsapp numero={inicial.contacto.whatsapp} vacio="—" />
           </Dato>
           <Dato etiqueta="Estilos">{etiquetasDe(inicial.estilos, estilos).join(", ") || "—"}</Dato>
-          <Dato etiqueta="Tarifa por clase como reemplazante">
-            {inicial.tarifa_reemplazo == null ? "Sin cargar" : gs(inicial.tarifa_reemplazo)}
-          </Dato>
-          <Dato etiqueta="Fee por hora (clases particulares)">
-            {inicial.fee_hora == null ? "Sin cargar" : gs(inicial.fee_hora)}
-          </Dato>
+          <div className="sm:col-span-2">
+            <span className="block text-sm font-medium text-[var(--texto-tenue)] mb-1.5">
+              Tarifas del profesor
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Dato etiqueta="Por clase (como reemplazante)">
+                {inicial.tarifa_reemplazo == null ? "Sin cargar" : gs(inicial.tarifa_reemplazo)}
+              </Dato>
+              <Dato etiqueta="Por hora (clases particulares)">
+                {inicial.fee_hora == null ? "Sin cargar" : gs(inicial.fee_hora)}
+              </Dato>
+            </div>
+          </div>
           <Dato etiqueta="Cuenta de acceso">
             {inicial.usuario_id
               ? cuentas.find((c) => c.id === inicial.usuario_id)?.etiqueta ?? "Con cuenta"
@@ -450,36 +457,41 @@ function FichaProfesor({
         )}
       </div>
 
-      {/* Lo que cobra por dictar una clase como reemplazante (regla 20): el
-          suplente no entra en el prorrateo, cobra por tarifa. Es la referencia
-          que se ofrece al registrar la asistencia; el monto de esa clase se
-          confirma ahí. */}
-      <Campo etiqueta="Tarifa por clase como reemplazante">
-        <input
-          value={tarifaRee}
-          onChange={(e) => setTarifaRee(e.target.value)}
-          inputMode="decimal"
-          placeholder="Sin cargar"
-          className="entrada"
-        />
-        <p className="text-sm text-[var(--texto-tenue)] mt-1">
-          Referencia: al registrar una clase dictada por él como reemplazante se propone este
-          monto, y ahí se confirma.
-        </p>
-      </Campo>
+      <div>
+        <span className="block text-base font-medium mb-1.5">Tarifas del profesor</span>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Lo que cobra por dictar una clase como reemplazante (regla 20): el
+              suplente no entra en el prorrateo, cobra por tarifa. Es la
+              referencia que se ofrece al registrar la asistencia; el monto de
+              esa clase se confirma ahí. */}
+          <Campo etiqueta="Por clase (como reemplazante)">
+            <input
+              value={tarifaRee}
+              onChange={(e) => setTarifaRee(e.target.value)}
+              inputMode="decimal"
+              placeholder="Sin cargar"
+              className="entrada"
+            />
+            <p className="text-sm text-[var(--texto-tenue)] mt-1">
+              Referencia: al registrar una clase dictada por él como reemplazante se propone este
+              monto, y ahí se confirma.
+            </p>
+          </Campo>
 
-      {/* Fee por hora de particulares (0052, C3 H1): lo usa un plan cuya forma
-          de pago al profesor sea "fee por hora" (definiciones-v2, sección 3a:
-          "el valor del fee vive en el profesor"). */}
-      <Campo etiqueta="Fee por hora (clases particulares)">
-        <input
-          value={feeHora}
-          onChange={(e) => setFeeHora(e.target.value)}
-          inputMode="decimal"
-          placeholder="Sin cargar"
-          className="entrada"
-        />
-      </Campo>
+          {/* Fee por hora de particulares (0052, C3 H1): lo usa un plan cuya
+              forma de pago al profesor sea "fee por hora" (definiciones-v2,
+              sección 3a: "el valor del fee vive en el profesor"). */}
+          <Campo etiqueta="Por hora (clases particulares)">
+            <input
+              value={feeHora}
+              onChange={(e) => setFeeHora(e.target.value)}
+              inputMode="decimal"
+              placeholder="Sin cargar"
+              className="entrada"
+            />
+          </Campo>
+        </div>
+      </div>
 
       <Campo etiqueta="WhatsApp">
         <input
