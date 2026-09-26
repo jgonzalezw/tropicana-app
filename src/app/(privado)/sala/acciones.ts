@@ -117,12 +117,68 @@ export async function consultarDisponibilidad(salaId: number, fechaISO: string):
 
   const { data: resRows, error: errRes } = await sb
     .from("reservas_sala")
-    .select("id, tipo, motivo, glosa, notas, hora, duracion_min")
+    .select(
+      "id, tipo, motivo, glosa, notas, hora, duracion_min, " +
+        "membresia:membresias(alumno:alumnos(contacto:contactos(nombre, apellido)), plan:planes(estilo)), " +
+        "profesor:profesores(contacto:contactos(nombre, apellido))"
+    )
     .eq("sala_id", salaId)
     .eq("fecha", fechaISO)
     .neq("estado", "cancelada");
   if (errRes) return { ...vacio, error: `No se pudieron leer las reservas de la sala: ${errRes.message}` };
-  const reservas = (resRows as (ReservaSalaOcupa & { notas: string | null })[]) ?? [];
+  type ReservaConJoins = {
+    id: number;
+    tipo: ReservaSalaOcupa["tipo"];
+    motivo: string | null;
+    glosa: string | null;
+    notas: string | null;
+    hora: string;
+    duracion_min: number;
+    membresia: {
+      alumno: { contacto: { nombre: string | null; apellido: string | null } | null } | null;
+      plan: { estilo: string | null } | null;
+    } | null;
+    profesor: { contacto: { nombre: string | null; apellido: string | null } | null } | null;
+  };
+  const resRaw = (resRows as unknown as ReservaConJoins[]) ?? [];
+
+  // El estilo llega como clave (FK a `estilos`) — se resuelve a su nombre
+  // como cualquier otro catálogo (regla de calidad 6), solo si hace falta.
+  const clavesEstilo = new Set(
+    resRaw
+      .map((r) => r.membresia?.plan?.estilo)
+      .filter((v): v is string => Boolean(v))
+  );
+  let nombreEstilo: ((v: string) => string) | undefined;
+  if (clavesEstilo.size) {
+    const { data: estRows, error: errEst } = await sb
+      .from("estilos")
+      .select("clave, nombre")
+      .in("clave", [...clavesEstilo]);
+    if (errEst) return { ...vacio, error: `No se pudieron leer los estilos: ${errEst.message}` };
+    const mapaEst = new Map(((estRows as { clave: string; nombre: string }[]) ?? []).map((v) => [v.clave, v.nombre]));
+    nombreEstilo = (v: string) => mapaEst.get(v) ?? v;
+  }
+
+  const reservas: (ReservaSalaOcupa & { notas: string | null })[] = resRaw.map((r) => {
+    const contactoAlumno = r.membresia?.alumno?.contacto;
+    const contactoProfesor = r.profesor?.contacto;
+    const claveEstilo = r.membresia?.plan?.estilo ?? null;
+    return {
+      id: r.id,
+      tipo: r.tipo,
+      motivo: r.motivo,
+      glosa: r.glosa,
+      notas: r.notas,
+      hora: r.hora,
+      duracion_min: r.duracion_min,
+      alumnoNombre: contactoAlumno ? `${contactoAlumno.nombre ?? ""} ${contactoAlumno.apellido ?? ""}`.trim() : null,
+      profesorNombre: contactoProfesor
+        ? `${contactoProfesor.nombre ?? ""} ${contactoProfesor.apellido ?? ""}`.trim()
+        : null,
+      estilo: claveEstilo ? (nombreEstilo?.(claveEstilo) ?? claveEstilo) : null,
+    };
+  });
 
   let etiquetaMotivo: ((v: string) => string) | undefined;
   const catalogo = catR.data as { id: number } | null;

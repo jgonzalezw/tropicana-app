@@ -403,17 +403,21 @@ export type ReservaSalaOcupa = {
   duracion_min: number;
   motivo: string | null;
   glosa: string | null;
+  /** Solo para `tipo: 'particular'` (H2, 26/09): el ticket de color ya dice
+   *  que es una clase particular, así que acá no se repite — se muestra a
+   *  quién y con quién. */
+  alumnoNombre?: string | null;
+  profesorNombre?: string | null;
+  estilo?: string | null;
 };
 
 /**
  * Las reservas reales (particular/alquiler/bloqueo) de `reservas_sala` como
  * bloques ocupados, con el mismo tipo `BloqueOcupado` que ya usan los cursos.
  *
- * Hoy solo puede llegar `tipo: 'bloqueo'` — C3 (venta de particulares/alquiler)
- * todavía no existe, así que no hay filas de los otros dos tipos que leer. Ya
- * sabe etiquetarlos para no tener que tocar esta función cuando C3 exista: ahí
- * va a hacer falta ampliar el JOIN que arma cada fila (nombre del alumno o del
- * comprador), no esta función.
+ * `tipo: 'alquiler'` todavía no tiene comprador que leer (H7). `particular`
+ * sí, desde H2: el JOIN que arma cada fila (nombre del alumno, del profesor,
+ * el estilo) lo hace quien llama, acá solo se ordena en `etiqueta`/`detalle`.
  */
 export function ocupacionDeReservas(
   reservas: ReservaSalaOcupa[],
@@ -428,9 +432,10 @@ export function ocupacionDeReservas(
       r.tipo === "bloqueo"
         ? etiquetaMotivo?.(r.motivo ?? "") ?? r.motivo ?? "Bloqueo"
         : r.tipo === "particular"
-          ? "Clase particular"
+          ? r.alumnoNombre || "Clase particular"
           : "Alquiler de sala",
-    detalle: r.glosa,
+    detalle:
+      r.tipo === "particular" ? [r.profesorNombre, r.estilo].filter(Boolean).join(" · ") || null : r.glosa,
   }));
 }
 
