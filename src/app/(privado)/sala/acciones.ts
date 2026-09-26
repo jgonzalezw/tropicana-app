@@ -81,7 +81,13 @@ export async function consultarDisponibilidad(salaId: number, fechaISO: string):
 
   const sb = await createClient();
 
-  const [patronR, excR, cursosR, catR, catExcR] = await Promise.all([
+  // Ronda 1: todo lo que NO depende de otra consulta, en paralelo — incluye
+  // `reservas_sala` (solo necesita sala+fecha) y `estilos` entera (catálogo
+  // chico, se trae siempre en vez de pedirla condicionada al resultado de
+  // `reservas_sala`, para no encadenar una ronda más). Antes esto eran hasta
+  // 6 round-trips secuenciales; Javier lo marcó lento al cambiar de fecha
+  // (26/09) — con 2 rondas en paralelo alcanza.
+  const [patronR, excR, cursosR, catR, catExcR, resR, estR] = await Promise.all([
     sb.from("sala_horario_patron").select("dia_semana, desde, hasta").eq("sala_id", salaId),
     sb
       .from("sala_horario_excepciones")
@@ -94,38 +100,50 @@ export async function consultarDisponibilidad(salaId: number, fechaISO: string):
       .eq("activo", true),
     sb.from("catalogos").select("id").eq("clave", "motivo_bloqueo_sala").maybeSingle(),
     sb.from("catalogos").select("id").eq("clave", "motivo_excepcion_horario").maybeSingle(),
+    sb
+      .from("reservas_sala")
+      .select(
+        "id, tipo, motivo, glosa, notas, hora, duracion_min, " +
+          "membresia:membresias(alumno:alumnos(contacto:contactos(nombre, apellido)), plan:planes(estilo)), " +
+          "profesor:profesores(contacto:contactos(nombre, apellido))"
+      )
+      .eq("sala_id", salaId)
+      .eq("fecha", fechaISO)
+      .neq("estado", "cancelada"),
+    sb.from("estilos").select("clave, nombre"),
   ]);
   if (patronR.error) return { ...vacio, error: `No se pudo leer el horario de la sala: ${patronR.error.message}` };
   if (excR.error) return { ...vacio, error: `No se pudieron leer las excepciones: ${excR.error.message}` };
   if (cursosR.error) return { ...vacio, error: `No se pudieron leer los cursos de la sala: ${cursosR.error.message}` };
+  if (resR.error) return { ...vacio, error: `No se pudieron leer las reservas de la sala: ${resR.error.message}` };
+  if (estR.error) return { ...vacio, error: `No se pudieron leer los estilos: ${estR.error.message}` };
 
   const patron = (patronR.data as FranjaPatron[]) ?? [];
   const excepciones = (excR.data as ExcepcionHorario[]) ?? [];
   const cursos = (cursosR.data as unknown as CursoOcupa[]) ?? [];
   const cursoIds = cursos.map((c) => c.id);
+  const { ventanas, excepcion } = ventanasDelDia(patron, excepciones, fechaISO);
+  const catalogo = catR.data as { id: number } | null;
+  const catalogoExc = catExcR.data as { id: number } | null;
 
-  const { data: susRows, error: errSus } = cursoIds.length
-    ? await sb
-        .from("sesiones")
-        .select("curso_id")
-        .in("curso_id", cursoIds)
-        .eq("estado", "suspendida")
-        .eq("fecha", fechaISO)
-    : { data: [] as { curso_id: number }[], error: null };
-  if (errSus) return { ...vacio, error: `No se pudieron leer las clases suspendidas: ${errSus.message}` };
-  const suspendidos = new Set(((susRows as { curso_id: number }[]) ?? []).map((s) => s.curso_id));
+  // Ronda 2: lo que sí depende de la ronda 1 (cursoIds, o si hace falta el
+  // catálogo de motivos), también en paralelo entre sí.
+  const [susR, valR, valExcR] = await Promise.all([
+    cursoIds.length
+      ? sb.from("sesiones").select("curso_id").in("curso_id", cursoIds).eq("estado", "suspendida").eq("fecha", fechaISO)
+      : Promise.resolve({ data: [] as { curso_id: number }[], error: null }),
+    catalogo
+      ? sb.from("catalogo_valores").select("valor, etiqueta").eq("catalogo_id", catalogo.id)
+      : Promise.resolve({ data: [] as { valor: string; etiqueta: string }[], error: null }),
+    excepcion?.motivo && catalogoExc
+      ? sb.from("catalogo_valores").select("valor, etiqueta").eq("catalogo_id", catalogoExc.id)
+      : Promise.resolve({ data: [] as { valor: string; etiqueta: string }[], error: null }),
+  ]);
+  if (susR.error) return { ...vacio, error: `No se pudieron leer las clases suspendidas: ${susR.error.message}` };
+  if (valR.error) return { ...vacio, error: `No se pudieron leer los motivos de bloqueo: ${valR.error.message}` };
+  if (valExcR.error) return { ...vacio, error: `No se pudieron leer los motivos de excepción: ${valExcR.error.message}` };
+  const suspendidos = new Set(((susR.data as { curso_id: number }[]) ?? []).map((s) => s.curso_id));
 
-  const { data: resRows, error: errRes } = await sb
-    .from("reservas_sala")
-    .select(
-      "id, tipo, motivo, glosa, notas, hora, duracion_min, " +
-        "membresia:membresias(alumno:alumnos(contacto:contactos(nombre, apellido)), plan:planes(estilo)), " +
-        "profesor:profesores(contacto:contactos(nombre, apellido))"
-    )
-    .eq("sala_id", salaId)
-    .eq("fecha", fechaISO)
-    .neq("estado", "cancelada");
-  if (errRes) return { ...vacio, error: `No se pudieron leer las reservas de la sala: ${errRes.message}` };
   type ReservaConJoins = {
     id: number;
     tipo: ReservaSalaOcupa["tipo"];
@@ -140,25 +158,12 @@ export async function consultarDisponibilidad(salaId: number, fechaISO: string):
     } | null;
     profesor: { contacto: { nombre: string | null; apellido: string | null } | null } | null;
   };
-  const resRaw = (resRows as unknown as ReservaConJoins[]) ?? [];
+  const resRaw = (resR.data as unknown as ReservaConJoins[]) ?? [];
 
   // El estilo llega como clave (FK a `estilos`) — se resuelve a su nombre
-  // como cualquier otro catálogo (regla de calidad 6), solo si hace falta.
-  const clavesEstilo = new Set(
-    resRaw
-      .map((r) => r.membresia?.plan?.estilo)
-      .filter((v): v is string => Boolean(v))
-  );
-  let nombreEstilo: ((v: string) => string) | undefined;
-  if (clavesEstilo.size) {
-    const { data: estRows, error: errEst } = await sb
-      .from("estilos")
-      .select("clave, nombre")
-      .in("clave", [...clavesEstilo]);
-    if (errEst) return { ...vacio, error: `No se pudieron leer los estilos: ${errEst.message}` };
-    const mapaEst = new Map(((estRows as { clave: string; nombre: string }[]) ?? []).map((v) => [v.clave, v.nombre]));
-    nombreEstilo = (v: string) => mapaEst.get(v) ?? v;
-  }
+  // como cualquier otro catálogo (regla de calidad 6).
+  const mapaEst = new Map(((estR.data as { clave: string; nombre: string }[]) ?? []).map((v) => [v.clave, v.nombre]));
+  const nombreEstilo = (v: string) => mapaEst.get(v) ?? v;
 
   const reservas: (ReservaSalaOcupa & { notas: string | null })[] = resRaw.map((r) => {
     const contactoAlumno = r.membresia?.alumno?.contacto;
@@ -176,36 +181,23 @@ export async function consultarDisponibilidad(salaId: number, fechaISO: string):
       profesorNombre: contactoProfesor
         ? `${contactoProfesor.nombre ?? ""} ${contactoProfesor.apellido ?? ""}`.trim()
         : null,
-      estilo: claveEstilo ? (nombreEstilo?.(claveEstilo) ?? claveEstilo) : null,
+      estilo: claveEstilo ? nombreEstilo(claveEstilo) : null,
     };
   });
 
-  let etiquetaMotivo: ((v: string) => string) | undefined;
-  const catalogo = catR.data as { id: number } | null;
-  if (catalogo) {
-    const { data: valRows, error: errVal } = await sb
-      .from("catalogo_valores")
-      .select("valor, etiqueta")
-      .eq("catalogo_id", catalogo.id);
-    if (errVal) return { ...vacio, error: `No se pudieron leer los motivos de bloqueo: ${errVal.message}` };
-    const mapa = new Map(((valRows as { valor: string; etiqueta: string }[]) ?? []).map((v) => [v.valor, v.etiqueta]));
-    etiquetaMotivo = (v: string) => mapa.get(v) ?? v;
-  }
-
-  const { ventanas, excepcion } = ventanasDelDia(patron, excepciones, fechaISO);
+  const etiquetaMotivo: ((v: string) => string) | undefined = catalogo
+    ? (() => {
+        const mapa = new Map(((valR.data as { valor: string; etiqueta: string }[]) ?? []).map((v) => [v.valor, v.etiqueta]));
+        return (v: string) => mapa.get(v) ?? v;
+      })()
+    : undefined;
 
   // El motivo del cierre, resuelto a su etiqueta — nunca la clave cruda del
   // catálogo (regla de calidad 6). Mismo criterio que `guardarHorarioSala` usa
   // para el aviso al alumno.
   let excepcionMotivoTexto: string | null = null;
-  const catalogoExc = catExcR.data as { id: number } | null;
   if (excepcion?.motivo && catalogoExc) {
-    const { data: valExcRows, error: errValExc } = await sb
-      .from("catalogo_valores")
-      .select("valor, etiqueta")
-      .eq("catalogo_id", catalogoExc.id);
-    if (errValExc) return { ...vacio, error: `No se pudieron leer los motivos de excepción: ${errValExc.message}` };
-    const mapaExc = new Map(((valExcRows as { valor: string; etiqueta: string }[]) ?? []).map((v) => [v.valor, v.etiqueta]));
+    const mapaExc = new Map(((valExcR.data as { valor: string; etiqueta: string }[]) ?? []).map((v) => [v.valor, v.etiqueta]));
     excepcionMotivoTexto = [mapaExc.get(excepcion.motivo) ?? excepcion.motivo, excepcion.glosa]
       .filter(Boolean)
       .join(" · ");
