@@ -3,8 +3,10 @@ import { tienePermiso, obtenerParametro } from "@/lib/sesion";
 import SinAcceso from "@/components/SinAcceso";
 import { exigir } from "@/lib/datos";
 import { isoFecha } from "@/lib/inscripcion";
+import { compararContactosPorApellido } from "@/lib/contactos";
 import MostradorVenta from "./MostradorVenta";
 import type { PlanVenta } from "./ClienteInscribir";
+import type { PlanParticular, ProfesorParticular, SalaVenta, TarifaParticularVenta } from "./VenderParticular";
 import type { Alumno, Contacto, Curso } from "@/lib/tipos";
 import { cargarListasContacto } from "@/app/(privado)/contactos/acciones";
 
@@ -290,6 +292,93 @@ export default async function PaginaInscribir() {
     .map((s) => s.trim())
     .filter(Boolean);
 
+  // ── Clases particulares (C3, hito H2) ──────────────────────────────────
+  const puedeVenderParticulares = await tienePermiso("particulares", "crear");
+  let planesParticular: PlanParticular[] = [];
+  let tarifasParticular: TarifaParticularVenta[] = [];
+  const profesoresPorEstilo: Record<string, ProfesorParticular[]> = {};
+  let salasVenta: SalaVenta[] = [];
+  const salaIdsPorPlan: Record<number, number[]> = {};
+  let incrementoMin = 30;
+  let minimoMin = 30;
+
+  if (puedeVenderParticulares) {
+    const [
+      { data: planesPartRows },
+      { data: tarifasPartRows },
+      { data: profEstilosRows },
+      { data: salasRows },
+      { data: planSalasRows },
+      incrementoParam,
+      minimoParam,
+    ] = await Promise.all([
+      supabase
+        .from("planes")
+        .select("id, nombre, estilo, reserva_modalidad, salas_modo, registra_acompanantes, forma_pago_profesor")
+        .eq("tipo_servicio", "particular")
+        .eq("activo", true)
+        .order("nombre"),
+      supabase.from("tarifas_particular").select("id, nombre, estilo, horas, precio").eq("activo", true).order("horas"),
+      supabase
+        .from("profesor_estilos")
+        .select("estilo, profesor:profesores(id, activo, contacto:contactos(nombre, apellido, whatsapp))")
+        .order("estilo"),
+      supabase.from("salas").select("id, nombre, activa, es_externa").eq("activa", true).order("orden"),
+      supabase.from("plan_salas").select("plan_id, sala_id"),
+      obtenerParametro("tiempos_incremento_min"),
+      obtenerParametro("duracion_minima_curso_min"),
+    ]);
+
+    planesParticular = ((planesPartRows as {
+      id: number;
+      nombre: string;
+      estilo: string | null;
+      reserva_modalidad: "fija" | "flexible" | null;
+      salas_modo: "todas" | "solo";
+      registra_acompanantes: boolean;
+      forma_pago_profesor: "fee_hora" | "pct_margen" | "monto_fijo" | null;
+    }[]) ?? [])
+      .filter((p) => !!p.estilo)
+      .map((p) => ({
+        id: p.id,
+        nombre: p.nombre,
+        estilo: p.estilo as string,
+        reservaModalidad: p.reserva_modalidad,
+        salasModo: p.salas_modo,
+        registraAcompanantes: p.registra_acompanantes,
+        formaPagoProfesor: p.forma_pago_profesor,
+      }));
+
+    tarifasParticular = ((tarifasPartRows as { id: number; nombre: string; estilo: string; horas: number; precio: number }[]) ?? []).map(
+      (t) => ({ id: t.id, nombre: t.nombre, estilo: t.estilo, horas: Number(t.horas), precio: Number(t.precio) })
+    );
+
+    const porEstilo: Record<string, { profesor: { id: number; activo: boolean; contacto: Contacto } }[]> = {};
+    for (const r of (profEstilosRows as unknown as { estilo: string; profesor: { id: number; activo: boolean; contacto: Contacto } | null }[]) ?? []) {
+      if (!r.profesor?.activo) continue;
+      (porEstilo[r.estilo] ??= []).push({ profesor: r.profesor });
+    }
+    for (const [estilo, filas] of Object.entries(porEstilo)) {
+      profesoresPorEstilo[estilo] = filas
+        .map((f) => f.profesor)
+        .sort((a, b) => compararContactosPorApellido(a.contacto, b.contacto))
+        .map((p) => ({ id: p.id, nombre: `${p.contacto.nombre ?? ""} ${p.contacto.apellido ?? ""}`.trim(), whatsapp: p.contacto.whatsapp }));
+    }
+
+    salasVenta = ((salasRows as { id: number; nombre: string; activa: boolean; es_externa: boolean }[]) ?? []).map((s) => ({
+      id: s.id,
+      nombre: s.nombre,
+      esExterna: s.es_externa,
+      activa: s.activa,
+    }));
+
+    for (const r of (planSalasRows as { plan_id: number; sala_id: number }[]) ?? [])
+      (salaIdsPorPlan[r.plan_id] ??= []).push(r.sala_id);
+
+    incrementoMin = Math.max(1, Number(incrementoParam) || 30);
+    minimoMin = Math.max(1, Number(minimoParam) || 30);
+  }
+
   return (
     <MostradorVenta
       alumnos={padronAlumnos}
@@ -306,6 +395,14 @@ export default async function PaginaInscribir() {
       matriz={contactoListas.matriz}
       listasContacto={contactoListas.listas}
       puedeVerPrivados={contactoListas.puedeVerPrivados}
+      planesParticular={planesParticular}
+      tarifasParticular={tarifasParticular}
+      profesoresPorEstilo={profesoresPorEstilo}
+      salas={salasVenta}
+      salaIdsPorPlan={salaIdsPorPlan}
+      incrementoMin={incrementoMin}
+      minimoMin={minimoMin}
+      puedeVenderParticulares={puedeVenderParticulares}
     />
   );
 }

@@ -4,10 +4,16 @@ import { useState } from "react";
 import type { Alumno, ListasContacto, MatrizMinimo } from "@/lib/tipos";
 import ClienteInscribir, { type PlanVenta } from "./ClienteInscribir";
 import VenderPrueba from "./VenderPrueba";
+import VenderParticular, {
+  type PlanParticular,
+  type ProfesorParticular,
+  type SalaVenta,
+  type TarifaParticularVenta,
+} from "./VenderParticular";
 import Pagina from "@/components/Pagina";
 
 type Canal = { valor: string; etiqueta: string };
-type Modo = "inscripcion" | "prueba";
+type Modo = "inscripcion" | "prueba" | "particular";
 
 /**
  * Las dos formas de vender un plan: la inscripción normal y la clase de
@@ -35,6 +41,14 @@ export default function MostradorVenta(props: {
   matriz: MatrizMinimo[];
   listasContacto: ListasContacto;
   puedeVerPrivados: boolean;
+  planesParticular: PlanParticular[];
+  tarifasParticular: TarifaParticularVenta[];
+  profesoresPorEstilo: Record<string, ProfesorParticular[]>;
+  salas: SalaVenta[];
+  salaIdsPorPlan: Record<number, number[]>;
+  incrementoMin: number;
+  minimoMin: number;
+  puedeVenderParticulares: boolean;
 }) {
   const { suspendidas } = props;
   const [modo, setModo] = useState<Modo>("inscripcion");
@@ -65,6 +79,7 @@ export default function MostradorVenta(props: {
           [
             ["inscripcion", "Inscripción"],
             ["prueba", "Clase de prueba"],
+            ...(props.puedeVenderParticulares ? ([["particular", "Clase particular"]] as [Modo, string][]) : []),
           ] as [Modo, string][]
         ).map(([m, etiqueta]) => (
           <button
@@ -84,6 +99,23 @@ export default function MostradorVenta(props: {
 
       {modo === "inscripcion" ? (
         <ClienteInscribir {...props} />
+      ) : modo === "particular" ? (
+        <VenderParticular
+          alumnos={props.alumnos}
+          planes={props.planesParticular}
+          tarifas={props.tarifasParticular}
+          profesoresPorEstilo={props.profesoresPorEstilo}
+          salas={props.salas}
+          salaIdsPorPlan={props.salaIdsPorPlan}
+          medios={props.medios}
+          canales={props.canales}
+          diasCompromiso={props.diasCompromiso}
+          incrementoMin={props.incrementoMin}
+          minimoMin={props.minimoMin}
+          matriz={props.matriz}
+          listasContacto={props.listasContacto}
+          puedeVerPrivados={props.puedeVerPrivados}
+        />
       ) : vendibles.length > 0 ? (
         <div>
           <VenderPrueba
