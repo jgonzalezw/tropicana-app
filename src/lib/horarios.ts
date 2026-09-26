@@ -59,6 +59,14 @@ export function etiquetaDuracion(duracionMin: number | null | undefined): string
   return m === 0 ? `${h} h` : `${h} h ${m}`;
 }
 
+/** "8", "7.5", "0.5" — el saldo de un paquete se expone SIEMPRE en horas,
+ *  nunca en minutos (pedido de Javier, 26/09): entero si no tiene fracción,
+ *  con el mínimo de decimales si tiene (hasta 2 — el incremento estándar
+ *  nunca pide más). Recibe HORAS, no minutos: convertir antes de llamarla. */
+export function formatearHoras(horas: number): string {
+  return horas.toFixed(2).replace(/\.?0+$/, "");
+}
+
 /** ¿`min` es un múltiplo positivo de `incrementoMin`? El criterio único de
  *  incrementos (ítem 3, Javier 2026-09-16): duración de curso, horario de
  *  sala y —en adelante— uso de paquetes se cargan en el mismo paso. */

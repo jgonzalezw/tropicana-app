@@ -20,7 +20,7 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { Alumno, DatosAlumno } from "@/lib/tipos";
 import { nombreCompleto } from "@/lib/contactos";
-import { opcionesDuracion, etiquetaDuracion } from "@/lib/horarios";
+import { opcionesDuracion, etiquetaDuracion, formatearHoras } from "@/lib/horarios";
 import { gs, isoFecha, fechaLarga } from "@/lib/inscripcion";
 import EntidadAlumno from "@/components/entidades/EntidadAlumno";
 import AvisoWhatsapp from "@/components/AvisoWhatsapp";
@@ -579,7 +579,7 @@ export default function VenderParticular({
                 <div className="mt-3 space-y-1.5">
                   <p className="text-sm font-medium">
                     {preview.sesiones.length === 1 ? "1 clase" : `${preview.sesiones.length} clases`}
-                    {esFija && preview.horasContratadas ? ` para cubrir ${preview.horasContratadas} h` : ""}:
+                    {esFija && preview.horasContratadas ? ` para cubrir ${formatearHoras(preview.horasContratadas)} h` : ""}:
                   </p>
                   <ul className="space-y-1">
                     {preview.sesiones.map((s, i) => (
@@ -594,8 +594,9 @@ export default function VenderParticular({
                   </ul>
                   {!!preview.leftoverMin && (
                     <p className="text-sm text-[var(--texto-tenue)]">
-                      Sobran {preview.leftoverMin} min de las horas contratadas: no alcanzan para otra clase con esta
-                      duración. Se coordinan después.
+                      Quedan {formatearHoras(preview.leftoverMin / 60)}
+                      {preview.horasContratadas ? ` de ${formatearHoras(preview.horasContratadas)}` : ""} h del
+                      paquete sin agendar en esta venta. Se coordinan después.
                     </p>
                   )}
                   {preview.todasOk ? (
