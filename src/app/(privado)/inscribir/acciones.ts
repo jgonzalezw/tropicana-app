@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { tienePermiso, obtenerParametro, obtenerPerfilActual } from "@/lib/sesion";
 import { validarIdentidadAlumno, validarFechaNacimiento } from "@/lib/contactos";
 import { contextoAlumno, presenteDesdeExtra } from "@/lib/matrizMinimos";
-import type { Alumno, Contacto, DatosAlumno, EntradaInscripcion } from "@/lib/tipos";
+import type { Alumno, CobroInscripcion, Contacto, DatosAlumno, EntradaInscripcion } from "@/lib/tipos";
 import {
   crearOReusarContactoPersona,
   resolverTutor,
@@ -30,6 +30,10 @@ import {
   motivoFueraDeVigencia,
   type VigenciaCurso,
 } from "@/lib/vigencia";
+import { validarReservaSala, ocupacionDeProfesor } from "@/lib/reservas";
+import { ocupacionDelDia, type CursoOcupa, type ExcepcionHorario, type FranjaPatron, type ReservaSalaOcupa } from "@/lib/sala";
+import { COLUMNAS_ASIGNACION } from "@/lib/asignaciones";
+import { vigenciaDiasEfectiva } from "@/lib/planesParticular";
 
 const DIAS_ROTULO = ["", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"];
 /** "martes y jueves" — para decirle a la persona qué días sí tiene el curso. */
@@ -911,4 +915,437 @@ function armarResumen(
   const notaBono =
     bono > 0 ? ` Se aplicó bono de tolerancia: +${bono} ${bono === 1 ? "clase" : "clases"}.` : "";
   return `Membresía de ${quien} — ${plan}, empieza el ${fechaLarga(inicio)}. ${cobro}${notaBono}`;
+}
+
+// ── Vender un plan de particulares (C3, hito H2) ────────────────────────
+//
+// A diferencia de inscribirYCobrar, esta venta:
+//  - no tiene curso_id ni membresia_cursos: el conteo es horas, no clases;
+//  - crea la PRIMERA RESERVA real (decisión de Javier, 25/09: ocupa sala y
+//    profesor, validada, con el estado 'reservada' que ya existe) — con
+//    'fija' genera TODO el calendario que cubre las horas compradas, y si
+//    algo choca no se graba nada (se valida todo antes de insertar nada);
+//  - no llama a recalcularFinDeCiclo/registrarCorrimientosPendientes: esas
+//    dependen de membresia_cursos, que una membresía de particulares no
+//    tiene.
+//
+// **Simplificación de v1 (Code v1 + Design refina, como el resto de C3):**
+// los acompañantes quedan como un CONTADOR (membresias.acompanantes), igual
+// que en la prueba grupal — no se cargan uno a uno con su propio contacto
+// todavía, aunque la tabla `membresia_asistentes` (0053) ya está lista para
+// cuando se construya esa parte.
+
+export type EntradaParticular = {
+  alumnoId: number;
+  planId: number;
+  tarifaParticularId: number;
+  profesorId: number;
+  sala: { tipo: "propia"; salaId: number } | { tipo: "externa"; nombreDescriptivo: string };
+  acompanantes: number;
+  fechaInicio: string;
+  agenda:
+    | { modalidad: "flexible"; hora: string; duracionMin: number }
+    | { modalidad: "fija"; diasSemana: number[]; hora: string; duracionMin: number };
+  cobro: CobroInscripcion;
+};
+
+type AvisoPersona = { nombre: string; whatsapp: string | null; mensaje: string };
+type ResultadoParticular = {
+  ok?: true;
+  resumen?: string;
+  avisoAlumno?: AvisoPersona;
+  avisoProfesor?: AvisoPersona;
+  error?: string;
+};
+
+function agregarA<K>(mapa: Map<K, Set<number>>, clave: K, valor: number): void {
+  const set = mapa.get(clave) ?? new Set<number>();
+  set.add(valor);
+  mapa.set(clave, set);
+}
+
+/** Las próximas fechas (incluida `desde`) en que cae alguno de `diasSemana`
+ *  (1=lun..7=dom), hasta juntar `sesiones` fechas. Tope de 400 días, igual
+ *  que el resto del motor: una plantilla sin ningún día elegible no puede
+ *  colgar el servidor buscando para siempre. */
+function fechasAgendaFija(diasSemana: number[], desde: Date, sesiones: number): string[] {
+  const out: string[] = [];
+  const cursor = new Date(desde.getFullYear(), desde.getMonth(), desde.getDate());
+  for (let i = 0; i < 400 && out.length < sesiones; i++) {
+    const dow = cursor.getDay() === 0 ? 7 : cursor.getDay();
+    if (diasSemana.includes(dow)) out.push(isoFecha(cursor));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return out;
+}
+
+export async function venderParticular(e: EntradaParticular): Promise<ResultadoParticular> {
+  if (!(await tienePermiso("particulares", "crear")))
+    return { error: "No tenés permiso para vender clases particulares." };
+
+  const perfil = await obtenerPerfilActual();
+  const a = admin();
+  const sb = await createClient();
+
+  const inicio = parseFechaISO(e.fechaInicio);
+  if (!inicio) return { error: "Fecha de inicio inválida." };
+
+  const { data: alumnoRow } = await sb
+    .from("alumnos")
+    .select("id, contacto_id, es_menor, contacto:contactos(nombre, apellido, whatsapp)")
+    .eq("id", e.alumnoId)
+    .maybeSingle();
+  const alumno = alumnoRow as unknown as {
+    id: number;
+    contacto_id: number;
+    es_menor: boolean;
+    contacto: { nombre: string | null; apellido: string | null; whatsapp: string | null } | null;
+  } | null;
+  if (!alumno) return { error: "El alumno no existe." };
+
+  // Si es menor, la confirmación va al tutor — es quien lo identifica según
+  // la matriz de mínimos, no el menor mismo.
+  let destinatarioAviso = { nombre: `${alumno.contacto?.nombre ?? ""} ${alumno.contacto?.apellido ?? ""}`.trim(), whatsapp: alumno.contacto?.whatsapp ?? null };
+  if (alumno.es_menor) {
+    const { data: rel } = await sb
+      .from("contacto_relaciones")
+      .select("tutor:contactos!contacto_relaciones_desde_id_fkey(nombre, apellido, whatsapp)")
+      .eq("tipo", "tutor_de")
+      .eq("hacia_id", alumno.contacto_id)
+      .maybeSingle();
+    const tutor = (rel as unknown as { tutor: { nombre: string | null; apellido: string | null; whatsapp: string | null } } | null)?.tutor;
+    if (tutor) destinatarioAviso = { nombre: `${tutor.nombre ?? ""} ${tutor.apellido ?? ""}`.trim(), whatsapp: tutor.whatsapp };
+  }
+
+  const { data: planRow } = await sb
+    .from("planes")
+    .select(
+      "id, nombre, tipo_servicio, activo, estilo, vigencia_dias, reserva_modalidad, salas_modo, forma_pago_profesor, pago_pct_margen, pago_descuenta_sala, pago_monto_fijo, registra_acompanantes"
+    )
+    .eq("id", e.planId)
+    .maybeSingle();
+  if (!planRow) return { error: "El plan no existe." };
+  if (planRow.tipo_servicio !== "particular") return { error: "Ese plan no es de clases particulares." };
+  if (!planRow.activo) return { error: "El plan está desactivado." };
+  if (!planRow.estilo) return { error: "Al plan le falta el estilo. Se carga en Planes." };
+
+  const { data: tarifaRow } = await sb
+    .from("tarifas_particular")
+    .select("id, nombre, estilo, horas, precio, activo")
+    .eq("id", e.tarifaParticularId)
+    .maybeSingle();
+  if (!tarifaRow || !tarifaRow.activo) return { error: "El tramo de horas elegido no existe o está desactivado." };
+  if (tarifaRow.estilo !== planRow.estilo)
+    return { error: "Ese tramo de horas no es del estilo de este plan." };
+
+  const { data: profesorRow } = await sb
+    .from("profesores")
+    .select("id, fee_hora, activo, contacto:contactos(nombre, apellido, whatsapp)")
+    .eq("id", e.profesorId)
+    .maybeSingle();
+  if (!profesorRow || !profesorRow.activo) return { error: "El profesor no existe o está desactivado." };
+  const { data: tieneEstilo } = await sb
+    .from("profesor_estilos")
+    .select("profesor_id")
+    .eq("profesor_id", e.profesorId)
+    .eq("estilo", planRow.estilo)
+    .maybeSingle();
+  if (!tieneEstilo) return { error: "Ese profesor no tiene cargado el estilo de este plan." };
+
+  // Forma de pago: foto del plan al vender (regla 12).
+  const formaPago = planRow.forma_pago_profesor as "fee_hora" | "pct_margen" | "monto_fijo" | null;
+  if (!formaPago) return { error: "Al plan le falta la forma de pago al profesor. Se carga en Planes." };
+  if (formaPago === "fee_hora" && profesorRow.fee_hora == null)
+    return { error: "Este profesor no tiene cargado su fee por hora. Se carga en su ficha." };
+
+  // Sala.
+  let salaId: number;
+  let nombreDescriptivo: string | null = null;
+  let esExterna = false;
+  if (e.sala.tipo === "externa") {
+    const { data: externaRow } = await a.from("salas").select("id").eq("es_externa", true).eq("activa", true).maybeSingle();
+    if (!externaRow) return { error: "No hay una sala externa activa configurada." };
+    salaId = externaRow.id as number;
+    esExterna = true;
+    nombreDescriptivo = e.sala.nombreDescriptivo?.trim() || null;
+    if (!nombreDescriptivo) return { error: "Una sala externa necesita un nombre descriptivo (ej. \"Salón X — Hotel Y\")." };
+  } else {
+    const { data: salaRow } = await a.from("salas").select("id, activa, es_externa, capacidad").eq("id", e.sala.salaId).maybeSingle();
+    if (!salaRow || !salaRow.activa || salaRow.es_externa) return { error: "La sala elegida no existe o no está activa." };
+    if (planRow.salas_modo === "solo") {
+      const { data: permitida } = await a.from("plan_salas").select("sala_id").eq("plan_id", planRow.id).eq("sala_id", salaRow.id).maybeSingle();
+      if (!permitida) return { error: "Esta plantilla no permite esa sala. Se ajusta en Planes." };
+    }
+    salaId = salaRow.id as number;
+  }
+
+  const horasContratadas = Number(tarifaRow.horas);
+  const precio = Number(tarifaRow.precio);
+  const personas = 1 + Math.max(0, Math.trunc(e.acompanantes));
+  if (planRow.registra_acompanantes === false && e.acompanantes > 0)
+    return { error: "Esta plantilla no registra acompañantes." };
+
+  const mesesVigencia = Math.max(1, Number(await obtenerParametro("vencimiento_paquete_meses")) || 2);
+  const vigenciaDias = vigenciaDiasEfectiva(planRow.vigencia_dias, mesesVigencia);
+  const fFin = new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate());
+  fFin.setDate(fFin.getDate() + vigenciaDias);
+  const fechaFin = isoFecha(fFin);
+
+  // Sesiones a reservar (decisión de Javier: la agenda fija se genera
+  // entera al vender; la flexible solo reserva la primera).
+  type SesionPedida = { fecha: string; hora: string; duracionMin: number };
+  let sesiones: SesionPedida[];
+  if (e.agenda.modalidad === "flexible") {
+    sesiones = [{ fecha: isoFecha(inicio), hora: e.agenda.hora, duracionMin: e.agenda.duracionMin }];
+  } else {
+    if (!e.agenda.diasSemana.length) return { error: "Elegí al menos un día para la agenda fija." };
+    const necesarias = Math.max(1, Math.ceil((horasContratadas * 60) / e.agenda.duracionMin));
+    const fechas = fechasAgendaFija(e.agenda.diasSemana, inicio, necesarias);
+    if (fechas.length < necesarias)
+      return { error: "No se encontraron suficientes fechas para cubrir las horas contratadas." };
+    sesiones = fechas.map((f) => ({ fecha: f, hora: e.agenda.hora, duracionMin: e.agenda.duracionMin }));
+  }
+
+  const incrementoMin = Math.max(1, Number(await obtenerParametro("tiempos_incremento_min")) || 30);
+  const minimoMin = Math.max(1, Number(await obtenerParametro("duracion_minima_curso_min")) || 30);
+  const fechasUnicas = [...new Set(sesiones.map((s) => s.fecha))];
+
+  // ── Datos para validar la sala (si es propia) ──────────────────────────
+  let patronSala: FranjaPatron[] = [];
+  let excepcionesSala: ExcepcionHorario[] = [];
+  let cursosSala: CursoOcupa[] = [];
+  const reservasSalaPorFecha = new Map<string, ReservaSalaOcupa[]>();
+  const suspendidasSalaPorFecha = new Map<string, Set<number>>();
+  if (!esExterna) {
+    const [patronR, excR, cursosR, resR] = await Promise.all([
+      a.from("sala_horario_patron").select("dia_semana, desde, hasta").eq("sala_id", salaId),
+      a.from("sala_horario_excepciones").select("fecha, hasta_fecha, cerrado, desde, hasta, motivo, glosa").eq("sala_id", salaId),
+      a.from("cursos").select(`id, nombre, dias_semana, hora, duracion_min, sala_id, ${COLS_VIGENCIA}`).eq("sala_id", salaId).eq("activo", true),
+      a.from("reservas_sala").select("id, tipo, motivo, glosa, hora, duracion_min, fecha").eq("sala_id", salaId).in("fecha", fechasUnicas).neq("estado", "cancelada"),
+    ]);
+    patronSala = (patronR.data as FranjaPatron[]) ?? [];
+    excepcionesSala = (excR.data as ExcepcionHorario[]) ?? [];
+    cursosSala = (cursosR.data as unknown as CursoOcupa[]) ?? [];
+    for (const r of (resR.data as (ReservaSalaOcupa & { fecha: string })[]) ?? []) {
+      const l = reservasSalaPorFecha.get(r.fecha) ?? [];
+      l.push(r);
+      reservasSalaPorFecha.set(r.fecha, l);
+    }
+    const cursoIdsSala = cursosSala.map((c) => c.id);
+    if (cursoIdsSala.length) {
+      const { data: susRows } = await a
+        .from("sesiones")
+        .select("curso_id, fecha")
+        .in("curso_id", cursoIdsSala)
+        .eq("estado", "suspendida")
+        .in("fecha", fechasUnicas);
+      for (const s of (susRows as { curso_id: number; fecha: string }[]) ?? [])
+        agregarA(suspendidasSalaPorFecha, s.fecha, s.curso_id);
+    }
+  }
+
+  // ── Datos para validar al profesor (siempre, incluso con sala externa) ──
+  const { data: asigRows } = await a.from("asignaciones").select(COLUMNAS_ASIGNACION).eq("profesor_id", e.profesorId).is("hasta", null);
+  const cursoIdsProfesor = ((asigRows as { curso_id: number }[]) ?? []).map((r) => r.curso_id);
+  const [cursosProfR, reservasProfR] = await Promise.all([
+    cursoIdsProfesor.length
+      ? a.from("cursos").select(`id, nombre, dias_semana, hora, duracion_min, sala_id, ${COLS_VIGENCIA}`).in("id", cursoIdsProfesor)
+      : Promise.resolve({ data: [] as unknown[] }),
+    a.from("reservas_sala").select("id, tipo, motivo, glosa, hora, duracion_min, fecha").eq("profesor_id", e.profesorId).in("fecha", fechasUnicas).neq("estado", "cancelada"),
+  ]);
+  const cursosProfesor = (cursosProfR.data as unknown as CursoOcupa[]) ?? [];
+  const reservasProfesorPorFecha = new Map<string, ReservaSalaOcupa[]>();
+  for (const r of (reservasProfR.data as (ReservaSalaOcupa & { fecha: string })[]) ?? []) {
+    const l = reservasProfesorPorFecha.get(r.fecha) ?? [];
+    l.push(r);
+    reservasProfesorPorFecha.set(r.fecha, l);
+  }
+  const cursoIdsSusProf = cursosProfesor.map((c) => c.id);
+  const suspendidasProfesorPorFecha = new Map<string, Set<number>>();
+  if (cursoIdsSusProf.length) {
+    const { data: susRows } = await a
+      .from("sesiones")
+      .select("curso_id, fecha")
+      .in("curso_id", cursoIdsSusProf)
+      .eq("estado", "suspendida")
+      .in("fecha", fechasUnicas);
+    for (const s of (susRows as { curso_id: number; fecha: string }[]) ?? [])
+      agregarA(suspendidasProfesorPorFecha, s.fecha, s.curso_id);
+  }
+
+  // ── Validar cada sesión ANTES de grabar nada (decisión de Javier) ──────
+  for (const s of sesiones) {
+    const ocupadosSala = esExterna
+      ? []
+      : ocupacionDelDia(
+          cursosSala,
+          reservasSalaPorFecha.get(s.fecha) ?? [],
+          s.fecha,
+          suspendidasSalaPorFecha.get(s.fecha) ?? new Set(),
+          salaId
+        );
+    const ocupadosProfesor = ocupacionDeProfesor(
+      cursosProfesor,
+      s.fecha,
+      suspendidasProfesorPorFecha.get(s.fecha) ?? new Set(),
+      reservasProfesorPorFecha.get(s.fecha) ?? []
+    );
+
+    const v = validarReservaSala({
+      fecha: s.fecha,
+      hora: s.hora,
+      duracionMin: s.duracionMin,
+      incrementoMin,
+      minimoMin,
+      personas,
+      sala: { esExterna, capacidad: null },
+      patron: patronSala,
+      excepciones: excepcionesSala,
+      ocupadosSala,
+      ocupadosProfesor,
+    });
+    if (!v.ok) return { error: `${fechaLarga(new Date(s.fecha + "T00:00:00"))}: ${v.motivo}` };
+  }
+
+  // ── Cobro (mismo cálculo que inscribirYCobrar) ─────────────────────────
+  const c = e.cobro;
+  const glosa = medioGlosa(c);
+  const mueveBruto = c.modo === "sin" ? 0 : Math.max(0, (Number(c.total) || 0) - (Number(c.saldo) || 0));
+  const mueve = Math.min(precio, Math.max(0, Math.round(mueveBruto)));
+  const descManual = Math.min(precio, Math.max(0, Math.round(Number(c.ajuste) || 0)));
+  if (mueve > 0 && !c.medio) return { error: "Elegí el medio de pago." };
+  if (descManual > 0 && !c.ajusteMotivo.trim()) return { error: "El descuento manual necesita un motivo." };
+  const saldo = Math.max(0, precio - mueve - descManual);
+  let fechaCompromiso: string | null = null;
+  if (saldo > 0) {
+    const diasMax = Math.max(1, Number(await obtenerParametro("dias_compromiso_pago")) || 30);
+    const fc = parseFechaISO(c.fechaCompromiso ?? "");
+    if (!fc) return { error: "Cargá la fecha de compromiso de pago del saldo." };
+    const hoy0 = hoyLocal();
+    const maxF = new Date(hoy0);
+    maxF.setDate(maxF.getDate() + diasMax);
+    if (fc < hoy0) return { error: "La fecha de compromiso no puede ser anterior a hoy." };
+    if (fc > maxF) return { error: `La fecha de compromiso no puede superar ${diasMax} días desde hoy.` };
+    fechaCompromiso = isoFecha(fc);
+  }
+
+  // ── Grabar ──────────────────────────────────────────────────────────
+  const { data: mem, error: errMem } = await a
+    .from("membresias")
+    .insert({
+      alumno_id: e.alumnoId,
+      contacto_id: alumno.contacto_id,
+      curso_id: null,
+      modalidad: "clase",
+      fecha_inicio: isoFecha(inicio),
+      fecha_fin: fechaFin,
+      estado: "activa",
+      plan_id: planRow.id,
+      precio_aplicado: precio,
+      horas_contratadas: horasContratadas,
+      tarifa_particular_id: tarifaRow.id,
+      profesor_id: e.profesorId,
+      forma_pago_profesor: formaPago,
+      pago_pct_margen: planRow.pago_pct_margen,
+      pago_descuenta_sala: planRow.pago_descuenta_sala,
+      pago_monto_fijo: planRow.pago_monto_fijo,
+      fee_hora_aplicado: formaPago === "fee_hora" ? profesorRow.fee_hora : null,
+      acompanantes: e.acompanantes,
+    })
+    .select("id")
+    .single();
+  if (errMem) return { error: errMem.message };
+  const membresiaId = mem.id as number;
+
+  const { error: errSala } = await a.from("membresia_salas").insert({
+    membresia_id: membresiaId,
+    sala_id: salaId,
+    nombre_descriptivo: nombreDescriptivo,
+  });
+  if (errSala) return { error: "Se creó la membresía, pero falló guardar la sala: " + errSala.message };
+
+  const { data: cuota, error: errCuota } = await a
+    .from("cuotas")
+    .insert({
+      membresia_id: membresiaId,
+      periodo: isoFecha(primerDiaDelMes(inicio)),
+      monto_devengado: precio,
+      descuento_adelanto: 0,
+      vencimiento: fechaCompromiso ?? isoFecha(sumarMeses(inicio, 1)),
+      fecha_compromiso: fechaCompromiso,
+      estado: mueve + descManual >= precio && precio > 0 ? "pagada" : mueve + descManual > 0 ? "parcial" : "pendiente",
+    })
+    .select("id")
+    .single();
+  if (errCuota) return { error: "Se creó la membresía, pero falló crear la cuota: " + errCuota.message };
+
+  if (mueve > 0 || descManual > 0) {
+    const { error: errPago } = await a.from("pagos").insert({
+      tipo: "cobro",
+      motivo: "clase_particular",
+      alumno_id: e.alumnoId,
+      membresia_id: membresiaId,
+      cuota_id: cuota.id,
+      monto: mueve,
+      medio: mueve > 0 ? c.medio : null,
+      descuento: descManual,
+      descuento_motivo: descManual > 0 ? c.ajusteMotivo.trim() : null,
+      glosa,
+      registrado_por: perfil?.id ?? null,
+    });
+    if (errPago) return { error: "Se creó la membresía, pero falló registrar el cobro: " + errPago.message };
+  }
+
+  const { error: errRes } = await a.from("reservas_sala").insert(
+    sesiones.map((s) => ({
+      sala_id: salaId,
+      tipo: "particular",
+      membresia_id: membresiaId,
+      profesor_id: e.profesorId,
+      fecha: s.fecha,
+      hora: s.hora,
+      duracion_min: s.duracionMin,
+      estado: "reservada",
+      creado_por: perfil?.id ?? null,
+    }))
+  );
+  if (errRes) {
+    if ((errRes as { code?: string }).code === "23P01")
+      return {
+        error:
+          "Se creó la membresía, pero una de las clases se acaba de ocupar con otra reserva. Revisá las reservas de esta membresía antes de avisar al alumno.",
+      };
+    return { error: "Se creó la membresía, pero falló crear las reservas: " + errRes.message };
+  }
+
+  revalidatePath("/inscribir");
+  revalidatePath("/sala");
+
+  const nombreProfesor = `${(profesorRow.contacto as unknown as { nombre: string | null } | null)?.nombre ?? ""} ${
+    (profesorRow.contacto as unknown as { apellido: string | null } | null)?.apellido ?? ""
+  }`.trim();
+  const primeraSesion = sesiones[0];
+  const restoTexto = sesiones.length > 1 ? ` y ${sesiones.length - 1} clase(s) más` : "";
+  const dondeTexto = esExterna ? nombreDescriptivo : "Tropicana";
+
+  return {
+    ok: true,
+    resumen: `Membresía particular de ${destinatarioAviso.nombre || `alumno #${e.alumnoId}`} — ${planRow.nombre}, ${horasContratadas} h con ${nombreProfesor}. Primera clase el ${fechaLarga(
+      new Date(primeraSesion.fecha + "T00:00:00")
+    )} a las ${primeraSesion.hora.slice(0, 5)}${restoTexto}. ${mueve > 0 ? `Cobrado ${gs(mueve)}.` : "Sin cobro por ahora."}`,
+    avisoAlumno: {
+      nombre: destinatarioAviso.nombre,
+      whatsapp: destinatarioAviso.whatsapp,
+      mensaje: `Hola! Confirmamos tu paquete de ${horasContratadas} h de clases particulares (${planRow.nombre}) con ${nombreProfesor} en Tropicana. Tu primera clase es el ${fechaLarga(
+        new Date(primeraSesion.fecha + "T00:00:00")
+      )} a las ${primeraSesion.hora.slice(0, 5)}, en ${dondeTexto}.${restoTexto ? ` Además quedaron agendadas${restoTexto}.` : ""} ¡Te esperamos!`,
+    },
+    avisoProfesor: {
+      nombre: nombreProfesor,
+      whatsapp: (profesorRow.contacto as unknown as { whatsapp: string | null } | null)?.whatsapp ?? null,
+      mensaje: `Hola! Se te agendó una clase particular (${planRow.nombre}) con ${destinatarioAviso.nombre || "un alumno"} el ${fechaLarga(
+        new Date(primeraSesion.fecha + "T00:00:00")
+      )} a las ${primeraSesion.hora.slice(0, 5)}, en ${dondeTexto}.${restoTexto ? ` Quedaron agendadas${restoTexto} más.` : ""}`,
+    },
+  };
 }
