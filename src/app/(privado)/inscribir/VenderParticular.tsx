@@ -26,7 +26,14 @@ import EntidadAlumno from "@/components/entidades/EntidadAlumno";
 import AvisoWhatsapp from "@/components/AvisoWhatsapp";
 import Cobro, { type PayloadCobro } from "@/components/Cobro";
 import type { ListasContacto, MatrizMinimo } from "@/lib/tipos";
-import { crearAlumnoDesdeInscripcion, venderParticular, type EntradaParticular } from "./acciones";
+import {
+  crearAlumnoDesdeInscripcion,
+  venderParticular,
+  previsualizarParticular,
+  type EntradaParticular,
+  type EntradaAgendaParticular,
+  type ResultadoPreviewParticular,
+} from "./acciones";
 
 export type PlanParticular = {
   id: number;
@@ -54,6 +61,14 @@ const DIAS: { n: number; label: string }[] = [
   { n: 6, label: "Sáb" },
   { n: 7, label: "Dom" },
 ];
+const DIAS_ABREV = ["", "lun", "mar", "mié", "jue", "vie", "sáb", "dom"];
+
+/** "lun 29/09", para la lista de sesiones de la revisión de disponibilidad. */
+function diaCorto(fechaISO: string): string {
+  const d = new Date(`${fechaISO}T00:00:00`);
+  const dow = d.getDay() === 0 ? 7 : d.getDay();
+  return `${DIAS_ABREV[dow]} ${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
 
 export default function VenderParticular({
   alumnos,
@@ -112,6 +127,9 @@ export default function VenderParticular({
     avisoProfesor?: { nombre: string; whatsapp: string | null; mensaje: string };
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [preview, setPreview] = useState<ResultadoPreviewParticular | null>(null);
+  const [previewFirma, setPreviewFirma] = useState<string | null>(null);
+  const [verificando, startVerificacion] = useTransition();
 
   const maxCompromiso = useMemo(() => {
     const d = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
@@ -163,6 +181,38 @@ export default function VenderParticular({
   const agendaCompleta = esFija ? diasSemana.length > 0 && !!hora && !!duracionMin : !!hora && !!duracionMin;
   const salaCompleta = salaTipo === "propia" ? !!salaId : nombreExterna.trim().length > 0;
 
+  // Lo mismo que manda `venderParticular`, sin el cobro — se usa para pedir
+  // la revisión de disponibilidad ANTES de vender (pedido de Javier, 26/09:
+  // "elegir de slots disponibles directamente sin hacer prueba y error").
+  const entradaAgenda: EntradaAgendaParticular | null =
+    alumno && plan && tarifa && profesorId && salaCompleta && fechaInicio && agendaCompleta
+      ? {
+          alumnoId: alumno.id,
+          planId: plan.id,
+          tarifaParticularId: tarifa.id,
+          profesorId,
+          sala: salaTipo === "propia" ? { tipo: "propia", salaId: salaId! } : { tipo: "externa", nombreDescriptivo: nombreExterna.trim() },
+          acompanantes: personas - 1,
+          fechaInicio,
+          agenda: esFija ? { modalidad: "fija", diasSemana, hora, duracionMin } : { modalidad: "flexible", hora, duracionMin },
+        }
+      : null;
+  const firmaAgenda = entradaAgenda ? JSON.stringify(entradaAgenda) : null;
+  // "Vigente" = calzó con lo último que se revisó contra la disponibilidad
+  // real. Cualquier cambio en la agenda (día, hora, sala, profesor...) lo
+  // desactualiza, y hay que revisar de nuevo antes de poder vender.
+  const previewVigente = !!preview && !preview.error && previewFirma === firmaAgenda;
+
+  function revisarDisponibilidad() {
+    if (!entradaAgenda) return;
+    const firmaAlPedir = firmaAgenda;
+    startVerificacion(async () => {
+      const res = await previsualizarParticular(entradaAgenda);
+      setPreview(res);
+      setPreviewFirma(firmaAlPedir);
+    });
+  }
+
   // Todo lo obligatorio, completo: el botón queda deshabilitado hasta acá,
   // no alcanza con que el clic muestre el error después (pedido de Javier,
   // 26/09/2026) — mismas condiciones que valida `confirmar()` al enviar.
@@ -174,6 +224,8 @@ export default function VenderParticular({
     salaCompleta &&
     !!fechaInicio &&
     agendaCompleta &&
+    previewVigente &&
+    !!preview?.todasOk &&
     (!cobro || cobro.valido) &&
     (!faltaSaldo || !!fechaCompromisoEfectiva) &&
     !pendiente;
@@ -198,11 +250,15 @@ export default function VenderParticular({
                 ? esFija
                   ? "los días, la hora y la duración"
                   : "la hora y la duración de la primera clase"
-                : cobro && !cobro.valido
-                  ? "revisar el cobro"
-                  : faltaSaldo && !fechaCompromisoEfectiva
-                    ? "la fecha de compromiso de pago"
-                    : null;
+                : !previewVigente
+                  ? 'revisar la disponibilidad ("Revisar disponibilidad", abajo)'
+                  : !preview?.todasOk
+                    ? "resolver los choques que muestra la revisión"
+                    : cobro && !cobro.valido
+                      ? "revisar el cobro"
+                      : faltaSaldo && !fechaCompromisoEfectiva
+                        ? "la fecha de compromiso de pago"
+                        : null;
 
   function confirmar() {
     setError(null);
@@ -214,18 +270,14 @@ export default function VenderParticular({
     if (!salaCompleta) return setError(salaTipo === "propia" ? "Elegí la sala." : "Cargá el nombre del lugar.");
     if (!fechaInicio) return setError("Cargá la fecha de inicio.");
     if (!agendaCompleta) return setError(esFija ? "Elegí los días, la hora y la duración." : "Cargá la hora y la duración de la primera clase.");
+    if (!previewVigente) return setError('Revisá la disponibilidad antes de vender ("Revisar disponibilidad").');
+    if (!preview?.todasOk) return setError("Hay clases que chocan con la disponibilidad: revisá la agenda.");
     if (cobro && !cobro.valido) return setError("Revisá el monto, el medio de pago o el motivo del descuento.");
     if (faltaSaldo && !fechaCompromisoEfectiva) return setError("Cargá la fecha de compromiso de pago.");
+    if (!entradaAgenda) return setError("No se pudo armar la venta.");
 
     const entrada: EntradaParticular = {
-      alumnoId: alumno.id,
-      planId: plan.id,
-      tarifaParticularId: tarifa.id,
-      profesorId,
-      sala: salaTipo === "propia" ? { tipo: "propia", salaId: salaId! } : { tipo: "externa", nombreDescriptivo: nombreExterna.trim() },
-      acompanantes: personas - 1,
-      fechaInicio,
-      agenda: esFija ? { modalidad: "fija", diasSemana, hora, duracionMin } : { modalidad: "flexible", hora, duracionMin },
+      ...entradaAgenda,
       cobro: {
         modo: cobro?.modo ?? "sin",
         monto: cobro ? cobro.total - cobro.saldo : 0,
@@ -253,6 +305,8 @@ export default function VenderParticular({
       setAcompanantes("0");
       setDiasSemana([]);
       setCobro(null);
+      setPreview(null);
+      setPreviewFirma(null);
       router.refresh();
     });
   }
@@ -499,6 +553,67 @@ export default function VenderParticular({
               </select>
             </label>
           </div>
+
+          {agendaCompleta && (
+            <div className="pt-3 mt-1 border-t border-[var(--borde)]">
+              <button
+                type="button"
+                onClick={revisarDisponibilidad}
+                disabled={!entradaAgenda || verificando}
+                className="px-4 py-2 text-sm font-medium rounded-[var(--radio-control)] border border-[var(--primario)] text-[var(--primario)] hover:bg-[var(--fondo-elevado)] disabled:opacity-40"
+              >
+                {verificando ? "Revisando…" : "Revisar disponibilidad"}
+              </button>
+
+              {preview?.error && previewFirma === firmaAgenda && (
+                <p className="text-[var(--peligro)] text-sm mt-2">{preview.error}</p>
+              )}
+
+              {!previewVigente && !verificando && !(preview?.error && previewFirma === firmaAgenda) && (
+                <p className="text-sm text-[var(--texto-tenue)] mt-2">
+                  Todavía no se revisó esta agenda contra la disponibilidad real de la sala y el profesor.
+                </p>
+              )}
+
+              {previewVigente && preview?.sesiones && (
+                <div className="mt-3 space-y-1.5">
+                  <p className="text-sm font-medium">
+                    {preview.sesiones.length === 1 ? "1 clase" : `${preview.sesiones.length} clases`}
+                    {esFija && preview.horasContratadas ? ` para cubrir ${preview.horasContratadas} h` : ""}:
+                  </p>
+                  <ul className="space-y-1">
+                    {preview.sesiones.map((s, i) => (
+                      <li key={i} className={`text-sm flex items-start gap-2 ${s.ok ? "" : "text-[var(--peligro)]"}`}>
+                        <span className="shrink-0">{s.ok ? "✓" : "✗"}</span>
+                        <span>
+                          {diaCorto(s.fecha)} {s.hora.slice(0, 5)} ({etiquetaDuracion(s.duracionMin)})
+                          {!s.ok && s.motivo ? ` — ${s.motivo}` : ""}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  {!!preview.leftoverMin && (
+                    <p className="text-sm text-[var(--texto-tenue)]">
+                      Sobran {preview.leftoverMin} min de las horas contratadas: no alcanzan para otra clase con esta
+                      duración. Se coordinan después.
+                    </p>
+                  )}
+                  {preview.todasOk ? (
+                    <p className="text-sm text-[var(--exito-texto)]">Toda la agenda está disponible.</p>
+                  ) : (
+                    <p className="text-sm text-[var(--peligro)]">
+                      Hay clases que chocan con la sala, el profesor o el horario. Cambiá el día, la hora o la sala y
+                      volvé a revisar — en{" "}
+                      <a href="/sala" target="_blank" rel="noreferrer" className="underline">
+                        Disponibilidad de sala
+                      </a>{" "}
+                      se puede ver qué la ocupa.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </section>
       )}
 

@@ -999,7 +999,7 @@ function formatearAgenda(sesiones: { fecha: string; hora: string }[]): string {
 
 export type SesionAgendaEvaluada = { fecha: string; hora: string; duracionMin: number; ok: boolean; motivo?: string };
 
-type EntradaAgendaParticular = Omit<EntradaParticular, "cobro">;
+export type EntradaAgendaParticular = Omit<EntradaParticular, "cobro">;
 
 type AgendaCalculada = {
   error?: string;
