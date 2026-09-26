@@ -13,12 +13,24 @@
 > vive en las tablas (§0bis, la cola C1→C5), en `DECISIONES.md` (decisiones y
 > registro de pases) y en `ROADMAP.md` (trabajo pendiente).
 >
-> **Última actualización:** 2026-09-25 — **C3, hito H1 (plantillas de plan de
+> **Última actualización:** 2026-09-26 — **C3, hito H2 (vender un plan de
+> particulares) construido y validado en dev, con datos reales.** Migración
+> `0053` (sobre la 0052 de H1, que se acumula con este pase): la primera
+> reserva es real (ocupa sala y profesor, validada) y con agenda fija se
+> genera el calendario completo al vender. Pestaña "Clase particular" en
+> Inscribir y cobrar, con `AvisoWhatsapp` — nueva pieza reutilizable que
+> manda la confirmación por WhatsApp en un clic (pedido de Javier, ver
+> `REGLAS.md` proceso 12), adoptada también por el aviso de excepciones de
+> sala. D5 (motivo del cobro) queda cerrada para particulares; D9 (tarjeta
+> específica) resuelta para este caso. Detalle al final de este documento,
+> sección "C3 — H2: vender un plan de particulares". No se tocó producción —
+> sigue esperando el OK de Javier para el pase (acumulado con H1).
+>
+> **2026-09-25 (antes)** — **C3, hito H1 (plantillas de plan de
 > particulares) construido y validado en dev por Javier.** Migración `0052`,
 > pestaña de particulares en Planes, tarifas del profesor agrupadas y
 > renombradas tras la validación. Detalle al final de este documento, sección
-> "C3 — H1: plantillas de plan de particulares". No se tocó producción —
-> sigue esperando el OK de Javier para el pase.
+> "C3 — H1: plantillas de plan de particulares".
 >
 > **2026-09-25 (antes)** — **C3 redefinido: definiciones v2 de
 > Natalia, contraste con el repo y plan en nueve hitos. Sin construir.**
@@ -3561,3 +3573,149 @@ se pidió. `docs/relevamientos/2026-09-25-C3-plan-construccion.md` (fila H1) y
 `DECISIONES.md` (D11) quedan anotados con este avance. Sigue **H2** (vender
 un plan de particulares): recién ahí un plan de particulares tiene con qué
 venderse.
+
+## C3 — H2: vender un plan de particulares · 2026-09-26 (dev)
+
+Segundo hito del plan de nueve. Un plan de particulares (H1) se puede
+**vender**: se elige la plantilla, se personaliza y se crean la membresía, la
+cuota, el cobro y la **primera reserva real** — ocupa sala y profesor,
+validada, con el estado `reservada` que ya existía (decisión de Javier,
+25/09: H3 recién trae los 7 estados). Con agenda **fija** se genera el
+calendario completo al vender; con **flexible**, solo la primera clase.
+
+### Hallazgo que cambió el plan escrito
+
+`reservas_sala` exigía `paquete_particular_id` cuando `tipo='particular'`, y
+H2 elimina `paquetes_particular` — no se podía dejar la migración de
+`reservas_sala` para H3 como decía el plan original. Se resolvió en la misma
+0053: `reservas_sala` pasa a colgar de `membresia_id` (o `alquiler_id`, hasta
+H7, o `motivo` para bloqueos), con `profesor_id` y `ocupa_sala` (para que la
+sala externa nunca choque) traídos de H3 adelantados.
+
+### Qué se construyó
+
+- **Migración `0053_venta_particulares.sql`** (aditiva, aplicada en dev):
+  - `membresias.contacto_id` (rellenado desde `alumnos.contacto_id`, NOT
+    NULL — el titular es un contacto, regla 21), `curso_id` pasa a nullable
+    (una particular no tiene curso, tiene horas), y el snapshot de la venta:
+    `horas_contratadas`, `tarifa_particular_id`, `profesor_id`,
+    `forma_pago_profesor`/`pago_*`, `fee_hora_aplicado` (regla 12: editar el
+    plan o al profesor después no reescribe lo vendido). Check
+    `membresias_curso_o_horas`; `membresias_acompanantes_valido` se relaja
+    para admitir acompañantes también sin curso.
+  - `membresia_asistentes` (asistentes con identidad, regla 21) — creada,
+    todavía sin UI: v1 deja los acompañantes como contador
+    (`membresias.acompanantes`), igual que la prueba grupal.
+  - `salas.es_externa` + `capacidad`, con una sala externa genérica
+    sembrada; `membresia_salas` (sala + nombre descriptivo, obligatorio en
+    la externa por trigger, porque un check de columna no puede mirar otra
+    tabla).
+  - `reservas_sala`: `membresia_id`, `profesor_id`, `ocupa_sala` (trigger
+    desde `salas.es_externa`); se saca `paquete_particular_id`; el check y
+    el EXCLUDE se reescriben (ver hallazgo arriba).
+  - Se elimina `paquetes_particular` (0 filas, medido antes) y
+    `comisiones_devengadas.paquete_particular_id` (0 usos en `src/`).
+  - Sin hallazgos nuevos en `get_advisors` — los dos triggers nuevos llevan
+    `set search_path = public` desde el vamos.
+- **`src/lib/reservas.ts`** (nuevo, puro): `validarReservaSala` —extraída de
+  `crearBloqueoSala`, que pasa a llamarla— valida horario de sala, choque de
+  sala, capacidad y choque del profesor (contra sus cursos y sus reservas).
+  Con sala externa se saltea todo lo de sala, nunca el choque del profesor.
+  13 pruebas nuevas. `sala.ts` pasó sus imports internos de alias a
+  relativos con extensión, porque era el único módulo de `src/lib` que
+  ningún test podía importar (Node exige extensión explícita para imports
+  de valor bajo `--experimental-strip-types`; sin este cambio no había forma
+  de testear nada que dependiera de él).
+- **`src/components/AvisoWhatsapp.tsx`** (nuevo, reutilizable): pedido de
+  Javier el mismo día — mientras no exista el módulo de notificaciones
+  multicanal, toda confirmación se manda por WhatsApp en un clic (`wa.me`
+  con el mensaje ya escrito), con "Copiar" de respaldo; sin WhatsApp en
+  formato internacional el botón queda deshabilitado con la explicación, no
+  desaparece. Ver `REGLAS.md`, proceso 12. El aviso de excepciones de sala
+  (C2) pasa a montar esta misma pieza en vez de su bloque propio.
+- **`inscribir/acciones.ts`: `venderParticular`.** Valida **todas** las
+  sesiones de la venta antes de grabar nada (si alguna choca, no se graba
+  ninguna); crea la membresía, `membresia_salas`, la cuota, el pago con
+  motivo `clase_particular` (D5, cerrado para particulares) y las reservas.
+  Si es menor, el aviso va al tutor.
+- **`inscribir/VenderParticular.tsx`** + pestaña nueva "Clase particular" en
+  `MostradorVenta.tsx` (gateada por el permiso `particulares`, que ya
+  existía sin pantalla): titular con `EntidadAlumno` (mismo camino que
+  cualquier otra venta — el rol alumno se adquiere al elegirlo o crearlo),
+  plantilla, tramo de horas, profesor, sala (propia permitida por la
+  plantilla, o externa con nombre), agenda y `Cobro`. La confirmación (D9,
+  resuelto para este caso) muestra dos `AvisoWhatsapp` — al titular y al
+  profesor.
+- **`scripts/control_migracion.sql`**: controles 30 (particular sin horas,
+  profesor o contacto), 31 (particular activa sin ninguna reserva) y 32
+  (reserva que ocupa la externa — tiene que dar siempre 0).
+- **`scripts/refresh-dev.mjs`**: `ORDEN` no traía `salas`, `tarifas_particular`,
+  `plan_salas` ni `reservas_sala` — el `truncate ... cascade` las vaciaba
+  igual por las FK, pero nunca se reponían en cada refresh. Se agregan en el
+  orden de dependencia correcto, junto con `membresia_salas` y
+  `membresia_asistentes`.
+- **Dos regresiones encontradas recorriendo dev con Playwright y
+  corregidas en el mismo pase:**
+  - `/precios` daba 500: leía `paquetes_particular` (recién eliminada) para
+    saber cuántas ventas usan cada tramo. Pasa a medirlo contra
+    `membresias.tarifa_particular_id`.
+  - La sala externa (activa desde que se siembra) aparecía como una más en:
+    asignarle un curso, `plan_salas`, el editor de Administración → Sala
+    (con riesgo de que alguien la desactive o renombre sin saber que es la
+    genérica) y `/sala`. Las cuatro pantallas filtran `es_externa = false`;
+    el guard "tiene que quedar al menos una sala activa" vuelve a mirar solo
+    salas reales, sin tocar su código.
+  - De paso, `lineasPorCobrar` (Caja) sugería motivo `membresia` y bucket
+    `cuotas` para **toda** cuota pendiente, particulares incluidas —
+    `particulares`/`clase_particular` ya existían en `caja.ts` sin uso.
+    Ahora se eligen según `planes.tipo_servicio`.
+
+### Verificado en dev, con datos reales
+
+Recorrido completo en el navegador de este contenedor (`qa-cloud@tropicana.
+local`, con `QA_CLOUD_PASSWORD`), contra `tropicana-dev`:
+
+- **Venta de punta a punta, dos veces**, sobre las plantillas que Javier
+  dejó al validar H1: un particular de bachata flexible (Sala principal,
+  cobro completo en efectivo) y uno de salsa flexible con grupo (Sala
+  alterna, plan `salas_modo='solo'`). Las dos crearon membresía, `membresia_
+  salas`, cuota `pagada`, pago `clase_particular` y la reserva `reservada`
+  — verificado fila por fila en la base, no solo en pantalla.
+  - La **segunda venta**, a propósito con la misma sala/fecha/hora que la
+    primera, fue **rechazada** con el mensaje de choque exacto ("La sala ya
+    está ocupada… choca con Clase particular (16:00 → 16:30)"): la
+    validación funciona de verdad, no solo en las pruebas unitarias.
+  - La confirmación mostró los dos `AvisoWhatsapp` (titular y profesor),
+    con "Enviar por WhatsApp" habilitado — el alumno de prueba tenía
+    WhatsApp en formato internacional.
+- **Controles 30, 31, 32 en OK** contra los datos reales de las dos ventas.
+  Controles 1, 6, 8, 21, 22 (los que tocan `membresias`) siguen en OK.
+- Recorrido de regresión (7 pantallas + las 3 pestañas de `/inscribir`): 0
+  errores de consola, 0 HTTP 5xx, después de corregir las dos regresiones de
+  arriba.
+- `Caja` muestra las dos ventas en "Últimos movimientos" como "Clase
+  particular", no "Membresía". `alumnos/[id]/cuenta` no rompe con una
+  membresía particular, aunque todavía dice "Curso sin determinar" en vez de
+  "N h con [profesor]" — queda como ajuste cosmético pendiente (Design
+  refina), no es un error de datos.
+- `tsc`, `eslint`, `npm test` (101/101) y `next build` limpios en cada
+  commit.
+
+### Lo que queda fuera de v1, a propósito
+
+- **Acompañantes con identidad** (`membresia_asistentes`): la tabla existe,
+  la UI todavía trata al grupo como un contador, igual que la prueba grupal.
+- **Reprogramar o cancelar** una reserva ya creada: es H3 (los 7 estados).
+- **Repartir una misma membresía en varias salas**: v1 pide una sola sala
+  (propia o externa) por venta; la sección 9 de definiciones-v2 lo permite,
+  queda para cuando haga falta un caso real.
+
+### Estado
+
+**Construido y validado en dev, con datos reales de una venta completa.** No
+se tocó producción — el pase queda acumulado con H1 (decisión de Javier,
+25/09), a la espera de su OK. `docs/relevamientos/2026-09-25-C3-plan-
+construccion.md` (fila H2), `DECISIONES.md` (D5, D9) y `REGLAS.md` (proceso
+12) quedan anotados con este avance. Sigue **H3**: reservas con los 7
+estados — sin eso, una reserva creada acá no se puede reprogramar, suspender
+ni marcar ausente/realizada todavía.
