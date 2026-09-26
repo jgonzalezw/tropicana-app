@@ -107,14 +107,15 @@ se valida y pasa a producción por separado.
 > `0052_plantillas_particulares.sql`, commits `cd9a179` y `ecb8566` (el
 > segundo, el ajuste de rótulo de las tarifas del profesor que pidió al
 > validar). Detalle completo en `docs/ESTADO.md`, sección "C3 — H1:
-> plantillas de plan de particulares". Sin pase a producción todavía.
+> plantillas de plan de particulares". **En producción desde el
+> 2026-09-26**, junto con H2 y H3.
 
-> **H3: construido y verificado en dev, esperando validación de Javier en su
-> local (2026-09-26).** Migración `0054_reservas_siete_estados.sql`, con los
-> 7 estados recorridos de punta a punta en el navegador contra datos reales.
-> Detalle completo en `docs/ESTADO.md`, sección "C3 — H3: reservas con los 7
-> estados". Sin pase a producción — se acumula con H1 y H2 hasta el OK
-> explícito de Javier.
+> **H3: ✅ construido, probado por Javier en su local (dos rondas) y en
+> producción desde el 2026-09-26**, junto con H1 y H2 (migraciones 0052–0054,
+> un solo pase — ver `docs/DECISIONES.md` §4). Migración
+> `0054_reservas_siete_estados.sql`, con los 7 estados recorridos de punta a
+> punta en el navegador contra datos reales. Detalle completo en
+> `docs/ESTADO.md`, sección "C3 — H3: reservas con los 7 estados".
 
 | Hito | Qué | Migración | Pantallas | Permisos | Design |
 |---|---|---|---|---|---|

@@ -23,8 +23,8 @@
 > `REGLAS.md` proceso 12), adoptada también por el aviso de excepciones de
 > sala. D5 (motivo del cobro) queda cerrada para particulares; D9 (tarjeta
 > específica) resuelta para este caso. Detalle al final de este documento,
-> sección "C3 — H2: vender un plan de particulares". No se tocó producción —
-> sigue esperando el OK de Javier para el pase (acumulado con H1).
+> sección "C3 — H2: vender un plan de particulares". **En producción desde
+> el 2026-09-26**, junto con H1 y H3.
 >
 > **2026-09-25 (antes)** — **C3, hito H1 (plantillas de plan de
 > particulares) construido y validado en dev por Javier.** Migración `0052`,
@@ -2264,7 +2264,7 @@ habría que desacoplarla después.
 | --- | --- | --- |
 | **C1** | **Horario base de la sala**: patrón semanal de apertura + excepciones por rango de fechas. Es el lienzo — fuera de él no se puede reservar. **Vacío significa cerrado, no abierto** (confirmado por Javier): si valiera "24 h", olvidarse de configurarlo produce justo el bug que C1 evita | ✅ **CERRADO y validado en dev por Javier** (2026-09-12). Migraciones **0036** y **0037**. Javier cargó el horario real de Tropicana |
 | **C2** | Disponibilidad + reserva mínima: validar contra horario base + cursos + otras reservas, y **lista textual** de lo ocupado ese día (*"Lu 15: ocupado 9-10, 11-12:30; resto libre"*). **Sin grilla visual todavía** — 80% del beneficio, 20% del costo | ✅ **EN PRODUCCIÓN desde el 2026-09-17.** Pantalla operativa propia (`/sala`, grupo Gestión), separada de Administración → Sala y horarios. Solo bloqueos (D7) — sin C3 todavía no hay otra reserva posible |
-| **C3** | Venta de particulares/alquiler apoyada en la disponibilidad. **Redefinido el 2026-09-25** por las definiciones v2 de Natalia: todo por plan, particulares + alquiler + talleres, reservas con 7 estados, cinco criterios de liquidación | **Lo siguiente; plan H1–H9 propuesto, sin construir, esperando el OK de Javier** (`docs/relevamientos/2026-09-25-C3-plan-construccion.md`). Su prerrequisito C3-0a (contactos + matriz de mínimos) está **en producción desde el 2026-09-24**. C3-0b (captación pública) espera a C3 |
+| **C3** | Venta de particulares/alquiler apoyada en la disponibilidad. **Redefinido el 2026-09-25** por las definiciones v2 de Natalia: todo por plan, particulares + alquiler + talleres, reservas con 7 estados, cinco criterios de liquidación | 🟡 **H1+H2+H3 en producción desde el 2026-09-26** (plantillas, venta y reservas de particulares; `docs/relevamientos/2026-09-25-C3-plan-construccion.md`). Falta H4–H9. Su prerrequisito C3-0a (contactos + matriz de mínimos) está en producción desde el 2026-09-24. C3-0b (captación pública) espera a C3 |
 | **C4** | Agenda visual (grilla día/semana/mes). **Pasa por Claude Design** | Pendiente, después de C3 → `ROADMAP.md` R2 |
 | **C5** | Conflicto bloqueo-vs-agendado: el sistema junta los conflictos y **el humano decide**, nunca cancelación automática silenciosa | 🟡 **A medias.** Lado cursos regulares **en producción desde el 2026-09-16** (un cierre de sala avisa, pide confirmación y suspende; ver el bloque "C5 (lado de cursos regulares)"). **Falta el lado reservas**: `calcularImpacto` no mira `reservas_sala`, y el hueco ya existe hoy con los bloqueos de C2 → `ROADMAP.md` R1 y R22 |
 
@@ -3567,12 +3567,10 @@ la nube.
 
 ### Estado
 
-**Construido y validado en dev.** No se tocó producción (regla de proceso 1 y
-2) — sigue esperando el OK explícito de Javier para el pase, que todavía no
-se pidió. `docs/relevamientos/2026-09-25-C3-plan-construccion.md` (fila H1) y
-`DECISIONES.md` (D11) quedan anotados con este avance. Sigue **H2** (vender
-un plan de particulares): recién ahí un plan de particulares tiene con qué
-venderse.
+**Construido, validado en dev por Javier y en producción desde el
+2026-09-26**, junto con H2 y H3 (regla de proceso 1). `docs/relevamientos/
+2026-09-25-C3-plan-construccion.md` (fila H1) y `DECISIONES.md` (D11) quedan
+anotados con este avance.
 
 ## C3 — H2: vender un plan de particulares · 2026-09-26 (dev)
 
@@ -3819,9 +3817,9 @@ dev con los tres casos (flexible sin sobrante, flexible con sobrante, fija).
 
 **Construido y validado en dev — con datos reales de una venta completa, las
 tres rondas de correcciones del 26/09 adentro, y el OK explícito de Javier
-tras probarlo él mismo** ("ok, ya actualicé y probé. todo bien."). No se tocó
-producción — el pase queda acumulado con H1 (decisión de Javier, 25/09), a la
-espera de su OK de pase. `docs/relevamientos/2026-09-25-C3-plan-
+tras probarlo él mismo** ("ok, ya actualicé y probé. todo bien."). **En
+producción desde el 2026-09-26**, junto con H1 y H3 (`docs/DECISIONES.md`
+§4). `docs/relevamientos/2026-09-25-C3-plan-
 construccion.md` (fila H2), `DECISIONES.md` (D5, D9) y `REGLAS.md` (proceso
 9, proceso 12) quedan anotados con este avance. **Sigue H3** (reservas con
 los 7 estados), en otra sesión — sin eso, una reserva creada acá no se puede
@@ -4151,9 +4149,12 @@ corrigieron en la misma sesión, sobre la misma rama:
 **Construido y verificado en dev — con datos reales, los 7 estados
 recorridos de punta a punta, tres bugs de la primera verificación interna y
 cinco problemas + dos pedidos de la prueba de Javier en su local, todos
-corregidos y reverificados en la misma sesión.** No se tocó producción — el
-pase queda acumulado con H1+H2, a la espera del OK explícito de Javier
-(regla de proceso 1). `docs/relevamientos/2026-09-25-C3-plan-construccion.md`
+corregidos y reverificados en la misma sesión.** **En producción desde el
+2026-09-26**, junto con H1 y H2 y el cambio de WhatsApp app-primero, con el
+OK explícito de Javier (*"ok, pase."*): migraciones 0052→0054 con ensayo en
+seco y hash verificado contra los archivos, controles 1–36 en OK (salvo el
+23, conocido) y `main` en un solo push — el detalle del pase está en
+`docs/DECISIONES.md` §4. `docs/relevamientos/2026-09-25-C3-plan-construccion.md`
 (fila H3), `REGLAS.md` (glosario de "Reserva") y `docs/DECISIONES.md` §1.b
 ("Intervalo estándar de tiempo") quedan anotados con este avance. **Sigue
 H4** (cierres de sala sobre reservas — el lado reservas de C5), en otra
