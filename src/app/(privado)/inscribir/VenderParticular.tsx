@@ -163,6 +163,47 @@ export default function VenderParticular({
   const agendaCompleta = esFija ? diasSemana.length > 0 && !!hora && !!duracionMin : !!hora && !!duracionMin;
   const salaCompleta = salaTipo === "propia" ? !!salaId : nombreExterna.trim().length > 0;
 
+  // Todo lo obligatorio, completo: el botón queda deshabilitado hasta acá,
+  // no alcanza con que el clic muestre el error después (pedido de Javier,
+  // 26/09/2026) — mismas condiciones que valida `confirmar()` al enviar.
+  const puedeVender =
+    !!alumno &&
+    !!plan &&
+    !!tarifa &&
+    !!profesorId &&
+    salaCompleta &&
+    !!fechaInicio &&
+    agendaCompleta &&
+    (!cobro || cobro.valido) &&
+    (!faltaSaldo || !!fechaCompromisoEfectiva) &&
+    !pendiente;
+
+  // Mismo orden que confirmar(), para que el texto bajo el botón diga
+  // exactamente qué falta (regla de calidad 1: nunca un "no se puede" a secas).
+  const faltaPara: string | null = !alumno
+    ? "el titular"
+    : !plan
+      ? "la plantilla"
+      : !tarifa
+        ? "el tramo de horas"
+        : !profesorId
+          ? "el profesor"
+          : !salaCompleta
+            ? salaTipo === "propia"
+              ? "la sala"
+              : "el nombre del lugar"
+            : !fechaInicio
+              ? "la fecha de inicio"
+              : !agendaCompleta
+                ? esFija
+                  ? "los días, la hora y la duración"
+                  : "la hora y la duración de la primera clase"
+                : cobro && !cobro.valido
+                  ? "revisar el cobro"
+                  : faltaSaldo && !fechaCompromisoEfectiva
+                    ? "la fecha de compromiso de pago"
+                    : null;
+
   function confirmar() {
     setError(null);
     setAviso(null);
@@ -500,13 +541,18 @@ export default function VenderParticular({
       )}
 
       {plan && tarifa && (
-        <button
-          onClick={confirmar}
-          disabled={pendiente}
-          className="w-full px-5 py-3 text-lg font-semibold rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)] hover:bg-[var(--primario-hover)] disabled:opacity-40"
-        >
-          {pendiente ? "Guardando…" : `Vender · ${gs(total)}`}
-        </button>
+        <div>
+          <button
+            onClick={confirmar}
+            disabled={!puedeVender}
+            className="w-full px-5 py-3 text-lg font-semibold rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)] hover:bg-[var(--primario-hover)] disabled:opacity-40"
+          >
+            {pendiente ? "Guardando…" : `Vender · ${gs(total)}`}
+          </button>
+          {!puedeVender && !pendiente && faltaPara && (
+            <p className="text-sm text-[var(--texto-tenue)] mt-1.5">Falta {faltaPara} para poder vender.</p>
+          )}
+        </div>
       )}
       {esFija && fechaInicio && diasSemana.length > 0 && (
         <p className="text-xs text-[var(--texto-tenue)]">Primera clase estimada desde el {fechaLarga(new Date(fechaInicio + "T00:00:00"))}.</p>

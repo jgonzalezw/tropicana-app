@@ -360,15 +360,23 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
     porque no existía uno propio. Un asistente con permiso de `cursos` veía
     Planes sin que hubiera forma de evitarlo — encontrado por Javier ya con el
     asistente operando la aplicación, 2026-09-16.*
-12. **Toda notificación que entrega una pantalla lleva su mecanismo de
-    copiar, para poder mandarla al cliente.** Vale para cualquier aviso que
-    nombre a una persona y algo que le pasó o le va a pasar (una clase
-    suspendida, un cobro, un vencimiento) — no para los banners de éxito
-    genéricos que no hablan de nadie en particular. Sin envío automático
-    todavía, el mínimo es poder copiar el texto ya armado en vez de tener que
-    redactarlo a mano por cada persona.
-    *(Javier, 2026-09-16, al construir el aviso de C5.)* La revisión retroactiva
-    de las pantallas existentes con notificación queda en `ROADMAP.md` (R21).
+12. **Toda notificación que entrega una pantalla se puede mandar por WhatsApp
+    en un clic, y también copiar.** Vale para cualquier aviso que nombre a una
+    persona y algo que le pasó o le va a pasar (una clase suspendida, un cobro,
+    un vencimiento) — no para los banners de éxito genéricos que no hablan de
+    nadie en particular. Mientras no exista el módulo de notificaciones
+    multicanal, el mínimo dejó de ser copiar el texto: es un botón que abre
+    WhatsApp con el mensaje ya escrito, dirigido al número del contacto —
+    "Copiar" queda como respaldo. La pieza es `src/components/AvisoWhatsapp.tsx`
+    (regla de proceso 4): recibe nombre, WhatsApp y mensaje, arma el link
+    `wa.me` con `urlChatWhatsapp` (`src/lib/contactos.ts`), y si el número no
+    está en formato internacional deja el botón deshabilitado con la
+    explicación (calidad 5), nunca lo esconde. A un alumno menor el aviso le
+    llega a su tutor, que es quien lo identifica.
+    *(Javier, 2026-09-16, al construir el aviso de C5; ampliado a WhatsApp en
+    un clic el 2026-09-25, al construir C3 H2 — la venta de particulares.)* La
+    revisión retroactiva de las pantallas existentes con notificación queda en
+    `ROADMAP.md` (R21).
 
 ## 4. Calidad del código
 
@@ -451,6 +459,27 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
    *Costó dos veces el mismo día (Inscribir y Cuenta del alumno,
    2026-09-24): cada pantalla tenía su contenedor y algunas se centraban
    solas. Javier: "estandarizar que siempre se comporten igual".*
+9. **Ningún botón de guardar se puede apretar con un dato obligatorio sin
+   cargar.** El servidor siempre valida (regla de calidad 1), pero **el
+   botón además queda deshabilitado** mientras falte algo — no alcanza con
+   que el clic muestre el error recién después: eso dejaba que Jhonny
+   vendiera una particular sin elegir sala, o guardara una plantilla sin
+   estilo ni forma de pago, y se enterara del error con el formulario ya
+   armado. La validación **es una sola función pura**, compartida por el
+   cliente (para deshabilitar y decir qué falta) y el servidor (para
+   decidir) — nunca dos copias de la misma regla que puedan desalinearse.
+   Ejemplos ya hechos así: `puedeConfirmar` en `ClienteInscribir.tsx`,
+   `puedeVender` en `inscribir/VenderParticular.tsx` (con `validarReservaSala`
+   corriendo también del lado servidor) y `puedeGuardar` en
+   `planes/ClientePlanes.tsx` (con `validarDatosPlan`, en `src/lib/planes.ts`,
+   importada tal cual por `planes/acciones.ts`).
+   *Costó en C3 H1 y H2 (2026-09-26): las dos pantallas nuevas dejaban
+   apretar "Vender"/"Crear plan" con la sala, el profesor o el estilo sin
+   elegir, y el error recién aparecía después del clic. Javier: "todas las
+   pantallas creadas en H1 y H2 deben tener los datos completos antes de
+   guardar... debe ser una regla siempre, antes lo hacías, ahora has
+   relajado la calidad." Corregido el mismo día; queda como regla general,
+   no solo para esas dos pantallas.*
 
 ## 5. Controles
 

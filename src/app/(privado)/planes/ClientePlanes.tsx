@@ -16,6 +16,7 @@ import type {
 import { gs } from "@/lib/inscripcion";
 import { etiquetaDias } from "@/components/entidades/EntidadCurso";
 import { vigenciaDiasEfectiva } from "@/lib/planesParticular";
+import { validarDatosPlan } from "@/lib/planes";
 import Toggle from "@/components/Toggle";
 import {
   referenciaPorClases,
@@ -266,6 +267,12 @@ export default function ClientePlanes({
 
   const vigenciaDefaultDias = vigenciaDiasEfectiva(null, vigenciaMesesAcademia);
 
+  // Misma validación que corre el servidor (src/lib/planes.ts): el botón
+  // queda deshabilitado hasta que no falte nada obligatorio, no alcanza con
+  // que el clic muestre el error después (Javier, 26/09/2026).
+  const errorValidacion = validarDatosPlan(form);
+  const puedeGuardar = !errorValidacion && !pendiente;
+
   return (
     <div className="space-y-6">
       {/* Pestañas por tipo de servicio (regla de negocio 22). */}
@@ -348,14 +355,19 @@ export default function ClientePlanes({
 
               {error && <p className="text-[var(--peligro)] text-sm" role="alert">{error}</p>}
 
-              <div className="flex gap-2">
-                <button
-                  onClick={guardar}
-                  disabled={pendiente}
-                  className="px-5 py-2.5 text-base font-semibold rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)] hover:bg-[var(--primario-hover)] disabled:opacity-40"
-                >
-                  {pendiente ? "Guardando…" : editId ? "Guardar cambios" : "Crear plan"}
-                </button>
+              <div className="flex gap-2 items-start">
+                <div>
+                  <button
+                    onClick={guardar}
+                    disabled={!puedeGuardar}
+                    className="px-5 py-2.5 text-base font-semibold rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)] hover:bg-[var(--primario-hover)] disabled:opacity-40"
+                  >
+                    {pendiente ? "Guardando…" : editId ? "Guardar cambios" : "Crear plan"}
+                  </button>
+                  {!puedeGuardar && !pendiente && errorValidacion && (
+                    <p className="text-sm text-[var(--texto-tenue)] mt-1.5">{errorValidacion}</p>
+                  )}
+                </div>
                 {editId && (
                   <button onClick={nuevo} className="px-5 py-2.5 text-base rounded-[var(--radio-control)] border border-[var(--borde)]">
                     Cancelar
