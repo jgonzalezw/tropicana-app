@@ -344,6 +344,15 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
    *Costó una vez: la sesión en la nube no podía ver el `stash` de la carpeta
    de Javier, y ese stash tenía trabajo sin commitear que la mudanza del repo
    habría borrado sin que nadie se enterara.*
+   **Javier no programa: solo actualiza y prueba.** Cuando una sesión en la
+   nube pushea a una rama que él va a mirar en su local, el cierre de esa
+   respuesta **siempre** trae el comando exacto (`git fetch origin <rama> &&
+   git pull origin <rama>`, o el que corresponda si la rama recién se crea) y,
+   si hay código nuevo (no solo docs), el recordatorio de `npm run
+   dev:limpio`. No hace falta que él lo pida cada vez — pedirle que adivine el
+   comando es exactamente el tipo de trabajo que le toca a esta sesión, no a
+   él (mismo espíritu que la regla de proceso 10). *(Javier, 2026-09-26: "yo
+   no hago ningún cambio, solo necesito actualizar lo tuyo en local".)*
 10. **Toda decisión postergada vive en `docs/DECISIONES.md` con su disparador**
    (cuándo conviene hacerla, qué la vuelve urgente). **Todo plan que se le
    proponga a Javier abre mostrando el backlog** de decisiones postergadas que
