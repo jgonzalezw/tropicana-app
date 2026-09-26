@@ -24,12 +24,19 @@ const control =
 export default function ClientePanelSala({
   salas,
   motivos,
+  motivosSuspension,
   opcionesDuracionMin,
+  incrementoMin,
+  minimoMin,
   puedeEditar,
 }: {
   salas: { id: number; nombre: string }[];
   motivos: { valor: string; etiqueta: string }[];
+  /** H4: para el panel de gestión de una reserva (`GestionReserva`). */
+  motivosSuspension: { valor: string; etiqueta: string }[];
   opcionesDuracionMin: number[];
+  incrementoMin: number;
+  minimoMin: number;
   puedeEditar: boolean;
 }) {
   const [fecha, setFecha] = useState(hoyISO());
@@ -59,6 +66,10 @@ export default function ClientePanelSala({
             motivos={motivos}
             opcionesDuracionMin={opcionesDuracionMin}
             puedeEditar={puedeEditar}
+            salasPropias={salas}
+            motivosSuspension={motivosSuspension}
+            incrementoMin={incrementoMin}
+            minimoMin={minimoMin}
           />
         ))}
       </div>

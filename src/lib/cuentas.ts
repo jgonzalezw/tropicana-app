@@ -11,6 +11,7 @@ import type { CuotaCuenta, EntradaCobro, EstadoCuenta, MembresiaCuenta, PagoCuen
 import type { Bucket, LineaPendiente } from "@/lib/caja";
 import { exigir } from "@/lib/datos";
 import { saldoDeReemplazos, type ClaseReemplazo } from "@/lib/liquidacion/reemplazos";
+import { saldoMembresia } from "@/lib/reservas";
 
 function hoyLocal(): Date {
   const d = new Date();
@@ -164,7 +165,8 @@ export async function estadoDeCuenta(sb: ClienteLectura, alumnoId: number): Prom
     .from("membresias")
     .select(
       "id, estado, fecha_inicio, fecha_fin, clases_plan, clases_total, bono_generado, bono_redimido, curso_id, " +
-        "plan:planes(nombre), curso:cursos(nombre, dias_semana)"
+        "horas_contratadas, profesor:profesores(contacto:contactos(nombre, apellido)), " +
+        "plan:planes(nombre, estilo), curso:cursos(nombre, dias_semana)"
     )
     .eq("alumno_id", alumnoId)
     .neq("estado", "baja")
@@ -182,13 +184,57 @@ export async function estadoDeCuenta(sb: ClienteLectura, alumnoId: number): Prom
     /** Resabio mono-curso (glosario `REGLAS.md`): respaldo cuando la
      *  membresía no tiene fila en `membresia_cursos`. */
     curso_id: number | null;
-    plan: { nombre: string } | null;
+    /** Particular/alquiler (regla 21): no tiene curso, tiene horas. */
+    horas_contratadas: number | null;
+    profesor: { contacto: { nombre: string | null; apellido: string | null } | null } | null;
+    plan: { nombre: string; estilo: string | null } | null;
     curso: { nombre: string; dias_semana: number[] | null } | null;
   };
   const inscripciones = (inscRows as unknown as InscRow[]) ?? [];
   if (!inscripciones.length)
     return { alumno, membresias: [], pagos: [], deuda: 0 };
   const inscIds = inscripciones.map((r) => r.id);
+
+  // Particular/alquiler (regla 21: no tiene curso, tiene horas): el estilo se
+  // lee del plan, del mismo catálogo que ya resuelve `/particulares`.
+  const conHoras = inscripciones.filter((r) => r.curso_id == null && r.horas_contratadas != null);
+  const estilos = new Map<string, string>();
+  if (conHoras.length) {
+    const { data: estRows } = await sb.from("estilos").select("clave, nombre");
+    for (const e of (estRows as { clave: string; nombre: string }[]) ?? []) estilos.set(e.clave, e.nombre);
+  }
+  // El saldo de horas se calcula desde las reservas (regla de negocio 23),
+  // igual que en `/particulares` — nunca se guarda paso a paso. Se trae
+  // fecha/hora/sala para mostrar cada reserva una por una acá también,
+  // incluida una Suspendida por un cierre de sala (H4) — no solo el saldo
+  // agregado.
+  type ReservaRow = {
+    membresia_id: number | null;
+    fecha: string;
+    hora: string;
+    duracion_min: number;
+    estado: string;
+    solicitada_hasta: string | null;
+    sala: { nombre: string } | null;
+  };
+  const reservasPorInsc = new Map<number, ReservaRow[]>();
+  if (conHoras.length) {
+    const { data: resRows } = await sb
+      .from("reservas_sala")
+      .select("membresia_id, fecha, hora, duracion_min, estado, solicitada_hasta, sala:salas(nombre)")
+      .in(
+        "membresia_id",
+        conHoras.map((r) => r.id)
+      )
+      .order("fecha", { ascending: true })
+      .order("hora", { ascending: true });
+    for (const r of (resRows as unknown as ReservaRow[]) ?? []) {
+      if (r.membresia_id == null) continue;
+      const l = reservasPorInsc.get(r.membresia_id) ?? [];
+      l.push(r);
+      reservasPorInsc.set(r.membresia_id, l);
+    }
+  }
 
   // Consumo y faltas, solo sobre sesiones dictadas.
   const presentes: Record<number, number> = {};
@@ -312,11 +358,25 @@ export async function estadoDeCuenta(sb: ClienteLectura, alumnoId: number): Prom
     }
   }
 
+  const ahoraSaldo = new Date();
   const membresias: MembresiaCuenta[] = inscripciones.map((r) => {
     const propias = cuotasPorInsc.get(r.id) ?? [];
     const hechas = presentes[r.id] ?? 0;
     const cursos = cursosPorInsc.get(r.id) ?? [];
     const fin = finDeMembresia(r.fecha_fin, r.fecha_inicio, r.clases_total, cursos);
+
+    const esParticular = r.curso_id == null && r.horas_contratadas != null;
+    const saldo = esParticular
+      ? saldoMembresia({
+          horasContratadas: num(r.horas_contratadas),
+          reservas: reservasPorInsc.get(r.id) ?? [],
+          ahora: ahoraSaldo,
+        })
+      : null;
+    const pc = r.profesor?.contacto;
+    const profesorNombre = pc ? `${pc.nombre ?? ""} ${pc.apellido ?? ""}`.trim() : null;
+    const estiloTexto = r.plan?.estilo ? (estilos.get(r.plan.estilo) ?? r.plan.estilo) : null;
+
     return {
       id: r.id,
       plan: r.plan?.nombre ?? null,
@@ -328,6 +388,19 @@ export async function estadoDeCuenta(sb: ClienteLectura, alumnoId: number): Prom
       fechaFinEstimada: fin?.estimada ?? false,
       progreso: r.clases_plan != null ? { hechas, total: r.clases_plan } : null,
       restantes: r.clases_total != null ? Math.max(0, r.clases_total - hechas) : null,
+      horas: saldo
+        ? { contratadasMin: saldo.contratadasMin, consumidasMin: saldo.consumidasMin, disponibleMin: saldo.disponibleMin }
+        : null,
+      estiloProfesor: esParticular ? [estiloTexto, profesorNombre].filter(Boolean).join(" · ") || null : null,
+      reservas: esParticular
+        ? (reservasPorInsc.get(r.id) ?? []).map((res) => ({
+            fecha: res.fecha,
+            hora: res.hora,
+            duracionMin: res.duracion_min,
+            estado: res.estado,
+            salaNombre: res.sala?.nombre ?? null,
+          }))
+        : null,
       faltasConLicencia: conLic[r.id] ?? 0,
       faltasSinLicencia: sinLic[r.id] ?? 0,
       bono: r.bono_redimido ? 0 : num(r.bono_generado),
@@ -337,15 +410,29 @@ export async function estadoDeCuenta(sb: ClienteLectura, alumnoId: number): Prom
     };
   });
 
-  const pagos: PagoCuenta[] = pagosCrudos.map((p) => ({
-    id: p.id,
-    fecha: p.fecha,
-    monto: num(p.monto),
-    descuento: num(p.descuento),
-    descuentoMotivo: p.descuento_motivo,
-    medio: p.medio,
-    concepto: p.motivo,
-  }));
+  // A qué membresía corresponde cada pago (por su cuota) — un alumno con
+  // varias membresías necesita distinguir a cuál se le aplicó cada pago, y el
+  // nombre del plan solo no alcanza cuando dos ventas comparten plantilla.
+  const membresiaIdPorCuota = new Map(cuotas.map((c) => [c.id, c.membresia_id]));
+  const planFechaPorMembresia = new Map(
+    inscripciones.map((r) => [r.id, { plan: r.plan?.nombre ?? null, fechaInicio: r.fecha_inicio }])
+  );
+
+  const pagos: PagoCuenta[] = pagosCrudos.map((p) => {
+    const membresiaId = p.cuota_id != null ? membresiaIdPorCuota.get(p.cuota_id) : undefined;
+    const info = membresiaId != null ? planFechaPorMembresia.get(membresiaId) : undefined;
+    return {
+      id: p.id,
+      fecha: p.fecha,
+      monto: num(p.monto),
+      descuento: num(p.descuento),
+      descuentoMotivo: p.descuento_motivo,
+      medio: p.medio,
+      concepto: p.motivo,
+      membresiaPlan: info?.plan ?? null,
+      membresiaFechaInicio: info?.fechaInicio ?? null,
+    };
+  });
 
   return {
     alumno,

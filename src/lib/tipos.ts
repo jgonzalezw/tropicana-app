@@ -605,6 +605,21 @@ export type MembresiaCuenta = {
   progreso: { hechas: number; total: number } | null;
   /** Paquete por clase: cuántas le quedan. */
   restantes: number | null;
+  /** Particular/alquiler (`curso_id` null, `horas_contratadas` no null): el
+   *  saldo de horas, calculado igual que en `/particulares`
+   *  (`saldoMembresia`, `@/lib/reservas`) — nunca guardado paso a paso (regla
+   *  de negocio 23). `null` para una membresía de curso regular. */
+  horas: { contratadasMin: number; consumidasMin: number; disponibleMin: number } | null;
+  /** Para una particular sin `membresia_cursos` que mostrar (regla 21: no
+   *  tiene curso, tiene estilo + profesor): "Salsa · Inamsai De Dazan", lista
+   *  para reemplazar el fallback "Curso sin determinar". `null` si no aplica
+   *  o falta el dato. */
+  estiloProfesor: string | null;
+  /** Las reservas de una particular/alquiler, una por una — incluida una
+   *  Suspendida por un cierre de sala (H4): acá también tiene que verse, no
+   *  solo en `/particulares/[id]`. `null` para una membresía de curso
+   *  regular (esas no tienen filas en `reservas_sala`). */
+  reservas: { fecha: string; hora: string; duracionMin: number; estado: string; salaNombre: string | null }[] | null;
   faltasConLicencia: number;
   faltasSinLicencia: number;
   /** Bono de tolerancia pendiente de redimir (0 si ya se usó). */
@@ -626,6 +641,13 @@ export type PagoCuenta = {
   descuentoMotivo: string | null;
   medio: string | null;
   concepto: string | null;
+  /** A qué membresía corresponde este pago (por su cuota → membresía), para
+   *  poder distinguirlo cuando el alumno tiene varias — el nombre del plan
+   *  solo no alcanza cuando dos ventas comparten plantilla, así que se suma
+   *  la fecha de inicio de esa membresía. `null` si el pago no está atado a
+   *  ninguna cuota (no debería pasar en un cobro, regla de negocio 7). */
+  membresiaPlan: string | null;
+  membresiaFechaInicio: string | null;
 };
 
 export type EstadoCuenta = {
@@ -754,6 +776,12 @@ export const MODULOS = [
   "contactos_privados",
   "solicitudes",
   "enlaces_captacion",
+  // Disponibilidad de sala (H4, 2026-09-26, regla de proceso 11): vivía
+  // gateada con "sala" (Sala y horarios, el horario base) — la misma casilla
+  // gobernaba dos pantallas totalmente distintas (Administración → Sala y
+  // horarios, y la operativa /sala) y quedaba confuso a quién dársela. Ver
+  // docs/DECISIONES.md, hallazgo del 2026-09-26.
+  "disponibilidad_sala",
 ] as const;
 
 export const ACCIONES = ["ver", "crear", "editar", "eliminar"] as const;
@@ -765,12 +793,15 @@ export type AccionClave = (typeof ACCIONES)[number];
  * Módulos que tienen "dueño" de la fila y por eso admiten un alcance de
  * visibilidad propio/todo (0043): Asistencia (el profesor de cada curso),
  * Liquidaciones (el profesor liquidado), Caja (quién registró el movimiento),
- * Contactos (el profesor ve los contactos de sus alumnos, vía RLS — 0048).
+ * Contactos (el profesor ve los contactos de sus alumnos, vía RLS — 0048),
+ * Particulares (el profesor de la membresía — H4, 2026-09-26: sin esto, un
+ * profesor con permiso de Particulares veía y podía cambiar las reservas de
+ * los alumnos de OTRO profesor, ver docs/DECISIONES.md).
  * La UI de Roles ofrece el selector solo para estos, y solo estos consultan
  * `alcanceDe`. Agregar un módulo acá es todo lo que hace falta para que gane
  * la opción — el resto (tabla, helper) ya es genérico.
  */
-export const MODULOS_CON_ALCANCE = ["asistencia", "liquidaciones", "caja", "contactos"] as const;
+export const MODULOS_CON_ALCANCE = ["asistencia", "liquidaciones", "caja", "contactos", "particulares"] as const;
 export type ModuloConAlcance = (typeof MODULOS_CON_ALCANCE)[number];
 
 export const ETIQUETA_MODULO: Record<string, string> = {
@@ -790,10 +821,11 @@ export const ETIQUETA_MODULO: Record<string, string> = {
   planes: "Planes",
   liquidaciones: "Liquidaciones",
   precios: "Precios y paquetes",
-  sala: "Sala y horarios",
+  sala: "Sala y horarios (horario base)",
   contactos: "Contactos",
   contactos_privados: "Contactos · datos privados",
   solicitudes: "Solicitudes (se usa desde C3-0b)",
+  disponibilidad_sala: "Disponibilidad de sala",
   enlaces_captacion: "Enlaces de captación (se usa desde C3-0b)",
 };
 

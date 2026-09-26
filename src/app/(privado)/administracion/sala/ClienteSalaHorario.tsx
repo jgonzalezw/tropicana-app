@@ -22,8 +22,12 @@ import {
   type AvisoAlumno,
   type ExcepcionEdit,
   type SalaEdit,
+  type SuspensionLigada,
 } from "./acciones";
 import type { ClaseAfectada } from "@/lib/sala";
+import type { ReservaAfectadaPorExcepcion } from "@/lib/reservas";
+
+type Impacto = { clases: ClaseAfectada[]; reservas: ReservaAfectadaPorExcepcion[] };
 
 type FilaPatron = { dia_semana: number; desde: string; hasta: string };
 
@@ -39,6 +43,7 @@ const DIAS: { n: number; label: string }[] = [
 
 const hhmm = (t: string | null) => (t ? t.slice(0, 5) : "");
 const dia10 = (d: string) => d.slice(0, 10);
+const plu = (n: number, singular: string, plural: string) => (n === 1 ? singular : plural);
 
 const control =
   "px-3 py-2 rounded-[var(--radio-control)] border border-[var(--borde)] bg-[var(--fondo)] text-base";
@@ -116,11 +121,18 @@ export default function ClienteSalaHorario({
   const [excBorradas, setExcBorradas] = useState<number[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // C5, alcance acotado (Javier, 2026-09-16): si el cierre pisa clases con
-  // membresía activa, no se guarda derecho — se pide confirmación explícita
-  // primero, mostrando qué se va a suspender.
-  const [porConfirmar, setPorConfirmar] = useState<ClaseAfectada[] | null>(null);
+  // C5 (H4): si el cierre/horario reducido pisa clases o reservas activas, no
+  // se guarda derecho — se pide confirmación explícita primero, mostrando qué
+  // se va a suspender.
+  const [porConfirmar, setPorConfirmar] = useState<Impacto | null>(null);
+  // R22: borrar una excepción que ya suspendió algo ofrece revertirlo.
+  const [porConfirmarEliminacion, setPorConfirmarEliminacion] = useState<SuspensionLigada[] | null>(null);
   const [avisos, setAvisos] = useState<AvisoAlumno[] | null>(null);
+  // Las dos confirmaciones de arriba pueden llegar una después de la otra en
+  // guardados sucesivos del mismo click: se recuerda la decisión ya tomada
+  // para no volver a preguntarla en la vuelta siguiente.
+  const [decisionEliminacion, setDecisionEliminacion] = useState<"revertir" | "sin_revertir" | null>(null);
+  const [decisionImpacto, setDecisionImpacto] = useState(false);
 
   // Mismo problema que con las salas, y mismo arreglo: al guardar una
   // excepción nueva, la base le asigna un `id`, pero el estado local se
@@ -134,6 +146,8 @@ export default function ClienteSalaHorario({
     setFilas(patronInicial);
     setExc(excInicial);
     setExcBorradas([]);
+    setDecisionEliminacion(null);
+    setDecisionImpacto(false);
   }
 
   const sucio =
@@ -167,6 +181,10 @@ export default function ClienteSalaHorario({
     setExcBorradas([]);
     setMsg(null);
     setError(null);
+    setPorConfirmar(null);
+    setPorConfirmarEliminacion(null);
+    setDecisionEliminacion(null);
+    setDecisionImpacto(false);
   }
 
   function guardarLasSalas() {
@@ -182,14 +200,27 @@ export default function ClienteSalaHorario({
     });
   }
 
-  function guardar(confirmarCierres = false) {
+  function guardar(nueva?: { confirmarEliminacion?: "revertir" | "sin_revertir"; confirmarImpacto?: boolean }) {
+    const confirmarEliminacion = nueva?.confirmarEliminacion ?? decisionEliminacion ?? undefined;
+    const confirmarImpacto = nueva?.confirmarImpacto ?? decisionImpacto;
     setMsg(null);
     setError(null);
-    if (confirmarCierres) setPorConfirmar(null);
+    if (nueva?.confirmarEliminacion) {
+      setDecisionEliminacion(nueva.confirmarEliminacion);
+      setPorConfirmarEliminacion(null);
+    }
+    if (nueva?.confirmarImpacto) {
+      setDecisionImpacto(true);
+      setPorConfirmar(null);
+    }
     startTransition(async () => {
-      const r = await guardarHorarioSala(salaId, filas, exc, excBorradas, confirmarCierres);
+      const r = await guardarHorarioSala(salaId, filas, exc, excBorradas, { confirmarEliminacion, confirmarImpacto });
+      if ("requiereConfirmacionEliminacion" in r) {
+        setPorConfirmarEliminacion(r.ligadas);
+        return;
+      }
       if ("requiereConfirmacion" in r) {
-        setPorConfirmar(r.afectadas);
+        setPorConfirmar({ clases: r.afectadas, reservas: r.reservasAfectadas });
         return;
       }
       if (r.error) setError(r.error);
@@ -197,6 +228,8 @@ export default function ClienteSalaHorario({
         setMsg(r.mensaje ?? "Horario guardado. Desde ahora, fuera de él la sala no se puede reservar.");
         setAvisos(r.avisos?.length ? r.avisos : null);
         setExcBorradas([]);
+        setDecisionEliminacion(null);
+        setDecisionImpacto(false);
         router.refresh();
       }
     });
@@ -619,35 +652,95 @@ export default function ClienteSalaHorario({
         </>
       )}
 
-      {/* Confirmación de impacto (C5, alcance acotado): el cierre pisa clases
-          con membresía activa. Nunca se suspende nada sin que esto se vea. */}
+      {/* Confirmación de impacto (C5 + H4): el cierre u horario reducido pisa
+          clases con membresía activa, y/o reservas de particular/alquiler ya
+          confirmadas. Nunca se suspende nada sin que esto se vea. */}
       {porConfirmar && (
         <div className="border border-[var(--primario)] bg-[color-mix(in_srgb,var(--primario)_12%,transparent)] rounded-[var(--radio-tarjeta)] p-5 space-y-3">
           <div className="font-semibold text-base">
-            Este cierre va a suspender {porConfirmar.length === 1 ? "una clase" : `${porConfirmar.length} clases`}{" "}
-            con alumnos activos.
+            Esta excepción va a suspender{" "}
+            {plu(porConfirmar.clases.length + porConfirmar.reservas.length, "1 cosa", `${porConfirmar.clases.length + porConfirmar.reservas.length} cosas`)}.
           </div>
-          <ul className="text-base space-y-1">
-            {porConfirmar.map((c, i) => (
-              <li key={i}>
-                {c.cursoNombre} · {c.fecha} ·{" "}
-                {c.alumnosActivos === 1 ? "1 alumno" : `${c.alumnosActivos} alumnos`}
-              </li>
-            ))}
-          </ul>
+          {porConfirmar.clases.length > 0 && (
+            <div>
+              <div className="text-sm font-medium text-[var(--texto-tenue)] mb-1">Clases de curso</div>
+              <ul className="text-base space-y-1">
+                {porConfirmar.clases.map((c, i) => (
+                  <li key={i}>
+                    {c.cursoNombre} · {c.fecha} ·{" "}
+                    {c.alumnosActivos === 1 ? "1 alumno" : `${c.alumnosActivos} alumnos`}
+                    {c.motivoImpacto === "horario_reducido" && (
+                      <span className="text-[var(--texto-tenue)]"> — horario reducido</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {porConfirmar.reservas.length > 0 && (
+            <div>
+              <div className="text-sm font-medium text-[var(--texto-tenue)] mb-1">Clases particulares / alquileres</div>
+              <ul className="text-base space-y-1">
+                {porConfirmar.reservas.map((r) => (
+                  <li key={r.reservaId}>
+                    {r.etiqueta} · {r.fecha} {r.hora.slice(0, 5)}
+                    {r.motivoImpacto === "horario_reducido" && (
+                      <span className="text-[var(--texto-tenue)]"> — horario reducido</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <p className="text-sm text-[var(--texto-tenue)]">
-            Al confirmar, esas clases quedan suspendidas y el ciclo de cada alumno mensual se corre. Vas a
-            poder copiar un aviso para cada uno.
+            Al confirmar, las clases quedan suspendidas (el ciclo de cada alumno mensual se corre) y las
+            reservas particulares/alquileres quedan Suspendidas (la hora vuelve al paquete). Vas a poder
+            copiar un aviso para cada uno.
           </p>
           <div className="flex gap-3">
             <button onClick={() => setPorConfirmar(null)} className={botonTenue}>
               Cancelar
             </button>
             <button
-              onClick={() => guardar(true)}
+              onClick={() => guardar({ confirmarImpacto: true })}
               className="px-4 py-2 text-base font-semibold rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)]"
             >
-              Confirmar y suspender esas clases
+              Confirmar y suspender
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* R22: borrar una excepción que ya suspendió algo ofrece revertirlo. */}
+      {porConfirmarEliminacion && (
+        <div className="border border-[var(--peligro)] bg-[color-mix(in_srgb,var(--peligro)_10%,transparent)] rounded-[var(--radio-tarjeta)] p-5 space-y-3">
+          <div className="font-semibold text-base">
+            La excepción que estás por borrar ya había suspendido{" "}
+            {plu(porConfirmarEliminacion.length, "1 cosa", `${porConfirmarEliminacion.length} cosas`)}.
+          </div>
+          <ul className="text-base space-y-1">
+            {porConfirmarEliminacion.map((l, i) => (
+              <li key={i}>
+                {l.tipo === "curso" ? `${l.cursoNombre} · ${l.fecha}` : `${l.etiqueta} · ${l.fecha} ${l.hora.slice(0, 5)}`}
+              </li>
+            ))}
+          </ul>
+          <p className="text-sm text-[var(--texto-tenue)]">
+            ¿Se restablecen esas clases y reservas (si la sala y el profesor siguen libres a esa hora), o
+            solo se borra la excepción y quedan suspendidas?
+          </p>
+          <div className="flex gap-3 flex-wrap">
+            <button onClick={() => setPorConfirmarEliminacion(null)} className={botonTenue}>
+              Cancelar
+            </button>
+            <button onClick={() => guardar({ confirmarEliminacion: "sin_revertir" })} className={botonTenue}>
+              Borrar sin revertir
+            </button>
+            <button
+              onClick={() => guardar({ confirmarEliminacion: "revertir" })}
+              className="px-4 py-2 text-base font-semibold rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)]"
+            >
+              Revertir y borrar
             </button>
           </div>
         </div>
@@ -667,7 +760,7 @@ export default function ClienteSalaHorario({
           </div>
           <div className="space-y-2">
             {avisos.map((a) => (
-              <AvisoWhatsapp key={a.alumnoId} nombre={a.nombre} whatsapp={a.whatsapp} mensaje={a.mensaje} />
+              <AvisoWhatsapp key={a.id} nombre={a.nombre} whatsapp={a.whatsapp} mensaje={a.mensaje} />
             ))}
           </div>
         </div>

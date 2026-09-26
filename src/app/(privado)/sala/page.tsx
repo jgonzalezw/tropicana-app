@@ -23,12 +23,12 @@ export const dynamic = "force-dynamic";
  * lo que se necesita a diario es la foto completa.
  */
 export default async function PaginaSala() {
-  if (!(await tienePermiso("sala", "ver"))) return <SinAcceso />;
+  if (!(await tienePermiso("disponibilidad_sala", "ver"))) return <SinAcceso />;
 
   const sb = await createClient();
-  const puedeEditar = await tienePermiso("sala", "editar");
+  const puedeEditar = await tienePermiso("disponibilidad_sala", "editar");
 
-  const [salas, catalogoBloqueo] = await Promise.all([
+  const [salas, catalogoBloqueo, catalogoSuspension, incrementoParam, minimoParam] = await Promise.all([
     sb
       .from("salas")
       .select("id, nombre, orden, activa")
@@ -43,6 +43,12 @@ export default async function PaginaSala() {
       .eq("clave", "motivo_bloqueo_sala")
       .maybeSingle()
       .then((r) => exigirUno(r, "el catálogo de motivos de bloqueo")),
+    // H4: para el panel de gestión de una reserva abierto desde acá
+    // (`GestionReserva`), que necesita los mismos motivos de suspensión y el
+    // mismo incremento/mínimo que ya usa `/particulares/[id]`.
+    sb.from("catalogos").select("id").eq("clave", "motivo_suspension_reserva").maybeSingle(),
+    obtenerParametro("tiempos_incremento_min"),
+    obtenerParametro("duracion_minima_curso_min"),
   ]);
 
   const motivosBloqueo = catalogoBloqueo
@@ -57,7 +63,15 @@ export default async function PaginaSala() {
       ) as { valor: string; etiqueta: string }[])
     : [];
 
-  const minimoMin = Math.max(1, Number(await obtenerParametro("duracion_minima_curso_min")) || 30);
+  const catSus = catalogoSuspension.data as { id: number } | null;
+  const motivosSuspension = catSus
+    ? ((
+        await sb.from("catalogo_valores").select("valor, etiqueta").eq("catalogo_id", catSus.id).eq("activo", true).order("orden")
+      ).data as { valor: string; etiqueta: string }[] | null) ?? []
+    : [];
+
+  const incrementoMin = Math.max(1, Number(incrementoParam) || 30);
+  const minimoMin = Math.max(1, Number(minimoParam) || 30);
   const opcionesDuracionMin = opcionesDuracionReserva(minimoMin);
 
   return (
@@ -72,7 +86,10 @@ export default async function PaginaSala() {
           nombre: s.nombre,
         }))}
         motivos={motivosBloqueo}
+        motivosSuspension={motivosSuspension}
         opcionesDuracionMin={opcionesDuracionMin}
+        incrementoMin={incrementoMin}
+        minimoMin={minimoMin}
         puedeEditar={puedeEditar}
       />
     </Pagina>

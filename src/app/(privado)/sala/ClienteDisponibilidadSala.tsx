@@ -17,15 +17,19 @@
  */
 
 import { useEffect, useState, useTransition } from "react";
-import Link from "next/link";
 import { describirTramos, describirVentanas } from "@/lib/sala";
 import { etiquetaDuracion } from "@/lib/horarios";
+import AvisoWhatsapp from "@/components/AvisoWhatsapp";
+import GestionReserva from "@/components/GestionReserva";
+import { obtenerReservaParaGestion, type DetalleGestionReserva } from "@/app/(privado)/particulares/acciones";
 import {
   cancelarReservaSala,
   consultarDisponibilidad,
   crearBloqueoSala,
+  type AvisoOperativo,
   type BloqueDisponibilidad,
   type DisponibilidadDia,
+  type ReservaChocaBloqueo,
 } from "./acciones";
 
 function diaLargo(iso: string): string {
@@ -66,6 +70,10 @@ export default function ClienteDisponibilidadSala({
   motivos,
   opcionesDuracionMin,
   puedeEditar,
+  salasPropias,
+  motivosSuspension,
+  incrementoMin,
+  minimoMin,
 }: {
   salaId: number;
   salaNombre: string;
@@ -73,6 +81,13 @@ export default function ClienteDisponibilidadSala({
   motivos: { valor: string; etiqueta: string }[];
   opcionesDuracionMin: number[];
   puedeEditar: boolean;
+  /** H4 — para el panel de gestión de una reserva (`GestionReserva`): todas
+   *  las salas propias (no solo esta tarjeta, por si se reprograma a otra) y
+   *  los mismos motivos/tiempos que usa `/particulares/[id]`. */
+  salasPropias: { id: number; nombre: string }[];
+  motivosSuspension: { valor: string; etiqueta: string }[];
+  incrementoMin: number;
+  minimoMin: number;
 }) {
   const [datos, setDatos] = useState<DisponibilidadDia>(vacia);
   const [cargando, startCarga] = useTransition();
@@ -86,6 +101,35 @@ export default function ClienteDisponibilidadSala({
   const [notas, setNotas] = useState("");
 
   const [porCancelar, setPorCancelar] = useState<BloqueDisponibilidad | null>(null);
+  // H4: la sala choca solo con reservas de particular/alquiler — se puede
+  // resolver suspendiéndolas, con confirmación explícita primero.
+  const [porConfirmarBloqueo, setPorConfirmarBloqueo] = useState<ReservaChocaBloqueo[] | null>(null);
+  // H4 (R22 simétrico): este bloqueo ya había suspendido algo — se pregunta
+  // si se revierte al cancelarlo.
+  const [porConfirmarCancelacion, setPorConfirmarCancelacion] = useState<{
+    ligadas: { reservaId: number; etiqueta: string; fecha: string; hora: string }[];
+  } | null>(null);
+  const [avisosOperativos, setAvisosOperativos] = useState<AvisoOperativo[] | null>(null);
+
+  // H4: panel de gestión de UNA reserva puntual, enfocado — reemplaza el
+  // salto directo a la ficha completa de la membresía (Javier, 26/09).
+  const [enfoqueId, setEnfoqueId] = useState<number | null>(null);
+  const [detalleGestion, setDetalleGestion] = useState<DetalleGestionReserva | { error: string } | null>(null);
+  const [pendienteGestion, startGestion] = useTransition();
+
+  function abrirGestion(reservaId: number) {
+    setEnfoqueId(reservaId);
+    setDetalleGestion(null);
+    startGestion(async () => {
+      const r = await obtenerReservaParaGestion(reservaId);
+      setDetalleGestion(r);
+    });
+  }
+
+  function cerrarGestion() {
+    setEnfoqueId(null);
+    setDetalleGestion(null);
+  }
 
   // **Un solo aviso para toda la tarjeta**, no uno por acción. Antes había
   // `errForm/msgForm` (bloquear) y `errCancelar/msgCancelar` (cancelar) por
@@ -111,28 +155,44 @@ export default function ClienteDisponibilidadSala({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [salaId, fecha]);
 
+  // Cambiar de sala o de fecha cierra el panel de gestión: la reserva
+  // enfocada puede ya no estar en la lista nueva. Ajustado durante el render
+  // (no en el efecto de arriba, que ya dispara `recargar`) — mismo patrón que
+  // `BarraLateral` usa para resetear estado cuando cambia el pathname.
+  const claveDia = `${salaId}|${fecha}`;
+  const [claveDiaAnterior, setClaveDiaAnterior] = useState(claveDia);
+  if (claveDia !== claveDiaAnterior) {
+    setClaveDiaAnterior(claveDia);
+    setEnfoqueId(null);
+    setDetalleGestion(null);
+  }
+
   function abrirFormulario() {
     setAviso(null);
+    setPorConfirmarBloqueo(null);
     setMostrarForm(true);
   }
 
-  function confirmarBloqueo() {
+  function confirmarBloqueo(confirmarSuspension = false) {
     setAviso(null);
     startTransition(async () => {
-      const r = await crearBloqueoSala(salaId, {
-        fecha,
-        hora,
-        duracionMin,
-        motivo,
-        glosa: glosa.trim() || null,
-        notas: notas.trim() || null,
-      });
+      const r = await crearBloqueoSala(
+        salaId,
+        { fecha, hora, duracionMin, motivo, glosa: glosa.trim() || null, notas: notas.trim() || null },
+        confirmarSuspension
+      );
+      if ("requiereConfirmacion" in r) {
+        setPorConfirmarBloqueo(r.reservasAfectadas);
+        return;
+      }
+      setPorConfirmarBloqueo(null);
       if (r.error) setAviso({ ok: false, texto: r.error });
       else {
         // Éxito: se colapsa el formulario y se limpian sus campos — que
         // siga abierto "invitando a repetir" es justo lo que no puede volver
         // a pasar (Javier, 2026-09-17).
         setAviso({ ok: true, texto: r.mensaje ?? "Bloqueo registrado." });
+        setAvisosOperativos(r.avisos?.length ? r.avisos : null);
         setMostrarForm(false);
         setGlosa("");
         setNotas("");
@@ -143,19 +203,26 @@ export default function ClienteDisponibilidadSala({
 
   function pedirCancelacion(b: BloqueDisponibilidad) {
     setAviso(null);
+    setPorConfirmarCancelacion(null);
     setPorCancelar(b);
   }
 
-  function confirmarCancelacion() {
+  function confirmarCancelacion(decision?: "revertir" | "sin_revertir") {
     if (!porCancelar || porCancelar.id == null) return;
     const id = porCancelar.id;
     setAviso(null);
     startTransition(async () => {
-      const r = await cancelarReservaSala(id);
+      const r = await cancelarReservaSala(id, decision);
+      if ("requiereConfirmacion" in r) {
+        setPorConfirmarCancelacion({ ligadas: r.ligadas });
+        return;
+      }
       setPorCancelar(null);
+      setPorConfirmarCancelacion(null);
       if (r.error) setAviso({ ok: false, texto: r.error });
       else {
         setAviso({ ok: true, texto: r.mensaje ?? "Reserva cancelada." });
+        setAvisosOperativos(r.avisos?.length ? r.avisos : null);
         recargar();
       }
     });
@@ -201,39 +268,77 @@ export default function ClienteDisponibilidadSala({
                 const ini = b.hora;
                 const finMin = Number(ini.slice(0, 2)) * 60 + Number(ini.slice(3, 5)) + b.duracionMin;
                 const fin = `${String(Math.floor(finMin / 60) % 24).padStart(2, "0")}:${String(finMin % 60).padStart(2, "0")}`;
+                const id = b.id;
                 return (
-                  <div
-                    key={b.id ?? `curso-${i}`}
-                    className="flex items-start gap-3 py-2 border-t border-[var(--borde)] first:border-t-0"
-                  >
-                    <span className={`text-xs font-semibold px-2 py-1 rounded-full shrink-0 ${CLASE_TAG[b.tipo]}`}>
-                      {ETIQUETA_TIPO[b.tipo]}
-                    </span>
-                    <div className="flex-1">
-                      <div className="text-base">
-                        <strong>
-                          {ini}–{fin}
-                        </strong>{" "}
-                        {b.membresiaId != null ? (
-                          <Link href={`/particulares/${b.membresiaId}`} className="underline hover:no-underline">
-                            {b.etiqueta}
-                          </Link>
-                        ) : (
-                          b.etiqueta
+                  <div key={b.id ?? `curso-${i}`} className="border-t border-[var(--borde)] first:border-t-0">
+                    <div className="flex items-start gap-3 py-2">
+                      <span className={`text-xs font-semibold px-2 py-1 rounded-full shrink-0 ${CLASE_TAG[b.tipo]}`}>
+                        {ETIQUETA_TIPO[b.tipo]}
+                      </span>
+                      <div className="flex-1">
+                        <div className="text-base">
+                          <strong>
+                            {ini}–{fin}
+                          </strong>{" "}
+                          {b.etiqueta}
+                        </div>
+                        {b.detalle && <div className="text-sm text-[var(--texto-tenue)]">{b.detalle}</div>}
+                        {b.notas && (
+                          <div className="text-sm text-[var(--texto-tenue)] mt-0.5">📝 {b.notas}</div>
                         )}
                       </div>
-                      {b.detalle && <div className="text-sm text-[var(--texto-tenue)]">{b.detalle}</div>}
-                      {b.notas && (
-                        <div className="text-sm text-[var(--texto-tenue)] mt-0.5">📝 {b.notas}</div>
+                      {/* H4: reemplaza el link directo a la ficha completa — la
+                          intención acá es actuar sobre ESTA reserva, no ver
+                          todas las de la membresía (Javier, 26/09). */}
+                      {b.gestionable && id != null && (
+                        <button
+                          onClick={() => (enfoqueId === id ? cerrarGestion() : abrirGestion(id))}
+                          className="text-sm text-[var(--primario)] hover:underline shrink-0"
+                        >
+                          {enfoqueId === id ? "Cerrar" : "Gestionar"}
+                        </button>
+                      )}
+                      {puedeEditar && b.id != null && b.tipo === "bloqueo" && (
+                        <button
+                          onClick={() => pedirCancelacion(b)}
+                          className="text-sm text-[var(--texto-tenue)] hover:text-[var(--peligro)]"
+                        >
+                          Cancelar
+                        </button>
                       )}
                     </div>
-                    {puedeEditar && b.id != null && b.tipo === "bloqueo" && (
-                      <button
-                        onClick={() => pedirCancelacion(b)}
-                        className="text-sm text-[var(--texto-tenue)] hover:text-[var(--peligro)]"
-                      >
-                        Cancelar
-                      </button>
+                    {enfoqueId === b.id && (
+                      <div className="mb-3 ml-1 pl-3 border-l-2 border-[var(--primario)]">
+                        {pendienteGestion && !detalleGestion ? (
+                          <p className="text-sm text-[var(--texto-tenue)]">Cargando…</p>
+                        ) : detalleGestion && "error" in detalleGestion ? (
+                          <p className="text-[var(--peligro)]" role="alert">
+                            {detalleGestion.error}
+                          </p>
+                        ) : detalleGestion ? (
+                          <GestionReserva
+                            reserva={detalleGestion.reserva}
+                            membresiaId={detalleGestion.membresiaId}
+                            disponibleMin={detalleGestion.disponibleMin}
+                            fechaInicioMembresia={detalleGestion.fechaInicioMembresia}
+                            fechaFinMembresia={detalleGestion.fechaFinMembresia}
+                            salasPropias={salasPropias}
+                            salaExternaDeLaMembresia={(() => {
+                              const ext = detalleGestion.salasDeLaMembresia.find((s) => s.esExterna);
+                              return ext ? { salaId: ext.salaId, nombre: ext.nombre } : null;
+                            })()}
+                            motivosSuspension={motivosSuspension}
+                            incrementoMin={incrementoMin}
+                            minimoMin={minimoMin}
+                            puedeEditar
+                            mostrarLinkFicha
+                            onCambio={() => {
+                              cerrarGestion();
+                              recargar();
+                            }}
+                          />
+                        ) : null}
+                      </div>
                     )}
                   </div>
                 );
@@ -247,7 +352,7 @@ export default function ClienteDisponibilidadSala({
           </div>
         )}
 
-        {porCancelar && (
+        {porCancelar && !porConfirmarCancelacion && (
           <div className="mt-3 border border-[var(--peligro)] bg-[color-mix(in_srgb,var(--peligro)_10%,transparent)] rounded-[var(--radio-panel)] p-4 space-y-3">
             <p className="text-base">
               ¿Cancelar <strong>{porCancelar.etiqueta}</strong> ({porCancelar.hora}, ese día)?
@@ -257,11 +362,50 @@ export default function ClienteDisponibilidadSala({
                 Volver
               </button>
               <button
-                onClick={confirmarCancelacion}
+                onClick={() => confirmarCancelacion()}
                 disabled={pendiente}
                 className="px-4 py-2 text-base font-semibold rounded-[var(--radio-control)] bg-[var(--peligro)] text-white disabled:opacity-45"
               >
                 {pendiente ? "Cancelando…" : "Sí, cancelar la reserva"}
+              </button>
+            </div>
+          </div>
+        )}
+        {/* H4 (R22 simétrico): este bloqueo ya había suspendido reservas. */}
+        {porCancelar && porConfirmarCancelacion && (
+          <div className="mt-3 border border-[var(--peligro)] bg-[color-mix(in_srgb,var(--peligro)_10%,transparent)] rounded-[var(--radio-panel)] p-4 space-y-3">
+            <p className="text-base font-semibold">
+              Este bloqueo ya había suspendido{" "}
+              {porConfirmarCancelacion.ligadas.length === 1 ? "1 clase particular" : `${porConfirmarCancelacion.ligadas.length} clases particulares`}.
+            </p>
+            <ul className="text-base space-y-1">
+              {porConfirmarCancelacion.ligadas.map((l) => (
+                <li key={l.reservaId}>
+                  {l.etiqueta} · {l.fecha} {l.hora.slice(0, 5)}
+                </li>
+              ))}
+            </ul>
+            <p className="text-sm text-[var(--texto-tenue)]">
+              ¿Se restablecen (si la sala y el profesor siguen libres), o solo se cancela el bloqueo y quedan
+              suspendidas?
+            </p>
+            <div className="flex gap-3 flex-wrap">
+              <button onClick={() => setPorConfirmarCancelacion(null)} className={`${control} bg-transparent`}>
+                Volver
+              </button>
+              <button
+                onClick={() => confirmarCancelacion("sin_revertir")}
+                disabled={pendiente}
+                className={`${control}`}
+              >
+                Cancelar sin revertir
+              </button>
+              <button
+                onClick={() => confirmarCancelacion("revertir")}
+                disabled={pendiente}
+                className="px-4 py-2 text-base font-semibold rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)] disabled:opacity-45"
+              >
+                Revertir y cancelar
               </button>
             </div>
           </div>
@@ -345,9 +489,44 @@ export default function ClienteDisponibilidadSala({
                 </div>
               </div>
 
+              {/* H4: choca solo con reservas de particular/alquiler — se puede
+                  resolver suspendiéndolas primero, con confirmación explícita. */}
+              {porConfirmarBloqueo && (
+                <div className="border border-[var(--primario)] bg-[color-mix(in_srgb,var(--primario)_12%,transparent)] rounded-[var(--radio-panel)] p-4 space-y-3">
+                  <p className="text-base font-semibold">
+                    Esa franja choca con{" "}
+                    {porConfirmarBloqueo.length === 1 ? "1 clase particular" : `${porConfirmarBloqueo.length} clases particulares`}{" "}
+                    ya confirmadas.
+                  </p>
+                  <ul className="text-base space-y-1">
+                    {porConfirmarBloqueo.map((r) => (
+                      <li key={r.reservaId}>
+                        {r.etiqueta} · {r.hora.slice(0, 5)}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-sm text-[var(--texto-tenue)]">
+                    Al confirmar, esas reservas quedan Suspendidas (la hora vuelve al paquete) y se crea el
+                    bloqueo. Vas a poder copiar un aviso para cada una.
+                  </p>
+                  <div className="flex gap-3">
+                    <button onClick={() => setPorConfirmarBloqueo(null)} className={`${control} bg-transparent`}>
+                      Volver
+                    </button>
+                    <button
+                      onClick={() => confirmarBloqueo(true)}
+                      disabled={pendiente}
+                      className="px-4 py-2 text-sm font-semibold rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)] disabled:opacity-45"
+                    >
+                      Confirmar y suspender esas clases
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="flex items-center gap-3 flex-wrap">
                 <button
-                  onClick={confirmarBloqueo}
+                  onClick={() => confirmarBloqueo()}
                   disabled={pendiente || !motivo}
                   className="px-4 py-2 text-sm font-semibold rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)] disabled:opacity-45"
                 >
@@ -357,6 +536,7 @@ export default function ClienteDisponibilidadSala({
                   onClick={() => {
                     setMostrarForm(false);
                     setAviso(null);
+                    setPorConfirmarBloqueo(null);
                   }}
                   className="text-sm text-[var(--texto-tenue)]"
                 >
@@ -365,6 +545,22 @@ export default function ClienteDisponibilidadSala({
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Avisos listos para copiar por WhatsApp: alumno y profesor de cada
+          reserva que se suspendió u ofreció revertir en esta tarjeta. */}
+      {avisosOperativos && (
+        <div className="mt-4 pt-4 border-t border-[var(--borde)] space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-[var(--texto-tenue)]">Avisos</span>
+            <button onClick={() => setAvisosOperativos(null)} className="text-sm text-[var(--texto-tenue)]">
+              Cerrar
+            </button>
+          </div>
+          {avisosOperativos.map((a) => (
+            <AvisoWhatsapp key={a.id} nombre={a.nombre} whatsapp={a.whatsapp} mensaje={a.mensaje} />
+          ))}
         </div>
       )}
     </div>

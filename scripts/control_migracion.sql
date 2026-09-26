@@ -753,6 +753,35 @@ select '36. reservas de particular sin profesor' as control,
  where tipo = 'particular' and profesor_id is null;
 
 -- ---------------------------------------------------------------------
+-- 37. UNA SUSPENSION LIGADA A UN CIERRE/BLOQUEO SIGUE SUSPENDIDA
+--     0055 (C3 H4): `suspendida_por_excepcion_id`/`suspendida_por_bloqueo_id`
+--     solo los escribe `suspenderReservaOperativa`, y `suspendida` es un
+--     estado final (TRANSICIONES, reservas.ts) -- revertir crea una reserva
+--     NUEVA, nunca reabre esta. Si esto da mas de 0, algo movio de estado a
+--     una reserva que debia quedar congelada como historia.
+-- ---------------------------------------------------------------------
+select '37. reserva con vinculo de suspension operativa que no esta suspendida' as control,
+       count(*) as n,
+       case when count(*) = 0 then 'OK' else 'REVISAR' end as estado
+  from public.reservas_sala
+ where (suspendida_por_excepcion_id is not null or suspendida_por_bloqueo_id is not null)
+   and estado <> 'suspendida';
+
+-- ---------------------------------------------------------------------
+-- 38. UNA RESERVA QUE REVIERTE A OTRA APUNTA A UNA SUSPENDIDA
+--     0055: `revertirSuspension` es la unica que escribe `revierte_reserva_id`,
+--     y siempre contra una fila que en ese momento estaba `suspendida` (y
+--     sigue siendolo, por el control 37). Si esto da mas de 0, se armo el
+--     vinculo contra una reserva que nunca fue la que se estaba revirtiendo.
+-- ---------------------------------------------------------------------
+select '38. reserva que revierte a otra que no esta suspendida' as control,
+       count(*) as n,
+       case when count(*) = 0 then 'OK' else 'REVISAR' end as estado
+  from public.reservas_sala r
+  join public.reservas_sala anterior on anterior.id = r.revierte_reserva_id
+ where anterior.estado <> 'suspendida';
+
+-- ---------------------------------------------------------------------
 -- Detalle, por si algun control da REVISAR:
 -- ---------------------------------------------------------------------
 -- select id, alumno_id, curso_id, estado, fecha_inicio, fecha_fin,

@@ -21,7 +21,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { tienePermiso, obtenerParametro } from "@/lib/sesion";
+import { tienePermiso, obtenerParametro, obtenerPerfilActual, alcancePropioDe } from "@/lib/sesion";
 import { aMinutos } from "@/lib/horarios";
 import { COLS_VIGENCIA } from "@/lib/vigencia";
 import {
@@ -38,11 +38,19 @@ import {
   type Tramo,
   type Ventana,
 } from "@/lib/sala";
-import { validarReservaSala, validarTiempoReserva, ocupaAhora, FILTRO_ESTADOS_QUE_LIBERAN } from "@/lib/reservas";
+import {
+  validarReservaSala,
+  validarTiempoReserva,
+  ocupaAhora,
+  reservasQueChocanCon,
+  FILTRO_ESTADOS_QUE_LIBERAN,
+} from "@/lib/reservas";
+import { suspenderReservaOperativa, revertirSuspension } from "../particulares/acciones";
 
 const ISO_FECHA = /^\d{4}-\d{2}-\d{2}$/;
 
-type ResultadoSimple = { ok?: true; error?: string; mensaje?: string };
+export type AvisoOperativo = { id: string; nombre: string; whatsapp: string | null; mensaje: string };
+type ResultadoSimple = { ok?: true; error?: string; mensaje?: string; avisos?: AvisoOperativo[] };
 
 function admin() {
   const a = createAdminClient();
@@ -50,7 +58,15 @@ function admin() {
   return a;
 }
 
-export type BloqueDisponibilidad = BloqueOcupado & { id: number | null; notas: string | null; membresiaId: number | null };
+export type BloqueDisponibilidad = BloqueOcupado & {
+  id: number | null;
+  notas: string | null;
+  membresiaId: number | null;
+  /** H4: puede abrirse el panel de gestión de ESTA reserva desde acá — ya
+   *  calculado en el servidor con `particulares.editar` + el alcance propio/
+   *  todo, para no confiar en lo que decida el cliente (regla de calidad 6). */
+  gestionable: boolean;
+};
 
 export type DisponibilidadDia = {
   ventanas: Ventana[];
@@ -75,7 +91,7 @@ export async function consultarDisponibilidad(salaId: number, fechaISO: string):
     tramosLibres: [],
     error: null,
   };
-  if (!(await tienePermiso("sala", "ver")))
+  if (!(await tienePermiso("disponibilidad_sala", "ver")))
     return { ...vacio, error: "Sin permiso para ver la disponibilidad de la sala." };
   if (!salaId || !ISO_FECHA.test(fechaISO)) return { ...vacio, error: "La fecha no es válida." };
 
@@ -103,7 +119,7 @@ export async function consultarDisponibilidad(salaId: number, fechaISO: string):
     sb
       .from("reservas_sala")
       .select(
-        "id, tipo, motivo, glosa, notas, hora, duracion_min, estado, solicitada_hasta, membresia_id, " +
+        "id, tipo, motivo, glosa, notas, hora, duracion_min, estado, solicitada_hasta, membresia_id, profesor_id, " +
           "membresia:membresias(alumno:alumnos(contacto:contactos(nombre, apellido)), plan:planes(estilo)), " +
           "profesor:profesores(contacto:contactos(nombre, apellido))"
       )
@@ -155,6 +171,7 @@ export async function consultarDisponibilidad(salaId: number, fechaISO: string):
     estado: string;
     solicitada_hasta: string | null;
     membresia_id: number | null;
+    profesor_id: number | null;
     membresia: {
       alumno: { contacto: { nombre: string | null; apellido: string | null } | null } | null;
       plan: { estilo: string | null } | null;
@@ -174,26 +191,40 @@ export async function consultarDisponibilidad(salaId: number, fechaISO: string):
   const mapaEst = new Map(((estR.data as { clave: string; nombre: string }[]) ?? []).map((v) => [v.clave, v.nombre]));
   const nombreEstilo = (v: string) => mapaEst.get(v) ?? v;
 
-  const reservas: (ReservaSalaOcupa & { notas: string | null; membresiaId: number | null })[] = resRaw.map((r) => {
-    const contactoAlumno = r.membresia?.alumno?.contacto;
-    const contactoProfesor = r.profesor?.contacto;
-    const claveEstilo = r.membresia?.plan?.estilo ?? null;
-    return {
-      id: r.id,
-      tipo: r.tipo,
-      motivo: r.motivo,
-      glosa: r.glosa,
-      notas: r.notas,
-      hora: r.hora,
-      duracion_min: r.duracion_min,
-      alumnoNombre: contactoAlumno ? `${contactoAlumno.nombre ?? ""} ${contactoAlumno.apellido ?? ""}`.trim() : null,
-      profesorNombre: contactoProfesor
-        ? `${contactoProfesor.nombre ?? ""} ${contactoProfesor.apellido ?? ""}`.trim()
-        : null,
-      estilo: claveEstilo ? nombreEstilo(claveEstilo) : null,
-      membresiaId: r.membresia_id,
-    };
-  });
+  // Gestionable desde acá (H4): particulares.editar, y si el alcance es
+  // Propio, solo las de este profesor — mismo criterio que ya aplican las
+  // acciones de `particulares/acciones.ts` al escribir.
+  const [puedeEditarParticulares, { propio: alcancePropio, profesorId: profesorPropioId }] = await Promise.all([
+    tienePermiso("particulares", "editar"),
+    alcancePropioDe("particulares"),
+  ]);
+
+  const reservas: (ReservaSalaOcupa & { notas: string | null; membresiaId: number | null; gestionable: boolean })[] = resRaw.map(
+    (r) => {
+      const contactoAlumno = r.membresia?.alumno?.contacto;
+      const contactoProfesor = r.profesor?.contacto;
+      const claveEstilo = r.membresia?.plan?.estilo ?? null;
+      return {
+        id: r.id,
+        tipo: r.tipo,
+        motivo: r.motivo,
+        glosa: r.glosa,
+        notas: r.notas,
+        hora: r.hora,
+        duracion_min: r.duracion_min,
+        alumnoNombre: contactoAlumno ? `${contactoAlumno.nombre ?? ""} ${contactoAlumno.apellido ?? ""}`.trim() : null,
+        profesorNombre: contactoProfesor
+          ? `${contactoProfesor.nombre ?? ""} ${contactoProfesor.apellido ?? ""}`.trim()
+          : null,
+        estilo: claveEstilo ? nombreEstilo(claveEstilo) : null,
+        membresiaId: r.membresia_id,
+        gestionable:
+          (r.tipo === "particular" || r.tipo === "alquiler") &&
+          puedeEditarParticulares &&
+          (!alcancePropio || r.profesor_id === profesorPropioId),
+      };
+    }
+  );
 
   const etiquetaMotivo: ((v: string) => string) | undefined = catalogo
     ? (() => {
@@ -223,12 +254,14 @@ export async function consultarDisponibilidad(salaId: number, fechaISO: string):
     id: null,
     notas: null,
     membresiaId: null,
+    gestionable: false,
   }));
   const deReservas: BloqueDisponibilidad[] = ocupacionDeReservas(reservas, etiquetaMotivo).map((b, i) => ({
     ...b,
     id: reservas[i].id,
     notas: reservas[i].notas,
     membresiaId: reservas[i].membresiaId,
+    gestionable: reservas[i].gestionable,
   }));
   const ocupados = [...deCursos, ...deReservas].sort((a, b) => (aMinutos(a.hora) ?? 0) - (aMinutos(b.hora) ?? 0));
 
@@ -252,12 +285,35 @@ export type BloqueoNuevo = {
   notas: string | null;
 };
 
+/** Una reserva de particular/alquiler que un bloqueo nuevo pisaría, con lo
+ *  mínimo para mostrarla en la confirmación (H4). */
+export type ReservaChocaBloqueo = { reservaId: number; etiqueta: string; hora: string; duracionMin: number };
+
+/** "Alumno Apellido" de una reserva particular con su membresía/alumno ya
+ *  traídos por join — usado tanto para la confirmación de choque como para
+ *  la de "ya había suspendido algo" al cancelar un bloqueo. */
+function nombreAlumnoDe(r: {
+  membresia: { alumno: { contacto: { nombre: string | null; apellido: string | null } | null } | null } | null;
+}): string | null {
+  const c = r.membresia?.alumno?.contacto;
+  return c ? `${c.nombre ?? ""} ${c.apellido ?? ""}`.trim() || null : null;
+}
+
 /**
- * Crea un bloqueo de sala sin venta detrás (D7). Es la única reserva posible
- * hoy: particular/alquiler necesitan la venta (C3), que todavía no existe.
+ * Crea un bloqueo de sala sin venta detrás (D7).
+ *
+ * **H4**: si la franja choca con una clase de curso o con otro bloqueo, se
+ * sigue rechazando de una — eso no se resuelve solo. Si choca **solo** con
+ * reservas de particular/alquiler ya confirmadas, se puede resolver
+ * suspendiéndolas primero: se pide confirmación explícita, y recién con
+ * `confirmarSuspension` se suspenden y se crea el bloqueo.
  */
-export async function crearBloqueoSala(salaId: number, datos: BloqueoNuevo): Promise<ResultadoSimple> {
-  if (!(await tienePermiso("sala", "editar")))
+export async function crearBloqueoSala(
+  salaId: number,
+  datos: BloqueoNuevo,
+  confirmarSuspension = false
+): Promise<ResultadoSimple | { requiereConfirmacion: true; reservasAfectadas: ReservaChocaBloqueo[] }> {
+  if (!(await tienePermiso("disponibilidad_sala", "editar")))
     return { error: "Sin permiso para reservar o bloquear la sala." };
 
   if (!ISO_FECHA.test(datos.fecha)) return { error: "La fecha de la reserva no es válida." };
@@ -280,11 +336,11 @@ export async function crearBloqueoSala(salaId: number, datos: BloqueoNuevo): Pro
     .maybeSingle();
   if (errCat) return { error: `No se pudo leer el catálogo de motivos: ${errCat.message}` };
   const { data: valRows, error: errVal } = catRow
-    ? await a.from("catalogo_valores").select("valor").eq("catalogo_id", catRow.id).eq("activo", true)
-    : { data: [] as { valor: string }[], error: null };
+    ? await a.from("catalogo_valores").select("valor, etiqueta").eq("catalogo_id", catRow.id).eq("activo", true)
+    : { data: [] as { valor: string; etiqueta: string }[], error: null };
   if (errVal) return { error: `No se pudieron leer los motivos de bloqueo: ${errVal.message}` };
-  const motivosValidos = new Set(((valRows as { valor: string }[]) ?? []).map((v) => v.valor));
-  if (!datos.motivo || !motivosValidos.has(datos.motivo))
+  const etiquetaMotivoBloqueo = new Map(((valRows as { valor: string; etiqueta: string }[]) ?? []).map((v) => [v.valor, v.etiqueta]));
+  if (!datos.motivo || !etiquetaMotivoBloqueo.has(datos.motivo))
     return { error: "Elegí un motivo de la lista: no se puede bloquear la sala sin decir por qué." };
 
   const [patronR, excR, cursosR, resR] = await Promise.all([
@@ -300,7 +356,10 @@ export async function crearBloqueoSala(salaId: number, datos: BloqueoNuevo): Pro
       .eq("activo", true),
     a
       .from("reservas_sala")
-      .select("id, tipo, motivo, glosa, hora, duracion_min, estado, solicitada_hasta")
+      .select(
+        "id, tipo, motivo, glosa, hora, duracion_min, estado, solicitada_hasta, " +
+          "membresia:membresias(alumno:alumnos(contacto:contactos(nombre, apellido)))"
+      )
       .eq("sala_id", salaId)
       .eq("fecha", datos.fecha)
       .not("estado", "in", FILTRO_ESTADOS_QUE_LIBERAN),
@@ -313,10 +372,15 @@ export async function crearBloqueoSala(salaId: number, datos: BloqueoNuevo): Pro
   const patron = (patronR.data as FranjaPatron[]) ?? [];
   const excepciones = (excR.data as ExcepcionHorario[]) ?? [];
   const cursos = (cursosR.data as unknown as CursoOcupa[]) ?? [];
+  type ReservaConAlumno = ReservaSalaOcupa & {
+    estado: string;
+    solicitada_hasta: string | null;
+    membresia: { alumno: { contacto: { nombre: string | null; apellido: string | null } | null } | null } | null;
+  };
   const ahoraBloqueo = new Date();
-  const reservas = (
-    (resR.data as (ReservaSalaOcupa & { estado: string; solicitada_hasta: string | null })[]) ?? []
-  ).filter((r) => ocupaAhora({ tipo: r.tipo, estado: r.estado, solicitadaHasta: r.solicitada_hasta }, ahoraBloqueo));
+  const todasReservas = ((resR.data as unknown as ReservaConAlumno[]) ?? []).filter((r) =>
+    ocupaAhora({ tipo: r.tipo, estado: r.estado, solicitadaHasta: r.solicitada_hasta }, ahoraBloqueo)
+  );
 
   // Para leer el motivo de un cierre, si el horario rechaza por eso.
   const { data: catExcRow } = await a
@@ -336,8 +400,11 @@ export async function crearBloqueoSala(salaId: number, datos: BloqueoNuevo): Pro
   if (errSus) return { error: `No se pudieron leer las clases suspendidas: ${errSus.message}` };
   const suspendidos = new Set(((susRows as { curso_id: number }[]) ?? []).map((s) => s.curso_id));
 
-  const ocupadosSala = ocupacionDelDia(cursos, reservas, datos.fecha, suspendidos, salaId);
-  const validacion = validarReservaSala({
+  // Cursos y otros bloqueos: eso NO se resuelve solo, se sigue rechazando de
+  // una (sin cambios respecto de antes de H4).
+  const reservasDuras = todasReservas.filter((r) => r.tipo === "bloqueo");
+  const ocupadosSalaDuro = ocupacionDelDia(cursos, reservasDuras, datos.fecha, suspendidos, salaId);
+  const validacionDura = validarReservaSala({
     fecha: datos.fecha,
     hora: datos.hora,
     duracionMin: datos.duracionMin,
@@ -346,21 +413,58 @@ export async function crearBloqueoSala(salaId: number, datos: BloqueoNuevo): Pro
     sala: { esExterna: false, capacidad: null },
     patron,
     excepciones,
-    ocupadosSala,
+    ocupadosSala: ocupadosSalaDuro,
     etiquetaMotivoExcepcion: (v) => etiquetaExc.get(v) ?? v,
   });
-  if (!validacion.ok) return { error: validacion.motivo };
+  if (!validacionDura.ok) return { error: validacionDura.motivo };
 
-  const { error: errIns } = await a.from("reservas_sala").insert({
-    sala_id: salaId,
-    tipo: "bloqueo",
-    motivo: datos.motivo,
-    glosa: datos.glosa?.trim() || null,
-    notas: datos.notas?.trim() || null,
-    fecha: datos.fecha,
-    hora: datos.hora,
-    duracion_min: datos.duracionMin,
-  });
+  // Particular/alquiler: si choca, se puede resolver suspendiéndolas (H4, R1).
+  const reservasParticipantes = todasReservas.filter((r) => r.tipo === "particular" || r.tipo === "alquiler");
+  const candidatas: (ReservaChocaBloqueo & { tipo: string })[] = reservasParticipantes.map((r) => ({
+    reservaId: r.id,
+    hora: r.hora,
+    duracionMin: r.duracion_min,
+    etiqueta: r.tipo === "particular" ? nombreAlumnoDe(r) ?? "Clase particular" : "Alquiler de sala",
+    tipo: r.tipo,
+  }));
+  const choques = reservasQueChocanCon(candidatas, datos.hora, datos.duracionMin);
+  if (choques.length && !confirmarSuspension)
+    return { requiereConfirmacion: true, reservasAfectadas: choques.map(({ reservaId, etiqueta, hora, duracionMin }) => ({ reservaId, etiqueta, hora, duracionMin })) };
+
+  const perfil = await obtenerPerfilActual();
+  const motivoTexto = [etiquetaMotivoBloqueo.get(datos.motivo), datos.glosa?.trim() || null].filter(Boolean).join(" — ");
+  const avisos: AvisoOperativo[] = [];
+  const suspendidasOk: number[] = [];
+  const fallidas: string[] = [];
+  for (const ch of choques) {
+    const r = await suspenderReservaOperativa(ch.reservaId, { motivoClave: "bloqueo_sala", motivoTexto }, perfil?.id ?? null);
+    if (!r.ok) {
+      fallidas.push(`${ch.etiqueta}: ${r.error}`);
+      continue;
+    }
+    suspendidasOk.push(ch.reservaId);
+    if (r.avisoAlumno) avisos.push({ id: `reserva-${ch.reservaId}-alumno`, ...r.avisoAlumno });
+    if (r.avisoProfesor) avisos.push({ id: `reserva-${ch.reservaId}-profesor`, ...r.avisoProfesor });
+  }
+  if (fallidas.length)
+    return {
+      error: `No se pudo bloquear la sala: ${fallidas.join("; ")}. No se suspendió nada más ni se creó el bloqueo — volvé a intentarlo.`,
+    };
+
+  const { data: nuevo, error: errIns } = await a
+    .from("reservas_sala")
+    .insert({
+      sala_id: salaId,
+      tipo: "bloqueo",
+      motivo: datos.motivo,
+      glosa: datos.glosa?.trim() || null,
+      notas: datos.notas?.trim() || null,
+      fecha: datos.fecha,
+      hora: datos.hora,
+      duracion_min: datos.duracionMin,
+    })
+    .select("id")
+    .single();
   if (errIns) {
     // `23P01` = exclusion_violation: alguien reservó ese rango entre la
     // validación de arriba y este insert. El cinturón de seguridad es la
@@ -373,23 +477,65 @@ export async function crearBloqueoSala(salaId: number, datos: BloqueoNuevo): Pro
     return { error: `No se pudo guardar la reserva: ${errIns.message}` };
   }
 
+  // Vínculo de "qué bloqueo la suspendió" (R22 simétrico): se completa después
+  // de insertar, porque antes el bloqueo no tenía id. No mueve estado/sala/
+  // fecha/hora/duración, así que no genera una fila extra en el historial.
+  if (suspendidasOk.length) {
+    await a.from("reservas_sala").update({ suspendida_por_bloqueo_id: nuevo.id }).in("id", suspendidasOk);
+  }
+
   revalidatePath("/sala");
-  return { ok: true, mensaje: "Bloqueo registrado." };
+  revalidatePath("/particulares");
+  revalidatePath("/administracion/sala");
+  const mensaje =
+    suspendidasOk.length > 0
+      ? `Bloqueo registrado. Se suspendi${suspendidasOk.length === 1 ? "ó 1 clase particular" : `eron ${suspendidasOk.length} clases particulares`} que ocupaban esa franja.`
+      : "Bloqueo registrado.";
+  return { ok: true, mensaje, avisos: avisos.length ? avisos : undefined };
 }
 
 /**
  * Cancela un bloqueo ya creado. Nunca hard delete: es un hecho auditable, como
  * cualquier suspensión (regla de negocio 16 aplicada acá a la sala).
  *
- * Acotado a `tipo='bloqueo'`: particular/alquiler todavía no se venden (C3), y
- * cuando existan van a tener sus propias reglas de cancelación (¿se devuelven
- * las horas al paquete?) que esta acción no contempla.
+ * Acotado a `tipo='bloqueo'`: particular/alquiler tienen sus propias reglas de
+ * cancelación (`cambiarEstadoReserva`, en `particulares/acciones.ts`).
+ *
+ * **H4**: si este bloqueo ya había suspendido reservas (`suspendida_por_bloqueo_id`),
+ * cancelarlo ofrece revertirlas — mismo criterio simétrico que R22 con las
+ * excepciones de horario. Sin `decision`, se pregunta primero.
  */
-export async function cancelarReservaSala(reservaId: number): Promise<ResultadoSimple> {
-  if (!(await tienePermiso("sala", "editar")))
+export async function cancelarReservaSala(
+  reservaId: number,
+  decision?: "revertir" | "sin_revertir"
+): Promise<
+  | ResultadoSimple
+  | { requiereConfirmacion: true; ligadas: { reservaId: number; etiqueta: string; fecha: string; hora: string }[] }
+> {
+  if (!(await tienePermiso("disponibilidad_sala", "editar")))
     return { error: "Sin permiso para cancelar una reserva de la sala." };
 
   const a = admin();
+
+  type LigadaRow = {
+    id: number;
+    fecha: string;
+    hora: string;
+    membresia: { alumno: { contacto: { nombre: string | null; apellido: string | null } | null } | null } | null;
+  };
+  const { data: ligRows } = await a
+    .from("reservas_sala")
+    .select("id, fecha, hora, membresia:membresias(alumno:alumnos(contacto:contactos(nombre, apellido)))")
+    .eq("suspendida_por_bloqueo_id", reservaId)
+    .eq("estado", "suspendida");
+  const ligadas = ((ligRows as unknown as LigadaRow[]) ?? []).map((l) => ({
+    reservaId: l.id,
+    etiqueta: nombreAlumnoDe(l) ?? "Clase particular",
+    fecha: l.fecha,
+    hora: l.hora,
+  }));
+  if (ligadas.length && !decision) return { requiereConfirmacion: true, ligadas };
+
   const { data, error } = await a
     .from("reservas_sala")
     .update({ estado: "cancelada" })
@@ -400,6 +546,26 @@ export async function cancelarReservaSala(reservaId: number): Promise<ResultadoS
   if (error) return { error: `No se pudo cancelar la reserva: ${error.message}` };
   if (!data || data.length === 0) return { error: "Esa reserva ya estaba cancelada, o no existe." };
 
+  let mensaje = "Reserva cancelada.";
+  const avisos: AvisoOperativo[] = [];
+  if (decision === "revertir" && ligadas.length) {
+    let revertidas = 0;
+    const fallidas: string[] = [];
+    for (const l of ligadas) {
+      const r = await revertirSuspension(l.reservaId);
+      if (r.error) fallidas.push(`${l.etiqueta} (${l.fecha} ${l.hora.slice(0, 5)}): ${r.error}`);
+      else {
+        revertidas++;
+        if (r.avisoAlumno) avisos.push({ id: `reserva-${l.reservaId}-alumno`, ...r.avisoAlumno });
+        if (r.avisoProfesor) avisos.push({ id: `reserva-${l.reservaId}-profesor`, ...r.avisoProfesor });
+      }
+    }
+    if (revertidas) mensaje += ` Se restableci${revertidas === 1 ? "ó 1 clase" : `eron ${revertidas} clases`}.`;
+    if (fallidas.length) mensaje += ` No se pudo restablecer: ${fallidas.join("; ")}.`;
+  }
+
   revalidatePath("/sala");
-  return { ok: true, mensaje: "Reserva cancelada." };
+  revalidatePath("/particulares");
+  revalidatePath("/administracion/sala");
+  return { ok: true, mensaje, avisos: avisos.length ? avisos : undefined };
 }

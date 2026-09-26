@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { tienePermiso } from "@/lib/sesion";
 import { estadoDeCuenta } from "@/lib/cuentas";
 import { gs, rotuloDiasMembresia } from "@/lib/inscripcion";
+import { formatearHoras } from "@/lib/horarios";
+import { ETIQUETA_ESTADO_RESERVA, type EstadoReserva } from "@/lib/reservas";
 import SinAcceso from "@/components/SinAcceso";
 import ImprimirCuenta from "./ImprimirCuenta";
 import type { CuotaCuenta, MembresiaCuenta } from "@/lib/tipos";
@@ -101,6 +103,12 @@ export default async function PaginaCuenta({ params }: { params: Promise<{ id: s
                       {gs(p.monto)}
                     </span>
                   </div>
+                  {p.membresiaPlan && (
+                    <p className="text-sm text-[var(--texto-tenue)] mt-0.5 truncate">
+                      {p.membresiaPlan}
+                      {p.membresiaFechaInicio ? ` (desde ${fechaCorta(p.membresiaFechaInicio)})` : ""}
+                    </p>
+                  )}
                   <p className="text-sm text-[var(--texto-tenue)] mt-0.5">
                     {[
                       fechaCorta(p.fecha),
@@ -126,7 +134,13 @@ export default async function PaginaCuenta({ params }: { params: Promise<{ id: s
 }
 
 function Membresia({ m, puedeCobrar }: { m: MembresiaCuenta; puedeCobrar: boolean }) {
-  const consumo = m.progreso
+  const h = (min: number) => formatearHoras(min / 60);
+  // Particular/alquiler (regla 21: no tiene curso, tiene horas) — mismo
+  // texto que ya usa `/particulares`, para no decir "sin límite" de un
+  // paquete que sí tiene tope, solo que en horas y no en clases.
+  const consumo = m.horas
+    ? `${h(m.horas.disponibleMin)} h de ${h(m.horas.contratadasMin)} h disponibles`
+    : m.progreso
     ? `${m.progreso.hechas}/${m.progreso.total} clases`
     : m.restantes != null
     ? `${m.restantes} ${m.restantes === 1 ? "clase" : "clases"} por usar`
@@ -141,12 +155,15 @@ function Membresia({ m, puedeCobrar }: { m: MembresiaCuenta; puedeCobrar: boolea
   // Un curso por línea, con sus días — una membresía multi-curso tiene que
   // verse completa, no reducida al primero (regla de negocio: el glosario de
   // REGLAS.md dice que "no existe curso principal de la membresía, salvo que
-  // sea mono curso"). Vacío es un dato que falta, no "sin curso": se dice.
+  // sea mono curso"). Una particular no tiene curso: tiene estilo y profesor
+  // (regla 21), y "Curso sin determinar" ahí sería un dato que sí se sabe
+  // mostrado como si faltara (regla de calidad 1). Solo si falta también eso
+  // se dice que falta.
   const cursosTexto = m.cursos.length
     ? m.cursos
         .map((c) => (rotuloDiasMembresia(c.dias) ? `${c.nombre} (${rotuloDiasMembresia(c.dias)})` : c.nombre))
         .join(" · ")
-    : "Curso sin determinar";
+    : (m.estiloProfesor ?? "Curso sin determinar");
 
   const finTexto = m.fechaFin
     ? `${fechaCorta(m.fechaFin)}${m.fechaFinEstimada ? " (estimado)" : ""}`
@@ -179,6 +196,24 @@ function Membresia({ m, puedeCobrar }: { m: MembresiaCuenta; puedeCobrar: boolea
         </p>
       )}
 
+      {/* Particular/alquiler: cada reserva, una por una — incluida una
+          Suspendida por un cierre de sala (H4). El detalle completo (cambiar
+          de estado, reprogramar) sigue viviendo en /particulares/[id]; acá es
+          de solo lectura, para no duplicar esas acciones. */}
+      {m.reservas && m.reservas.length > 0 && (
+        <ul className="text-sm mt-2 space-y-0.5">
+          {m.reservas.map((r, i) => (
+            <li key={i} className="text-[var(--texto-tenue)]">
+              {fechaCorta(r.fecha)} {r.hora.slice(0, 5)} ({h(r.duracionMin)} h
+              {r.salaNombre ? ` · ${r.salaNombre}` : ""}) —{" "}
+              <span className={r.estado === "suspendida" ? "text-[var(--peligro)]" : ""}>
+                {ETIQUETA_ESTADO_RESERVA[r.estado as EstadoReserva] ?? r.estado}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+
       <ul className="divide-y divide-[var(--borde)] mt-3 border-t border-[var(--borde)]">
         {m.cuotas.map((c) => (
           <Cuota key={c.id} c={c} puedeCobrar={puedeCobrar} />
@@ -190,10 +225,15 @@ function Membresia({ m, puedeCobrar }: { m: MembresiaCuenta; puedeCobrar: boolea
 
 function Cuota({ c, puedeCobrar }: { c: CuotaCuenta; puedeCobrar: boolean }) {
   const limite = c.fechaCompromiso ?? c.vencimiento;
+  // El tiempo verbal depende de si la fecha YA PASÓ, no de si está saldada:
+  // una cuota pagada con vencimiento a futuro no "vencía" (eso es pasado),
+  // "vence" — pagarla antes no la manda al pasado.
+  const hoyISO = new Date().toISOString().slice(0, 10);
+  const yaPaso = limite != null && limite.slice(0, 10) < hoyISO;
   const detalle = [
     `Vale ${gs(c.devengado)}`,
     c.cubierto > 0 ? `cubierto ${gs(c.cubierto)}` : null,
-    limite ? `${c.saldo > 0 ? "vence" : "vencía"} el ${fechaCorta(limite)}` : null,
+    limite ? `${yaPaso ? "vencía" : "vence"} el ${fechaCorta(limite)}` : null,
   ]
     .filter(Boolean)
     .join(" · ");

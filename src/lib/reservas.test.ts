@@ -8,12 +8,15 @@ import {
   ocupaAhora,
   evaluarCancelacion,
   saldoMembresia,
+  reservasAfectadasPorExcepciones,
+  reservasQueChocanCon,
   ESTADOS_RESERVA,
   ESTADOS_QUE_OCUPAN,
   ESTADOS_QUE_LIBERAN,
   type EstadoReserva,
 } from "./reservas.ts";
-import type { CursoOcupa, ReservaSalaOcupa, BloqueOcupado } from "./sala.ts";
+import { impactoDeExcepcion, clasesAfectadasPorExcepciones } from "./sala.ts";
+import type { CursoOcupa, ReservaSalaOcupa, BloqueOcupado, ExcepcionHorario, MembresiaCobertura } from "./sala.ts";
 
 const PATRON = [{ dia_semana: 5, desde: "09:00", hasta: "22:00" }]; // viernes
 const SIN_EXCEPCIONES: [] = [];
@@ -280,4 +283,139 @@ test("saldoMembresia: el disponible nunca es negativo, aunque se pase del paquet
   });
   assert.equal(s.sinAgendarMin, 0);
   assert.equal(s.disponibleMin, 0);
+});
+
+// ── Cierres de sala sobre reservas (C3, hito H4) ────────────────────────────
+
+const CIERRE: ExcepcionHorario = {
+  fecha: "2026-12-24",
+  hasta_fecha: "2026-12-26",
+  cerrado: true,
+  desde: null,
+  hasta: null,
+  motivo: "feriado",
+  glosa: null,
+};
+
+const HORARIO_REDUCIDO: ExcepcionHorario = {
+  fecha: "2026-12-31",
+  hasta_fecha: "2026-12-31",
+  cerrado: false,
+  desde: "09:00",
+  hasta: "14:00",
+  motivo: "feriado",
+  glosa: null,
+};
+
+test("impactoDeExcepcion: ninguna excepción cubre la fecha → no afecta", () => {
+  const r = impactoDeExcepcion("2026-12-27", "19:00", 60, [CIERRE, HORARIO_REDUCIDO]);
+  assert.deepEqual(r, { afectada: false, motivo: null });
+});
+
+test("impactoDeExcepcion: un cierre completo afecta cualquier hora de esos días", () => {
+  const r = impactoDeExcepcion("2026-12-25", "19:00", 60, [CIERRE]);
+  assert.deepEqual(r, { afectada: true, motivo: "cierre" });
+});
+
+test("impactoDeExcepcion: horario reducido que igual entra en la ventana nueva no afecta", () => {
+  const r = impactoDeExcepcion("2026-12-31", "10:00", 60, [HORARIO_REDUCIDO]);
+  assert.deepEqual(r, { afectada: false, motivo: null });
+});
+
+test("impactoDeExcepcion: horario reducido que deja la franja afuera sí afecta", () => {
+  const r = impactoDeExcepcion("2026-12-31", "18:00", 60, [HORARIO_REDUCIDO]);
+  assert.deepEqual(r, { afectada: true, motivo: "horario_reducido" });
+});
+
+const CURSO_VIERNES: CursoOcupa = {
+  id: 1,
+  nombre: "Salsa Inicial",
+  dias_semana: [5], // viernes
+  hora: "19:00",
+  duracion_min: 60,
+  sala_id: 10,
+};
+
+test("clasesAfectadasPorExcepciones: alumno activo dentro del cierre queda listado, motivo cierre", () => {
+  const membresias: MembresiaCobertura[] = [
+    { alumno_id: 1, curso_id: 1, fecha_inicio: "2026-01-01", fecha_fin: null },
+  ];
+  const r = clasesAfectadasPorExcepciones(
+    [CURSO_VIERNES],
+    membresias,
+    [CIERRE],
+    "2026-12-24",
+    "2026-12-26",
+    new Set()
+  );
+  assert.equal(r.length, 1);
+  assert.equal(r[0].fecha, "2026-12-25"); // el único viernes del rango
+  assert.equal(r[0].alumnosActivos, 1);
+  assert.equal(r[0].motivoImpacto, "cierre");
+});
+
+test("clasesAfectadasPorExcepciones: sin membresía activa no hay nada que confirmar (regla 18)", () => {
+  const r = clasesAfectadasPorExcepciones([CURSO_VIERNES], [], [CIERRE], "2026-12-24", "2026-12-26", new Set());
+  assert.deepEqual(r, []);
+});
+
+test("clasesAfectadasPorExcepciones: una clase ya suspendida no se repite", () => {
+  const membresias: MembresiaCobertura[] = [
+    { alumno_id: 1, curso_id: 1, fecha_inicio: "2026-01-01", fecha_fin: null },
+  ];
+  const yaSuspendidas = new Set(["1|2026-12-25"]);
+  const r = clasesAfectadasPorExcepciones(
+    [CURSO_VIERNES],
+    membresias,
+    [CIERRE],
+    "2026-12-24",
+    "2026-12-26",
+    yaSuspendidas
+  );
+  assert.deepEqual(r, []);
+});
+
+test("clasesAfectadasPorExcepciones: horario reducido que deja la clase afuera también se lista", () => {
+  const membresias: MembresiaCobertura[] = [
+    { alumno_id: 1, curso_id: 1, fecha_inicio: "2026-01-01", fecha_fin: null },
+  ];
+  // El viernes 19:00-20:00 no entra en un horario reducido de ese día.
+  const reducidoViernes: ExcepcionHorario = { ...HORARIO_REDUCIDO, fecha: "2027-01-01", hasta_fecha: "2027-01-01" };
+  const cursoQueCaeElViernes: CursoOcupa = { ...CURSO_VIERNES, dias_semana: [5] };
+  const r = clasesAfectadasPorExcepciones(
+    [cursoQueCaeElViernes],
+    membresias,
+    [reducidoViernes],
+    "2027-01-01",
+    "2027-01-01",
+    new Set()
+  );
+  assert.equal(r.length, 1);
+  assert.equal(r[0].motivoImpacto, "horario_reducido");
+});
+
+test("reservasAfectadasPorExcepciones: solo lista las que una excepción de verdad afecta", () => {
+  const candidatas = [
+    { reservaId: 1, fecha: "2026-12-25", hora: "19:00", duracionMin: 60, etiqueta: "Ana Pérez", detalle: null },
+    { reservaId: 2, fecha: "2026-12-27", hora: "19:00", duracionMin: 60, etiqueta: "Beto Ruiz", detalle: null },
+    { reservaId: 3, fecha: "2026-12-31", hora: "10:00", duracionMin: 60, etiqueta: "Cami Díaz", detalle: null },
+  ];
+  const r = reservasAfectadasPorExcepciones(candidatas, [CIERRE, HORARIO_REDUCIDO]);
+  assert.deepEqual(
+    r.map((x) => x.reservaId),
+    [1]
+  );
+  assert.equal(r[0].motivoImpacto, "cierre");
+});
+
+test("reservasQueChocanCon: filtra por solapamiento, criterio de intervalo medio abierto", () => {
+  const candidatas = [
+    { reservaId: 1, hora: "18:00", duracionMin: 60 }, // 18-19, no choca con 19-20
+    { reservaId: 2, hora: "19:30", duracionMin: 60 }, // 19:30-20:30, sí choca
+  ];
+  const r = reservasQueChocanCon(candidatas, "19:00", 60);
+  assert.deepEqual(
+    r.map((x) => x.reservaId),
+    [2]
+  );
 });
