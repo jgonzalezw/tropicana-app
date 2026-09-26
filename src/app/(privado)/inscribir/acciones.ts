@@ -1380,6 +1380,7 @@ export async function venderParticular(e: EntradaParticular): Promise<ResultadoP
     pagoPctMargen,
     pagoDescuentaSala,
     pagoMontoFijo,
+    leftoverMin,
   } = r;
   if (!alumno || !sesiones || salaId == null || precio == null || horasContratadas == null)
     return { error: "No se pudo calcular la venta." };
@@ -1511,19 +1512,34 @@ export async function venderParticular(e: EntradaParticular): Promise<ResultadoP
   revalidatePath("/sala");
 
   const agendaTexto = formatearAgenda(sesiones);
+  // En flexible solo se reserva la PRIMERA clase (el resto se coordina
+  // después, H3); decir "Tus clases: <una fecha>" sonaba como si esa fuera
+  // toda la agenda (Javier, 26/09). En fija sí es toda la agenda: se generó
+  // completa al vender.
+  const esFija = e.agenda.modalidad === "fija";
+  // "El resto se coordina después" solo si de verdad queda algo del paquete
+  // sin agendar — con flexible y un tramo que se cubre justo con la primera
+  // clase (leftoverMin === 0), decirlo era falso (hallazgo de Javier, 26/09).
+  const restoCoordina = !!leftoverMin ? " El resto se coordina después." : "";
+  const introAlumno = esFija
+    ? sesiones.length === 1
+      ? "Tu clase reservada es"
+      : "Tus clases reservadas son"
+    : "Tu primera clase reservada es";
+  const introProfesor = esFija ? (sesiones.length === 1 ? "La clase es" : "Las clases son") : "La primera clase es";
 
   return {
     ok: true,
-    resumen: `Membresía particular de ${alumno.nombre || `alumno #${e.alumnoId}`} — ${planNombre}, ${horasContratadas} h con ${nombreProfesor}. Clases: ${agendaTexto}. ${mueve > 0 ? `Cobrado ${gs(mueve)}.` : "Sin cobro por ahora."}`,
+    resumen: `Membresía particular de ${alumno.nombre || `alumno #${e.alumnoId}`} — ${planNombre}, ${horasContratadas} h con ${nombreProfesor}. ${introAlumno}: ${agendaTexto}.${restoCoordina} ${mueve > 0 ? `Cobrado ${gs(mueve)}.` : "Sin cobro por ahora."}`,
     avisoAlumno: {
       nombre: alumno.nombre,
       whatsapp: alumno.whatsapp,
-      mensaje: `Hola! Confirmamos tu paquete de ${horasContratadas} h de clases particulares (${planNombre}) con ${nombreProfesor} en ${dondeTexto}. Tus clases: ${agendaTexto}. ¡Te esperamos!`,
+      mensaje: `Hola! Confirmamos tu paquete de ${horasContratadas} h de clases particulares (${planNombre}) con ${nombreProfesor} en ${dondeTexto}. ${introAlumno}: ${agendaTexto}.${restoCoordina} ¡Te esperamos!`,
     },
     avisoProfesor: {
       nombre: nombreProfesor ?? "",
       whatsapp: whatsappProfesor ?? null,
-      mensaje: `Hola! Se te agendó una clase particular (${planNombre}) con ${alumno.nombre || "un alumno"} en ${dondeTexto}. Clases: ${agendaTexto}.`,
+      mensaje: `Hola! Se te agendó una clase particular (${planNombre}) con ${alumno.nombre || "un alumno"} en ${dondeTexto}. ${introProfesor}: ${agendaTexto}.${restoCoordina}`,
     },
   };
 }
