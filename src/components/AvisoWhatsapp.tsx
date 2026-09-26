@@ -16,7 +16,8 @@
  */
 
 import { useState } from "react";
-import { urlChatWhatsapp } from "@/lib/contactos";
+import { urlChatWhatsapp, urlAppWhatsapp } from "@/lib/contactos";
+import { abrirWhatsapp } from "@/lib/whatsappCliente";
 
 const botonPrimario =
   "px-3 py-2 text-sm rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)] font-medium hover:opacity-90";
@@ -37,6 +38,7 @@ export default function AvisoWhatsapp({
 }) {
   const [copiado, setCopiado] = useState(false);
   const url = urlChatWhatsapp(whatsapp, mensaje);
+  const urlApp = urlAppWhatsapp(whatsapp, mensaje);
 
   async function copiar() {
     try {
@@ -65,7 +67,16 @@ export default function AvisoWhatsapp({
       </div>
       <div className="flex gap-2 shrink-0">
         {url ? (
-          <a href={url} target="_blank" rel="noopener noreferrer" className={botonPrimario}>
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={botonPrimario}
+            onClick={(e) => {
+              e.preventDefault();
+              abrirWhatsapp(urlApp, url);
+            }}
+          >
             Enviar por WhatsApp
           </a>
         ) : (

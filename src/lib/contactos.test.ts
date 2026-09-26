@@ -16,6 +16,7 @@ import {
   coincideBusqueda,
   urlPerfilRed,
   urlChatWhatsapp,
+  urlAppWhatsapp,
 } from "./contactos.ts";
 
 /** Fecha ISO de hace `anios` años (y algunos días de margen para no depender del día de la corrida). */
@@ -246,6 +247,20 @@ test("urlChatWhatsapp: con texto agrega ?text= codificado", () => {
     urlChatWhatsapp("+59177311069", "Hola! Se suspendió tu clase"),
     "https://wa.me/59177311069?text=Hola!%20Se%20suspendi%C3%B3%20tu%20clase"
   );
+});
+
+test("urlAppWhatsapp: numero internacional da el esquema whatsapp:// (app del dispositivo)", () => {
+  assert.equal(urlAppWhatsapp("+59177311069"), "whatsapp://send?phone=59177311069");
+  assert.equal(
+    urlAppWhatsapp("+59177311069", "Hola! Se suspendió tu clase"),
+    "whatsapp://send?phone=59177311069&text=Hola!%20Se%20suspendi%C3%B3%20tu%20clase"
+  );
+});
+
+test("urlAppWhatsapp: mismas condiciones de validez que urlChatWhatsapp (sin +, no arma link)", () => {
+  assert.equal(urlAppWhatsapp("776326266"), null);
+  assert.equal(urlAppWhatsapp(null), null);
+  assert.equal(urlAppWhatsapp(""), null);
 });
 
 test("compararContactosPorApellido: ordena por apellido, luego nombre", () => {

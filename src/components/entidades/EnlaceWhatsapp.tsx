@@ -1,4 +1,7 @@
-import { urlChatWhatsapp } from "@/lib/contactos";
+"use client";
+
+import { urlChatWhatsapp, urlAppWhatsapp } from "@/lib/contactos";
+import { abrirWhatsapp } from "@/lib/whatsappCliente";
 import IconoRed from "./IconoRed";
 
 /**
@@ -23,6 +26,7 @@ export default function EnlaceWhatsapp({
 }) {
   if (!numero) return <span className={className}>{vacio}</span>;
   const url = urlChatWhatsapp(numero, texto);
+  const urlApp = urlAppWhatsapp(numero, texto);
   const contenido = (
     <span className="inline-flex items-center gap-1">
       {conIcono && <IconoRed red="whatsapp" nombre="WhatsApp" />}
@@ -37,6 +41,10 @@ export default function EnlaceWhatsapp({
       rel="noopener noreferrer"
       className={`hover:text-[var(--primario)] hover:underline ${className ?? ""}`}
       title="Abrir chat de WhatsApp"
+      onClick={(e) => {
+        e.preventDefault();
+        abrirWhatsapp(urlApp, url);
+      }}
     >
       {contenido}
     </a>

@@ -384,11 +384,25 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
     multicanal, el mínimo dejó de ser copiar el texto: es un botón que abre
     WhatsApp con el mensaje ya escrito, dirigido al número del contacto —
     "Copiar" queda como respaldo. La pieza es `src/components/AvisoWhatsapp.tsx`
-    (regla de proceso 4): recibe nombre, WhatsApp y mensaje, arma el link
-    `wa.me` con `urlChatWhatsapp` (`src/lib/contactos.ts`), y si el número no
+    (regla de proceso 4): recibe nombre, WhatsApp y mensaje, y si el número no
     está en formato internacional deja el botón deshabilitado con la
     explicación (calidad 5), nunca lo esconde. A un alumno menor el aviso le
     llega a su tutor, que es quien lo identifica.
+    **El botón intenta primero la aplicación del dispositivo, no la web**
+    (Javier, 2026-09-26): antes iba directo a `wa.me`, que es la propia
+    página de WhatsApp la que pregunta si se sigue ahí o se pasa a la
+    aplicación — un paso de más. `abrirWhatsapp` (`src/lib/
+    whatsappCliente.ts`) navega primero al esquema `whatsapp://` (que abre
+    la app de escritorio o del teléfono directo, sin pasar por esa página) y
+    si nada la atiende — no hay forma de saber de antemano si está instalada
+    — recién ahí abre `wa.me` como respaldo, mejor esfuerzo con un margen
+    corto. `urlChatWhatsapp` (el link web) y `urlAppWhatsapp` (el esquema
+    `whatsapp://`), las dos en `src/lib/contactos.ts`, comparten la misma
+    validación de formato. La misma pieza gobierna los tres lugares que
+    abren un chat — `AvisoWhatsapp`, y los dos enlaces de número que
+    aparecen sueltos en las fichas (`EnlaceWhatsapp`, `AbrirChatWhatsapp`,
+    en `src/components/entidades/`) — para no dejar dos comportamientos
+    distintos con el mismo botón.
     *(Javier, 2026-09-16, al construir el aviso de C5; ampliado a WhatsApp en
     un clic el 2026-09-25, al construir C3 H2 — la venta de particulares.)* La
     revisión retroactiva de las pantallas existentes con notificación queda en
