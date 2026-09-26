@@ -70,8 +70,9 @@ export default async function PaginaPrecios() {
       .is("sala_id", null)
       .then((r) => exigir(r, "la matriz de alquiler de sala")),
     sb
-      .from("paquetes_particular")
+      .from("membresias")
       .select("tarifa_particular_id")
+      .not("tarifa_particular_id", "is", null)
       .then((r) => exigir(r, "el uso de los paquetes de particulares")),
     sb
       .from("alquileres_sala")
