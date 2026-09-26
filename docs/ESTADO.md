@@ -3801,12 +3801,30 @@ que queda para C4 (ver más abajo):
 
 ### Estado
 
-**Construido y validado en dev, con datos reales de una venta completa y con
-las correcciones del 26/09 (dos rondas) ya adentro.** No se tocó producción
-— el pase queda acumulado con H1 (decisión de Javier, 25/09), a la espera de
-su OK. `docs/relevamientos/2026-09-25-C3-plan-construccion.md` (fila H2),
-`DECISIONES.md` (D5, D9) y `REGLAS.md` (proceso 12) quedan anotados con este
-avance. Sigue **H3**: reservas con los 7 estados — sin eso, una reserva
-creada acá no se puede reprogramar, suspender ni marcar ausente/realizada
-todavía. La grilla semanal de slots queda **para C4, esperando mockup de
-Design** (Javier, 26/09).
+### Tercera corrección, mismo día: el mensaje de confirmación
+
+Javier probó de nuevo y encontró que el mensaje al alumno en agenda
+**flexible** terminaba *"Tus clases: mar 29/09 18:00. ¡Te esperamos!"*, como
+si esa fecha fuera toda la agenda — en flexible solo se reserva la primera
+clase (el resto se coordina después, H3). Pasa a **"Tu primera clase
+reservada es: \<fecha\>. ¡Te esperamos!"**, y solo agrega *"El resto se
+coordina después"* cuando de verdad queda paquete sin agendar
+(`leftoverMin > 0`): con un tramo que se cubre justo con la primera clase esa
+frase también sería falsa. En agenda **fija** (donde sí se agenda todo el
+paquete) sigue diciendo "Tus clases"/"Tu clase" según haya una o varias.
+Mismo criterio en el aviso al profesor y en el resumen interno. Verificado en
+dev con los tres casos (flexible sin sobrante, flexible con sobrante, fija).
+
+### Estado
+
+**Construido y validado en dev — con datos reales de una venta completa, las
+tres rondas de correcciones del 26/09 adentro, y el OK explícito de Javier
+tras probarlo él mismo** ("ok, ya actualicé y probé. todo bien."). No se tocó
+producción — el pase queda acumulado con H1 (decisión de Javier, 25/09), a la
+espera de su OK de pase. `docs/relevamientos/2026-09-25-C3-plan-
+construccion.md` (fila H2), `DECISIONES.md` (D5, D9) y `REGLAS.md` (proceso
+9, proceso 12) quedan anotados con este avance. **Sigue H3** (reservas con
+los 7 estados), en otra sesión — sin eso, una reserva creada acá no se puede
+reprogramar, suspender ni marcar ausente/realizada todavía. La grilla
+semanal de slots queda **para C4, esperando mockup de Design** (Javier,
+26/09).
