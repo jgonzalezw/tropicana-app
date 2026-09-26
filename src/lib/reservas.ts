@@ -11,6 +11,11 @@
  * ocupación") — nunca choca contra horario, capacidad ni otras reservas. El
  * choque del profesor sí se valida siempre: la sala puede ser ajena a
  * Tropicana, pero el profesor sigue siendo uno solo.
+ *
+ * **C3 H3 (26/09/2026)** agrega acá los 7 estados de la regla de negocio 23:
+ * las transiciones válidas, la vigencia de una Solicitada (se calcula al
+ * leer — regla de negocio 4, "no se guarda paso a paso") y el saldo de horas
+ * de una membresía de particulares.
  */
 
 import {
@@ -115,4 +120,172 @@ export function validarReservaSala(e: EntradaValidarReserva): ResultadoHorario {
   }
 
   return { ok: true };
+}
+
+// ── Los 7 estados de una reserva (C3, hito H3) ─────────────────────────────
+//
+// Valen para tipo 'particular' | 'alquiler' | 'taller'. Los bloqueos (D7)
+// siguen aparte, con su propio par 'reservada'/'cancelada' — no son parte de
+// esta máquina de estados.
+
+export const ESTADOS_RESERVA = [
+  "solicitada",
+  "confirmada",
+  "reprogramada",
+  "reagendar",
+  "suspendida",
+  "ausente",
+  "realizada",
+] as const;
+export type EstadoReserva = (typeof ESTADOS_RESERVA)[number];
+
+export const ETIQUETA_ESTADO_RESERVA: Record<EstadoReserva, string> = {
+  solicitada: "Solicitada",
+  confirmada: "Confirmada",
+  reprogramada: "Reprogramada",
+  reagendar: "Reagendar",
+  suspendida: "Suspendida",
+  ausente: "Ausente",
+  realizada: "Realizada",
+};
+
+/**
+ * Estados que de verdad ocupan la sala y al profesor (definiciones-v2 8.2):
+ * es el mismo criterio que el EXCLUDE de la base (migración 0054) — sin
+ * incluir 'solicitada', que ocupa por código mientras está vigente, no por
+ * el estado en sí (ver `ocupaAhora`).
+ */
+export const ESTADOS_QUE_OCUPAN: readonly EstadoReserva[] = [
+  "confirmada",
+  "reprogramada",
+  "ausente",
+  "realizada",
+];
+
+/** Los mismos 4 estados, nombrados por lo que hacen con el saldo de horas
+ *  (definiciones-v2 8.2: "Consumida"/"Consume la sesión"). Es un alias
+ *  intencional de `ESTADOS_QUE_OCUPAN` — hoy coinciden, y se nombran las dos
+ *  cosas por separado porque son dos preguntas distintas (¿ocupa un recurso
+ *  físico? ¿gastó una sesión del paquete?) que en H3 dan la misma respuesta. */
+export const ESTADOS_QUE_CONSUMEN: readonly EstadoReserva[] = ESTADOS_QUE_OCUPAN;
+
+/** Estados que liberan sala y profesor: la sesión vuelve al saldo y hace
+ *  falta una reserva nueva para recuperarla (definiciones-v2 8.2). Junto con
+ *  'cancelada' (el único estado que libera un *bloqueo*), es el filtro único
+ *  que reemplaza el viejo `.neq('estado', 'cancelada')` en las consultas de
+ *  ocupación: un bloqueo cancelado y una reserva Reagendar/Suspendida dejan
+ *  de ocupar por el mismo motivo, aunque tengan nombres de estado distintos. */
+export const ESTADOS_QUE_LIBERAN = ["cancelada", "reagendar", "suspendida"] as const;
+
+/** `ESTADOS_QUE_LIBERAN` ya armado para `.not("estado", "in", ...)` de
+ *  supabase-js — para no repetir el `join`/paréntesis en cada consulta. */
+export const FILTRO_ESTADOS_QUE_LIBERAN = `(${ESTADOS_QUE_LIBERAN.join(",")})`;
+
+/**
+ * Las transiciones válidas desde cada estado. `solicitada`/`confirmada` son
+ * las altas; `reagendar` y `suspendida` son finales — lo que sigue es una
+ * reserva NUEVA, no reabrir esta (definiciones-v2 8.2). `ausente`⇄`realizada`
+ * es la única corrección permitida, para cuando se marcó el estado que no era.
+ */
+export const TRANSICIONES: Record<EstadoReserva, readonly EstadoReserva[]> = {
+  solicitada: ["confirmada", "reagendar", "suspendida"],
+  confirmada: ["reprogramada", "reagendar", "suspendida", "ausente", "realizada"],
+  reprogramada: ["reprogramada", "reagendar", "suspendida", "ausente", "realizada"],
+  reagendar: [],
+  suspendida: [],
+  ausente: ["realizada"],
+  realizada: ["ausente"],
+};
+
+export function puedeTransicionar(actual: EstadoReserva, destino: EstadoReserva): boolean {
+  return TRANSICIONES[actual].includes(destino);
+}
+
+/**
+ * ¿Sigue vigente una Solicitada? Se calcula contra `ahora` — nunca se guarda
+ * un booleano "vencida" en la fila (regla de negocio 4: como el fin de
+ * ciclo, esto se recalcula al leer, no paso a paso).
+ */
+export function solicitudVigente(solicitadaHasta: string | null, ahora: Date): boolean {
+  if (!solicitadaHasta) return false;
+  return new Date(solicitadaHasta).getTime() > ahora.getTime();
+}
+
+/** Lo mínimo de una reserva para saber si ocupa un recurso ahora mismo.
+ *  `tipo` acepta el `TipoOcupacion` de `sala.ts` (incluye `"curso"`, que
+ *  nunca aparece en una fila de `reservas_sala` pero sí en el tipo genérico
+ *  que devuelven esas consultas) para no forzar un cast en cada llamada. */
+export type ReservaOcupaEntrada = {
+  tipo: "particular" | "alquiler" | "taller" | "bloqueo" | "curso";
+  estado: string;
+  solicitadaHasta?: string | null;
+};
+
+/**
+ * ¿Esta reserva ocupa sala/profesor en este instante? Un bloqueo ocupa
+ * mientras esté 'reservada'; las demás, en los `ESTADOS_QUE_OCUPAN`, o en
+ * 'solicitada' mientras no haya vencido su validez (decisión de Javier,
+ * 25/09: "no tiene sentido... que cuando todo esté coordinado el espacio
+ * horario ya se asignó a otra persona").
+ */
+export function ocupaAhora(r: ReservaOcupaEntrada, ahora: Date): boolean {
+  if (r.tipo === "bloqueo") return r.estado === "reservada";
+  if ((ESTADOS_QUE_OCUPAN as string[]).includes(r.estado)) return true;
+  if (r.estado === "solicitada") return solicitudVigente(r.solicitadaHasta ?? null, ahora);
+  return false;
+}
+
+export type ResultadoCancelacion = { destino: "reagendar" | "ausente"; fueraDePlazo: boolean };
+
+/**
+ * Cancelar a pedido del alumno (definiciones-v2, 8.3). Dentro del plazo de
+ * anticipación (parámetro `reserva_cancelacion_plazo_horas`, hoy 8 h) pasa a
+ * Reagendar y la sesión vuelve al saldo; fuera de plazo, la sesión se da por
+ * consumida (Ausente) con la marca de incumplimiento. Son los mismos 2
+ * estados finales de siempre — nunca un octavo estado (decisión de Javier,
+ * 25/09).
+ */
+export function evaluarCancelacion(ahora: Date, inicioReserva: Date, plazoHoras: number): ResultadoCancelacion {
+  const horasDeAnticipacion = (inicioReserva.getTime() - ahora.getTime()) / (1000 * 60 * 60);
+  return horasDeAnticipacion >= plazoHoras
+    ? { destino: "reagendar", fueraDePlazo: false }
+    : { destino: "ausente", fueraDePlazo: true };
+}
+
+export type SaldoEntrada = {
+  /** `membresias.horas_contratadas` (decimal, ver `formatearHoras`). */
+  horasContratadas: number;
+  reservas: { estado: string; duracion_min: number; solicitada_hasta?: string | null }[];
+  ahora: Date;
+};
+
+export type SaldoMembresia = {
+  contratadasMin: number;
+  consumidasMin: number;
+  solicitadasVigentesMin: number;
+  /** Contratadas − consumidas: lo que todavía no pasó, sin descontar las
+   *  Solicitadas vigentes — es lo que muestra "sin agendar" en la pantalla. */
+  sinAgendarMin: number;
+  /** `sinAgendarMin` − las Solicitadas vigentes: lo que de verdad se puede
+   *  pedir ahora (decisión de Javier, 26/09: el saldo cuenta las Solicitadas
+   *  vigentes, para no dejar pedir más horas de las que quedan). */
+  disponibleMin: number;
+};
+
+/**
+ * El saldo de horas de una membresía de particulares/alquiler, calculado
+ * sobre sus reservas — nunca guardado paso a paso (regla de negocio 23: "el
+ * saldo se calcula desde las reservas").
+ */
+export function saldoMembresia(e: SaldoEntrada): SaldoMembresia {
+  const contratadasMin = Math.round(e.horasContratadas * 60);
+  const consumidasMin = e.reservas
+    .filter((r) => (ESTADOS_QUE_CONSUMEN as string[]).includes(r.estado))
+    .reduce((acc, r) => acc + r.duracion_min, 0);
+  const solicitadasVigentesMin = e.reservas
+    .filter((r) => r.estado === "solicitada" && solicitudVigente(r.solicitada_hasta ?? null, e.ahora))
+    .reduce((acc, r) => acc + r.duracion_min, 0);
+  const sinAgendarMin = Math.max(0, contratadasMin - consumidasMin);
+  const disponibleMin = Math.max(0, sinAgendarMin - solicitadasVigentesMin);
+  return { contratadasMin, consumidasMin, solicitadasVigentesMin, sinAgendarMin, disponibleMin };
 }

@@ -25,6 +25,7 @@ export default function BarraLateral({
   puedeLiquidaciones,
   puedePrecios,
   puedeSala,
+  puedeParticulares,
   temas,
   temaActual,
   infoRelease,
@@ -42,6 +43,7 @@ export default function BarraLateral({
   puedeLiquidaciones: boolean;
   puedePrecios: boolean;
   puedeSala: boolean;
+  puedeParticulares: boolean;
   temas: OpcionTema[];
   temaActual: string;
   infoRelease: InfoRelease;
@@ -96,6 +98,11 @@ export default function BarraLateral({
           href: "/sala",
           etiqueta: "Disponibilidad de sala",
           mostrar: puedeSala,
+        },
+        {
+          href: "/particulares",
+          etiqueta: "Particulares",
+          mostrar: puedeParticulares,
         },
         {
           href: "/alumnos",

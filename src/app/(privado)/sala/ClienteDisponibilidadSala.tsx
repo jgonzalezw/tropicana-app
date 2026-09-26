@@ -17,6 +17,7 @@
  */
 
 import { useEffect, useState, useTransition } from "react";
+import Link from "next/link";
 import { describirTramos, describirVentanas } from "@/lib/sala";
 import { etiquetaDuracion } from "@/lib/horarios";
 import {
@@ -213,7 +214,13 @@ export default function ClienteDisponibilidadSala({
                         <strong>
                           {ini}–{fin}
                         </strong>{" "}
-                        {b.etiqueta}
+                        {b.membresiaId != null ? (
+                          <Link href={`/particulares/${b.membresiaId}`} className="underline hover:no-underline">
+                            {b.etiqueta}
+                          </Link>
+                        ) : (
+                          b.etiqueta
+                        )}
                       </div>
                       {b.detalle && <div className="text-sm text-[var(--texto-tenue)]">{b.detalle}</div>}
                       {b.notas && (

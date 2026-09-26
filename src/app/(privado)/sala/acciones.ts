@@ -38,7 +38,7 @@ import {
   type Tramo,
   type Ventana,
 } from "@/lib/sala";
-import { validarReservaSala } from "@/lib/reservas";
+import { validarReservaSala, ocupaAhora, FILTRO_ESTADOS_QUE_LIBERAN } from "@/lib/reservas";
 
 const ISO_FECHA = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -50,7 +50,7 @@ function admin() {
   return a;
 }
 
-export type BloqueDisponibilidad = BloqueOcupado & { id: number | null; notas: string | null };
+export type BloqueDisponibilidad = BloqueOcupado & { id: number | null; notas: string | null; membresiaId: number | null };
 
 export type DisponibilidadDia = {
   ventanas: Ventana[];
@@ -103,13 +103,13 @@ export async function consultarDisponibilidad(salaId: number, fechaISO: string):
     sb
       .from("reservas_sala")
       .select(
-        "id, tipo, motivo, glosa, notas, hora, duracion_min, " +
+        "id, tipo, motivo, glosa, notas, hora, duracion_min, estado, solicitada_hasta, membresia_id, " +
           "membresia:membresias(alumno:alumnos(contacto:contactos(nombre, apellido)), plan:planes(estilo)), " +
           "profesor:profesores(contacto:contactos(nombre, apellido))"
       )
       .eq("sala_id", salaId)
       .eq("fecha", fechaISO)
-      .neq("estado", "cancelada"),
+      .not("estado", "in", FILTRO_ESTADOS_QUE_LIBERAN),
     sb.from("estilos").select("clave, nombre"),
   ]);
   if (patronR.error) return { ...vacio, error: `No se pudo leer el horario de la sala: ${patronR.error.message}` };
@@ -152,20 +152,29 @@ export async function consultarDisponibilidad(salaId: number, fechaISO: string):
     notas: string | null;
     hora: string;
     duracion_min: number;
+    estado: string;
+    solicitada_hasta: string | null;
+    membresia_id: number | null;
     membresia: {
       alumno: { contacto: { nombre: string | null; apellido: string | null } | null } | null;
       plan: { estilo: string | null } | null;
     } | null;
     profesor: { contacto: { nombre: string | null; apellido: string | null } | null } | null;
   };
-  const resRaw = (resR.data as unknown as ReservaConJoins[]) ?? [];
+  // Ya sin 'cancelada'/'reagendar'/'suspendida' (filtrados arriba); queda
+  // descartar una Solicitada que venció su validez y ya no ocupa de verdad
+  // (regla de negocio 4: se calcula al leer, no se guarda paso a paso).
+  const ahoraSala = new Date();
+  const resRaw = ((resR.data as unknown as ReservaConJoins[]) ?? []).filter((r) =>
+    ocupaAhora({ tipo: r.tipo, estado: r.estado, solicitadaHasta: r.solicitada_hasta }, ahoraSala)
+  );
 
   // El estilo llega como clave (FK a `estilos`) — se resuelve a su nombre
   // como cualquier otro catálogo (regla de calidad 6).
   const mapaEst = new Map(((estR.data as { clave: string; nombre: string }[]) ?? []).map((v) => [v.clave, v.nombre]));
   const nombreEstilo = (v: string) => mapaEst.get(v) ?? v;
 
-  const reservas: (ReservaSalaOcupa & { notas: string | null })[] = resRaw.map((r) => {
+  const reservas: (ReservaSalaOcupa & { notas: string | null; membresiaId: number | null })[] = resRaw.map((r) => {
     const contactoAlumno = r.membresia?.alumno?.contacto;
     const contactoProfesor = r.profesor?.contacto;
     const claveEstilo = r.membresia?.plan?.estilo ?? null;
@@ -182,6 +191,7 @@ export async function consultarDisponibilidad(salaId: number, fechaISO: string):
         ? `${contactoProfesor.nombre ?? ""} ${contactoProfesor.apellido ?? ""}`.trim()
         : null,
       estilo: claveEstilo ? nombreEstilo(claveEstilo) : null,
+      membresiaId: r.membresia_id,
     };
   });
 
@@ -212,11 +222,13 @@ export async function consultarDisponibilidad(salaId: number, fechaISO: string):
     ...b,
     id: null,
     notas: null,
+    membresiaId: null,
   }));
   const deReservas: BloqueDisponibilidad[] = ocupacionDeReservas(reservas, etiquetaMotivo).map((b, i) => ({
     ...b,
     id: reservas[i].id,
     notas: reservas[i].notas,
+    membresiaId: reservas[i].membresiaId,
   }));
   const ocupados = [...deCursos, ...deReservas].sort((a, b) => (aMinutos(a.hora) ?? 0) - (aMinutos(b.hora) ?? 0));
 
@@ -288,10 +300,10 @@ export async function crearBloqueoSala(salaId: number, datos: BloqueoNuevo): Pro
       .eq("activo", true),
     a
       .from("reservas_sala")
-      .select("id, tipo, motivo, glosa, hora, duracion_min")
+      .select("id, tipo, motivo, glosa, hora, duracion_min, estado, solicitada_hasta")
       .eq("sala_id", salaId)
       .eq("fecha", datos.fecha)
-      .neq("estado", "cancelada"),
+      .not("estado", "in", FILTRO_ESTADOS_QUE_LIBERAN),
   ]);
   if (patronR.error) return { error: `No se pudo leer el horario de la sala: ${patronR.error.message}` };
   if (excR.error) return { error: `No se pudieron leer las excepciones: ${excR.error.message}` };
@@ -301,7 +313,10 @@ export async function crearBloqueoSala(salaId: number, datos: BloqueoNuevo): Pro
   const patron = (patronR.data as FranjaPatron[]) ?? [];
   const excepciones = (excR.data as ExcepcionHorario[]) ?? [];
   const cursos = (cursosR.data as unknown as CursoOcupa[]) ?? [];
-  const reservas = (resR.data as ReservaSalaOcupa[]) ?? [];
+  const ahoraBloqueo = new Date();
+  const reservas = (
+    (resR.data as (ReservaSalaOcupa & { estado: string; solicitada_hasta: string | null })[]) ?? []
+  ).filter((r) => ocupaAhora({ tipo: r.tipo, estado: r.estado, solicitadaHasta: r.solicitada_hasta }, ahoraBloqueo));
 
   // Para leer el motivo de un cierre, si el horario rechaza por eso.
   const { data: catExcRow } = await a

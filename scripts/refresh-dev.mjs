@@ -68,6 +68,10 @@ const ORDEN = [
   // Antes de comisiones_devengadas: su reserva_sala_id le apunta.
   "alquileres_sala",
   "reservas_sala",
+  // Depende de reservas_sala (0054, C3 H3): el rastro de cada cambio de
+  // estado. Mismo hallazgo que el de arriba (0053): sin entrar acá, el
+  // truncate ... cascade la vacía igual pero nunca se repone.
+  "reservas_historial",
   "cuotas",
   "sesiones",
   "asistencias",

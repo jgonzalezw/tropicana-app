@@ -693,6 +693,66 @@ select '32. reservas que marcan ocupa_sala en la sala externa' as control,
  where s.es_externa and r.ocupa_sala;
 
 -- ---------------------------------------------------------------------
+-- 33. RESERVAS CON MAS HORAS CONSUMIDAS QUE LAS CONTRATADAS
+--     0054 (C3 H3): el saldo se calcula desde las reservas (regla de
+--     negocio 23), nunca se guarda paso a paso. Si esto da mas de 0, algo
+--     dejo pasar una reserva que se paso del paquete -- la validacion de
+--     `crearReserva` (duracion <= disponible) tiene una falla.
+-- ---------------------------------------------------------------------
+select '33. membresias de particulares con mas horas consumidas que contratadas' as control,
+       count(*) as n,
+       case when count(*) = 0 then 'OK' else 'REVISAR' end as estado
+  from (
+    select m.id,
+           m.horas_contratadas * 60 as contratadas_min,
+           coalesce(sum(r.duracion_min) filter (
+             where r.estado in ('confirmada', 'reprogramada', 'ausente', 'realizada')
+           ), 0) as consumidas_min
+      from public.membresias m
+      left join public.reservas_sala r on r.membresia_id = m.id
+     where m.curso_id is null
+     group by m.id, m.horas_contratadas
+  ) s
+ where s.consumidas_min > s.contratadas_min;
+
+-- ---------------------------------------------------------------------
+-- 34. RESERVAS SOLICITADAS SIN `solicitada_hasta`
+--     0054: el check `reservas_sala_solicitada_hasta_check` ya lo impide a
+--     nivel de base -- este control es la doble verificacion de lectura
+--     (calidad 3: medir antes de asumir), y detectaria un check
+--     deshabilitado sin que nadie se de cuenta.
+-- ---------------------------------------------------------------------
+select '34. reservas Solicitada sin fecha de vencimiento' as control,
+       count(*) as n,
+       case when count(*) = 0 then 'OK' else 'REVISAR' end as estado
+  from public.reservas_sala
+ where estado = 'solicitada' and solicitada_hasta is null;
+
+-- ---------------------------------------------------------------------
+-- 35. RESERVAS SIN NINGUNA FILA DE HISTORIAL
+--     0054: el trigger `reservas_sala_historial_trg` escribe la primera
+--     fila al crearse (y el backfill la puso para las que ya existian). Si
+--     esto da mas de 0, el trigger no corrio para esa fila.
+-- ---------------------------------------------------------------------
+select '35. reservas sin ninguna fila de historial' as control,
+       count(*) as n,
+       case when count(*) = 0 then 'OK' else 'REVISAR' end as estado
+  from public.reservas_sala r
+ where not exists (select 1 from public.reservas_historial h where h.reserva_id = r.id);
+
+-- ---------------------------------------------------------------------
+-- 36. RESERVAS DE PARTICULAR SIN PROFESOR
+--     0053/0054: toda reserva de una membresia particular tiene que
+--     heredar el profesor de la membresia -- sin eso no hay a quien
+--     validarle el choque de agenda ni a quien liquidarle la clase.
+-- ---------------------------------------------------------------------
+select '36. reservas de particular sin profesor' as control,
+       count(*) as n,
+       case when count(*) = 0 then 'OK' else 'REVISAR' end as estado
+  from public.reservas_sala
+ where tipo = 'particular' and profesor_id is null;
+
+-- ---------------------------------------------------------------------
 -- Detalle, por si algun control da REVISAR:
 -- ---------------------------------------------------------------------
 -- select id, alumno_id, curso_id, estado, fecha_inicio, fecha_fin,

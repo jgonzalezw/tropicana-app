@@ -3828,3 +3828,210 @@ los 7 estados), en otra sesión — sin eso, una reserva creada acá no se puede
 reprogramar, suspender ni marcar ausente/realizada todavía. La grilla
 semanal de slots queda **para C4, esperando mockup de Design** (Javier,
 26/09).
+
+## C3 — H3: reservas con los 7 estados · 2026-09-26 (dev)
+
+Tercer hito del plan de nueve, continuado en una sesión nueva (rama
+`claude/adoring-maxwell-2car0j`, adelantada por fast-forward sobre
+`claude/modest-hypatia-qymr45` que traía H1+H2). Una reserva de particulares
+—hoy solo `confirmada` desde H2— gana los 7 estados de la regla de negocio 23:
+Solicitada, Confirmada, Reprogramada, Reagendar, Suspendida, Ausente,
+Realizada, con el saldo de horas calculado sobre ellos y el historial de cada
+cambio.
+
+### Decisiones de Javier para H3 (26/09)
+
+1. **El formulario confirma directo, no solo solicita.** "Solicitar" (ocupa
+   24 h sin descontar) queda como segunda opción para cuando todavía se
+   coordinan recursos; la venta de H2 sigue creando la reserva ya
+   `confirmada`.
+2. **El saldo disponible para pedir cuenta las Solicitadas vigentes** —
+   `disponible = contratadas − consumidas − solicitadas vigentes` — para no
+   dejar pedir más horas de las que quedan, aunque la Solicitada todavía no
+   "descuente" del consumo real.
+3. **Pantalla en el menú Particulares** (`/particulares`), no solo colgada
+   del alumno: lista de membresías activas con su saldo, cada una abre
+   `/particulares/[id]` ("Reservas de la membresía").
+
+### Qué se construyó
+
+- **Migración `0054_reservas_siete_estados.sql`** (aditiva, aplicada en dev):
+  - `reservas_sala` gana `plan_id` (para taller, H8), `solicitada_hasta` y
+    las columnas de trabajo `cambio_motivo`/`cambio_glosa`/
+    `cambio_fuera_de_plazo`/`actualizado_por`, que cada acción completa antes
+    de un `update` para que el trigger de historial sepa qué anotar.
+  - El check `reservas_sala_check` pasa a exigir **una sola** de
+    `membresia_id` (particular) / `alquiler_id` (hasta H7) / `plan_id`
+    (taller) / `motivo` (bloqueo) — la decisión 5 del plan.
+  - Los bloqueos (D7) **conservan** `reservada`/`cancelada`, sin tocar;
+    particular/alquiler/taller pasan a los 7 estados nuevos, con un check
+    que separa los dos vocabularios por `tipo`. Las 21 reservas `reservada`
+    de H2 pasan a `confirmada` en la misma migración (mismo hecho, otro
+    nombre de estado) — hecho **antes** de poner el check nuevo, porque
+    `'reservada'` deja de ser válido para `tipo <> 'bloqueo'`.
+  - El EXCLUDE de no-choque se acota a los estados que de verdad ocupan
+    (`confirmada`, `reprogramada`, `ausente`, `realizada`, y `reservada` para
+    bloqueos): una Solicitada no tiene esa protección de la base — se valida
+    por código al crear la siguiente, porque su vigencia se calcula, no se
+    guarda paso a paso (regla de negocio 4).
+  - `reservas_historial`: **de solo agregar** (mismo patrón que
+    `consentimientos` — un trigger rechaza `update`/`delete`), con el antes y
+    el después completos (estado, sala, fecha, hora, duración), el motivo, la
+    marca de "fuera de plazo" y quién lo hizo. Un trigger sobre
+    `reservas_sala` (`AFTER INSERT OR UPDATE`) escribe cada fila solo, así
+    ningún cambio de estado puede olvidarse de dejar rastro. Backfill: alta
+    para las 28 reservas que ya existían.
+  - Parámetro `reserva_solicitud_validez_horas` (24, sembrado por migración,
+    calidad 7) y catálogo `motivo_suspension_reserva` (profesor no
+    disponible / conflicto operativo / sala fuera de servicio / otro).
+  - `get_advisors`: un hallazgo nuevo (`reservas_historial_solo_insert` sin
+    `search_path` fijo), corregido en la misma migración.
+- **`src/lib/reservas.ts`** (extendido, puro, con pruebas): `ESTADOS_RESERVA`,
+  `TRANSICIONES` (la máquina de estados completa), `puedeTransicionar`,
+  `solicitudVigente`/`ocupaAhora` (una Solicitada vencida no ocupa, se
+  calcula al leer), `evaluarCancelacion` (dentro/fuera del plazo de 8 h →
+  Reagendar/Ausente) y `saldoMembresia` (contratadas/consumidas/solicitadas
+  vigentes/disponible, todo en minutos). `ESTADOS_QUE_LIBERAN` +
+  `FILTRO_ESTADOS_QUE_LIBERAN` reemplazan el viejo `.neq('estado',
+  'cancelada')` en toda consulta de ocupación — un bloqueo cancelado y una
+  reserva Reagendar/Suspendida dejan de ocupar por el mismo filtro. 26
+  pruebas nuevas (144 en total).
+- **Corrección urgente, en la misma migración**: `venderParticular` (H2)
+  todavía insertaba `estado: 'reservada'`, que el check nuevo ya no admite
+  para `tipo='particular'` — pasa a insertar `'confirmada'` directo. Y las
+  cuatro consultas de ocupación que hacía con `.neq('estado','cancelada')`
+  (`sala/acciones.ts` × 2, `inscribir/acciones.ts` × 2) se actualizan al
+  filtro nuevo + `ocupaAhora`: sin este cambio, una reserva Reagendar o
+  Suspendida habría seguido bloqueando esa franja para siempre.
+- **`src/app/(privado)/particulares/acciones.ts`** (nuevo): `crearReserva`
+  (Solicitar o Confirmar directo, valida vigencia de la membresía, sala,
+  profesor y saldo antes de escribir), `cambiarEstadoReserva` (usa
+  `TRANSICIONES`; confirmar una Solicitada revalida choque porque no tuvo la
+  protección del EXCLUDE mientras esperaba), `reprogramarReserva` (misma
+  fila cambia de fecha/hora/sala, revalida excluyéndose a sí misma) y
+  `cancelarAPedido` (aplica `evaluarCancelacion`). Cada acción arma los
+  avisos para `AvisoWhatsapp` (alumno o su tutor si es menor, y profesor).
+  Permisos: `particulares.crear`/`.editar` (`.ver` ya alcanza para leer).
+- **Pantallas nuevas** (Code v1 + Design refina): `/particulares` (lista,
+  ordenada por apellido — regla 15) y `/particulares/[id]` ("Reservas de la
+  membresía": saldo, cada reserva con sus botones de transición según lo que
+  el servidor permite, formulario de suspensión con motivo del catálogo,
+  mini-formulario de reprogramar, historial desplegable y "Nueva reserva"
+  con Solicitar/Confirmar directo). Entrada de menú "Particulares" en
+  Gestión, gateada por `particulares.ver`.
+- **`/sala`**: la disponibilidad ahora enlaza cada reserva particular a su
+  membresía (`/particulares/[id]`) en vez de mostrar solo el texto.
+- **`scripts/control_migracion.sql`**: controles 33 (consumidas > contratadas),
+  34 (Solicitada sin `solicitada_hasta`), 35 (reserva sin historial) y 36
+  (particular sin profesor).
+- **`scripts/refresh-dev.mjs`**: `reservas_historial` agregada al `ORDEN`,
+  después de `reservas_sala` (mismo hallazgo que `membresia_salas` en H2: sin
+  esto, el refresh la vacía pero nunca la repone).
+
+### Lo que queda fuera de v1, a propósito
+
+- **La grilla visual de slots** sigue en C4, esperando mockup de Design
+  (decisión del 26/09, sin cambios).
+- **"Cuenta del alumno" sigue diciendo "Curso sin determinar"** para una
+  membresía particular: es el mismo ajuste cosmético que H2 ya dejó anotado
+  como pendiente de Design refina, no un error de datos — no se tocó
+  `cuentas.ts` para no salir del alcance de H3.
+- **Alquiler y taller** todavía no existen como venta (H7/H8): el check XOR
+  y el EXCLUDE ya los contemplan (`alquiler_id`/`plan_id`), pero nada los usa
+  todavía.
+
+### Verificado en dev
+
+- `npm test`: **118/118** en verde (26 nuevas de `reservas.test.ts`).
+- `npx tsc --noEmit`: limpio (mismos dos errores preexistentes de siempre,
+  no tocados por este hito).
+- `npx eslint` sobre los archivos tocados: limpio.
+- `npx next build`: compila; **23 rutas**, incluidas `/particulares` y
+  `/particulares/[id]`.
+- Migración aplicada contra `tropicana-dev` con ensayo en seco primero
+  (`begin; ... rollback;`, verificando que las 28 reservas existentes
+  quedaran con su historial antes de aplicar de verdad). `get_advisors` sin
+  hallazgos nuevos después de la corrección de `search_path`. Controles
+  28–36 corridos contra dev: **todos OK**.
+
+### Recorrido completo en el navegador (Playwright, `qa-cloud@tropicana.local`, contra dev)
+
+A diferencia de lo que se pensó en un momento del cierre, esta sesión sí pudo
+levantar `next dev` en el contenedor de la nube y recorrer los 7 estados de
+punta a punta contra datos reales (membresías 58, 60 y 61 de H2), verificando
+cada paso también fila por fila en la base:
+
+1. **`/particulares`**: lista las 11 membresías activas, ordenada por
+   apellido, con saldo en horas y Solicitadas por vencer — datos reales de H2.
+2. **`/particulares/[id]`**: saldo (contratadas/consumidas/solicitadas
+   vigentes/disponible) y reservas con sus botones de transición.
+3. **Solicitar**: crea la fila `solicitada` con `solicitada_hasta` = +24 h,
+   ocupa la sala en `/sala`, y el saldo la resta de "disponible" sin tocar
+   "consumidas". Verificado en la base (`reservas_historial` con el alta).
+4. **Confirmar** una Solicitada: revalida choque (no tenía la protección del
+   EXCLUDE) y pasa a `confirmada`.
+5. **Cancelar** (`cancelarAPedido`): una Solicitada cancela directo a
+   `reagendar`; una Confirmada con anticipación de sobra también da
+   `reagendar` — el caso "fuera de plazo → Ausente" se cubre con las 12
+   pruebas de `evaluarCancelacion`, no hacía falta reproducirlo a mano con
+   una fecha del pasado (las membresías de prueba son todas futuras).
+6. **Reprogramar**: el primer intento (mover a un horario que chocaba con el
+   curso regular del profesor) **fue rechazado correctamente**, con el
+   mensaje exacto de `validarReservaSala` — no era un bug, era el validador
+   funcionando. Repetido con un horario libre, actualizó fecha/hora/sala y
+   dejó `reprogramada`, con el historial mostrando el antes y el después.
+7. **Suspender**: exige motivo del catálogo, libera el saldo (confirmado con
+   una recarga limpia de la página, sin el timing engañoso de un
+   `router.refresh()` recién disparado) y avisa a alumno y profesor.
+8. **Marcar Realizada/Ausente antes de que empiece**: rechazado con el
+   mensaje esperado — ninguna reserva de prueba ya había empezado, así que
+   esto confirma el bloqueo, no el camino feliz de marcarlas.
+9. Cada paso mostró su `AvisoWhatsapp` (o dos, alumno/tutor + profesor).
+
+**Tres bugs reales encontrados y corregidos en el mismo recorrido:**
+
+- **Hidratación rota en el historial**: `toLocaleString("es-BO")` armaba
+  "a. m." con un espacio distinto en el ICU de Node y el del navegador —
+  mismo texto visible, árbol de React descartado igual. Se reemplazó por un
+  formateador propio con `Intl.DateTimeFormat` + `timeZone: "America/La_Paz"`
+  fijo y 24 h, para no depender del huso del runtime (servidor en UTC,
+  navegador de Javier en Bolivia habrían dado *horas* distintas, no solo un
+  formato distinto).
+- **Faltaba el botón "Cancelar" en una reserva Confirmada/Reprogramada**: el
+  mapa de transiciones expuesto a la UI (duplicado a mano en vez de usar
+  `TRANSICIONES` de `@/lib/reservas`) omitía `reagendar` para esos dos
+  estados — el caso más común de la regla de negocio 23 quedaba sin acción.
+  Se borró el duplicado y la pantalla usa `TRANSICIONES` directo.
+- **El aviso de suspensión mostraba la clave cruda del catálogo**
+  (`conflicto_operativo`) en vez de la etiqueta (regla de calidad 6). De paso
+  se encontró que el servidor no validaba el motivo contra el catálogo, solo
+  que no viniera vacío — ahora `cambiarEstadoReserva` lo busca en
+  `motivo_suspension_reserva` y devuelve error si no es un valor activo,
+  usando la etiqueta resuelta en el mensaje.
+
+Los tres se corrigieron y se re-verificaron en el mismo recorrido antes de
+cerrar el hito; `npm test`/`tsc`/`eslint`/`build` corrieron limpios después de
+cada uno.
+
+**Datos de prueba que quedaron mutados en dev** (las membresías son las que
+dejó H2, reusadas para no crear ventas nuevas): en la **membresía 61**, la
+reserva `id 26` terminó `suspendida` en 2026-10-05 08:00 (pasó por reprogramar
+y suspender) y la `id 32` terminó `reagendar` en 2026-10-10 (se creó, se
+confirmó y se canceló). En la **membresía 58**, la reserva `id 13` (25/09)
+terminó `suspendida`; las demás (14, 15, 16) siguen `confirmada`, sin tocar.
+Nada de esto rompe ningún control (28–36 en OK) ni necesita revertirse — son
+hechos de prueba, iguales en naturaleza a las reservas reales que van a
+reemplazar cuando se opere de verdad —, pero si Javier abre `/particulares/58`
+o `/particulares/61` va a ver estos estados y no los que dejó al validar H2.
+
+### Estado
+
+**Construido y verificado en dev — con datos reales, los 7 estados
+recorridos de punta a punta y tres bugs encontrados y corregidos en el
+camino.** No se tocó producción — el pase queda acumulado con H1+H2, a la
+espera del OK explícito de Javier (regla de proceso 1). Sigue pendiente que
+Javier lo mire en su propio local, como con H1 y H2, antes de pedir el pase.
+`docs/relevamientos/2026-09-25-C3-plan-construccion.md` (fila H3) y
+`REGLAS.md` (glosario de "Reserva") quedan anotados con este avance. **Sigue
+H4** (cierres de sala sobre reservas — el lado reservas de C5), en otra
+sesión.

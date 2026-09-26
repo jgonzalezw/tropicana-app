@@ -30,7 +30,7 @@ import {
   motivoFueraDeVigencia,
   type VigenciaCurso,
 } from "@/lib/vigencia";
-import { validarReservaSala, ocupacionDeProfesor } from "@/lib/reservas";
+import { validarReservaSala, ocupacionDeProfesor, ocupaAhora, FILTRO_ESTADOS_QUE_LIBERAN } from "@/lib/reservas";
 import { ocupacionDelDia, type CursoOcupa, type ExcepcionHorario, type FranjaPatron, type ReservaSalaOcupa } from "@/lib/sala";
 import { COLUMNAS_ASIGNACION } from "@/lib/asignaciones";
 import { vigenciaDiasEfectiva } from "@/lib/planesParticular";
@@ -1200,15 +1200,17 @@ async function calcularAgendaParticular(
       a.from("cursos").select(`id, nombre, dias_semana, hora, duracion_min, sala_id, ${COLS_VIGENCIA}`).eq("sala_id", salaId).eq("activo", true),
       a
         .from("reservas_sala")
-        .select("id, tipo, motivo, glosa, hora, duracion_min, fecha")
+        .select("id, tipo, motivo, glosa, hora, duracion_min, fecha, estado, solicitada_hasta")
         .eq("sala_id", salaId)
         .in("fecha", fechasUnicas)
-        .neq("estado", "cancelada"),
+        .not("estado", "in", FILTRO_ESTADOS_QUE_LIBERAN),
     ]);
     patronSala = (patronR.data as FranjaPatron[]) ?? [];
     excepcionesSala = (excR.data as ExcepcionHorario[]) ?? [];
     cursosSala = (cursosR.data as unknown as CursoOcupa[]) ?? [];
-    for (const r of (resR.data as (ReservaSalaOcupa & { fecha: string })[]) ?? []) {
+    const ahoraSala = new Date();
+    for (const r of (resR.data as (ReservaSalaOcupa & { fecha: string; estado: string; solicitada_hasta: string | null })[]) ?? []) {
+      if (!ocupaAhora({ tipo: r.tipo, estado: r.estado, solicitadaHasta: r.solicitada_hasta }, ahoraSala)) continue;
       const l = reservasSalaPorFecha.get(r.fecha) ?? [];
       l.push(r);
       reservasSalaPorFecha.set(r.fecha, l);
@@ -1235,14 +1237,16 @@ async function calcularAgendaParticular(
       : Promise.resolve({ data: [] as unknown[] }),
     a
       .from("reservas_sala")
-      .select("id, tipo, motivo, glosa, hora, duracion_min, fecha")
+      .select("id, tipo, motivo, glosa, hora, duracion_min, fecha, estado, solicitada_hasta")
       .eq("profesor_id", e.profesorId)
       .in("fecha", fechasUnicas)
-      .neq("estado", "cancelada"),
+      .not("estado", "in", FILTRO_ESTADOS_QUE_LIBERAN),
   ]);
   const cursosProfesor = (cursosProfR.data as unknown as CursoOcupa[]) ?? [];
   const reservasProfesorPorFecha = new Map<string, ReservaSalaOcupa[]>();
-  for (const r of (reservasProfR.data as (ReservaSalaOcupa & { fecha: string })[]) ?? []) {
+  const ahoraProf = new Date();
+  for (const r of (reservasProfR.data as (ReservaSalaOcupa & { fecha: string; estado: string; solicitada_hasta: string | null })[]) ?? []) {
+    if (!ocupaAhora({ tipo: r.tipo, estado: r.estado, solicitadaHasta: r.solicitada_hasta }, ahoraProf)) continue;
     const l = reservasProfesorPorFecha.get(r.fecha) ?? [];
     l.push(r);
     reservasProfesorPorFecha.set(r.fecha, l);
@@ -1495,7 +1499,10 @@ export async function venderParticular(e: EntradaParticular): Promise<ResultadoP
       fecha: s.fecha,
       hora: s.hora,
       duracion_min: s.duracionMin,
-      estado: "reservada",
+      // 'confirmada' desde C3 H3 (migración 0054, los 7 estados): la venta
+      // ocupa sala y profesor y descuenta la hora en el mismo paso, así que
+      // nace directo confirmada, no como una Solicitada a medio coordinar.
+      estado: "confirmada",
       creado_por: perfil?.id ?? null,
     }))
   );
