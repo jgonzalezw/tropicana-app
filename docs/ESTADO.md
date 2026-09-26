@@ -3753,13 +3753,60 @@ y verificados en dev antes de seguir:
 tres puntos recorridos en el navegador de este contenedor con datos reales
 de `tropicana-dev` (capturas y `innerText` de la pantalla, no solo la base).
 
+### Segunda ronda de pruebas, mismo día: saldo en horas y /sala lenta
+
+Javier siguió probando y encontró tres puntos más, dos corregidos y uno
+que queda para C4 (ver más abajo):
+
+- **El saldo del paquete se informaba en minutos, no en horas.** El mensaje
+  de sobrante ("Sobran 420 min de las horas contratadas: no alcanzan para
+  otra clase con esta duración") era además **engañoso en agenda flexible**:
+  ahí el sobrante es el paquete completo menos la primera clase — con 8 h
+  contratadas y 1 h agendada, "sobran" 7 h enteras, que obviamente SÍ
+  alcanzan para otra clase de esa duración; lo que pasa es que H2 no agenda
+  más que la primera en modo flexible (eso es H3). Nuevo `formatearHoras()`
+  (`src/lib/horarios.ts`, con pruebas): entero sin fracción, hasta 2
+  decimales si la tiene, siempre en horas — nunca minutos. El mensaje pasa a
+  **"Quedan 7 de 8 h del paquete sin agendar en esta venta. Se coordinan
+  después."**, sin afirmar una imposibilidad que no es tal. La duración
+  mínima por parámetro **ya se validaba** en las dos puntas (cliente:
+  `opcionesDuracion`; servidor: `validarReservaSala` por sesión) — se
+  verificó, no hizo falta tocar nada.
+- **`/sala` lenta al cambiar de fecha, y por una razón más importante que la
+  performance.** Dos causas: `consultarDisponibilidad` encadenaba hasta 6
+  consultas **secuenciales** (se reordenó en 2 rondas en paralelo — todo lo
+  que no depende de otra consulta va junto, incluida `reservas_sala` y el
+  catálogo `estilos` entero); pero la causa de fondo del síntoma que describió
+  Javier ("se actualizan las fechas y después de segundos recién los
+  detalles") era otra: la pantalla **no avisaba que estaba cargando** al
+  cambiar de fecha — `datos` solo se resetea en el primer render, así que
+  mientras se pedía el día nuevo se seguía mostrando el día ANTERIOR sin
+  ninguna marca, y recién "saltaba" al correcto cuando terminaba el fetch.
+  Eso es la regla de calidad 1 (un dato no se muestra como vigente si no lo
+  es): se agregó "Actualizando…" junto al título y se atenúa la lista
+  mientras espera. Verificado en dev: cada `consultarDisponibilidad` bajó de
+  hasta 6 a 2 round-trips, y el aviso aparece/desaparece correctamente al
+  cambiar de fecha (Playwright, con capturas).
+- **Grilla semanal de slots para elegir la agenda visualmente** ("mostrar la
+  ocupación de la sala... y así elegir de slots disponibles directamente sin
+  hacer prueba y error", punto 3 original de Javier): **es el alcance de C4
+  (agenda visual)**, no un agregado chico a H2/H3. Planteado el trade-off
+  (Code v1 ahora vs. esperar mockup de Design vs. una vista intermedia de
+  solo lectura), **Javier decidió pausarlo y pedir el mockup a Design
+  primero** (26/09) — respeta la decisión ya tomada el 2026-09-12 de que C4
+  pasa por Design (`ROADMAP.md` R2). Mientras tanto, la lista de "Revisar
+  disponibilidad" de H2 (sesión por sesión, con motivo del choque) sigue
+  siendo el mecanismo para elegir sin prueba y error — no reemplaza a C4,
+  pero cubre el caso mínimo.
+
 ### Estado
 
 **Construido y validado en dev, con datos reales de una venta completa y con
-las tres correcciones del 26/09 ya adentro.** No se tocó producción — el
-pase queda acumulado con H1 (decisión de Javier, 25/09), a la espera de su
-OK. `docs/relevamientos/2026-09-25-C3-plan-construccion.md` (fila H2),
+las correcciones del 26/09 (dos rondas) ya adentro.** No se tocó producción
+— el pase queda acumulado con H1 (decisión de Javier, 25/09), a la espera de
+su OK. `docs/relevamientos/2026-09-25-C3-plan-construccion.md` (fila H2),
 `DECISIONES.md` (D5, D9) y `REGLAS.md` (proceso 12) quedan anotados con este
 avance. Sigue **H3**: reservas con los 7 estados — sin eso, una reserva
 creada acá no se puede reprogramar, suspender ni marcar ausente/realizada
-todavía.
+todavía. La grilla semanal de slots queda **para C4, esperando mockup de
+Design** (Javier, 26/09).
