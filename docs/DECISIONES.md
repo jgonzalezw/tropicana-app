@@ -180,49 +180,32 @@ hito ni gastar tokens reconstruyéndolo (pedido de Javier, 2026-09-26): esto
 se actualiza en el mismo commit que cierra cada hito, y una sesión nueva lo
 lee **antes** de mirar ramas.
 
-- **Rama activa:** `h4-cierres-reservas`, sobre `main` (que trae H1+H2+H3 en
-  producción desde el 2026-09-26, PR #1). **H4 + el fix de navegación/permisos
-  de abajo construidos y recorridos en el navegador, sin commitear a `main`
-  todavía** — nada se commitea sin que Javier lo pida (nada de lo de abajo
-  cambia eso).
-- **Último hito:** H4 (cierres de sala sobre reservas — migración 0055),
-  construido, verificado por tipo/lint/tests/build **y recorrido de punta a
-  punta en el navegador** contra datos reales (Javier puso la contraseña de
-  `qa-cloud@tropicana.local` en `.env.local` de esta sesión). El recorrido
-  encontró y corrigió dos bugs reales: el revertido de R22 se autorrechazaba
-  (intentaba revertir antes de borrar la excepción — reordenado) y el
-  trigger de historial de la 0055 rompía crear una reserva (un solo `BEFORE
-  INSERT OR UPDATE` viola la FK de `reservas_historial` en el INSERT —
-  separado en `AFTER INSERT` / `BEFORE UPDATE`). De paso se corrigieron
-  cuatro cosas en `/alumnos/[id]/cuenta` que el recorrido dejó a la vista
-  (una particular no se veía bien ahí — gap de H2, no de H4). Todo en
-  `docs/ESTADO.md`, sección "C3 — H4: cierres de sala sobre reservas".
-- **Encima de H4, antes del PR:** Javier probó el flujo completo (navegación
-  desde `/sala` + la cuenta de Oscar Núñez, rol Profesor) y aparecieron tres
-  problemas más — la navegación confusa hacia la ficha completa, "particulares"
-  sin alcance propio/todo (un profesor veía y editaba reservas de OTROS
-  profesores) y el permiso de `/sala` compartido con el horario base
-  (migración **0056**: módulo `disponibilidad_sala` + alcance propio de
-  Particulares). Los tres arreglados y recorridos en el navegador como
-  Administrador — detalle completo en `docs/ESTADO.md`, misma sección de H4,
-  subtítulo "Después del recorrido". **Falta que Javier repita el recorrido
-  con la cuenta de Oscar** (alcance propio real, no simulado) antes del PR.
-- **Sigue:** que Javier pruebe H4 + este fix en su local (con su cuenta y con
-  la de Oscar), y después H5 (liquidación de particulares).
-- **Esta sesión es local** (regla de proceso 9): todo el trabajo de arriba ya
-  está en el disco de Javier, en la rama `h4-cierres-reservas` — no hace falta
-  que nadie actualice nada para probarlo, alcanza con `npm run dev:limpio`
-  sobre esa rama. El commit y el push a una rama remota (para que quede a
-  salvo o para abrir un PR) quedan pendientes de que Javier lo pida.
-- **Para arrancar la sesión siguiente**, sobre la rama designada que
-  corresponda:
+- **Rama activa:** `main`. **H4 completo — cierres de sala sobre reservas
+  (0055) + navegación enfocada desde `/sala` y alcance propio de Particulares
+  (0056) — EN PRODUCCIÓN desde el 2026-09-26**, con el OK explícito de Javier
+  ("confirmado", tras revisar el CI del PR). `h4-cierres-reservas` mergeada a
+  `main` (PR #2, merge commit `f4e01af`), rama remota conservada (no borrada).
+- **Último hito:** H4 (migración 0055) + el fix de navegación/permisos
+  construido encima (migración 0056), los dos pasados juntos. Detalle
+  completo, con las dos rondas de recorrido en el navegador (como
+  Administrador y con la cuenta de Oscar Núñez, rol Profesor — confirmado por
+  Javier), en `docs/ESTADO.md`, sección "C3 — H4: cierres de sala sobre
+  reservas" y su subtítulo "Después del recorrido".
+- **Orden del pase, seguido tal cual §3:** 1) migraciones 0055 y 0056
+  aplicadas en `pnvhpbxjbdmbktpwebtx` (dry-run en una transacción con
+  rollback intencional primero, después aplicadas de verdad) — controles
+  1–8 y 32–38 en OK, `get_advisors` sin hallazgos nuevos; 2) recién
+  entonces el PR #2 se mergeó a `main`, con el CI de Vercel en verde
+  (deploy + preview comments). Detalle en §4 de este archivo.
+- **Sigue:** H5 (liquidación de particulares).
+- **Para arrancar la sesión siguiente**, si no está ya en `main`:
   ```
+  git checkout main
   git fetch origin main
   git merge --ff-only origin/main
   ```
 - **Para que Javier actualice su local** (regla de proceso 9, "Javier no
-  programa: solo actualiza y prueba") — vale para cuando H4 se suba a una
-  rama remota, no hace falta hoy:
+  programa: solo actualiza y prueba") — el código de H4 ya está desplegado:
   ```
   git checkout main
   git pull origin main
@@ -231,14 +214,37 @@ lee **antes** de mirar ramas.
 
 ## 4. Registro de pases a producción
 
-**Pendiente de pase (2026-09-26): H4 completo** — migraciones **0055** y
-**0056**, y el código de C3 H4 (cierres de sala sobre reservas) más el fix de
-navegación desde `/sala` y de permisos de Particulares/Disponibilidad de sala
-construido encima. Producción sigue en las migraciones 0001–0054. Falta que
-Javier lo pruebe en su local (con su cuenta y con la de un profesor) y dé el
-OK explícito de pase (regla de proceso 1). Cuando algo quede **solo en dev**
-esperando ese OK, se anota arriba de esta línea. Abajo, en orden, cada pase ya
-hecho.
+**Hoy (2026-09-26) no hay nada pendiente de pase**: todo lo construido está en
+producción, con migraciones 0001–0056 en las dos bases. Cuando algo quede
+**solo en dev** esperando el OK explícito de Javier (regla de proceso 1), se
+anota arriba de esta línea. Abajo, en orden, cada pase ya hecho.
+
+- **C3 H4 (cierres de sala sobre reservas) + navegación enfocada desde `/sala`
+  y alcance propio de Particulares — PASADO A PRODUCCIÓN el 2026-09-26**, con
+  el OK explícito de Javier ("Podemos avanzar a producción PR", confirmado
+  después de revisar el CI: *"confirmado."*). Javier había probado los dos
+  bloques a fondo en su local antes de pedirlo — H4 en el recorrido inicial, y
+  el fix de navegación/permisos con su propia cuenta y con la de Oscar Núñez
+  (rol Profesor, alcance real).
+  Orden seguido, tal cual §3: **1)** migraciones **0055** y **0056**
+  aplicadas en `pnvhpbxjbdmbktpwebtx`, cada una precedida de un ensayo en
+  seco (una transacción con las dos migraciones juntas que termina en un
+  error provocado y lo deshace todo) para confirmar que corrían sin errores
+  antes de tocar producción de verdad. Medido antes: 1 reserva, 67 sesiones,
+  4 valores del catálogo `motivo_suspension_reserva`, 0 filas en
+  `disponibilidad_sala`/`rol_visibilidad(particulares)`. Aplicadas una por
+  una, sin tocar ningún dato de dominio (mismos conteos de reservas/sesiones
+  después); el catálogo pasó a 6 valores, `disponibilidad_sala` quedó con 17
+  filas (copiadas de `sala` para cada rol, incluido el rol `comercial` propio
+  de producción), el Profesor con `disponibilidad_sala.ver = true` y
+  `particulares` en alcance `propio`. Controles 1–8 y 32–38 del script en
+  **OK**; `get_advisors` sin hallazgos nuevos atribuibles a estas dos
+  migraciones (los que marca son previos: tablas `*_previo_*`, la extensión
+  `btree_gist`, las funciones `SECURITY DEFINER` ya conocidas). **2)** recién
+  entonces el PR #2 (`h4-cierres-reservas` → `main`) se mergeó, con el CI de
+  Vercel en verde (deploy + preview comments, los dos `pass`). `main`
+  `23176a6..f4e01af`. Detalle completo del hito en `docs/ESTADO.md`, sección
+  "C3 — H4: cierres de sala sobre reservas".
 
 - **Migraciones 0023–0030: APLICADAS EN PRODUCCIÓN el 2026-09-12**, con el OK
   explícito de Javier. Ningún dato de dominio se modificó (detalle y controles
