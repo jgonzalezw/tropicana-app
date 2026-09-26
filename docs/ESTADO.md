@@ -3710,12 +3710,56 @@ local`, con `QA_CLOUD_PASSWORD`), contra `tropicana-dev`:
   (propia o externa) por venta; la sección 9 de definiciones-v2 lo permite,
   queda para cuando haga falta un caso real.
 
+### Corrección del 26/09: agenda fija sin sobrante, revisión previa y nombres en `/sala`
+
+Javier probó H2 el mismo día y encontró tres problemas, los tres corregidos
+y verificados en dev antes de seguir:
+
+- **La agenda fija podía reservar más horas de las compradas.** El cálculo
+  de cuántas sesiones hacen falta redondeaba para arriba (`Math.ceil`):
+  con 1 h contratada y clases de 40 min, por ejemplo, daba 1 sesión — bien
+  por casualidad —, pero con otras combinaciones se pasaba del paquete.
+  `calcularAgendaParticular` pasa a `Math.floor` y reporta el sobrante
+  (`leftoverMin`) en vez de agendarlo de más; el modo flexible además
+  rechaza una duración mayor a las horas contratadas. El mensaje de
+  confirmación deja de decir "primera clase + N más" y detalla la agenda
+  completa (fecha y hora de cada sesión), y un rechazo por choque de
+  horario lista **todas** las sesiones que chocan, no solo la primera.
+- **No había cómo ver, antes de vender, cuántas clases quedaron y en qué
+  días.** `VenderParticular` agrega un botón "Revisar disponibilidad" que
+  llama a la nueva `previsualizarParticular` (solo lectura) y muestra, una
+  por una, la fecha, hora y si esa clase choca con la sala, el profesor o
+  el horario — con el motivo exacto de `validarReservaSala`. "Vender" queda
+  deshabilitado hasta que exista una revisión **vigente** (sin errores, sin
+  choques) que calce con la agenda actual: cambiar el día, la hora, la sala
+  o el profesor invalida la revisión anterior y obliga a repetirla, en vez
+  de que el choque aparezca recién al intentar guardar. Ayuda además a
+  elegir sin prueba y error: si hay choques, el mensaje linkea a
+  Disponibilidad de sala para ver qué la ocupa.
+- **La pantalla de disponibilidad de sala decía "Clase particular" en vez de
+  decir quién.** El ticket de color a la izquierda de la hora ya dice el
+  tipo; repetirlo en el texto era ruido, y de paso no dejaba ver a quién
+  correspondía cada reserva sin abrir la membresía. `consultarDisponibilidad`
+  ahora trae el alumno, el profesor y el estilo de cada reserva particular
+  (join a través de `membresias` y `reservas_sala.profesor_id`), y
+  `ocupacionDeReservas` (`src/lib/sala.ts`) pone el nombre del alumno en la
+  línea principal y "profesor · estilo" como aclaración, en el texto más
+  chico que ya usaba el campo `detalle`. Verificado en dev contra las
+  reservas reales de las dos ventas de H2 (Sala principal, 28/09): pasan de
+  "Clase particular" a "Javier Gonzalez Weise / Oscar Nuñez · Bachata" y
+  "Jhonny Cutipa / Inamsai De Dazan · Bachata".
+
+`tsc`, `eslint` y `npm test` (101/101) limpios después de cada cambio; los
+tres puntos recorridos en el navegador de este contenedor con datos reales
+de `tropicana-dev` (capturas y `innerText` de la pantalla, no solo la base).
+
 ### Estado
 
-**Construido y validado en dev, con datos reales de una venta completa.** No
-se tocó producción — el pase queda acumulado con H1 (decisión de Javier,
-25/09), a la espera de su OK. `docs/relevamientos/2026-09-25-C3-plan-
-construccion.md` (fila H2), `DECISIONES.md` (D5, D9) y `REGLAS.md` (proceso
-12) quedan anotados con este avance. Sigue **H3**: reservas con los 7
-estados — sin eso, una reserva creada acá no se puede reprogramar, suspender
-ni marcar ausente/realizada todavía.
+**Construido y validado en dev, con datos reales de una venta completa y con
+las tres correcciones del 26/09 ya adentro.** No se tocó producción — el
+pase queda acumulado con H1 (decisión de Javier, 25/09), a la espera de su
+OK. `docs/relevamientos/2026-09-25-C3-plan-construccion.md` (fila H2),
+`DECISIONES.md` (D5, D9) y `REGLAS.md` (proceso 12) quedan anotados con este
+avance. Sigue **H3**: reservas con los 7 estados — sin eso, una reserva
+creada acá no se puede reprogramar, suspender ni marcar ausente/realizada
+todavía.
