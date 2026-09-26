@@ -22,7 +22,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { tienePermiso, obtenerParametro } from "@/lib/sesion";
-import { aMinutos, esMultiploDe } from "@/lib/horarios";
+import { aMinutos } from "@/lib/horarios";
 import { COLS_VIGENCIA } from "@/lib/vigencia";
 import {
   ocupacionDeCursos,
@@ -38,7 +38,7 @@ import {
   type Tramo,
   type Ventana,
 } from "@/lib/sala";
-import { validarReservaSala, ocupaAhora, FILTRO_ESTADOS_QUE_LIBERAN } from "@/lib/reservas";
+import { validarReservaSala, validarTiempoReserva, ocupaAhora, FILTRO_ESTADOS_QUE_LIBERAN } from "@/lib/reservas";
 
 const ISO_FECHA = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -266,8 +266,8 @@ export async function crearBloqueoSala(salaId: number, datos: BloqueoNuevo): Pro
   // Item 3: mismo incremento y mínimo que gobiernan Cursos y el horario base.
   const incrementoMin = Math.max(1, Number(await obtenerParametro("tiempos_incremento_min")) || 30);
   const minimoMin = Math.max(1, Number(await obtenerParametro("duracion_minima_curso_min")) || 30);
-  if (!esMultiploDe(datos.duracionMin, incrementoMin) || datos.duracionMin < minimoMin)
-    return { error: `La duración tiene que ser un múltiplo de ${incrementoMin} minutos, de al menos ${minimoMin}.` };
+  const tiempo = validarTiempoReserva({ hora: datos.hora, duracionMin: datos.duracionMin, incrementoMin, minimoMin });
+  if (tiempo) return { error: tiempo };
 
   const a = admin();
 

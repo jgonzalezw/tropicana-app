@@ -34,10 +34,21 @@ test("validarReservaSala: ok cuando no hay nada que choque", () => {
   assert.deepEqual(validarReservaSala(BASE), { ok: true });
 });
 
-test("validarReservaSala: duración que no es múltiplo del incremento", () => {
-  const r = validarReservaSala({ ...BASE, duracionMin: 45 });
+test("validarReservaSala: duración que no es múltiplo del mínimo", () => {
+  const r = validarReservaSala({ ...BASE, duracionMin: 90, minimoMin: 60 });
   assert.equal(r.ok, false);
-  assert.match((r as { motivo: string }).motivo, /múltiplo de 30/);
+  assert.match((r as { motivo: string }).motivo, /múltiplo de 1 h/);
+});
+
+test("validarReservaSala: 2 h con mínimo de 1 h es válida (múltiplo del mínimo)", () => {
+  assert.deepEqual(validarReservaSala({ ...BASE, duracionMin: 120, minimoMin: 60 }), { ok: true });
+});
+
+test("validarReservaSala: la hora de inicio tiene que caer en el intervalo", () => {
+  const r = validarReservaSala({ ...BASE, hora: "19:15", incrementoMin: 30 });
+  assert.equal(r.ok, false);
+  assert.match((r as { motivo: string }).motivo, /intervalos de 30 minutos/);
+  assert.deepEqual(validarReservaSala({ ...BASE, hora: "19:30", incrementoMin: 30 }), { ok: true });
 });
 
 test("validarReservaSala: duración menor al mínimo", () => {

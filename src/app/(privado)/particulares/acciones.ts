@@ -24,7 +24,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { tienePermiso, obtenerParametro, obtenerPerfilActual } from "@/lib/sesion";
 import { apellidoDe } from "@/lib/contactos";
-import { formatearHoras, aMinutos } from "@/lib/horarios";
+import { formatearHoras, aMinutos, horaFin } from "@/lib/horarios";
 import {
   validarReservaSala,
   ocupacionDeProfesor,
@@ -35,6 +35,7 @@ import {
   FILTRO_ESTADOS_QUE_LIBERAN,
   ETIQUETA_ESTADO_RESERVA,
   TRANSICIONES,
+  solicitudVigente,
   type EstadoReserva,
 } from "@/lib/reservas";
 import {
@@ -113,6 +114,92 @@ function fechaHoraCorta(fecha: string, hora: string): string {
   return `${DIAS[d.getDay()]} ${dd}/${mm} ${hora.slice(0, 5)}`;
 }
 
+/** "vie 02/10 de 15:00 a 16:00" — el mismo formato que usa la inscripción. */
+function horario(fecha: string, hora: string, duracionMin: number): string {
+  return `${fechaHoraCorta(fecha, hora).slice(0, -6)} de ${hora.slice(0, 5)} a ${horaFin(hora, duracionMin) ?? "?"}`;
+}
+
+const h = (min: number) => formatearHoras(min / 60);
+
+/**
+ * Todo lo que necesita un aviso, leído DESPUÉS de escribir (el saldo ya
+ * refleja el cambio). Los mensajes siguen el formato de la venta de H2
+ * (plan, profesor, horario, lugar) — pedido de Javier, 26/09: los avisos
+ * tienen que ser tan claros como los de la inscripción.
+ */
+type ContextoAviso = {
+  destinatario: { nombre: string; whatsapp: string | null } | null;
+  alumnoNombre: string;
+  profesor: { nombre: string; whatsapp: string | null };
+  planNombre: string;
+  contratadasMin: number;
+  disponibleMin: number;
+  lugar: (salaId: number) => string;
+};
+
+async function contextoAviso(
+  a: ReturnType<typeof admin>,
+  sb: Awaited<ReturnType<typeof createClient>>,
+  membresiaId: number
+): Promise<ContextoAviso | null> {
+  const { data: mRow } = await a
+    .from("membresias")
+    .select(
+      "alumno_id, horas_contratadas, plan:planes(nombre), " +
+        "alumno:alumnos(contacto:contactos(nombre, apellido)), " +
+        "profesor:profesores(contacto:contactos(nombre, apellido, whatsapp))"
+    )
+    .eq("id", membresiaId)
+    .maybeSingle();
+  const m = mRow as unknown as {
+    alumno_id: number;
+    horas_contratadas: number;
+    plan: { nombre: string } | null;
+    alumno: { contacto: { nombre: string | null; apellido: string | null } | null } | null;
+    profesor: { contacto: { nombre: string | null; apellido: string | null; whatsapp: string | null } | null } | null;
+  } | null;
+  if (!m) return null;
+
+  const [salasR, msR, resR, destinatario] = await Promise.all([
+    a.from("salas").select("id, nombre"),
+    a.from("membresia_salas").select("sala_id, nombre_descriptivo").eq("membresia_id", membresiaId),
+    a.from("reservas_sala").select("estado, duracion_min, solicitada_hasta").eq("membresia_id", membresiaId),
+    destinatarioDeAlumno(sb, m.alumno_id),
+  ]);
+  const salas = (salasR.data as { id: number; nombre: string }[]) ?? [];
+  const ms = (msR.data as { sala_id: number; nombre_descriptivo: string | null }[]) ?? [];
+  const saldo = saldoMembresia({
+    horasContratadas: Number(m.horas_contratadas) || 0,
+    reservas: (resR.data as { estado: string; duracion_min: number; solicitada_hasta: string | null }[]) ?? [],
+    ahora: new Date(),
+  });
+  const pc = m.profesor?.contacto;
+  return {
+    destinatario,
+    alumnoNombre: `${m.alumno?.contacto?.nombre ?? ""} ${m.alumno?.contacto?.apellido ?? ""}`.trim() || "el alumno",
+    profesor: { nombre: `${pc?.nombre ?? ""} ${pc?.apellido ?? ""}`.trim(), whatsapp: pc?.whatsapp ?? null },
+    planNombre: m.plan?.nombre ?? "clases particulares",
+    contratadasMin: saldo.contratadasMin,
+    disponibleMin: saldo.disponibleMin,
+    lugar: (salaId) => {
+      const externa = ms.find((x) => x.sala_id === salaId)?.nombre_descriptivo;
+      if (externa) return externa;
+      const sala = salas.find((x) => x.id === salaId);
+      return sala ? `Tropicana (${sala.nombre})` : "Tropicana";
+    },
+  };
+}
+
+function avisos(c: ContextoAviso | null, alumno: string, profesor: string): Pick<ResultadoAccion, "avisoAlumno" | "avisoProfesor"> {
+  if (!c) return {};
+  return {
+    avisoAlumno: c.destinatario ? { nombre: c.destinatario.nombre, whatsapp: c.destinatario.whatsapp, mensaje: alumno } : undefined,
+    avisoProfesor: c.profesor.nombre ? { nombre: c.profesor.nombre, whatsapp: c.profesor.whatsapp, mensaje: profesor } : undefined,
+  };
+}
+
+const saldoTexto = (c: ContextoAviso) => `Te quedan ${h(c.disponibleMin)} h de tu paquete de ${h(c.contratadasMin)} h.`;
+
 // ── Datos para la pantalla ──────────────────────────────────────────────
 
 export type ReservaConHistorial = {
@@ -142,6 +229,7 @@ export type MembresiaParticularDetalle = {
   alumnoNombre: string;
   alumnoId: number;
   planNombre: string;
+  estilo: string;
   profesorNombre: string;
   profesorId: number;
   fechaInicio: string;
@@ -159,58 +247,108 @@ export type MembresiaParticularDetalle = {
   error?: string;
 };
 
-/** Lista de membresías de particulares activas, para `/particulares`. */
-export async function listarMembresiasParticulares(): Promise<
-  { items: { id: number; alumnoNombre: string; planNombre: string; profesorNombre: string; fechaFin: string; disponibleMin: number; solicitadasPorVencer: number }[]; error?: string }
-> {
+export type FilaParticular = {
+  id: number;
+  alumnoNombre: string;
+  /** Solo para el buscador (mismo criterio que Alumnos: nombre o WhatsApp). */
+  alumnoWhatsapp: string | null;
+  tutorWhatsapp: string | null;
+  planNombre: string;
+  estilo: string;
+  profesorNombre: string;
+  fechaInicio: string;
+  fechaFin: string;
+  contratadasMin: number;
+  disponibleMin: number;
+  solicitadasVigentes: number;
+};
+
+/**
+ * Lista de membresías de particulares activas, para `/particulares`. Primero
+ * las que tienen una Solicitada vigente —son las que esperan una acción—, y
+ * después por apellido (regla de negocio 15).
+ */
+export async function listarMembresiasParticulares(): Promise<{ items: FilaParticular[]; error?: string }> {
   if (!(await tienePermiso("particulares", "ver"))) return { items: [], error: "Sin permiso para ver clases particulares." };
 
   const sb = await createClient();
-  const { data, error } = await sb
-    .from("membresias")
-    .select(
-      "id, fecha_fin, horas_contratadas, estado, " +
-        "alumno:alumnos(contacto:contactos(nombre, apellido)), " +
-        "plan:planes(nombre), " +
-        "profesor:profesores(contacto:contactos(nombre, apellido)), " +
-        "reservas:reservas_sala(estado, duracion_min, solicitada_hasta)"
-    )
-    .is("curso_id", null)
-    .eq("estado", "activa");
-  if (error) return { items: [], error: `No se pudieron leer las membresías de particulares: ${error.message}` };
+  const [memR, estR] = await Promise.all([
+    sb
+      .from("membresias")
+      .select(
+        "id, fecha_inicio, fecha_fin, horas_contratadas, estado, " +
+          "alumno:alumnos(es_menor, contacto_id, contacto:contactos(nombre, apellido, whatsapp)), " +
+          "plan:planes(nombre, estilo), " +
+          "profesor:profesores(contacto:contactos(nombre, apellido)), " +
+          "reservas:reservas_sala(estado, duracion_min, solicitada_hasta)"
+      )
+      .is("curso_id", null)
+      .eq("estado", "activa"),
+    sb.from("estilos").select("clave, nombre"),
+  ]);
+  if (memR.error) return { items: [], error: `No se pudieron leer las membresías de particulares: ${memR.error.message}` };
+  if (estR.error) return { items: [], error: `No se pudieron leer los estilos: ${estR.error.message}` };
 
   type Fila = {
     id: number;
+    fecha_inicio: string;
     fecha_fin: string;
     horas_contratadas: number;
-    alumno: { contacto: { nombre: string | null; apellido: string | null } | null } | null;
-    plan: { nombre: string } | null;
+    alumno: {
+      es_menor: boolean;
+      contacto_id: number;
+      contacto: { nombre: string | null; apellido: string | null; whatsapp: string | null } | null;
+    } | null;
+    plan: { nombre: string; estilo: string | null } | null;
     profesor: { contacto: { nombre: string | null; apellido: string | null } | null } | null;
     reservas: { estado: string; duracion_min: number; solicitada_hasta: string | null }[];
   };
+  const filas = (memR.data as unknown as Fila[]) ?? [];
+  const estilos = new Map(((estR.data as { clave: string; nombre: string }[]) ?? []).map((e) => [e.clave, e.nombre]));
+
+  // WhatsApp del tutor de los menores, para que el buscador los encuentre
+  // igual que en Alumnos (un menor se ubica por el número de su tutor).
+  const menores = filas.filter((f) => f.alumno?.es_menor).map((f) => f.alumno!.contacto_id);
+  const tutores = new Map<number, string | null>();
+  if (menores.length) {
+    const { data: rel } = await sb
+      .from("contacto_relaciones")
+      .select("hacia_id, tutor:contactos!contacto_relaciones_desde_id_fkey(whatsapp)")
+      .eq("tipo", "tutor_de")
+      .in("hacia_id", menores);
+    for (const r of (rel as unknown as { hacia_id: number; tutor: { whatsapp: string | null } | null }[]) ?? [])
+      tutores.set(r.hacia_id, r.tutor?.whatsapp ?? null);
+  }
+
   const ahora = new Date();
-  // Se ordena por apellido ANTES de armar el objeto final (regla de negocio
-  // 15): así no hace falta cargar el campo al resultado solo para tirarlo.
-  const filas = [...((data as unknown as Fila[]) ?? [])].sort((a, b) =>
-    apellidoDe(a.alumno?.contacto ?? undefined).localeCompare(apellidoDe(b.alumno?.contacto ?? undefined), "es")
-  );
   const items = filas.map((m) => {
     const saldo = saldoMembresia({ horasContratadas: Number(m.horas_contratadas) || 0, reservas: m.reservas, ahora });
-    const solicitadasPorVencer = m.reservas.filter(
-      (r) => r.estado === "solicitada" && r.solicitada_hasta && new Date(r.solicitada_hasta) > ahora
-    ).length;
     return {
-      id: m.id,
-      alumnoNombre: `${m.alumno?.contacto?.nombre ?? ""} ${m.alumno?.contacto?.apellido ?? ""}`.trim(),
-      planNombre: m.plan?.nombre ?? "—",
-      profesorNombre: `${m.profesor?.contacto?.nombre ?? ""} ${m.profesor?.contacto?.apellido ?? ""}`.trim(),
-      fechaFin: m.fecha_fin,
-      disponibleMin: saldo.disponibleMin,
-      solicitadasPorVencer,
+      fila: {
+        id: m.id,
+        alumnoNombre: `${m.alumno?.contacto?.nombre ?? ""} ${m.alumno?.contacto?.apellido ?? ""}`.trim(),
+        alumnoWhatsapp: m.alumno?.contacto?.whatsapp ?? null,
+        tutorWhatsapp: m.alumno ? (tutores.get(m.alumno.contacto_id) ?? null) : null,
+        planNombre: m.plan?.nombre ?? "—",
+        estilo: m.plan?.estilo ? (estilos.get(m.plan.estilo) ?? m.plan.estilo) : "—",
+        profesorNombre: `${m.profesor?.contacto?.nombre ?? ""} ${m.profesor?.contacto?.apellido ?? ""}`.trim(),
+        fechaInicio: m.fecha_inicio,
+        fechaFin: m.fecha_fin,
+        contratadasMin: saldo.contratadasMin,
+        disponibleMin: saldo.disponibleMin,
+        solicitadasVigentes: m.reservas.filter(
+          (r) => r.estado === "solicitada" && solicitudVigente(r.solicitada_hasta, ahora)
+        ).length,
+      },
+      apellido: apellidoDe(m.alumno?.contacto ?? undefined),
     };
   });
-
-  return { items };
+  items.sort(
+    (a, b) =>
+      Number(b.fila.solicitadasVigentes > 0) - Number(a.fila.solicitadasVigentes > 0) ||
+      a.apellido.localeCompare(b.apellido, "es")
+  );
+  return { items: items.map((x) => x.fila) };
 }
 
 /** El detalle de una membresía y sus reservas, para `/particulares/[id]`. */
@@ -223,7 +361,7 @@ export async function obtenerMembresiaParticular(membresiaId: number): Promise<M
     .select(
       "id, fecha_inicio, fecha_fin, estado, horas_contratadas, alumno_id, profesor_id, " +
         "alumno:alumnos(contacto:contactos(nombre, apellido)), " +
-        "plan:planes(nombre), " +
+        "plan:planes(nombre, estilo), " +
         "profesor:profesores(contacto:contactos(nombre, apellido))"
     )
     .eq("id", membresiaId)
@@ -240,10 +378,13 @@ export async function obtenerMembresiaParticular(membresiaId: number): Promise<M
     alumno_id: number;
     profesor_id: number;
     alumno: { contacto: { nombre: string | null; apellido: string | null } | null } | null;
-    plan: { nombre: string } | null;
+    plan: { nombre: string; estilo: string | null } | null;
     profesor: { contacto: { nombre: string | null; apellido: string | null } | null } | null;
   };
   const mm = m as unknown as M;
+  const { data: estRow } = mm.plan?.estilo
+    ? await sb.from("estilos").select("nombre").eq("clave", mm.plan.estilo).maybeSingle()
+    : { data: null };
 
   const [salasR, reservasR] = await Promise.all([
     sb.from("membresia_salas").select("sala_id, nombre_descriptivo, sala:salas(nombre, es_externa)").eq("membresia_id", membresiaId),
@@ -293,6 +434,14 @@ export async function obtenerMembresiaParticular(membresiaId: number): Promise<M
   };
   const historialRaw = (historialR.data as unknown as FilaHistorial[]) ?? [];
 
+  // El motivo de una suspensión se guarda como clave del catálogo; en
+  // pantalla va su etiqueta (regla de calidad 6).
+  const { data: catSus } = await sb.from("catalogos").select("id").eq("clave", "motivo_suspension_reserva").maybeSingle();
+  const { data: valSus } = catSus
+    ? await sb.from("catalogo_valores").select("valor, etiqueta").eq("catalogo_id", (catSus as { id: number }).id)
+    : { data: [] as { valor: string; etiqueta: string }[] };
+  const etiquetaMotivo = new Map(((valSus as { valor: string; etiqueta: string }[]) ?? []).map((v) => [v.valor, v.etiqueta]));
+
   const ahora = new Date();
   const reservas: ReservaConHistorial[] = reservasRaw.map((r) => {
     const estado = r.estado as EstadoReserva;
@@ -314,7 +463,7 @@ export async function obtenerMembresiaParticular(membresiaId: number): Promise<M
           estado_nuevo: h.estado_nuevo,
           fecha_nueva: h.fecha_nueva,
           hora_nueva: h.hora_nueva,
-          motivo: h.motivo,
+          motivo: h.motivo ? (etiquetaMotivo.get(h.motivo) ?? h.motivo) : null,
           glosa: h.glosa,
           fuera_de_plazo: h.fuera_de_plazo,
           creado_en: h.creado_en,
@@ -333,6 +482,7 @@ export async function obtenerMembresiaParticular(membresiaId: number): Promise<M
     alumnoId: mm.alumno_id,
     alumnoNombre: `${mm.alumno?.contacto?.nombre ?? ""} ${mm.alumno?.contacto?.apellido ?? ""}`.trim(),
     planNombre: mm.plan?.nombre ?? "—",
+    estilo: (estRow as { nombre: string } | null)?.nombre ?? mm.plan?.estilo ?? "—",
     profesorId: mm.profesor_id,
     profesorNombre: `${mm.profesor?.contacto?.nombre ?? ""} ${mm.profesor?.contacto?.apellido ?? ""}`.trim(),
     fechaInicio: mm.fecha_inicio,
@@ -634,22 +784,27 @@ export async function crearReserva(e: EntradaNuevaReserva): Promise<ResultadoAcc
   revalidatePath("/particulares");
   revalidatePath("/sala");
 
-  const destinatario = await destinatarioDeAlumno(sb, mRow.alumno_id);
-  const { data: profesorRow } = await a.from("profesores").select("contacto:contactos(nombre, apellido, whatsapp)").eq("id", mRow.profesor_id).maybeSingle();
-  const profesorContacto = (profesorRow as unknown as { contacto: { nombre: string | null; apellido: string | null; whatsapp: string | null } | null })?.contacto;
-  const nombreProfesor = `${profesorContacto?.nombre ?? ""} ${profesorContacto?.apellido ?? ""}`.trim();
-  const cuando = fechaHoraCorta(e.fecha, e.hora);
-  const verbo = e.accion === "solicitar" ? "Solicitamos" : "Confirmamos";
-
+  const c = await contextoAviso(a, sb, e.membresiaId);
+  const cuando = horario(e.fecha, e.hora, e.duracionMin);
+  const lugar = c?.lugar(salaId) ?? "Tropicana";
+  if (e.accion === "solicitar")
+    return {
+      ok: true,
+      mensaje: `Solicitada para el ${cuando}. Ocupa la sala y al profesor hasta que se confirme (o vence en ${validezHoras} h).`,
+      ...avisos(
+        c,
+        `Hola! Estamos coordinando tu clase particular (${c?.planNombre}) con ${c?.profesor.nombre} para el ${cuando}, en ${lugar}. Te la confirmamos a la brevedad.`,
+        `Hola! Estamos coordinando una clase particular (${c?.planNombre}) con ${c?.alumnoNombre} para el ${cuando}, en ${lugar}. ¿Te queda bien? Te confirmamos.`
+      ),
+    };
   return {
     ok: true,
-    mensaje: e.accion === "solicitar" ? `Clase solicitada para el ${cuando}.` : `Clase confirmada para el ${cuando}.`,
-    avisoAlumno: destinatario
-      ? { nombre: destinatario.nombre, whatsapp: destinatario.whatsapp, mensaje: `Hola! ${verbo} tu clase particular del ${cuando} con ${nombreProfesor}.` }
-      : undefined,
-    avisoProfesor: nombreProfesor
-      ? { nombre: nombreProfesor, whatsapp: profesorContacto?.whatsapp ?? null, mensaje: `Hola! ${verbo} tu clase particular del ${cuando}.` }
-      : undefined,
+    mensaje: `Confirmada para el ${cuando}.`,
+    ...avisos(
+      c,
+      `Hola! Confirmamos tu clase particular (${c?.planNombre}) con ${c?.profesor.nombre}: ${cuando}, en ${lugar}. ${c ? saldoTexto(c) : ""} ¡Te esperamos!`,
+      `Hola! Se te confirmó una clase particular (${c?.planNombre}) con ${c?.alumnoNombre}: ${cuando}, en ${lugar}.`
+    ),
   };
 }
 
@@ -738,27 +893,30 @@ export async function cambiarEstadoReserva(
   // Aviso solo en los cambios que le importan a alguien afuera del sistema
   // (proceso 12): confirmar y suspender. Ausente/Realizada son registro
   // interno de lo que ya pasó.
-  if (destino !== "confirmada" && destino !== "suspendida") return { ok: true };
+  if (destino !== "confirmada" && destino !== "suspendida")
+    return { ok: true, mensaje: `Marcada ${ETIQUETA_ESTADO_RESERVA[destino]}.` };
 
-  const { data: mRow } = await a.from("membresias").select("alumno_id").eq("id", rRow.membresia_id).maybeSingle();
-  const { data: profesorRow } = await a.from("profesores").select("contacto:contactos(nombre, apellido, whatsapp)").eq("id", rRow.profesor_id).maybeSingle();
-  const profesorContacto = (profesorRow as unknown as { contacto: { nombre: string | null; apellido: string | null; whatsapp: string | null } | null })?.contacto;
-  const nombreProfesor = `${profesorContacto?.nombre ?? ""} ${profesorContacto?.apellido ?? ""}`.trim();
-  const cuando = fechaHoraCorta(rRow.fecha, rRow.hora);
-  const destinatario = mRow ? await destinatarioDeAlumno(sb, mRow.alumno_id) : null;
-  const mensajeAlumno =
-    destino === "confirmada"
-      ? `Hola! Confirmamos tu clase particular del ${cuando}.`
-      : `Hola! Tu clase particular del ${cuando} fue suspendida${etiquetaMotivoSuspension ? ` (${etiquetaMotivoSuspension})` : ""}. Se te devuelve al saldo.`;
-  const mensajeProfesor =
-    destino === "confirmada"
-      ? `Hola! Se confirmó la clase del ${cuando}.`
-      : `Hola! Se suspendió la clase del ${cuando}${etiquetaMotivoSuspension ? ` (${etiquetaMotivoSuspension})` : ""}.`;
-
+  const c = await contextoAviso(a, sb, rRow.membresia_id);
+  const cuando = horario(rRow.fecha, rRow.hora, rRow.duracion_min);
+  const lugar = c?.lugar(rRow.sala_id) ?? "Tropicana";
+  if (destino === "confirmada")
+    return {
+      ok: true,
+      mensaje: `Confirmada: ${cuando}.`,
+      ...avisos(
+        c,
+        `Hola! Confirmamos tu clase particular (${c?.planNombre}) con ${c?.profesor.nombre}: ${cuando}, en ${lugar}. ${c ? saldoTexto(c) : ""} ¡Te esperamos!`,
+        `Hola! Se te confirmó una clase particular (${c?.planNombre}) con ${c?.alumnoNombre}: ${cuando}, en ${lugar}.`
+      ),
+    };
   return {
     ok: true,
-    avisoAlumno: destinatario ? { nombre: destinatario.nombre, whatsapp: destinatario.whatsapp, mensaje: mensajeAlumno } : undefined,
-    avisoProfesor: nombreProfesor ? { nombre: nombreProfesor, whatsapp: profesorContacto?.whatsapp ?? null, mensaje: mensajeProfesor } : undefined,
+    mensaje: `Suspendida (${etiquetaMotivoSuspension}). La hora vuelve al paquete.`,
+    ...avisos(
+      c,
+      `Hola! Tu clase particular (${c?.planNombre}) del ${cuando} quedó suspendida (${etiquetaMotivoSuspension}). Esa hora vuelve a tu paquete: ${c ? saldoTexto(c) : ""} Coordinamos una nueva fecha.`,
+      `Hola! La clase particular (${c?.planNombre}) con ${c?.alumnoNombre} del ${cuando}, en ${lugar}, quedó suspendida (${etiquetaMotivoSuspension}).`
+    ),
   };
 }
 
@@ -783,7 +941,7 @@ export async function reprogramarReserva(e: EntradaReprogramar): Promise<Resulta
 
   const { data: rRow, error: errR } = await a
     .from("reservas_sala")
-    .select("id, tipo, estado, membresia_id, profesor_id, fecha, hora, duracion_min")
+    .select("id, tipo, estado, membresia_id, sala_id, profesor_id, fecha, hora, duracion_min")
     .eq("id", e.reservaId)
     .maybeSingle();
   if (errR) return { error: `No se pudo leer la reserva: ${errR.message}` };
@@ -793,10 +951,30 @@ export async function reprogramarReserva(e: EntradaReprogramar): Promise<Resulta
   if (!puedeTransicionar(actual, "reprogramada"))
     return { error: `Una reserva ${ETIQUETA_ESTADO_RESERVA[actual]} no se puede reprogramar.` };
 
-  const { data: mRow } = await a.from("membresias").select("fecha_inicio, fecha_fin, alumno_id").eq("id", rRow.membresia_id).maybeSingle();
+  const { data: mRow } = await a
+    .from("membresias")
+    .select("fecha_inicio, fecha_fin, alumno_id, horas_contratadas")
+    .eq("id", rRow.membresia_id)
+    .maybeSingle();
   if (!mRow) return { error: "La membresía de esta reserva ya no existe." };
   if (e.fecha < mRow.fecha_inicio || e.fecha > mRow.fecha_fin)
     return { error: `La nueva fecha queda fuera de la vigencia de la membresía (${mRow.fecha_inicio} a ${mRow.fecha_fin}).` };
+
+  // Alargar una reserva consume más horas del paquete: la diferencia tiene
+  // que entrar en lo que queda (misma regla que al crear una nueva).
+  if (e.duracionMin > rRow.duracion_min) {
+    const { data: resRows, error: errSaldo } = await a
+      .from("reservas_sala")
+      .select("estado, duracion_min, solicitada_hasta")
+      .eq("membresia_id", rRow.membresia_id);
+    if (errSaldo) return { error: `No se pudo leer el saldo de la membresía: ${errSaldo.message}` };
+    const saldo = saldoMembresia({ horasContratadas: Number(mRow.horas_contratadas) || 0, reservas: resRows ?? [], ahora: new Date() });
+    const extra = e.duracionMin - rRow.duracion_min;
+    if (extra > saldo.disponibleMin)
+      return {
+        error: `Pasar de ${h(rRow.duracion_min)} h a ${h(e.duracionMin)} h suma ${h(extra)} h, y al paquete le quedan ${h(saldo.disponibleMin)} h disponibles.`,
+      };
+  }
 
   const { data: salaRow } = await a.from("salas").select("id, activa, es_externa").eq("id", e.salaId).maybeSingle();
   if (!salaRow || !salaRow.activa) return { error: "La sala elegida no existe o no está activa." };
@@ -850,21 +1028,18 @@ export async function reprogramarReserva(e: EntradaReprogramar): Promise<Resulta
   revalidatePath("/particulares");
   revalidatePath("/sala");
 
-  const cuando = fechaHoraCorta(e.fecha, e.hora);
-  const destinatario = await destinatarioDeAlumno(sb, mRow.alumno_id);
-  const { data: profesorRow } = await a.from("profesores").select("contacto:contactos(nombre, apellido, whatsapp)").eq("id", rRow.profesor_id).maybeSingle();
-  const profesorContacto = (profesorRow as unknown as { contacto: { nombre: string | null; apellido: string | null; whatsapp: string | null } | null })?.contacto;
-  const nombreProfesor = `${profesorContacto?.nombre ?? ""} ${profesorContacto?.apellido ?? ""}`.trim();
-
+  const c = await contextoAviso(a, sb, rRow.membresia_id);
+  const antes = horario(rRow.fecha, rRow.hora, rRow.duracion_min);
+  const ahoraEs = horario(e.fecha, e.hora, e.duracionMin);
+  const lugar = c?.lugar(e.salaId) ?? "Tropicana";
   return {
     ok: true,
-    mensaje: `Reprogramada para el ${cuando}.`,
-    avisoAlumno: destinatario
-      ? { nombre: destinatario.nombre, whatsapp: destinatario.whatsapp, mensaje: `Hola! Reprogramamos tu clase particular: ahora es el ${cuando}.` }
-      : undefined,
-    avisoProfesor: nombreProfesor
-      ? { nombre: nombreProfesor, whatsapp: profesorContacto?.whatsapp ?? null, mensaje: `Hola! Se reprogramó una clase para el ${cuando}.` }
-      : undefined,
+    mensaje: `Reprogramada: ${antes} → ${ahoraEs}, en ${lugar}.`,
+    ...avisos(
+      c,
+      `Hola! Reprogramamos tu clase particular (${c?.planNombre}) con ${c?.profesor.nombre}: pasa del ${antes} al ${ahoraEs}, en ${lugar}. ${c ? saldoTexto(c) : ""} ¡Te esperamos!`,
+      `Hola! Se reprogramó la clase particular (${c?.planNombre}) con ${c?.alumnoNombre}: pasa del ${antes} al ${ahoraEs}, en ${lugar}.`
+    ),
   };
 }
 
@@ -879,7 +1054,7 @@ export async function cancelarAPedido(reservaId: number): Promise<ResultadoAccio
 
   const { data: rRow, error: errR } = await a
     .from("reservas_sala")
-    .select("id, tipo, estado, membresia_id, profesor_id, fecha, hora")
+    .select("id, tipo, estado, membresia_id, sala_id, profesor_id, fecha, hora, duracion_min")
     .eq("id", reservaId)
     .maybeSingle();
   if (errR) return { error: `No se pudo leer la reserva: ${errR.message}` };
@@ -890,6 +1065,7 @@ export async function cancelarAPedido(reservaId: number): Promise<ResultadoAccio
   let destino: "reagendar" | "ausente";
   let fueraDePlazo = false;
   let motivo: string;
+  const plazoHoras = Math.max(1, Number(await obtenerParametro("reserva_cancelacion_plazo_horas")) || 8);
   if (actual === "solicitada") {
     // Nada se consumió todavía: cancelar una Solicitada siempre libera,
     // sin plazo que evaluar (regla de negocio 23, 8.3 habla de una reserva
@@ -897,7 +1073,6 @@ export async function cancelarAPedido(reservaId: number): Promise<ResultadoAccio
     destino = "reagendar";
     motivo = "Canceló la solicitud (alumno)";
   } else if (actual === "confirmada" || actual === "reprogramada") {
-    const plazoHoras = Math.max(1, Number(await obtenerParametro("reserva_cancelacion_plazo_horas")) || 8);
     const r = evaluarCancelacion(new Date(), new Date(`${rRow.fecha}T${rRow.hora}`), plazoHoras);
     destino = r.destino;
     fueraDePlazo = r.fueraDePlazo;
@@ -927,16 +1102,26 @@ export async function cancelarAPedido(reservaId: number): Promise<ResultadoAccio
   revalidatePath("/particulares");
   revalidatePath("/sala");
 
-  const { data: mRow } = await a.from("membresias").select("alumno_id").eq("id", rRow.membresia_id).maybeSingle();
-  const cuando = fechaHoraCorta(rRow.fecha, rRow.hora);
-  const destinatario = mRow ? await destinatarioDeAlumno(sb, mRow.alumno_id) : null;
-  const mensajeAlumno = fueraDePlazo
-    ? `Hola! Tu clase del ${cuando} se canceló con menos anticipación de la permitida, así que se da por consumida del paquete.`
-    : `Hola! Tu clase del ${cuando} quedó cancelada. Se te devuelve al saldo — coordinamos una nueva fecha.`;
-
+  const c = await contextoAviso(a, sb, rRow.membresia_id);
+  const cuando = horario(rRow.fecha, rRow.hora, rRow.duracion_min);
+  const lugar = c?.lugar(rRow.sala_id) ?? "Tropicana";
+  if (fueraDePlazo)
+    return {
+      ok: true,
+      mensaje: `Cancelada fuera de plazo (menos de ${plazoHoras} h antes): queda Ausente y la hora se descuenta del paquete.`,
+      ...avisos(
+        c,
+        `Hola! Registramos la cancelación de tu clase particular (${c?.planNombre}) del ${cuando}. Como fue con menos de ${plazoHoras} h de anticipación, esa hora se descuenta del paquete. ${c ? saldoTexto(c) : ""}`,
+        `Hola! ${c?.alumnoNombre} canceló fuera de plazo la clase particular (${c?.planNombre}) del ${cuando}, en ${lugar}. Ya no hace falta que vayas.`
+      ),
+    };
   return {
     ok: true,
-    mensaje: destino === "reagendar" ? "Cancelada: la sesión vuelve al saldo." : "Cancelada fuera de plazo: la sesión se da por consumida.",
-    avisoAlumno: destinatario ? { nombre: destinatario.nombre, whatsapp: destinatario.whatsapp, mensaje: mensajeAlumno } : undefined,
+    mensaje: "Cancelada: la hora vuelve al paquete.",
+    ...avisos(
+      c,
+      `Hola! Cancelamos tu clase particular (${c?.planNombre}) del ${cuando}, como pediste. Esa hora vuelve a tu paquete: ${c ? saldoTexto(c) : ""} Coordinamos una nueva fecha.`,
+      `Hola! Se canceló a pedido del alumno la clase particular (${c?.planNombre}) con ${c?.alumnoNombre} del ${cuando}, en ${lugar}.`
+    ),
   };
 }

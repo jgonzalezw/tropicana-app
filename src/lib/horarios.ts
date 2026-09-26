@@ -90,6 +90,27 @@ export function opcionesDuracion(incrementoMin: number, minimoMin: number, topeM
 }
 
 /**
+ * Duraciones elegibles para una **reserva** (particular, alquiler, bloqueo):
+ * múltiplos de la duración mínima, nunca menos que ella. Regla distinta a la
+ * de los cursos (`opcionesDuracion`): en una reserva el intervalo estándar
+ * gobierna la **hora de inicio**, y la duración va en bloques del mínimo
+ * (Javier, 2026-09-26: "solo se debe poder reservar para duraciones múltiplos
+ * del mínimo… el parámetro de los intervalos es para la hora de inicio").
+ */
+export function opcionesDuracionReserva(minimoMin: number, topeMin = 240): number[] {
+  const paso = minimoMin > 0 ? minimoMin : 60;
+  const out: number[] = [];
+  for (let m = paso; m <= topeMin; m += paso) out.push(m);
+  return out.length ? out : [paso];
+}
+
+/** ¿La hora empieza en un múltiplo del intervalo estándar? ("18:30" con 30 → sí). */
+export function horaAlineada(hora: string, incrementoMin: number): boolean {
+  const m = aMinutos(hora);
+  return m != null && incrementoMin > 0 && m % incrementoMin === 0;
+}
+
+/**
  * ¿Se pisan dos bloques? Medio abierto `[inicio, fin)`: una clase que termina
  * 20:00 y otra que empieza 20:00 **no** chocan — es el cambio de turno normal
  * de una sala, no un conflicto.

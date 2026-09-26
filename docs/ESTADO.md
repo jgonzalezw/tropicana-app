@@ -4024,14 +4024,137 @@ hechos de prueba, iguales en naturaleza a las reservas reales que van a
 reemplazar cuando se opere de verdad —, pero si Javier abre `/particulares/58`
 o `/particulares/61` va a ver estos estados y no los que dejó al validar H2.
 
+### Ronda 2 — correcciones de la prueba de Javier en su local · 2026-09-26 (dev)
+
+Javier probó H3 en su propio local contra `/particulares/58` y `/particulares/57`
+y encontró cinco problemas reales, más dos pedidos de terminado. Todos se
+corrigieron en la misma sesión, sobre la misma rama:
+
+1. **"Nueva reserva" no respondía al confirmar sobre un paquete agotado.**
+   No era un cuelgue: el servidor devolvía el error ("Quedan 0 h
+   disponibles…"), pero el mensaje se renderizaba arriba de toda la pantalla,
+   lejos del formulario — parecía que no había pasado nada. Se corrigió de
+   raíz, no parcheando el lugar del mensaje: **si el saldo disponible es 0,
+   el formulario ni se ofrece.** En su lugar sale un panel fijo dentro del
+   recuadro de "Nueva reserva" que explica que el paquete se agotó y qué lo
+   puede devolver (una Suspendida o una cancelación a tiempo) o ampliarlo (la
+   extensión de membresía, todavía no construida).
+2. **Los mensajes eran escuetos.** Se homologaron con los de H2: cada acción
+   (`crearReserva`, `cambiarEstadoReserva`, `reprogramarReserva`,
+   `cancelarAPedido`) ahora arma un texto completo — día, hora de inicio y
+   fin, plan, profesor, lugar (sala propia o el nombre descriptivo de la
+   externa) y el saldo que queda — más los dos `AvisoWhatsapp` (alumno o
+   tutor, y profesor) con "Enviar por WhatsApp" y "Copiar mensaje".
+3. **Los mensajes salían arriba de la pantalla, no junto a la reserva.**
+   `ClienteMembresiaParticular.tsx` se reescribió con un estado
+   `{ donde: number | "nueva" }`: el resultado de cada acción se renderiza
+   **dentro del recuadro de la reserva que la originó**, o dentro de "Nueva
+   reserva" si fue una reserva nueva — nunca en un lugar fijo de la página.
+4. **El botón de confirmar reprogramación quedaba al lado del campo sala.**
+   El formulario de reprogramar pasa a una grilla con los campos arriba y
+   los dos botones ("Confirmar reprogramación" / "Volver") en una fila
+   propia, debajo — mismo patrón que "Nueva reserva".
+5. **Reprogramar una reserva vieja de 0.5 h a una duración mayor fallaba**
+   con "La duración tiene que ser un múltiplo de 30 minutos, de al menos
+   60" — un mensaje que ni siquiera tenía sentido consigo mismo. La causa
+   era de regla, no de código: la duración se validaba contra el
+   **intervalo** (`tiempos_incremento_min`, hoy 60 min), la misma regla que
+   la hora de inicio. Pero una reserva vieja de 30 min (creada cuando el
+   intervalo todavía era 30) nunca iba a ser múltiplo de 60, aunque la
+   reprogramación fuera a una duración perfectamente válida. **Javier fijó
+   la regla general que corrige esto**: *"La reserva no puede tener duración
+   menor al mínimo del parámetro, solo se debe poder reservar para
+   duraciones múltiplos del mínimo. El parámetro de los intervalos es para
+   la hora de inicio."* Es decir, dos parámetros para dos preguntas
+   distintas — `duracion_minima_curso_min` gobierna la duración,
+   `tiempos_incremento_min` gobierna dónde puede empezar la reserva — que
+   hasta ahora se confundían en una sola validación.
+
+   Implementado en una función pura nueva, **`validarTiempoReserva`**
+   (`src/lib/reservas.ts`), que separa las dos preguntas y da un mensaje
+   específico para cada una ("la hora de inicio tiene que caer en
+   intervalos de N minutos" / "la duración tiene que ser un múltiplo de X h,
+   la duración mínima de una reserva"). La usan el cliente (para deshabilitar
+   el botón, calidad 9) y el servidor (para decidir), sin dos copias de la
+   regla. Dos helpers nuevos en `src/lib/horarios.ts`:
+   `opcionesDuracionReserva(minimoMin, topeMin)` (los múltiplos del mínimo
+   hasta el tope) y `horaAlineada(hora, incrementoMin)`.
+
+   **Alcance de la regla nueva, a propósito acotado**: se aplicó donde el
+   problema era real — reservas de particulares (H2 y H3) y bloqueos de sala
+   (`/sala`) —, todas gobernadas por `validarReservaSala`/`validarTiempoReserva`.
+   **La duración de un curso** (migración 0034/0039, "Vigencia del curso" /
+   "Intervalo estándar de tiempo" en `docs/DECISIONES.md` §1.b) sigue con la
+   regla anterior — múltiplo del incremento, no del mínimo —, porque ahí no
+   hay reporte de que sea un problema y cambiarla sin que Javier lo pida
+   sería tocar una decisión ya tomada sin otra decisión que la reemplace
+   (regla de proceso 8). Queda anotado en `docs/DECISIONES.md` §1.b para que
+   la próxima vez que se toque la duración de un curso se sepa que las dos
+   reglas conviven aposta, no por descuido.
+
+   Con la reserva de prueba de Javier (`membresía 57`, id 12, 0.5 h → 1 h el
+   mismo mar 06/10 16:00): reprogramar ahora deja un solo valor disponible en
+   "Duración" (`1 h`, el único múltiplo del mínimo que el saldo permite),
+   confirma sin error, la reserva pasa a `reprogramada` con 1 h y el
+   historial pasa a 2 entradas — verificado en el navegador (Playwright,
+   `qa-cloud@tropicana.local`) y en la base.
+6. **El recuadro de "Nueva reserva" no se distinguía de una reserva ya
+   hecha** (pedido, no bug). Pasa a tener un borde punteado del color
+   primario y fondo propio (`border-2 border-dashed border-[var(--primario)]
+   bg-[var(--fondo-panel)]`), el mismo tratamiento que ya usa el resto de la
+   app para distinguir "algo que se está por crear" de un dato existente.
+7. **`/particulares` sin buscador ni forma de volver, y la lista
+   desordenada** (pedido, no bug):
+   - `ClienteParticulares.tsx` gana un panel "Buscar membresía" con el mismo
+     criterio que Alumnos — `coincideBusqueda` (nombre, WhatsApp propio y del
+     tutor si es menor) — más profesor, estilo y plan, que Alumnos no tiene
+     porque no aplican ahí.
+   - Cada fila se reordena: primera línea, nombre del alumno; segunda,
+     **estilo · profesor · vigente dd/mm/yyyy a dd/mm/yyyy**; el nombre del
+     plan baja a una tercera línea en `text-xs text-[var(--texto-tenue)]` —
+     ya no compite por atención con lo que Natalia necesita mirar primero.
+   - El saldo se lee "**X h de Y h disponibles**" en vez de solo el número.
+   - Una membresía con una Solicitada vigente muestra una línea en verde
+     ("Reserva solicitada — pendiente de confirmar") y **esas membresías se
+     ordenan primero** en `listarMembresiasParticulares`, antes que el resto
+     (que sigue por apellido, regla 15).
+   - `/particulares/[id]/page.tsx` gana el link "← Volver a Particulares"
+     arriba del encabezado, en las dos ramas (con y sin error).
+
+### Verificado en dev (ronda 2)
+
+- `npm test`: **120/120** en verde (2 pruebas nuevas de la regla de
+  duración/intervalo, más el reemplazo de la prueba vieja que mezclaba las
+  dos preguntas).
+- `npx tsc --noEmit`, `npx eslint` sobre los archivos tocados y `npx next
+  build` (23 rutas): limpios.
+- Recorrido en el navegador (Playwright, `qa-cloud@tropicana.local`, contra
+  dev), con capturas guardadas en la sesión:
+  - `/particulares`: buscador, orden (Solicitadas primero, después por
+    apellido), las tres líneas por fila y el saldo "X h de Y h disponibles".
+  - `/particulares/58` (el caso de Javier, saldo en 0): el panel de agotado
+    reemplaza al formulario, sin ofrecer una reserva imposible.
+  - `/particulares/57`: reprogramar la reserva de 0.5 h a 1 h — sale bien,
+    con los botones debajo de los campos y el mensaje + los dos
+    `AvisoWhatsapp` dentro del recuadro de esa reserva.
+  - `/particulares/62` (con saldo): "Confirmar directo" sobre una hora
+    alineada crea la reserva, baja el saldo y muestra el mensaje rico más
+    los avisos, todo dentro del recuadro de "Nueva reserva"; una hora
+    desalineada (11:15 con intervalo de 30 min) deja los dos botones
+    deshabilitados con el aviso exacto, sin tocar el servidor.
+  - `/sala`: el formulario de bloqueo ofrece duraciones en múltiplos del
+    mínimo (1 h, 2 h, 3 h, 4 h), confirmando que la regla nueva también rige
+    ahí.
+
 ### Estado
 
 **Construido y verificado en dev — con datos reales, los 7 estados
-recorridos de punta a punta y tres bugs encontrados y corregidos en el
-camino.** No se tocó producción — el pase queda acumulado con H1+H2, a la
-espera del OK explícito de Javier (regla de proceso 1). Sigue pendiente que
-Javier lo mire en su propio local, como con H1 y H2, antes de pedir el pase.
-`docs/relevamientos/2026-09-25-C3-plan-construccion.md` (fila H3) y
-`REGLAS.md` (glosario de "Reserva") quedan anotados con este avance. **Sigue
+recorridos de punta a punta, tres bugs de la primera verificación interna y
+cinco problemas + dos pedidos de la prueba de Javier en su local, todos
+corregidos y reverificados en la misma sesión.** No se tocó producción — el
+pase queda acumulado con H1+H2, a la espera del OK explícito de Javier
+(regla de proceso 1). `docs/relevamientos/2026-09-25-C3-plan-construccion.md`
+(fila H3), `REGLAS.md` (glosario de "Reserva") y `docs/DECISIONES.md` §1.b
+("Intervalo estándar de tiempo") quedan anotados con este avance. **Sigue
 H4** (cierres de sala sobre reservas — el lado reservas de C5), en otra
 sesión.

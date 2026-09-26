@@ -31,7 +31,7 @@ import {
   type ReservaSalaOcupa,
   type ResultadoHorario,
 } from "./sala.ts";
-import { aMinutos, esMultiploDe } from "./horarios.ts";
+import { aMinutos, esMultiploDe, formatearHoras, horaAlineada } from "./horarios.ts";
 
 /** Todo lo que ocupa el tiempo de un profesor una fecha dada: sus cursos
  *  regulares (de cualquier sala) más sus propias reservas. A diferencia de
@@ -83,12 +83,32 @@ export type EntradaValidarReserva = {
  * motivo }` con la razón exacta y, cuando aplica, con qué choca — nunca un
  * "no se puede" a secas (regla de calidad 1 y 5).
  */
+/**
+ * La regla de tiempos de una reserva (Javier, 2026-09-26): la **duración** va
+ * en múltiplos del mínimo (`duracion_minima_curso_min`) y la **hora de
+ * inicio** en múltiplos del intervalo estándar (`tiempos_incremento_min`).
+ * Pura y compartida: la pantalla la usa para deshabilitar el botón y decir
+ * qué falta, el servidor para decidir (regla de calidad 9).
+ */
+export function validarTiempoReserva(e: {
+  hora: string;
+  duracionMin: number;
+  incrementoMin: number;
+  minimoMin: number;
+}): string | null {
+  if (aMinutos(e.hora) == null) return "La hora no es válida.";
+  if (!horaAlineada(e.hora, e.incrementoMin))
+    return `La hora de inicio tiene que caer en intervalos de ${e.incrementoMin} minutos (ej. 18:00${
+      e.incrementoMin < 60 ? `, 18:${String(e.incrementoMin).padStart(2, "0")}` : ""
+    }).`;
+  if (!esMultiploDe(e.duracionMin, e.minimoMin))
+    return `La duración tiene que ser un múltiplo de ${formatearHoras(e.minimoMin / 60)} h (la duración mínima de una reserva).`;
+  return null;
+}
+
 export function validarReservaSala(e: EntradaValidarReserva): ResultadoHorario {
-  if (!esMultiploDe(e.duracionMin, e.incrementoMin) || e.duracionMin < e.minimoMin)
-    return {
-      ok: false,
-      motivo: `La duración tiene que ser un múltiplo de ${e.incrementoMin} minutos, de al menos ${e.minimoMin}.`,
-    };
+  const tiempo = validarTiempoReserva(e);
+  if (tiempo) return { ok: false, motivo: tiempo };
 
   if (!e.sala.esExterna) {
     if (e.sala.capacidad != null && e.personas != null && e.personas > e.sala.capacidad)

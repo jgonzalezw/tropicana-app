@@ -20,7 +20,7 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { Alumno, DatosAlumno } from "@/lib/tipos";
 import { nombreCompleto } from "@/lib/contactos";
-import { opcionesDuracion, etiquetaDuracion, formatearHoras } from "@/lib/horarios";
+import { opcionesDuracionReserva, etiquetaDuracion, formatearHoras, horaAlineada } from "@/lib/horarios";
 import { gs, isoFecha, fechaLarga } from "@/lib/inscripcion";
 import EntidadAlumno from "@/components/entidades/EntidadAlumno";
 import AvisoWhatsapp from "@/components/AvisoWhatsapp";
@@ -116,7 +116,7 @@ export default function VenderParticular({
   const hoy = useMemo(() => new Date(), []);
   const [fechaInicio, setFechaInicio] = useState(isoFecha(hoy));
   const [diasSemana, setDiasSemana] = useState<number[]>([]);
-  const duraciones = useMemo(() => opcionesDuracion(incrementoMin, minimoMin), [incrementoMin, minimoMin]);
+  const duraciones = useMemo(() => opcionesDuracionReserva(minimoMin), [minimoMin]);
   const [hora, setHora] = useState("18:00");
   const [duracionMin, setDuracionMin] = useState(duraciones[0] ?? 60);
   const [cobro, setCobro] = useState<PayloadCobro | null>(null);
@@ -178,7 +178,8 @@ export default function VenderParticular({
   const fechaCompromisoEfectiva = fechaCompromiso || isoFecha(maxCompromiso);
 
   const esFija = plan?.reservaModalidad === "fija";
-  const agendaCompleta = esFija ? diasSemana.length > 0 && !!hora && !!duracionMin : !!hora && !!duracionMin;
+  const horaOk = !!hora && horaAlineada(hora, incrementoMin);
+  const agendaCompleta = esFija ? diasSemana.length > 0 && horaOk && !!duracionMin : horaOk && !!duracionMin;
   const salaCompleta = salaTipo === "propia" ? !!salaId : nombreExterna.trim().length > 0;
 
   // Lo mismo que manda `venderParticular`, sin el cobro — se usa para pedir
@@ -247,7 +248,9 @@ export default function VenderParticular({
             : !fechaInicio
               ? "la fecha de inicio"
               : !agendaCompleta
-                ? esFija
+                ? hora && !horaOk
+                  ? `una hora de inicio en intervalos de ${incrementoMin} minutos`
+                  : esFija
                   ? "los días, la hora y la duración"
                   : "la hora y la duración de la primera clase"
                 : !previewVigente

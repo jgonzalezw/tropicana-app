@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { tienePermiso } from "@/lib/sesion";
 import { createClient } from "@/lib/supabase/server";
@@ -8,6 +9,12 @@ import { obtenerMembresiaParticular } from "../acciones";
 import ClienteMembresiaParticular from "./ClienteMembresiaParticular";
 
 export const dynamic = "force-dynamic";
+
+/** "25/09/2026" */
+function fecha(iso: string): string {
+  const [y, m, d] = iso.slice(0, 10).split("-");
+  return `${d}/${m}/${y}`;
+}
 
 /**
  * "Reservas de la membresía" (C3, hito H3) — reemplaza al viejo "Confirmar
@@ -25,6 +32,11 @@ export default async function PaginaMembresiaParticular({ params }: { params: Pr
   if ("error" in detalle) {
     return (
       <Pagina ancho="4xl">
+        <div className="mb-4">
+          <Link href="/particulares" className="text-[var(--primario)] text-base">
+            ← Volver a Particulares
+          </Link>
+        </div>
         <EncabezadoPagina titulo="Reservas de la membresía" />
         <p className="text-[var(--peligro)]" role="alert">
           {detalle.error}
@@ -60,9 +72,14 @@ export default async function PaginaMembresiaParticular({ params }: { params: Pr
 
   return (
     <Pagina ancho="4xl" className="pb-24">
+      <div className="mb-4">
+        <Link href="/particulares" className="text-[var(--primario)] text-base">
+          ← Volver a Particulares
+        </Link>
+      </div>
       <EncabezadoPagina
         titulo={detalle.alumnoNombre || `Membresía #${detalle.id}`}
-        descripcion={`${detalle.planNombre} · con ${detalle.profesorNombre || "—"} · vigente ${detalle.fechaInicio} a ${detalle.fechaFin}`}
+        descripcion={`${detalle.estilo} · ${detalle.profesorNombre || "—"} · vigente ${fecha(detalle.fechaInicio)} a ${fecha(detalle.fechaFin)} · ${detalle.planNombre}`}
       />
       <ClienteMembresiaParticular
         detalle={detalle}
