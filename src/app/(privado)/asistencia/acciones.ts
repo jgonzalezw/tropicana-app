@@ -1003,7 +1003,16 @@ export type AlumnoCorrido = { alumnoId: number; inscripcionId: number; finCicloN
 
 export async function ejecutarSuspension(
   a: Admin,
-  args: { cursoId: number; fecha: string; motivo: string; registradoPor: string | null }
+  args: {
+    cursoId: number;
+    fecha: string;
+    motivo: string;
+    registradoPor: string | null;
+    /** Qué excepción de horario causó esta suspensión (H4) — permite
+     *  revertir SOLO lo que esa excepción causó si se borra, sin adivinar
+     *  por fecha. `null`/omitido para una suspensión manual del día a día. */
+    excepcionId?: number | null;
+  }
 ): Promise<{
   sesionId: number;
   corridos: number;
@@ -1041,6 +1050,7 @@ export async function ejecutarSuspension(
         reemplazo_costo: null,
         registrado_por: args.registradoPor,
         actualizado_en: new Date().toISOString(),
+        excepcion_id: args.excepcionId ?? null,
       },
       { onConflict: "curso_id,fecha" }
     )
@@ -1135,6 +1145,34 @@ export async function suspenderClase(args: {
   };
 }
 
+/**
+ * El núcleo de reabrir una clase suspendida: sin chequeo de permiso, para que
+ * lo reutilice otro disparador con su propio permiso ya validado — mismo
+ * patrón que `ejecutarSuspension`/`suspenderClase`. `reabrirSesion` (abajo) es
+ * el camino de Tomar asistencia; el cierre de sala (H4) revierte con esto
+ * mismo cuando se borra la excepción que causó la suspensión.
+ */
+export async function ejecutarReapertura(
+  a: Admin,
+  args: { cursoId: number; fecha: string }
+): Promise<{ ok: true; huboSesion: boolean }> {
+  const { data: sesion } = await a
+    .from("sesiones")
+    .select("id")
+    .eq("curso_id", args.cursoId)
+    .eq("fecha", args.fecha)
+    .maybeSingle();
+  if (!sesion) return { ok: true, huboSesion: false };
+  // Reabrir tambien cambia el conteo de clases dictadas: mismo tratamiento.
+  await revertirDevengosAbiertos(a, args.cursoId, args.fecha);
+  await revertirCorrimientos(a, sesion.id);
+  await a
+    .from("sesiones")
+    .update({ estado: "dictada", motivo: null, excepcion_id: null, actualizado_en: new Date().toISOString() })
+    .eq("id", sesion.id);
+  return { ok: true, huboSesion: true };
+}
+
 export async function reabrirSesion(args: {
   cursoId: number;
   fecha: string;
@@ -1142,20 +1180,7 @@ export async function reabrirSesion(args: {
   if (!(await tienePermiso("asistencia", "crear")))
     return { error: "No tenés permiso." };
   const a = admin();
-  const { data: sesion } = await a
-    .from("sesiones")
-    .select("id")
-    .eq("curso_id", args.cursoId)
-    .eq("fecha", args.fecha)
-    .maybeSingle();
-  if (!sesion) return { ok: true };
-  // Reabrir tambien cambia el conteo de clases dictadas: mismo tratamiento.
-  await revertirDevengosAbiertos(a, args.cursoId, args.fecha);
-  await revertirCorrimientos(a, sesion.id);
-  await a
-    .from("sesiones")
-    .update({ estado: "dictada", motivo: null, actualizado_en: new Date().toISOString() })
-    .eq("id", sesion.id);
+  await ejecutarReapertura(a, args);
   revalidatePath("/asistencia");
   return { ok: true };
 }

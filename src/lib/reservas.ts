@@ -22,6 +22,7 @@ import {
   choquesCon,
   describirBloque,
   dentroDelHorario,
+  impactoDeExcepcion,
   ocupacionDeCursos,
   ocupacionDeReservas,
   type BloqueOcupado,
@@ -31,7 +32,7 @@ import {
   type ReservaSalaOcupa,
   type ResultadoHorario,
 } from "./sala.ts";
-import { aMinutos, esMultiploDe, formatearHoras, horaAlineada } from "./horarios.ts";
+import { aMinutos, esMultiploDe, formatearHoras, horaAlineada, seSolapan } from "./horarios.ts";
 
 /** Todo lo que ocupa el tiempo de un profesor una fecha dada: sus cursos
  *  regulares (de cualquier sala) más sus propias reservas. A diferencia de
@@ -308,4 +309,58 @@ export function saldoMembresia(e: SaldoEntrada): SaldoMembresia {
   const sinAgendarMin = Math.max(0, contratadasMin - consumidasMin);
   const disponibleMin = Math.max(0, sinAgendarMin - solicitadasVigentesMin);
   return { contratadasMin, consumidasMin, solicitadasVigentesMin, sinAgendarMin, disponibleMin };
+}
+
+// ── Cierres de sala sobre reservas (C3, hito H4) ────────────────────────────
+
+/** Lo mínimo de una reserva confirmada/reprogramada para saber si un cierre
+ *  o un horario reducido la afecta, y para poder mostrarla en la lista de
+ *  confirmación con quién y cuándo. */
+export type ReservaOcupanteExcepcion = {
+  reservaId: number;
+  fecha: string;
+  hora: string;
+  duracionMin: number;
+  etiqueta: string;
+  detalle: string | null;
+};
+
+export type ReservaAfectadaPorExcepcion = ReservaOcupanteExcepcion & {
+  motivoImpacto: "cierre" | "horario_reducido";
+};
+
+/**
+ * Qué reservas de particular/alquiler ya **confirmadas** (`confirmada` o
+ * `reprogramada`: las únicas que de verdad ocupan la sala hoy — regla de
+ * negocio 23) caen dentro de las excepciones que se están por guardar. Es el
+ * lado reservas de C5 (ROADMAP R1), con el mismo criterio cierre/horario
+ * reducido que `clasesAfectadasPorExcepciones` (`@/lib/sala`).
+ *
+ * Solo recibe reservas que ya vienen filtradas por sala y por esos dos
+ * estados: acá no se vuelve a filtrar, para no duplicar el criterio de qué
+ * ocupa (`ESTADOS_QUE_OCUPAN`) en dos lugares.
+ */
+export function reservasAfectadasPorExcepciones(
+  reservas: ReservaOcupanteExcepcion[],
+  excepciones: ExcepcionHorario[]
+): ReservaAfectadaPorExcepcion[] {
+  return reservas.flatMap((r) => {
+    const impacto = impactoDeExcepcion(r.fecha, r.hora, r.duracionMin, excepciones);
+    if (!impacto.afectada) return [];
+    return [{ ...r, motivoImpacto: impacto.motivo! }];
+  });
+}
+
+/**
+ * De un grupo de reservas ya ocupantes (mismo criterio que arriba), cuáles
+ * chocan con la franja de un bloqueo nuevo. Se usa cuando un bloqueo pisa una
+ * particular/alquiler: en vez de rechazarlo de una, se lista qué se tendría
+ * que suspender primero (H4).
+ */
+export function reservasQueChocanCon<T extends { hora: string; duracionMin: number }>(
+  reservas: T[],
+  hora: string,
+  duracionMin: number
+): T[] {
+  return reservas.filter((r) => seSolapan(hora, duracionMin, r.hora, r.duracionMin));
 }

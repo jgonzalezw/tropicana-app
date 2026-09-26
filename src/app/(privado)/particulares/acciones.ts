@@ -26,27 +26,16 @@ import { tienePermiso, obtenerParametro, obtenerPerfilActual } from "@/lib/sesio
 import { apellidoDe } from "@/lib/contactos";
 import { formatearHoras, aMinutos, horaFin } from "@/lib/horarios";
 import {
-  validarReservaSala,
-  ocupacionDeProfesor,
   puedeTransicionar,
-  ocupaAhora,
-  evaluarCancelacion,
   saldoMembresia,
-  FILTRO_ESTADOS_QUE_LIBERAN,
+  ocupaAhora,
+  solicitudVigente,
+  evaluarCancelacion,
   ETIQUETA_ESTADO_RESERVA,
   TRANSICIONES,
-  solicitudVigente,
   type EstadoReserva,
 } from "@/lib/reservas";
-import {
-  ocupacionDelDia,
-  type CursoOcupa,
-  type ExcepcionHorario,
-  type FranjaPatron,
-  type ReservaSalaOcupa,
-} from "@/lib/sala";
-import { COLUMNAS_ASIGNACION } from "@/lib/asignaciones";
-import { COLS_VIGENCIA } from "@/lib/vigencia";
+import { cargarContextoValidacion, validarFranja } from "./validacionReserva";
 
 const ISO_FECHA = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -56,7 +45,7 @@ function admin() {
   return a;
 }
 
-type AvisoPersona = { nombre: string; whatsapp: string | null; mensaje: string };
+export type AvisoPersona = { nombre: string; whatsapp: string | null; mensaje: string };
 type ResultadoAccion = {
   ok?: true;
   mensaje?: string;
@@ -499,166 +488,6 @@ export async function obtenerMembresiaParticular(membresiaId: number): Promise<M
 }
 
 
-// ── Validar sala + profesor para una fecha/hora dada ─────────────────────
-
-type ContextoValidacion = {
-  /** `null` cuando la sala es externa — no se valida su horario ni choque. */
-  salaId: number | null;
-  incrementoMin: number;
-  minimoMin: number;
-  patronSala: FranjaPatron[];
-  excepcionesSala: ExcepcionHorario[];
-  cursosSala: CursoOcupa[];
-  reservasSala: (ReservaSalaOcupa & { estado: string; solicitada_hasta: string | null })[];
-  suspendidasSala: Set<number>;
-  cursosProfesor: CursoOcupa[];
-  reservasProfesor: (ReservaSalaOcupa & { estado: string; solicitada_hasta: string | null })[];
-  suspendidasProfesor: Set<number>;
-};
-
-/** Trae todo lo que hace falta para validar una franja: horario/ocupación de
- *  la sala (si es propia) y del profesor, ya con los estados que liberan
- *  (`ESTADOS_QUE_LIBERAN`) afuera de la consulta. `excluirReservaId` se usa
- *  al reprogramar: la reserva no puede chocar consigo misma. */
-async function cargarContextoValidacion(
-  a: ReturnType<typeof admin>,
-  salaId: number | null,
-  profesorId: number,
-  fecha: string,
-  excluirReservaId?: number
-): Promise<ContextoValidacion> {
-  const [incMinP, minMinP] = await Promise.all([
-    obtenerParametro("tiempos_incremento_min"),
-    obtenerParametro("duracion_minima_curso_min"),
-  ]);
-  const incrementoMin = Math.max(1, Number(incMinP) || 30);
-  const minimoMin = Math.max(1, Number(minMinP) || 30);
-
-  const filtroLibera = FILTRO_ESTADOS_QUE_LIBERAN;
-
-  let patronSala: FranjaPatron[] = [];
-  let excepcionesSala: ExcepcionHorario[] = [];
-  let cursosSala: CursoOcupa[] = [];
-  let reservasSala: (ReservaSalaOcupa & { estado: string; solicitada_hasta: string | null })[] = [];
-  let suspendidasSala = new Set<number>();
-
-  if (salaId != null) {
-    let resSalaQ = a
-      .from("reservas_sala")
-      .select("id, tipo, motivo, glosa, hora, duracion_min, estado, solicitada_hasta")
-      .eq("sala_id", salaId)
-      .eq("fecha", fecha)
-      .not("estado", "in", filtroLibera);
-    if (excluirReservaId) resSalaQ = resSalaQ.neq("id", excluirReservaId);
-
-    const [patronR, excR, cursosR, resR] = await Promise.all([
-      a.from("sala_horario_patron").select("dia_semana, desde, hasta").eq("sala_id", salaId),
-      a.from("sala_horario_excepciones").select("fecha, hasta_fecha, cerrado, desde, hasta, motivo, glosa").eq("sala_id", salaId),
-      a.from("cursos").select(`id, nombre, dias_semana, hora, duracion_min, sala_id, ${COLS_VIGENCIA}`).eq("sala_id", salaId).eq("activo", true),
-      resSalaQ,
-    ]);
-    patronSala = (patronR.data as FranjaPatron[]) ?? [];
-    excepcionesSala = (excR.data as ExcepcionHorario[]) ?? [];
-    cursosSala = (cursosR.data as unknown as CursoOcupa[]) ?? [];
-    reservasSala = (resR.data as unknown as (ReservaSalaOcupa & { estado: string; solicitada_hasta: string | null })[]) ?? [];
-
-    const cursoIds = cursosSala.map((c) => c.id);
-    if (cursoIds.length) {
-      const { data: susRows } = await a
-        .from("sesiones")
-        .select("curso_id")
-        .in("curso_id", cursoIds)
-        .eq("estado", "suspendida")
-        .eq("fecha", fecha);
-      suspendidasSala = new Set(((susRows as { curso_id: number }[]) ?? []).map((s) => s.curso_id));
-    }
-  }
-
-  const { data: asigRows } = await a.from("asignaciones").select(COLUMNAS_ASIGNACION).eq("profesor_id", profesorId).is("hasta", null);
-  const cursoIdsProfesor = ((asigRows as { curso_id: number }[]) ?? []).map((r) => r.curso_id);
-  let resProfQ = a
-    .from("reservas_sala")
-    .select("id, tipo, motivo, glosa, hora, duracion_min, estado, solicitada_hasta")
-    .eq("profesor_id", profesorId)
-    .eq("fecha", fecha)
-    .not("estado", "in", filtroLibera);
-  if (excluirReservaId) resProfQ = resProfQ.neq("id", excluirReservaId);
-
-  const [cursosProfR, reservasProfR] = await Promise.all([
-    cursoIdsProfesor.length
-      ? a.from("cursos").select(`id, nombre, dias_semana, hora, duracion_min, sala_id, ${COLS_VIGENCIA}`).in("id", cursoIdsProfesor)
-      : Promise.resolve({ data: [] as unknown[] }),
-    resProfQ,
-  ]);
-  const cursosProfesor = (cursosProfR.data as unknown as CursoOcupa[]) ?? [];
-  const reservasProfesor = (reservasProfR.data as unknown as (ReservaSalaOcupa & { estado: string; solicitada_hasta: string | null })[]) ?? [];
-
-  let suspendidasProfesor = new Set<number>();
-  const cursoIdsSusProf = cursosProfesor.map((c) => c.id);
-  if (cursoIdsSusProf.length) {
-    const { data: susRows } = await a
-      .from("sesiones")
-      .select("curso_id")
-      .in("curso_id", cursoIdsSusProf)
-      .eq("estado", "suspendida")
-      .eq("fecha", fecha);
-    suspendidasProfesor = new Set(((susRows as { curso_id: number }[]) ?? []).map((s) => s.curso_id));
-  }
-
-  return {
-    salaId,
-    incrementoMin,
-    minimoMin,
-    patronSala,
-    excepcionesSala,
-    cursosSala,
-    reservasSala,
-    suspendidasSala,
-    cursosProfesor,
-    reservasProfesor,
-    suspendidasProfesor,
-  };
-}
-
-/** Filtra las reservas ya traídas (sin los estados que liberan) a las que de
- *  verdad ocupan AHORA — descarta una Solicitada vencida (regla de negocio 4:
- *  se calcula al leer, no se guarda paso a paso). */
-function ocupandoAhora<T extends { estado: string; solicitada_hasta: string | null }>(
-  reservas: T[],
-  ahora: Date
-): T[] {
-  return reservas.filter((r) => ocupaAhora({ tipo: "particular", estado: r.estado, solicitadaHasta: r.solicitada_hasta }, ahora));
-}
-
-function validarFranja(
-  ctx: ContextoValidacion,
-  fecha: string,
-  hora: string,
-  duracionMin: number,
-  esExterna: boolean,
-  personas: number | undefined,
-  ahora: Date
-) {
-  const ocupadosSala =
-    esExterna || ctx.salaId == null
-      ? []
-      : ocupacionDelDia(ctx.cursosSala, ocupandoAhora(ctx.reservasSala, ahora), fecha, ctx.suspendidasSala, ctx.salaId);
-  const ocupadosProfesor = ocupacionDeProfesor(ctx.cursosProfesor, fecha, ctx.suspendidasProfesor, ocupandoAhora(ctx.reservasProfesor, ahora));
-  return validarReservaSala({
-    fecha,
-    hora,
-    duracionMin,
-    incrementoMin: ctx.incrementoMin,
-    minimoMin: ctx.minimoMin,
-    personas,
-    sala: { esExterna, capacidad: null },
-    patron: ctx.patronSala,
-    excepciones: ctx.excepcionesSala,
-    ocupadosSala,
-    ocupadosProfesor,
-  });
-}
-
 // ── Crear una reserva nueva ───────────────────────────────────────────────
 
 export type EntradaNuevaReserva = {
@@ -916,6 +745,172 @@ export async function cambiarEstadoReserva(
       c,
       `Hola! Tu clase particular (${c?.planNombre}) del ${cuando} quedó suspendida (${etiquetaMotivoSuspension}). Esa hora vuelve a tu paquete: ${c ? saldoTexto(c) : ""} Coordinamos una nueva fecha.`,
       `Hola! La clase particular (${c?.planNombre}) con ${c?.alumnoNombre} del ${cuando}, en ${lugar}, quedó suspendida (${etiquetaMotivoSuspension}).`
+    ),
+  };
+}
+
+// ── Suspender/revertir desde un cierre o un bloqueo de sala (C3, hito H4) ──
+//
+// `cambiarEstadoReserva` (arriba) es el camino de una decisión puntual sobre
+// UNA reserva, con un motivo elegido a mano. Acá el disparador es otro: un
+// cierre de sala (`administracion/sala/acciones.ts`) o un bloqueo
+// (`sala/acciones.ts`) que pisan una o más reservas ya confirmadas. Las dos
+// pantallas llaman a esto en vez de escribir `reservas_sala` por su cuenta,
+// para que el aviso y el rastro (`suspendida_por_excepcion_id` /
+// `suspendida_por_bloqueo_id`, migración 0055) salgan siempre iguales.
+
+/**
+ * Suspende una reserva ya `confirmada`/`reprogramada` por una causa operativa
+ * (no una decisión sobre ESA reserva puntual). Sin chequeo de permiso: lo
+ * valida quien llama, con el suyo propio (`sala.editar`) — mismo patrón que
+ * `ejecutarSuspension`/`suspenderClase` en asistencia.
+ */
+export async function suspenderReservaOperativa(
+  reservaId: number,
+  campos: { motivoClave: "cierre_sala" | "bloqueo_sala"; motivoTexto: string; excepcionId?: number },
+  registradoPorId: string | null
+): Promise<{ ok: true; avisoAlumno?: AvisoPersona; avisoProfesor?: AvisoPersona } | { ok: false; error: string }> {
+  const a = admin();
+  const sb = await createClient();
+
+  const { data: rRow } = await a
+    .from("reservas_sala")
+    .select("id, tipo, estado, membresia_id, sala_id, fecha, hora, duracion_min")
+    .eq("id", reservaId)
+    .in("tipo", ["particular", "alquiler"])
+    .maybeSingle();
+  if (!rRow) return { ok: false, error: "Esa reserva ya no existe." };
+  const actual = rRow.estado as EstadoReserva;
+  if (!puedeTransicionar(actual, "suspendida"))
+    return { ok: false, error: `La reserva #${reservaId} ya no se puede suspender (está ${ETIQUETA_ESTADO_RESERVA[actual]}).` };
+
+  const { data: actualizado, error: errUp } = await a
+    .from("reservas_sala")
+    .update({
+      estado: "suspendida",
+      solicitada_hasta: null,
+      cambio_motivo: campos.motivoClave,
+      cambio_glosa: campos.motivoTexto,
+      cambio_fuera_de_plazo: false,
+      actualizado_por: registradoPorId,
+      suspendida_por_excepcion_id: campos.excepcionId ?? null,
+    })
+    .eq("id", reservaId)
+    .eq("estado", actual)
+    .select("id");
+  if (errUp) return { ok: false, error: `No se pudo suspender la reserva #${reservaId}: ${errUp.message}` };
+  if (!actualizado || actualizado.length === 0)
+    return { ok: false, error: `La reserva #${reservaId} cambió de estado mientras tanto.` };
+
+  const c = await contextoAviso(a, sb, rRow.membresia_id);
+  const cuando = horario(rRow.fecha, rRow.hora, rRow.duracion_min);
+  const lugar = c?.lugar(rRow.sala_id) ?? "Tropicana";
+  return {
+    ok: true,
+    ...avisos(
+      c,
+      `Hola! Tu clase particular (${c?.planNombre}) del ${cuando} quedó suspendida (${campos.motivoTexto}). Esa hora vuelve a tu paquete: ${c ? saldoTexto(c) : ""} Coordinamos una nueva fecha.`,
+      `Hola! La clase particular (${c?.planNombre}) con ${c?.alumnoNombre} del ${cuando}, en ${lugar}, quedó suspendida (${campos.motivoTexto}).`
+    ),
+  };
+}
+
+/**
+ * Revierte una reserva **suspendida** creando una reserva NUEVA, Confirmada,
+ * en la misma franja (decisión de Javier, 26/09): Suspendida sigue siendo un
+ * estado final (definiciones-v2 8.2) — lo que sigue nunca es reabrir ESTA
+ * reserva, es una reserva distinta que la reemplaza y queda ligada a ella
+ * (`revierte_reserva_id`). Se revalida todo de cero: sala, profesor, saldo y
+ * vigencia pueden haber cambiado desde que se suspendió.
+ */
+export async function revertirSuspension(reservaId: number): Promise<ResultadoAccion> {
+  const puede = (await tienePermiso("particulares", "editar")) || (await tienePermiso("sala", "editar"));
+  if (!puede) return { error: "No tenés permiso para revertir esta suspensión." };
+
+  const perfil = await obtenerPerfilActual();
+  const a = admin();
+  const sb = await createClient();
+
+  const { data: rRow, error: errR } = await a
+    .from("reservas_sala")
+    .select("id, tipo, estado, membresia_id, sala_id, profesor_id, fecha, hora, duracion_min")
+    .eq("id", reservaId)
+    .maybeSingle();
+  if (errR) return { error: `No se pudo leer la reserva: ${errR.message}` };
+  if (!rRow) return { error: "Esa reserva ya no existe." };
+  if (rRow.tipo === "bloqueo") return { error: "Un bloqueo no se revierte: se cancela y se crea de nuevo." };
+  if (rRow.estado !== "suspendida") return { error: "Esta reserva no está suspendida: no hay nada que revertir." };
+
+  const { data: mRow } = await a
+    .from("membresias")
+    .select("estado, fecha_inicio, fecha_fin, horas_contratadas")
+    .eq("id", rRow.membresia_id)
+    .maybeSingle();
+  if (!mRow) return { error: "La membresía de esta reserva ya no existe." };
+  if (mRow.estado !== "activa") return { error: "La membresía ya no está activa: no se puede restablecer esta clase." };
+  if (rRow.fecha < mRow.fecha_inicio || rRow.fecha > mRow.fecha_fin)
+    return { error: `La fecha ya no entra en la vigencia de la membresía (${mRow.fecha_inicio} a ${mRow.fecha_fin}).` };
+
+  const { data: salaRow } = await a.from("salas").select("es_externa").eq("id", rRow.sala_id).maybeSingle();
+  const esExterna = salaRow?.es_externa ?? false;
+
+  const ahora = new Date();
+  const ctx = await cargarContextoValidacion(a, esExterna ? null : rRow.sala_id, rRow.profesor_id, rRow.fecha, rRow.id);
+  const validacion = validarFranja(ctx, rRow.fecha, rRow.hora, rRow.duracion_min, esExterna, undefined, ahora);
+  if (!validacion.ok)
+    return { error: `No se puede restablecer esta clase: ${validacion.motivo}` };
+
+  // La reserva suspendida no consume (ESTADOS_QUE_CONSUMEN), así que el saldo
+  // ya la cuenta como disponible — salvo que otra reserva haya usado esas
+  // horas mientras tanto.
+  const { data: resRows, error: errSaldo } = await a
+    .from("reservas_sala")
+    .select("estado, duracion_min, solicitada_hasta")
+    .eq("membresia_id", rRow.membresia_id);
+  if (errSaldo) return { error: `No se pudo leer el saldo de la membresía: ${errSaldo.message}` };
+  const saldo = saldoMembresia({ horasContratadas: Number(mRow.horas_contratadas) || 0, reservas: resRows ?? [], ahora });
+  if (rRow.duracion_min > saldo.disponibleMin)
+    return {
+      error: `No quedan las ${h(rRow.duracion_min)} h que esta clase necesita en el paquete (otra reserva ya las usó). Quedan ${h(saldo.disponibleMin)} h disponibles.`,
+    };
+
+  const { data: nueva, error: errIns } = await a
+    .from("reservas_sala")
+    .insert({
+      sala_id: rRow.sala_id,
+      tipo: "particular",
+      membresia_id: rRow.membresia_id,
+      profesor_id: rRow.profesor_id,
+      fecha: rRow.fecha,
+      hora: rRow.hora,
+      duracion_min: rRow.duracion_min,
+      estado: "confirmada",
+      revierte_reserva_id: rRow.id,
+      creado_por: perfil?.id ?? null,
+    })
+    .select("id")
+    .single();
+  if (errIns) {
+    if ((errIns as { code?: string }).code === "23P01")
+      return { error: "Esa franja se acaba de ocupar con otra reserva. Recargá e intentá de nuevo." };
+    return { error: `No se pudo restablecer la reserva: ${errIns.message}` };
+  }
+
+  revalidatePath(`/particulares/${rRow.membresia_id}`);
+  revalidatePath("/particulares");
+  revalidatePath("/sala");
+  revalidatePath("/administracion/sala");
+
+  const c = await contextoAviso(a, sb, rRow.membresia_id);
+  const cuando = horario(rRow.fecha, rRow.hora, rRow.duracion_min);
+  const lugar = c?.lugar(rRow.sala_id) ?? "Tropicana";
+  return {
+    ok: true,
+    mensaje: `Restablecida: ${cuando} (reserva #${nueva.id}).`,
+    ...avisos(
+      c,
+      `Hola! Se restableció tu clase particular (${c?.planNombre}) con ${c?.profesor.nombre}: ${cuando}, en ${lugar}. ${c ? saldoTexto(c) : ""} ¡Te esperamos!`,
+      `Hola! Se restableció una clase particular (${c?.planNombre}) con ${c?.alumnoNombre}: ${cuando}, en ${lugar}.`
     ),
   };
 }

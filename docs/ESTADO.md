@@ -4159,3 +4159,194 @@ seco y hash verificado contra los archivos, controles 1–36 en OK (salvo el
 ("Intervalo estándar de tiempo") quedan anotados con este avance. **Sigue
 H4** (cierres de sala sobre reservas — el lado reservas de C5), en otra
 sesión.
+
+## C3 — H4: cierres de sala sobre reservas · 2026-09-26 (dev)
+
+Cuarto hito del plan de C3: cierra **R1** (el lado reservas de C5 — un cierre
+de sala solo miraba clases de cursos) y **R22** (borrar una excepción no
+revertía las suspensiones que había causado). Ver el plan en
+`docs/relevamientos/2026-09-25-C3-plan-construccion.md` (fila H4).
+
+**Cambio respecto del plan original**: el plan decía "sin migración". Hizo
+falta una (**0055**), chica, para poder revertir SOLO lo que una excepción o
+un bloqueo puntual causaron, sin adivinar por fecha.
+
+**Decisiones de Javier (2026-09-26), antes de construir:**
+1. Revertir una reserva **Suspendida** crea una reserva **nueva**, Confirmada,
+   en la misma franja, ligada a la suspendida — Suspendida sigue siendo un
+   estado final (definiciones-v2 8.2, sin tocar).
+2. Cancelar un **bloqueo** que había suspendido reservas ofrece el mismo
+   revertido que borrar una excepción (simétrico).
+3. El **horario reducido** (una apertura especial con menos horas que deja
+   una clase o una reserva afuera de la ventana nueva) entra en el mismo
+   alcance que un cierre completo — para cursos y para reservas.
+
+### Migración 0055
+
+- `sesiones.excepcion_id` → `sala_horario_excepciones`, `on delete set null`:
+  qué excepción causó esta suspensión, para poder revertir solo esa.
+- `reservas_sala.suspendida_por_excepcion_id` y `.suspendida_por_bloqueo_id`
+  (esta última autorreferencia a `reservas_sala`, el bloqueo que la
+  suspendió), las dos `on delete set null`.
+- `reservas_sala.revierte_reserva_id` (autorreferencia): la reserva nueva que
+  reemplaza a una suspendida apunta a la que reemplaza.
+- Catálogo `motivo_suspension_reserva` suma `cierre_sala` y `bloqueo_sala`
+  (calidad 6 y 7: valores nuevos, nacen en migración).
+- El trigger de historial de reservas (`reservas_sala_historial_trg`) pasa de
+  `AFTER` a `BEFORE` — corrige el hallazgo anotado en `DECISIONES.md` §4 (la
+  limpieza de las columnas `cambio_*` no hacía nada en un AFTER). Mismo
+  comportamiento visible; ahora la limpieza funciona de verdad.
+- Idempotente y aditiva; no reescribe ningún dato existente.
+
+### Código
+
+- **`src/lib/sala.ts`**: `impactoDeExcepcion` (¿esta excepción afecta esta
+  franja, por cierre u horario reducido?) y `clasesAfectadasPorExcepciones`
+  (reemplaza a `clasesAfectadasPorCierre`: ahora cubre horario reducido, no
+  solo cierre completo, y suma `motivoImpacto` a `ClaseAfectada`).
+- **`src/lib/reservas.ts`**: `reservasAfectadasPorExcepciones` (mismo criterio
+  que arriba, para reservas de particular/alquiler ya confirmadas) y
+  `reservasQueChocanCon` (con qué reservas choca una franja nueva, para el
+  flujo de bloqueo).
+- **`src/app/(privado)/particulares/validacionReserva.ts`** (nuevo): se
+  extrajeron `cargarContextoValidacion` y `validarFranja`, antes privadas de
+  `particulares/acciones.ts`, para que `administracion/sala/acciones.ts` y
+  `sala/acciones.ts` las reutilicen sin duplicar la carga de horario/ocupación
+  de sala y profesor. Sin `"use server"`: son datos, no Server Actions.
+- **`src/app/(privado)/particulares/acciones.ts`**: dos funciones nuevas,
+  reutilizables desde sala y administración —
+  `suspenderReservaOperativa` (suspende una reserva por una causa operativa,
+  deja el vínculo y el aviso) y `revertirSuspension` (crea la reserva nueva
+  que reemplaza a una suspendida, revalidando sala/profesor/saldo/vigencia de
+  cero — decisión 1).
+- **`src/app/(privado)/asistencia/acciones.ts`**: `ejecutarSuspension` suma
+  `excepcionId` opcional; se extrajo `ejecutarReapertura` (el núcleo de
+  `reabrirSesion`, sin el chequeo de permiso) para que el cierre de sala
+  revierta una clase de curso con el permiso de `sala.editar`, sin pasar por
+  `asistencia.crear`.
+- **`administracion/sala/acciones.ts`**: `calcularImpacto` ahora mira cursos
+  **y** reservas, cierre **y** horario reducido (antes: solo cursos, solo
+  cierre — R1). Borrar una excepción con algo ligado pregunta primero si se
+  revierte (`requiereConfirmacionEliminacion`) — nunca se pierde en silencio
+  (R22). Se corrigió además el texto viejo que decía "ya tienen comisión
+  pagada" (ya no es la causa desde la regla 16 reescrita).
+- **`sala/acciones.ts`**: `crearBloqueoSala` sigue rechazando de una un
+  choque con cursos u otros bloqueos, pero si choca **solo** con
+  particular/alquiler, ofrece suspenderlas primero
+  (`requiereConfirmacion`) y recién crea el bloqueo después — el orden lo
+  exige el EXCLUDE de la base. `cancelarReservaSala` ofrece revertir lo que
+  ese bloqueo había suspendido (decisión 2), simétrico a R22.
+- Las dos pantallas (`ClienteSalaHorario.tsx`, `ClienteDisponibilidadSala.tsx`)
+  suman sus paneles de confirmación y muestran `AvisoWhatsapp` para los
+  avisos nuevos (alumno y profesor de cada reserva tocada) — regla de proceso
+  12.
+- Sin pantalla ni módulo de permisos nuevos: todo corre bajo `sala.editar` (el
+  cierre y el bloqueo) o `particulares.editar`/`sala.editar` (revertir una
+  reserva puntual) — regla de proceso 11.
+
+### Dos bugs que encontró el recorrido en el navegador, y se corrigieron
+
+**Javier puso la contraseña de `qa-cloud@tropicana.local` en `.env.local`**
+para esta sesión (el intento de leerla o de resetearla por su cuenta lo había
+bloqueado el permiso de la sesión, "Secret-Store Writes" / "Credential
+Materialization" — Javier terminó logueándose él mismo en el navegador de la
+sesión). Con eso se pudo recorrer H4 de punta a punta contra datos reales
+(membresías de Mariana Claure, Jhonny Cutipa y Javier Gonzalez Weise), y
+aparecieron dos bugs reales que un `tsc`/`npm test` no podían ver:
+
+1. **El revertido se autorrechazaba.** `guardarHorarioSala` intentaba
+   revertir las reservas ligadas a la excepción **antes** de borrarla —
+   `revertirSuspension` revalida la franja con `dentroDelHorario`, que
+   todavía veía el cierre (no se había borrado) y devolvía "la sala no
+   abre" para las tres reservas. **Corregido**: se captura la lista de
+   ligadas ANTES de borrar (los vínculos son `on delete set null`, así que
+   después de borrar ya no se podrían encontrar), pero el revertido en sí
+   —la escritura, con su revalidación— corre DESPUÉS de que la excepción ya
+   está borrada de la base.
+2. **El trigger de historial rompía crear una reserva.** El cambio de la
+   0055 (un solo trigger `BEFORE INSERT OR UPDATE`) se probó pensando solo
+   en el UPDATE: en un INSERT, `new.id` ya tiene valor antes del trigger,
+   pero la fila **todavía no está en la tabla** — el insert en
+   `reservas_historial` (que tiene FK a `reservas_sala`) fallaba con
+   `violates foreign key constraint reservas_historial_reserva_id_fkey`.
+   Rompía `crearReserva` y `revertirSuspension`, cualquier alta nueva.
+   **Corregido**: el trigger se separa en dos —
+   `reservas_sala_historial_ins_trg` (`AFTER INSERT`, donde la fila ya
+   existe) y `reservas_sala_historial_upd_trg` (`BEFORE UPDATE`, donde
+   también existe — es la misma fila, solo cambian sus valores) — ambos
+   llaman a la misma función. La migración **0055** y el archivo de este
+   repo ya reflejan el diseño corregido (no la versión que falló).
+
+Con las dos correcciones, se repitió el recorrido completo y quedó verde:
+cierre de sala suspende una particular confirmada con su aviso; borrar la
+excepción ofrece revertir y la reserva nueva queda Confirmada (la vieja
+sigue Suspendida, como pide la decisión 1); un bloqueo que choca solo con
+una particular ofrece suspenderla antes de crearse; cancelar ese bloqueo
+ofrece revertir, simétrico a R22. Repetido con datos reales de tres alumnos
+distintos.
+
+### Cuenta del alumno: particulares visibles, y tres correcciones más
+
+Al mirar la ficha de Mariana Claure para verificar H4, Javier notó que
+`/alumnos/[id]/cuenta` no sabía mostrar una membresía de particulares —
+gap de H2, no de H4, pero H4 lo hizo visible por primera vez (una reserva
+Suspendida ahí no se veía en ningún lado fuera de `/particulares/[id]`).
+Pedido y corregido en la misma sesión:
+
+1. **"Curso sin determinar" y "Sin límite de clases"** para una particular
+   (que no tiene curso, tiene horas — regla 21) pasan a mostrar lo que sí se
+   sabe: el estilo y el profesor ("Salsa · Inamsai De Dazan") y el saldo
+   igual que en `/particulares` ("7 h de 8 h disponibles"), calculado con
+   `saldoMembresia` — nunca guardado paso a paso.
+2. **Cada reserva de una particular, listada una por una** (fecha, hora,
+   sala, estado) — incluida una Suspendida por un cierre de sala, que es
+   justo lo que motivó el pedido.
+3. **"vencía" en pasado para una cuota con vencimiento a futuro** (el tiempo
+   verbal dependía de si estaba saldada, no de si la fecha ya pasó — una
+   cuota pagada con vencimiento el mes que viene decía igual "vencía").
+   Corregido: la conjugación depende de comparar la fecha contra hoy.
+4. **Cada pago sin decir a qué membresía correspondía** — un alumno con
+   varias membresías no podía saber cuál pagó cada cobro. Se suma
+   `(plan · desde fecha de inicio)` a cada línea, por su `cuota → membresía`.
+
+Los cuatro cambios están en `src/lib/cuentas.ts` (los dos campos nuevos de
+`MembresiaCuenta`/`PagoCuenta` — `horas`, `estiloProfesor`, `reservas`,
+`membresiaPlan`/`membresiaFechaInicio` — y su cálculo), `page.tsx` e
+`ImprimirCuenta.tsx` (el mismo dato en pantalla y en el PDF). Verificado en
+el navegador con la ficha real de Mariana Claure: las tres membresías (una
+particular, dos de curso regular) se ven completas, la reserva Suspendida
+del 05/10 aparece en la lista, y los tres pagos muestran a qué membresía
+corresponden.
+
+### Verificado en dev
+
+- `npx tsc --noEmit`, `npm run lint`: limpios (repetido después de cada
+  corrección).
+- `npm test`: **132/132** en verde — 10 pruebas nuevas (`impactoDeExcepcion`,
+  `clasesAfectadasPorExcepciones`, `reservasAfectadasPorExcepciones`,
+  `reservasQueChocanCon`), ninguna de las 122 anteriores se rompió.
+- `npm run build` (Next 16, Turbopack): compila y genera las 23 rutas.
+- Migración **0055 aplicada en `tropicana-dev`** (`hyhijzuomqpylcmrzdvw`),
+  con la corrección del trigger ya incluida. Verificado después: los dos
+  triggers de historial existen con el timing correcto (`AFTER INSERT` /
+  `BEFORE UPDATE`), el catálogo `motivo_suspension_reserva` tiene los 6
+  valores (los 4 de la 0054 + `cierre_sala`/`bloqueo_sala`), y los
+  controles 32–38 del script dan **0 / OK** — corridos de nuevo después del
+  recorrido en el navegador, con los datos reales que dejó (reservas con
+  `revierte_reserva_id`, con vínculos de suspensión operativa). `get_advisors`
+  (security) sin hallazgos nuevos atribuibles a esta migración.
+- **Recorrido completo en el navegador**, contra datos reales de
+  `tropicana-dev` (membresías de Mariana Claure, Jhonny Cutipa, Javier
+  Gonzalez Weise): los cuatro flujos de H4 (arriba) más las cuatro
+  correcciones de Cuenta del alumno, todos verdes tras los dos bugs
+  corregidos.
+
+### Estado
+
+**Construido y verificado de punta a punta en dev — código (tipo/lint/
+tests/build), datos reales en `tropicana-dev` y recorrido completo en el
+navegador, con dos bugs encontrados y corregidos en el camino.** Sigue
+pendiente que Javier lo pruebe él mismo en su local antes de pedir el OK de
+pase (regla de proceso 1: validar en dev, aunque sea a fondo, no lo
+dispara). Backlog que toca: **R1 y R22 se cierran** con este hito (marcado
+en `ROADMAP.md`). Sigue **H5** (liquidación de particulares).

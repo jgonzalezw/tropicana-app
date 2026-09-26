@@ -395,6 +395,39 @@ export function describirVentanas(ventanas: Ventana[]): string {
   return ventanas.map((v) => `${v.desde}–${v.hasta}`).join(" y ");
 }
 
+/**
+ * ¿Una excepción de este conjunto toca esta franja, y cómo? (H4, C3).
+ *
+ * Dos formas de afectar: un **cierre** (la excepción no abre ese día, la
+ * franja entera queda afuera) o un **horario reducido** (la excepción abre,
+ * pero con menos horas que las que la franja necesita — un feriado de medio
+ * día que deja una reserva de la tarde fuera de la ventana nueva).
+ *
+ * Si ninguna excepción del conjunto cubre esa fecha, no hay impacto: esto
+ * responde "¿te toca ESTA excepción?", no "¿la sala está abierta hoy?" (para
+ * eso está `dentroDelHorario`, que además mira el patrón semanal).
+ */
+export function impactoDeExcepcion(
+  fecha: string,
+  hora: string,
+  duracionMin: number,
+  excepciones: ExcepcionHorario[]
+): { afectada: boolean; motivo: "cierre" | "horario_reducido" | null } {
+  const { ventanas, excepcion } = ventanasDelDia([], excepciones, fecha);
+  if (!excepcion) return { afectada: false, motivo: null };
+  if (excepcion.cerrado) return { afectada: true, motivo: "cierre" };
+
+  const ini = aMinutos(hora);
+  if (ini == null || !(duracionMin > 0)) return { afectada: true, motivo: "horario_reducido" };
+  const fin = ini + duracionMin;
+  const cabe = ventanas.some((v) => {
+    const vi = aMinutos(v.desde);
+    const vf = aMinutos(v.hasta);
+    return vi != null && vf != null && ini >= vi && fin <= vf;
+  });
+  return cabe ? { afectada: false, motivo: null } : { afectada: true, motivo: "horario_reducido" };
+}
+
 /** Lo mínimo de una fila de `reservas_sala` para saber que ocupa la sala (C2). */
 export type ReservaSalaOcupa = {
   id: number;
@@ -522,25 +555,28 @@ export type ClaseAfectada = {
   cursoNombre: string;
   fecha: string;
   alumnosActivos: number;
+  motivoImpacto: "cierre" | "horario_reducido";
 };
 
 /**
- * Qué clases regulares con **membresía activa** caen dentro de un cierre de
- * sala (feriado, vacaciones), fecha por fecha.
+ * Qué clases regulares con **membresía activa** caen dentro de las excepciones
+ * que se están por guardar, fecha por fecha — cierre completo **u horario
+ * reducido** que deja la clase afuera de la ventana nueva (H4, decisión de
+ * Javier 2026-09-26: entra el mismo alcance para los dos casos).
  *
  * **Alcance acotado a propósito** (Javier, 2026-09-16): se pregunta contra
  * membresías activas que de verdad toman esa clase, no contra el calendario
  * crudo del curso — una clase sin nadie inscripto vigente no genera nada que
  * confirmar (regla de negocio 18, aplicada acá al calendario de sala en vez de
- * a la asistencia). Del lado de particulares/alquiler no hay nada que revisar
- * todavía: sin ventas no hay reservas que puedan chocar.
+ * a la asistencia).
  *
  * Una clase **ya suspendida** esa fecha no se repite: ya no ocupa, y ya se le
  * avisó a quien corresponda la primera vez.
  */
-export function clasesAfectadasPorCierre(
+export function clasesAfectadasPorExcepciones(
   cursos: CursoOcupa[],
   membresias: MembresiaCobertura[],
+  excepciones: ExcepcionHorario[],
   fechaDesde: string,
   fechaHasta: string,
   /** Claves `"cursoId|fecha"` de sesiones ya suspendidas. */
@@ -561,6 +597,10 @@ export function clasesAfectadasPorCierre(
       if (!(c.dias_semana ?? []).includes(dia)) continue;
       if (!enVigencia(c, fecha)) continue;
       if (yaSuspendidas.has(`${c.id}|${fecha}`)) continue;
+      if (aMinutos(c.hora) == null || !(Number(c.duracion_min) > 0)) continue;
+
+      const impacto = impactoDeExcepcion(fecha, c.hora!, Number(c.duracion_min), excepciones);
+      if (!impacto.afectada) continue;
 
       const cubren = (porCurso.get(c.id) ?? []).filter(
         (m) => m.fecha_inicio <= fecha && (m.fecha_fin == null || m.fecha_fin >= fecha)
@@ -572,6 +612,7 @@ export function clasesAfectadasPorCierre(
         cursoNombre: c.nombre,
         fecha,
         alumnosActivos: new Set(cubren.map((m) => m.alumno_id)).size,
+        motivoImpacto: impacto.motivo!,
       });
     }
   }

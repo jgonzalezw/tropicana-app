@@ -1,6 +1,8 @@
 "use client";
 
 import { gs, rotuloDiasMembresia } from "@/lib/inscripcion";
+import { formatearHoras } from "@/lib/horarios";
+import { ETIQUETA_ESTADO_RESERVA, type EstadoReserva } from "@/lib/reservas";
 import type { EstadoCuenta, MembresiaCuenta } from "@/lib/tipos";
 
 /**
@@ -62,11 +64,15 @@ function esc(s: string): string {
   );
 }
 
+const h = (min: number) => formatearHoras(min / 60);
+
 /** Consumo y faltas de una membresía, en una línea. */
 function resumenMembresia(m: MembresiaCuenta): string {
   const partes: string[] = [];
   partes.push(
-    m.progreso
+    m.horas
+      ? `${h(m.horas.disponibleMin)} h de ${h(m.horas.contratadasMin)} h disponibles`
+      : m.progreso
       ? `${m.progreso.hechas}/${m.progreso.total} clases`
       : m.restantes != null
       ? `${m.restantes} ${m.restantes === 1 ? "clase" : "clases"} por usar`
@@ -103,10 +109,23 @@ function construirHTMLImpresion(d: EstadoCuenta): string {
               rotuloDiasMembresia(c.dias) ? `${c.nombre} (${rotuloDiasMembresia(c.dias)})` : c.nombre
             )
             .join(" · ")
-        : "Curso sin determinar";
+        : (m.estiloProfesor ?? "Curso sin determinar");
       const finTexto = m.fechaFin
         ? `${fechaCorta(m.fechaFin)}${m.fechaFinEstimada ? " (estimado)" : ""}`
         : "—";
+      // Particular/alquiler: cada reserva, una por una — incluida una
+      // Suspendida por un cierre de sala (H4).
+      const reservasTexto =
+        m.reservas && m.reservas.length
+          ? `<div class="small muted">${m.reservas
+              .map(
+                (r) =>
+                  `${esc(fechaCorta(r.fecha))} ${esc(r.hora.slice(0, 5))} (${h(r.duracionMin)} h${
+                    r.salaNombre ? ` · ${esc(r.salaNombre)}` : ""
+                  }) — ${esc(ETIQUETA_ESTADO_RESERVA[r.estado as EstadoReserva] ?? r.estado)}`
+              )
+              .join("<br>")}</div>`
+          : "";
       return `
         <div class="item">
           <div class="item-top">
@@ -116,6 +135,7 @@ function construirHTMLImpresion(d: EstadoCuenta): string {
           <div class="small muted">${esc(cursosTexto)}</div>
           <div class="small muted">${esc(fechaCorta(m.fechaInicio))} &rarr; ${esc(finTexto)}</div>
           <div class="small muted">${esc(resumenMembresia(m))}</div>
+          ${reservasTexto}
           ${
             filas
               ? `<table>
@@ -134,7 +154,7 @@ function construirHTMLImpresion(d: EstadoCuenta): string {
   const filasPagos = d.pagos.length
     ? `<table>
         <thead><tr>
-          <th>Fecha</th><th>Concepto</th><th>Medio</th>
+          <th>Fecha</th><th>Concepto</th><th>Membresía</th><th>Medio</th>
           <th class="r">Descuento</th><th class="r">Monto</th>
         </tr></thead>
         <tbody>${d.pagos
@@ -142,6 +162,11 @@ function construirHTMLImpresion(d: EstadoCuenta): string {
             (p) => `<tr>
               <td>${fechaCorta(p.fecha)}</td>
               <td>${esc(p.concepto ?? "Pago")}</td>
+              <td class="muted">${
+                p.membresiaPlan
+                  ? esc(`${p.membresiaPlan}${p.membresiaFechaInicio ? ` (desde ${fechaCorta(p.membresiaFechaInicio)})` : ""}`)
+                  : "—"
+              }</td>
               <td class="muted">${esc(p.monto > 0 ? p.medio ?? "—" : "—")}</td>
               <td class="r">${p.descuento > 0 ? `- ${gs(p.descuento)}` : gs(0)}</td>
               <td class="r">${gs(p.monto)}</td>

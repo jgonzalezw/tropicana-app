@@ -605,6 +605,21 @@ export type MembresiaCuenta = {
   progreso: { hechas: number; total: number } | null;
   /** Paquete por clase: cuántas le quedan. */
   restantes: number | null;
+  /** Particular/alquiler (`curso_id` null, `horas_contratadas` no null): el
+   *  saldo de horas, calculado igual que en `/particulares`
+   *  (`saldoMembresia`, `@/lib/reservas`) — nunca guardado paso a paso (regla
+   *  de negocio 23). `null` para una membresía de curso regular. */
+  horas: { contratadasMin: number; consumidasMin: number; disponibleMin: number } | null;
+  /** Para una particular sin `membresia_cursos` que mostrar (regla 21: no
+   *  tiene curso, tiene estilo + profesor): "Salsa · Inamsai De Dazan", lista
+   *  para reemplazar el fallback "Curso sin determinar". `null` si no aplica
+   *  o falta el dato. */
+  estiloProfesor: string | null;
+  /** Las reservas de una particular/alquiler, una por una — incluida una
+   *  Suspendida por un cierre de sala (H4): acá también tiene que verse, no
+   *  solo en `/particulares/[id]`. `null` para una membresía de curso
+   *  regular (esas no tienen filas en `reservas_sala`). */
+  reservas: { fecha: string; hora: string; duracionMin: number; estado: string; salaNombre: string | null }[] | null;
   faltasConLicencia: number;
   faltasSinLicencia: number;
   /** Bono de tolerancia pendiente de redimir (0 si ya se usó). */
@@ -626,6 +641,13 @@ export type PagoCuenta = {
   descuentoMotivo: string | null;
   medio: string | null;
   concepto: string | null;
+  /** A qué membresía corresponde este pago (por su cuota → membresía), para
+   *  poder distinguirlo cuando el alumno tiene varias — el nombre del plan
+   *  solo no alcanza cuando dos ventas comparten plantilla, así que se suma
+   *  la fecha de inicio de esa membresía. `null` si el pago no está atado a
+   *  ninguna cuota (no debería pasar en un cobro, regla de negocio 7). */
+  membresiaPlan: string | null;
+  membresiaFechaInicio: string | null;
 };
 
 export type EstadoCuenta = {
