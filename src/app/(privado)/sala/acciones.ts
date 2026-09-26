@@ -21,7 +21,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { tienePermiso, obtenerParametro, obtenerPerfilActual } from "@/lib/sesion";
+import { tienePermiso, obtenerParametro, obtenerPerfilActual, alcancePropioDe } from "@/lib/sesion";
 import { aMinutos } from "@/lib/horarios";
 import { COLS_VIGENCIA } from "@/lib/vigencia";
 import {
@@ -58,7 +58,15 @@ function admin() {
   return a;
 }
 
-export type BloqueDisponibilidad = BloqueOcupado & { id: number | null; notas: string | null; membresiaId: number | null };
+export type BloqueDisponibilidad = BloqueOcupado & {
+  id: number | null;
+  notas: string | null;
+  membresiaId: number | null;
+  /** H4: puede abrirse el panel de gestión de ESTA reserva desde acá — ya
+   *  calculado en el servidor con `particulares.editar` + el alcance propio/
+   *  todo, para no confiar en lo que decida el cliente (regla de calidad 6). */
+  gestionable: boolean;
+};
 
 export type DisponibilidadDia = {
   ventanas: Ventana[];
@@ -83,7 +91,7 @@ export async function consultarDisponibilidad(salaId: number, fechaISO: string):
     tramosLibres: [],
     error: null,
   };
-  if (!(await tienePermiso("sala", "ver")))
+  if (!(await tienePermiso("disponibilidad_sala", "ver")))
     return { ...vacio, error: "Sin permiso para ver la disponibilidad de la sala." };
   if (!salaId || !ISO_FECHA.test(fechaISO)) return { ...vacio, error: "La fecha no es válida." };
 
@@ -111,7 +119,7 @@ export async function consultarDisponibilidad(salaId: number, fechaISO: string):
     sb
       .from("reservas_sala")
       .select(
-        "id, tipo, motivo, glosa, notas, hora, duracion_min, estado, solicitada_hasta, membresia_id, " +
+        "id, tipo, motivo, glosa, notas, hora, duracion_min, estado, solicitada_hasta, membresia_id, profesor_id, " +
           "membresia:membresias(alumno:alumnos(contacto:contactos(nombre, apellido)), plan:planes(estilo)), " +
           "profesor:profesores(contacto:contactos(nombre, apellido))"
       )
@@ -163,6 +171,7 @@ export async function consultarDisponibilidad(salaId: number, fechaISO: string):
     estado: string;
     solicitada_hasta: string | null;
     membresia_id: number | null;
+    profesor_id: number | null;
     membresia: {
       alumno: { contacto: { nombre: string | null; apellido: string | null } | null } | null;
       plan: { estilo: string | null } | null;
@@ -182,26 +191,40 @@ export async function consultarDisponibilidad(salaId: number, fechaISO: string):
   const mapaEst = new Map(((estR.data as { clave: string; nombre: string }[]) ?? []).map((v) => [v.clave, v.nombre]));
   const nombreEstilo = (v: string) => mapaEst.get(v) ?? v;
 
-  const reservas: (ReservaSalaOcupa & { notas: string | null; membresiaId: number | null })[] = resRaw.map((r) => {
-    const contactoAlumno = r.membresia?.alumno?.contacto;
-    const contactoProfesor = r.profesor?.contacto;
-    const claveEstilo = r.membresia?.plan?.estilo ?? null;
-    return {
-      id: r.id,
-      tipo: r.tipo,
-      motivo: r.motivo,
-      glosa: r.glosa,
-      notas: r.notas,
-      hora: r.hora,
-      duracion_min: r.duracion_min,
-      alumnoNombre: contactoAlumno ? `${contactoAlumno.nombre ?? ""} ${contactoAlumno.apellido ?? ""}`.trim() : null,
-      profesorNombre: contactoProfesor
-        ? `${contactoProfesor.nombre ?? ""} ${contactoProfesor.apellido ?? ""}`.trim()
-        : null,
-      estilo: claveEstilo ? nombreEstilo(claveEstilo) : null,
-      membresiaId: r.membresia_id,
-    };
-  });
+  // Gestionable desde acá (H4): particulares.editar, y si el alcance es
+  // Propio, solo las de este profesor — mismo criterio que ya aplican las
+  // acciones de `particulares/acciones.ts` al escribir.
+  const [puedeEditarParticulares, { propio: alcancePropio, profesorId: profesorPropioId }] = await Promise.all([
+    tienePermiso("particulares", "editar"),
+    alcancePropioDe("particulares"),
+  ]);
+
+  const reservas: (ReservaSalaOcupa & { notas: string | null; membresiaId: number | null; gestionable: boolean })[] = resRaw.map(
+    (r) => {
+      const contactoAlumno = r.membresia?.alumno?.contacto;
+      const contactoProfesor = r.profesor?.contacto;
+      const claveEstilo = r.membresia?.plan?.estilo ?? null;
+      return {
+        id: r.id,
+        tipo: r.tipo,
+        motivo: r.motivo,
+        glosa: r.glosa,
+        notas: r.notas,
+        hora: r.hora,
+        duracion_min: r.duracion_min,
+        alumnoNombre: contactoAlumno ? `${contactoAlumno.nombre ?? ""} ${contactoAlumno.apellido ?? ""}`.trim() : null,
+        profesorNombre: contactoProfesor
+          ? `${contactoProfesor.nombre ?? ""} ${contactoProfesor.apellido ?? ""}`.trim()
+          : null,
+        estilo: claveEstilo ? nombreEstilo(claveEstilo) : null,
+        membresiaId: r.membresia_id,
+        gestionable:
+          (r.tipo === "particular" || r.tipo === "alquiler") &&
+          puedeEditarParticulares &&
+          (!alcancePropio || r.profesor_id === profesorPropioId),
+      };
+    }
+  );
 
   const etiquetaMotivo: ((v: string) => string) | undefined = catalogo
     ? (() => {
@@ -231,12 +254,14 @@ export async function consultarDisponibilidad(salaId: number, fechaISO: string):
     id: null,
     notas: null,
     membresiaId: null,
+    gestionable: false,
   }));
   const deReservas: BloqueDisponibilidad[] = ocupacionDeReservas(reservas, etiquetaMotivo).map((b, i) => ({
     ...b,
     id: reservas[i].id,
     notas: reservas[i].notas,
     membresiaId: reservas[i].membresiaId,
+    gestionable: reservas[i].gestionable,
   }));
   const ocupados = [...deCursos, ...deReservas].sort((a, b) => (aMinutos(a.hora) ?? 0) - (aMinutos(b.hora) ?? 0));
 
@@ -288,7 +313,7 @@ export async function crearBloqueoSala(
   datos: BloqueoNuevo,
   confirmarSuspension = false
 ): Promise<ResultadoSimple | { requiereConfirmacion: true; reservasAfectadas: ReservaChocaBloqueo[] }> {
-  if (!(await tienePermiso("sala", "editar")))
+  if (!(await tienePermiso("disponibilidad_sala", "editar")))
     return { error: "Sin permiso para reservar o bloquear la sala." };
 
   if (!ISO_FECHA.test(datos.fecha)) return { error: "La fecha de la reserva no es válida." };
@@ -487,7 +512,7 @@ export async function cancelarReservaSala(
   | ResultadoSimple
   | { requiereConfirmacion: true; ligadas: { reservaId: number; etiqueta: string; fecha: string; hora: string }[] }
 > {
-  if (!(await tienePermiso("sala", "editar")))
+  if (!(await tienePermiso("disponibilidad_sala", "editar")))
     return { error: "Sin permiso para cancelar una reserva de la sala." };
 
   const a = admin();

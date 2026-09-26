@@ -181,9 +181,10 @@ se actualiza en el mismo commit que cierra cada hito, y una sesión nueva lo
 lee **antes** de mirar ramas.
 
 - **Rama activa:** `h4-cierres-reservas`, sobre `main` (que trae H1+H2+H3 en
-  producción desde el 2026-09-26, PR #1). **H4 construido y recorrido
-  completo en el navegador, sin commitear a `main` todavía** — nada se
-  commitea sin que Javier lo pida (nada de lo de abajo cambia eso).
+  producción desde el 2026-09-26, PR #1). **H4 + el fix de navegación/permisos
+  de abajo construidos y recorridos en el navegador, sin commitear a `main`
+  todavía** — nada se commitea sin que Javier lo pida (nada de lo de abajo
+  cambia eso).
 - **Último hito:** H4 (cierres de sala sobre reservas — migración 0055),
   construido, verificado por tipo/lint/tests/build **y recorrido de punta a
   punta en el navegador** contra datos reales (Javier puso la contraseña de
@@ -196,13 +197,23 @@ lee **antes** de mirar ramas.
   cuatro cosas en `/alumnos/[id]/cuenta` que el recorrido dejó a la vista
   (una particular no se veía bien ahí — gap de H2, no de H4). Todo en
   `docs/ESTADO.md`, sección "C3 — H4: cierres de sala sobre reservas".
-- **Sigue:** que Javier pruebe H4 en su local, y después H5 (liquidación de
-  particulares).
-- **Esta sesión es local** (regla de proceso 9): el trabajo de H4 ya está en
-  el disco de Javier, en la rama `h4-cierres-reservas` — no hace falta que
-  nadie actualice nada para probarlo, alcanza con `npm run dev:limpio` sobre
-  esa rama. El commit y el push a una rama remota (para que quede a salvo o
-  para abrir un PR) quedan pendientes de que Javier lo pida.
+- **Encima de H4, antes del PR:** Javier probó el flujo completo (navegación
+  desde `/sala` + la cuenta de Oscar Núñez, rol Profesor) y aparecieron tres
+  problemas más — la navegación confusa hacia la ficha completa, "particulares"
+  sin alcance propio/todo (un profesor veía y editaba reservas de OTROS
+  profesores) y el permiso de `/sala` compartido con el horario base
+  (migración **0056**: módulo `disponibilidad_sala` + alcance propio de
+  Particulares). Los tres arreglados y recorridos en el navegador como
+  Administrador — detalle completo en `docs/ESTADO.md`, misma sección de H4,
+  subtítulo "Después del recorrido". **Falta que Javier repita el recorrido
+  con la cuenta de Oscar** (alcance propio real, no simulado) antes del PR.
+- **Sigue:** que Javier pruebe H4 + este fix en su local (con su cuenta y con
+  la de Oscar), y después H5 (liquidación de particulares).
+- **Esta sesión es local** (regla de proceso 9): todo el trabajo de arriba ya
+  está en el disco de Javier, en la rama `h4-cierres-reservas` — no hace falta
+  que nadie actualice nada para probarlo, alcanza con `npm run dev:limpio`
+  sobre esa rama. El commit y el push a una rama remota (para que quede a
+  salvo o para abrir un PR) quedan pendientes de que Javier lo pida.
 - **Para arrancar la sesión siguiente**, sobre la rama designada que
   corresponda:
   ```
@@ -220,10 +231,14 @@ lee **antes** de mirar ramas.
 
 ## 4. Registro de pases a producción
 
-**Hoy (2026-09-26) no hay nada pendiente de pase**: todo lo construido está en
-producción, con migraciones 0001–0054 en las dos bases. Cuando algo quede
-**solo en dev** esperando el OK explícito de Javier (regla de proceso 1), se
-anota arriba de esta línea. Abajo, en orden, cada pase ya hecho.
+**Pendiente de pase (2026-09-26): H4 completo** — migraciones **0055** y
+**0056**, y el código de C3 H4 (cierres de sala sobre reservas) más el fix de
+navegación desde `/sala` y de permisos de Particulares/Disponibilidad de sala
+construido encima. Producción sigue en las migraciones 0001–0054. Falta que
+Javier lo pruebe en su local (con su cuenta y con la de un profesor) y dé el
+OK explícito de pase (regla de proceso 1). Cuando algo quede **solo en dev**
+esperando ese OK, se anota arriba de esta línea. Abajo, en orden, cada pase ya
+hecho.
 
 - **Migraciones 0023–0030: APLICADAS EN PRODUCCIÓN el 2026-09-12**, con el OK
   explícito de Javier. Ningún dato de dominio se modificó (detalle y controles

@@ -22,7 +22,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { tienePermiso, obtenerParametro, obtenerPerfilActual } from "@/lib/sesion";
+import { tienePermiso, obtenerParametro, obtenerPerfilActual, alcancePropioDe } from "@/lib/sesion";
 import { apellidoDe } from "@/lib/contactos";
 import { formatearHoras, aMinutos, horaFin } from "@/lib/horarios";
 import {
@@ -260,21 +260,32 @@ export type FilaParticular = {
 export async function listarMembresiasParticulares(): Promise<{ items: FilaParticular[]; error?: string }> {
   if (!(await tienePermiso("particulares", "ver"))) return { items: [], error: "Sin permiso para ver clases particulares." };
 
+  // Alcance Propio/Todo (H4, 2026-09-26): sin esto, cualquiera con permiso de
+  // ver Particulares veía las de TODOS los profesores. Con "Propio", cada
+  // profesor ve solo las suyas — nunca una lista vacía sin explicar por qué
+  // (regla de calidad 5).
+  const { propio, profesorId } = await alcancePropioDe("particulares");
+  if (propio && !profesorId)
+    return {
+      items: [],
+      error:
+        "Tu cuenta no está vinculada a ningún profesor: pedile a un administrador que la vincule desde Profesores → Profesores y cursos → Cuenta de acceso.",
+    };
+
   const sb = await createClient();
-  const [memR, estR] = await Promise.all([
-    sb
-      .from("membresias")
-      .select(
-        "id, fecha_inicio, fecha_fin, horas_contratadas, estado, " +
-          "alumno:alumnos(es_menor, contacto_id, contacto:contactos(nombre, apellido, whatsapp)), " +
-          "plan:planes(nombre, estilo), " +
-          "profesor:profesores(contacto:contactos(nombre, apellido)), " +
-          "reservas:reservas_sala(estado, duracion_min, solicitada_hasta)"
-      )
-      .is("curso_id", null)
-      .eq("estado", "activa"),
-    sb.from("estilos").select("clave, nombre"),
-  ]);
+  let query = sb
+    .from("membresias")
+    .select(
+      "id, fecha_inicio, fecha_fin, horas_contratadas, estado, " +
+        "alumno:alumnos(es_menor, contacto_id, contacto:contactos(nombre, apellido, whatsapp)), " +
+        "plan:planes(nombre, estilo), " +
+        "profesor:profesores(contacto:contactos(nombre, apellido)), " +
+        "reservas:reservas_sala(estado, duracion_min, solicitada_hasta)"
+    )
+    .is("curso_id", null)
+    .eq("estado", "activa");
+  if (propio && profesorId) query = query.eq("profesor_id", profesorId);
+  const [memR, estR] = await Promise.all([query, sb.from("estilos").select("clave, nombre")]);
   if (memR.error) return { items: [], error: `No se pudieron leer las membresías de particulares: ${memR.error.message}` };
   if (estR.error) return { items: [], error: `No se pudieron leer los estilos: ${estR.error.message}` };
 
@@ -340,9 +351,89 @@ export async function listarMembresiasParticulares(): Promise<{ items: FilaParti
   return { items: items.map((x) => x.fila) };
 }
 
+/**
+ * El motivo de una suspensión se guarda como clave del catálogo; en pantalla
+ * va su etiqueta (regla de calidad 6). Compartido por `obtenerMembresiaParticular`
+ * y `obtenerReservaParaGestion` para no leer el catálogo dos veces con lógica
+ * separada.
+ */
+async function mapaEtiquetaMotivoSuspension(
+  sb: Awaited<ReturnType<typeof createClient>>
+): Promise<Map<string, string>> {
+  const { data: catSus } = await sb.from("catalogos").select("id").eq("clave", "motivo_suspension_reserva").maybeSingle();
+  const { data: valSus } = catSus
+    ? await sb.from("catalogo_valores").select("valor, etiqueta").eq("catalogo_id", (catSus as { id: number }).id)
+    : { data: [] as { valor: string; etiqueta: string }[] };
+  return new Map(((valSus as { valor: string; etiqueta: string }[]) ?? []).map((v) => [v.valor, v.etiqueta]));
+}
+
+type FilaReservaConSala = {
+  id: number;
+  fecha: string;
+  hora: string;
+  duracion_min: number;
+  estado: string;
+  solicitada_hasta: string | null;
+  sala_id: number;
+  sala: { nombre: string } | null;
+};
+type FilaHistorialReserva = {
+  reserva_id: number;
+  estado_nuevo: string;
+  fecha_nueva: string;
+  hora_nueva: string;
+  motivo: string | null;
+  glosa: string | null;
+  fuera_de_plazo: boolean;
+  creado_en: string;
+};
+type SalaDeMembresia = { salaId: number; nombre: string; esExterna: boolean };
+
+/** Arma una `ReservaConHistorial` desde sus filas crudas — compartido por
+ *  `obtenerMembresiaParticular` (todas las reservas de la membresía) y
+ *  `obtenerReservaParaGestion` (una sola), para no duplicar el mapeo. */
+function armarReservaConHistorial(
+  r: FilaReservaConSala,
+  historialDeEsta: FilaHistorialReserva[],
+  salasDeLaMembresia: SalaDeMembresia[],
+  etiquetaMotivo: Map<string, string>,
+  ahora: Date
+): ReservaConHistorial {
+  const estado = r.estado as EstadoReserva;
+  const salaNombre = salasDeLaMembresia.find((s) => s.salaId === r.sala_id)?.nombre || r.sala?.nombre || "—";
+  return {
+    id: r.id,
+    fecha: r.fecha,
+    hora: r.hora,
+    duracion_min: r.duracion_min,
+    estado,
+    solicitada_hasta: r.solicitada_hasta,
+    sala_id: r.sala_id,
+    salaNombre,
+    ocupaAhora: ocupaAhora({ tipo: "particular", estado, solicitadaHasta: r.solicitada_hasta }, ahora),
+    transicionesPermitidas: [...TRANSICIONES[estado]],
+    historial: historialDeEsta.map((h) => ({
+      estado_nuevo: h.estado_nuevo,
+      fecha_nueva: h.fecha_nueva,
+      hora_nueva: h.hora_nueva,
+      motivo: h.motivo ? (etiquetaMotivo.get(h.motivo) ?? h.motivo) : null,
+      glosa: h.glosa,
+      fuera_de_plazo: h.fuera_de_plazo,
+      creado_en: h.creado_en,
+    })),
+  };
+}
+
 /** El detalle de una membresía y sus reservas, para `/particulares/[id]`. */
 export async function obtenerMembresiaParticular(membresiaId: number): Promise<MembresiaParticularDetalle | { error: string }> {
   if (!(await tienePermiso("particulares", "ver"))) return { error: "Sin permiso para ver clases particulares." };
+
+  // Alcance Propio/Todo (H4): el chequeo real es después de leer la membresía
+  // (hace falta su profesor_id) — acá solo se corta el caso sin profesor
+  // vinculado, igual que en `listarMembresiasParticulares`.
+  const { propio, profesorId } = await alcancePropioDe("particulares");
+  if (propio && !profesorId)
+    return { error: "Tu cuenta no está vinculada a ningún profesor: no podés ver clases particulares." };
 
   const sb = await createClient();
   const { data: m, error } = await sb
@@ -371,6 +462,7 @@ export async function obtenerMembresiaParticular(membresiaId: number): Promise<M
     profesor: { contacto: { nombre: string | null; apellido: string | null } | null } | null;
   };
   const mm = m as unknown as M;
+  if (propio && mm.profesor_id !== profesorId) return { error: "Esta membresía es de otro profesor: no tenés acceso a ella." };
   const { data: estRow } = mm.plan?.estilo
     ? await sb.from("estilos").select("nombre").eq("clave", mm.plan.estilo).maybeSingle()
     : { data: null };
@@ -399,66 +491,26 @@ export async function obtenerMembresiaParticular(membresiaId: number): Promise<M
 
   type FilaSala = { sala_id: number; nombre_descriptivo: string | null; sala: { nombre: string; es_externa: boolean } | null };
   const salas = (salasR.data as unknown as FilaSala[]) ?? [];
+  const salasResueltas: SalaDeMembresia[] = salas.map((s) => ({
+    salaId: s.sala_id,
+    nombre: s.nombre_descriptivo || s.sala?.nombre || "—",
+    esExterna: s.sala?.es_externa ?? false,
+  }));
 
-  type FilaReserva = {
-    id: number;
-    fecha: string;
-    hora: string;
-    duracion_min: number;
-    estado: string;
-    solicitada_hasta: string | null;
-    sala_id: number;
-    sala: { nombre: string } | null;
-  };
-  const reservasRaw = (reservasR.data as unknown as FilaReserva[]) ?? [];
-  type FilaHistorial = {
-    reserva_id: number;
-    estado_nuevo: string;
-    fecha_nueva: string;
-    hora_nueva: string;
-    motivo: string | null;
-    glosa: string | null;
-    fuera_de_plazo: boolean;
-    creado_en: string;
-  };
-  const historialRaw = (historialR.data as unknown as FilaHistorial[]) ?? [];
-
-  // El motivo de una suspensión se guarda como clave del catálogo; en
-  // pantalla va su etiqueta (regla de calidad 6).
-  const { data: catSus } = await sb.from("catalogos").select("id").eq("clave", "motivo_suspension_reserva").maybeSingle();
-  const { data: valSus } = catSus
-    ? await sb.from("catalogo_valores").select("valor, etiqueta").eq("catalogo_id", (catSus as { id: number }).id)
-    : { data: [] as { valor: string; etiqueta: string }[] };
-  const etiquetaMotivo = new Map(((valSus as { valor: string; etiqueta: string }[]) ?? []).map((v) => [v.valor, v.etiqueta]));
+  const reservasRaw = (reservasR.data as unknown as FilaReservaConSala[]) ?? [];
+  const historialRaw = (historialR.data as unknown as FilaHistorialReserva[]) ?? [];
+  const etiquetaMotivo = await mapaEtiquetaMotivoSuspension(sb);
 
   const ahora = new Date();
-  const reservas: ReservaConHistorial[] = reservasRaw.map((r) => {
-    const estado = r.estado as EstadoReserva;
-    const salaNombre = salas.find((s) => s.sala_id === r.sala_id)?.nombre_descriptivo || r.sala?.nombre || "—";
-    return {
-      id: r.id,
-      fecha: r.fecha,
-      hora: r.hora,
-      duracion_min: r.duracion_min,
-      estado,
-      solicitada_hasta: r.solicitada_hasta,
-      sala_id: r.sala_id,
-      salaNombre,
-      ocupaAhora: ocupaAhora({ tipo: "particular", estado, solicitadaHasta: r.solicitada_hasta }, ahora),
-      transicionesPermitidas: [...TRANSICIONES[estado]],
-      historial: historialRaw
-        .filter((h) => h.reserva_id === r.id)
-        .map((h) => ({
-          estado_nuevo: h.estado_nuevo,
-          fecha_nueva: h.fecha_nueva,
-          hora_nueva: h.hora_nueva,
-          motivo: h.motivo ? (etiquetaMotivo.get(h.motivo) ?? h.motivo) : null,
-          glosa: h.glosa,
-          fuera_de_plazo: h.fuera_de_plazo,
-          creado_en: h.creado_en,
-        })),
-    };
-  });
+  const reservas: ReservaConHistorial[] = reservasRaw.map((r) =>
+    armarReservaConHistorial(
+      r,
+      historialRaw.filter((h) => h.reserva_id === r.id),
+      salasResueltas,
+      etiquetaMotivo,
+      ahora
+    )
+  );
 
   const saldo = saldoMembresia({
     horasContratadas: Number(mm.horas_contratadas) || 0,
@@ -478,15 +530,110 @@ export async function obtenerMembresiaParticular(membresiaId: number): Promise<M
     fechaFin: mm.fecha_fin,
     estado: mm.estado,
     saldo,
-    salasDeLaMembresia: salas.map((s) => ({
-      salaId: s.sala_id,
-      nombre: s.nombre_descriptivo || s.sala?.nombre || "—",
-      esExterna: s.sala?.es_externa ?? false,
-    })),
+    salasDeLaMembresia: salasResueltas,
     reservas,
   };
 }
 
+/**
+ * El detalle de UNA reserva puntual y el contexto mínimo para gestionarla
+ * (H4, 2026-09-26): igual que `obtenerMembresiaParticular`, pero acotado a una
+ * sola reserva — para el panel enfocado de `/sala`, donde no hace falta traer
+ * el resto de las reservas ni todas las cuotas de la membresía (Javier,
+ * 26/09: "el flujo normal debería ser ver solo el recuadro... de la reserva
+ * específica"). El mismo mapeo que arma cada reserva se comparte con
+ * `obtenerMembresiaParticular` vía `armarReservaConHistorial`.
+ */
+export type DetalleGestionReserva = {
+  reserva: ReservaConHistorial;
+  membresiaId: number;
+  alumnoNombre: string;
+  disponibleMin: number;
+  fechaInicioMembresia: string;
+  fechaFinMembresia: string;
+  salasDeLaMembresia: SalaDeMembresia[];
+};
+
+export async function obtenerReservaParaGestion(reservaId: number): Promise<DetalleGestionReserva | { error: string }> {
+  if (!(await tienePermiso("particulares", "ver"))) return { error: "Sin permiso para ver clases particulares." };
+
+  const { propio, profesorId } = await alcancePropioDe("particulares");
+  if (propio && !profesorId)
+    return { error: "Tu cuenta no está vinculada a ningún profesor: no podés ver clases particulares." };
+
+  const sb = await createClient();
+  const { data: rRow, error: errR } = await sb
+    .from("reservas_sala")
+    .select("id, fecha, hora, duracion_min, estado, solicitada_hasta, sala_id, tipo, membresia_id, sala:salas(nombre)")
+    .eq("id", reservaId)
+    .maybeSingle();
+  if (errR) return { error: `No se pudo leer la reserva: ${errR.message}` };
+  if (!rRow || rRow.tipo !== "particular" || rRow.membresia_id == null) return { error: "Esa reserva no existe." };
+
+  const { data: m, error: errM } = await sb
+    .from("membresias")
+    .select(
+      "fecha_inicio, fecha_fin, horas_contratadas, profesor_id, alumno:alumnos(contacto:contactos(nombre, apellido))"
+    )
+    .eq("id", rRow.membresia_id)
+    .maybeSingle();
+  if (errM) return { error: `No se pudo leer la membresía: ${errM.message}` };
+  if (!m) return { error: "La membresía de esta reserva ya no existe." };
+  type M = {
+    fecha_inicio: string;
+    fecha_fin: string;
+    horas_contratadas: number;
+    profesor_id: number;
+    alumno: { contacto: { nombre: string | null; apellido: string | null } | null } | null;
+  };
+  const mm = m as unknown as M;
+  if (propio && mm.profesor_id !== profesorId) return { error: "Esta reserva es de otro profesor: no tenés acceso a ella." };
+
+  const [salasR, reservasR, historialR] = await Promise.all([
+    sb.from("membresia_salas").select("sala_id, nombre_descriptivo, sala:salas(nombre, es_externa)").eq("membresia_id", rRow.membresia_id),
+    sb.from("reservas_sala").select("estado, duracion_min, solicitada_hasta").eq("membresia_id", rRow.membresia_id),
+    sb
+      .from("reservas_historial")
+      .select("reserva_id, estado_nuevo, fecha_nueva, hora_nueva, motivo, glosa, fuera_de_plazo, creado_en")
+      .eq("reserva_id", reservaId)
+      .order("creado_en", { ascending: true }),
+  ]);
+  if (salasR.error) return { error: `No se pudieron leer las salas de la membresía: ${salasR.error.message}` };
+  if (reservasR.error) return { error: `No se pudo leer el saldo de la membresía: ${reservasR.error.message}` };
+  if (historialR.error) return { error: `No se pudo leer el historial: ${historialR.error.message}` };
+
+  type FilaSala = { sala_id: number; nombre_descriptivo: string | null; sala: { nombre: string; es_externa: boolean } | null };
+  const salasResueltas: SalaDeMembresia[] = ((salasR.data as unknown as FilaSala[]) ?? []).map((s) => ({
+    salaId: s.sala_id,
+    nombre: s.nombre_descriptivo || s.sala?.nombre || "—",
+    esExterna: s.sala?.es_externa ?? false,
+  }));
+
+  const ahora = new Date();
+  const saldo = saldoMembresia({
+    horasContratadas: Number(mm.horas_contratadas) || 0,
+    reservas: (reservasR.data as { estado: string; duracion_min: number; solicitada_hasta: string | null }[]) ?? [],
+    ahora,
+  });
+  const etiquetaMotivo = await mapaEtiquetaMotivoSuspension(sb);
+  const reserva = armarReservaConHistorial(
+    rRow as unknown as FilaReservaConSala,
+    (historialR.data as unknown as FilaHistorialReserva[]) ?? [],
+    salasResueltas,
+    etiquetaMotivo,
+    ahora
+  );
+
+  return {
+    reserva,
+    membresiaId: rRow.membresia_id,
+    alumnoNombre: `${mm.alumno?.contacto?.nombre ?? ""} ${mm.alumno?.contacto?.apellido ?? ""}`.trim(),
+    disponibleMin: saldo.disponibleMin,
+    fechaInicioMembresia: mm.fecha_inicio,
+    fechaFinMembresia: mm.fecha_fin,
+    salasDeLaMembresia: salasResueltas,
+  };
+}
 
 // ── Crear una reserva nueva ───────────────────────────────────────────────
 
@@ -516,6 +663,8 @@ export async function crearReserva(e: EntradaNuevaReserva): Promise<ResultadoAcc
     .maybeSingle();
   if (errM) return { error: `No se pudo leer la membresía: ${errM.message}` };
   if (!mRow) return { error: "Esa membresía de particulares no existe." };
+  const { propio, profesorId } = await alcancePropioDe("particulares");
+  if (propio && mRow.profesor_id !== profesorId) return { error: "Esta membresía es de otro profesor: no podés crear reservas en ella." };
   if (mRow.estado !== "activa") return { error: "Esta membresía no está activa." };
   if (e.fecha < mRow.fecha_inicio || e.fecha > mRow.fecha_fin)
     return { error: `La fecha queda fuera de la vigencia de la membresía (${mRow.fecha_inicio} a ${mRow.fecha_fin}).` };
@@ -657,6 +806,8 @@ export async function cambiarEstadoReserva(
     .maybeSingle();
   if (errR) return { error: `No se pudo leer la reserva: ${errR.message}` };
   if (!rRow) return { error: "Esa reserva no existe." };
+  const { propio, profesorId } = await alcancePropioDe("particulares");
+  if (propio && rRow.profesor_id !== profesorId) return { error: "Esta reserva es de otro profesor: no podés cambiarla." };
   if (rRow.tipo === "bloqueo") return { error: "Un bloqueo se cancela desde Sala, no desde acá." };
   const actual = rRow.estado as EstadoReserva;
   if (!puedeTransicionar(actual, destino))
@@ -824,7 +975,14 @@ export async function suspenderReservaOperativa(
  * vigencia pueden haber cambiado desde que se suspendió.
  */
 export async function revertirSuspension(reservaId: number): Promise<ResultadoAccion> {
-  const puede = (await tienePermiso("particulares", "editar")) || (await tienePermiso("sala", "editar"));
+  // Sin alcance propio/todo acá a propósito: quien llama ya validó su propio
+  // permiso operativo (disponibilidad_sala.editar desde /sala, sala.editar
+  // desde el horario base) — es un revertido disparado por un cierre o un
+  // bloqueo, no una decisión puntual de un profesor sobre SU reserva.
+  const puede =
+    (await tienePermiso("particulares", "editar")) ||
+    (await tienePermiso("sala", "editar")) ||
+    (await tienePermiso("disponibilidad_sala", "editar"));
   if (!puede) return { error: "No tenés permiso para revertir esta suspensión." };
 
   const perfil = await obtenerPerfilActual();
@@ -941,6 +1099,8 @@ export async function reprogramarReserva(e: EntradaReprogramar): Promise<Resulta
     .maybeSingle();
   if (errR) return { error: `No se pudo leer la reserva: ${errR.message}` };
   if (!rRow) return { error: "Esa reserva no existe." };
+  const { propio, profesorId } = await alcancePropioDe("particulares");
+  if (propio && rRow.profesor_id !== profesorId) return { error: "Esta reserva es de otro profesor: no podés reprogramarla." };
   if (rRow.tipo === "bloqueo") return { error: "Un bloqueo no se reprograma: se cancela y se crea uno nuevo." };
   const actual = rRow.estado as EstadoReserva;
   if (!puedeTransicionar(actual, "reprogramada"))
@@ -1054,6 +1214,8 @@ export async function cancelarAPedido(reservaId: number): Promise<ResultadoAccio
     .maybeSingle();
   if (errR) return { error: `No se pudo leer la reserva: ${errR.message}` };
   if (!rRow) return { error: "Esa reserva no existe." };
+  const { propio, profesorId } = await alcancePropioDe("particulares");
+  if (propio && rRow.profesor_id !== profesorId) return { error: "Esta reserva es de otro profesor: no podés cancelarla." };
   if (rRow.tipo === "bloqueo") return { error: "Un bloqueo se cancela desde Sala." };
   const actual = rRow.estado as EstadoReserva;
 

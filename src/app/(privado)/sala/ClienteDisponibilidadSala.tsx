@@ -17,10 +17,11 @@
  */
 
 import { useEffect, useState, useTransition } from "react";
-import Link from "next/link";
 import { describirTramos, describirVentanas } from "@/lib/sala";
 import { etiquetaDuracion } from "@/lib/horarios";
 import AvisoWhatsapp from "@/components/AvisoWhatsapp";
+import GestionReserva from "@/components/GestionReserva";
+import { obtenerReservaParaGestion, type DetalleGestionReserva } from "@/app/(privado)/particulares/acciones";
 import {
   cancelarReservaSala,
   consultarDisponibilidad,
@@ -69,6 +70,10 @@ export default function ClienteDisponibilidadSala({
   motivos,
   opcionesDuracionMin,
   puedeEditar,
+  salasPropias,
+  motivosSuspension,
+  incrementoMin,
+  minimoMin,
 }: {
   salaId: number;
   salaNombre: string;
@@ -76,6 +81,13 @@ export default function ClienteDisponibilidadSala({
   motivos: { valor: string; etiqueta: string }[];
   opcionesDuracionMin: number[];
   puedeEditar: boolean;
+  /** H4 — para el panel de gestión de una reserva (`GestionReserva`): todas
+   *  las salas propias (no solo esta tarjeta, por si se reprograma a otra) y
+   *  los mismos motivos/tiempos que usa `/particulares/[id]`. */
+  salasPropias: { id: number; nombre: string }[];
+  motivosSuspension: { valor: string; etiqueta: string }[];
+  incrementoMin: number;
+  minimoMin: number;
 }) {
   const [datos, setDatos] = useState<DisponibilidadDia>(vacia);
   const [cargando, startCarga] = useTransition();
@@ -98,6 +110,26 @@ export default function ClienteDisponibilidadSala({
     ligadas: { reservaId: number; etiqueta: string; fecha: string; hora: string }[];
   } | null>(null);
   const [avisosOperativos, setAvisosOperativos] = useState<AvisoOperativo[] | null>(null);
+
+  // H4: panel de gestión de UNA reserva puntual, enfocado — reemplaza el
+  // salto directo a la ficha completa de la membresía (Javier, 26/09).
+  const [enfoqueId, setEnfoqueId] = useState<number | null>(null);
+  const [detalleGestion, setDetalleGestion] = useState<DetalleGestionReserva | { error: string } | null>(null);
+  const [pendienteGestion, startGestion] = useTransition();
+
+  function abrirGestion(reservaId: number) {
+    setEnfoqueId(reservaId);
+    setDetalleGestion(null);
+    startGestion(async () => {
+      const r = await obtenerReservaParaGestion(reservaId);
+      setDetalleGestion(r);
+    });
+  }
+
+  function cerrarGestion() {
+    setEnfoqueId(null);
+    setDetalleGestion(null);
+  }
 
   // **Un solo aviso para toda la tarjeta**, no uno por acción. Antes había
   // `errForm/msgForm` (bloquear) y `errCancelar/msgCancelar` (cancelar) por
@@ -122,6 +154,18 @@ export default function ClienteDisponibilidadSala({
     recargar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [salaId, fecha]);
+
+  // Cambiar de sala o de fecha cierra el panel de gestión: la reserva
+  // enfocada puede ya no estar en la lista nueva. Ajustado durante el render
+  // (no en el efecto de arriba, que ya dispara `recargar`) — mismo patrón que
+  // `BarraLateral` usa para resetear estado cuando cambia el pathname.
+  const claveDia = `${salaId}|${fecha}`;
+  const [claveDiaAnterior, setClaveDiaAnterior] = useState(claveDia);
+  if (claveDia !== claveDiaAnterior) {
+    setClaveDiaAnterior(claveDia);
+    setEnfoqueId(null);
+    setDetalleGestion(null);
+  }
 
   function abrirFormulario() {
     setAviso(null);
@@ -224,39 +268,77 @@ export default function ClienteDisponibilidadSala({
                 const ini = b.hora;
                 const finMin = Number(ini.slice(0, 2)) * 60 + Number(ini.slice(3, 5)) + b.duracionMin;
                 const fin = `${String(Math.floor(finMin / 60) % 24).padStart(2, "0")}:${String(finMin % 60).padStart(2, "0")}`;
+                const id = b.id;
                 return (
-                  <div
-                    key={b.id ?? `curso-${i}`}
-                    className="flex items-start gap-3 py-2 border-t border-[var(--borde)] first:border-t-0"
-                  >
-                    <span className={`text-xs font-semibold px-2 py-1 rounded-full shrink-0 ${CLASE_TAG[b.tipo]}`}>
-                      {ETIQUETA_TIPO[b.tipo]}
-                    </span>
-                    <div className="flex-1">
-                      <div className="text-base">
-                        <strong>
-                          {ini}–{fin}
-                        </strong>{" "}
-                        {b.membresiaId != null ? (
-                          <Link href={`/particulares/${b.membresiaId}`} className="underline hover:no-underline">
-                            {b.etiqueta}
-                          </Link>
-                        ) : (
-                          b.etiqueta
+                  <div key={b.id ?? `curso-${i}`} className="border-t border-[var(--borde)] first:border-t-0">
+                    <div className="flex items-start gap-3 py-2">
+                      <span className={`text-xs font-semibold px-2 py-1 rounded-full shrink-0 ${CLASE_TAG[b.tipo]}`}>
+                        {ETIQUETA_TIPO[b.tipo]}
+                      </span>
+                      <div className="flex-1">
+                        <div className="text-base">
+                          <strong>
+                            {ini}–{fin}
+                          </strong>{" "}
+                          {b.etiqueta}
+                        </div>
+                        {b.detalle && <div className="text-sm text-[var(--texto-tenue)]">{b.detalle}</div>}
+                        {b.notas && (
+                          <div className="text-sm text-[var(--texto-tenue)] mt-0.5">📝 {b.notas}</div>
                         )}
                       </div>
-                      {b.detalle && <div className="text-sm text-[var(--texto-tenue)]">{b.detalle}</div>}
-                      {b.notas && (
-                        <div className="text-sm text-[var(--texto-tenue)] mt-0.5">📝 {b.notas}</div>
+                      {/* H4: reemplaza el link directo a la ficha completa — la
+                          intención acá es actuar sobre ESTA reserva, no ver
+                          todas las de la membresía (Javier, 26/09). */}
+                      {b.gestionable && id != null && (
+                        <button
+                          onClick={() => (enfoqueId === id ? cerrarGestion() : abrirGestion(id))}
+                          className="text-sm text-[var(--primario)] hover:underline shrink-0"
+                        >
+                          {enfoqueId === id ? "Cerrar" : "Gestionar"}
+                        </button>
+                      )}
+                      {puedeEditar && b.id != null && b.tipo === "bloqueo" && (
+                        <button
+                          onClick={() => pedirCancelacion(b)}
+                          className="text-sm text-[var(--texto-tenue)] hover:text-[var(--peligro)]"
+                        >
+                          Cancelar
+                        </button>
                       )}
                     </div>
-                    {puedeEditar && b.id != null && b.tipo === "bloqueo" && (
-                      <button
-                        onClick={() => pedirCancelacion(b)}
-                        className="text-sm text-[var(--texto-tenue)] hover:text-[var(--peligro)]"
-                      >
-                        Cancelar
-                      </button>
+                    {enfoqueId === b.id && (
+                      <div className="mb-3 ml-1 pl-3 border-l-2 border-[var(--primario)]">
+                        {pendienteGestion && !detalleGestion ? (
+                          <p className="text-sm text-[var(--texto-tenue)]">Cargando…</p>
+                        ) : detalleGestion && "error" in detalleGestion ? (
+                          <p className="text-[var(--peligro)]" role="alert">
+                            {detalleGestion.error}
+                          </p>
+                        ) : detalleGestion ? (
+                          <GestionReserva
+                            reserva={detalleGestion.reserva}
+                            membresiaId={detalleGestion.membresiaId}
+                            disponibleMin={detalleGestion.disponibleMin}
+                            fechaInicioMembresia={detalleGestion.fechaInicioMembresia}
+                            fechaFinMembresia={detalleGestion.fechaFinMembresia}
+                            salasPropias={salasPropias}
+                            salaExternaDeLaMembresia={(() => {
+                              const ext = detalleGestion.salasDeLaMembresia.find((s) => s.esExterna);
+                              return ext ? { salaId: ext.salaId, nombre: ext.nombre } : null;
+                            })()}
+                            motivosSuspension={motivosSuspension}
+                            incrementoMin={incrementoMin}
+                            minimoMin={minimoMin}
+                            puedeEditar
+                            mostrarLinkFicha
+                            onCambio={() => {
+                              cerrarGestion();
+                              recargar();
+                            }}
+                          />
+                        ) : null}
+                      </div>
                     )}
                   </div>
                 );

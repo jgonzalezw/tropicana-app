@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { tienePermiso, obtenerParametro } from "@/lib/sesion";
+import { tienePermiso, obtenerParametro, alcancePropioDe } from "@/lib/sesion";
 import SinAcceso from "@/components/SinAcceso";
 import { exigir } from "@/lib/datos";
 import { isoFecha } from "@/lib/inscripcion";
@@ -353,9 +353,15 @@ export default async function PaginaInscribir() {
       (t) => ({ id: t.id, nombre: t.nombre, estilo: t.estilo, horas: Number(t.horas), precio: Number(t.precio) })
     );
 
+    // Alcance Propio/Todo de Particulares (H4): con "Propio", un profesor solo
+    // se vende a sí mismo — el selector ni siquiera ofrece a los demás, y
+    // `venderParticular` revalida lo mismo en servidor (regla de calidad 9).
+    const { propio: particularesPropio, profesorId: profesorPropioId } = await alcancePropioDe("particulares");
+
     const porEstilo: Record<string, { profesor: { id: number; activo: boolean; contacto: Contacto } }[]> = {};
     for (const r of (profEstilosRows as unknown as { estilo: string; profesor: { id: number; activo: boolean; contacto: Contacto } | null }[]) ?? []) {
       if (!r.profesor?.activo) continue;
+      if (particularesPropio && r.profesor.id !== profesorPropioId) continue;
       (porEstilo[r.estilo] ??= []).push({ profesor: r.profesor });
     }
     for (const [estilo, filas] of Object.entries(porEstilo)) {

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { tienePermiso, obtenerParametro, obtenerPerfilActual } from "@/lib/sesion";
+import { tienePermiso, obtenerParametro, obtenerPerfilActual, alcancePropioDe } from "@/lib/sesion";
 import { validarIdentidadAlumno, validarFechaNacimiento } from "@/lib/contactos";
 import { contextoAlumno, presenteDesdeExtra } from "@/lib/matrizMinimos";
 import type { Alumno, CobroInscripcion, Contacto, DatosAlumno, EntradaInscripcion } from "@/lib/tipos";
@@ -1346,6 +1346,8 @@ export type ResultadoPreviewParticular = {
 export async function previsualizarParticular(e: EntradaAgendaParticular): Promise<ResultadoPreviewParticular> {
   if (!(await tienePermiso("particulares", "crear")))
     return { error: "No tenés permiso para vender clases particulares." };
+  const { propio, profesorId } = await alcancePropioDe("particulares");
+  if (propio && e.profesorId !== profesorId) return { error: "Solo podés vender clases particulares a tu propio nombre." };
   const a = admin();
   const sb = await createClient();
   const r = await calcularAgendaParticular(sb, a, e);
@@ -1356,6 +1358,8 @@ export async function previsualizarParticular(e: EntradaAgendaParticular): Promi
 export async function venderParticular(e: EntradaParticular): Promise<ResultadoParticular> {
   if (!(await tienePermiso("particulares", "crear")))
     return { error: "No tenés permiso para vender clases particulares." };
+  const { propio, profesorId } = await alcancePropioDe("particulares");
+  if (propio && e.profesorId !== profesorId) return { error: "Solo podés vender clases particulares a tu propio nombre." };
 
   const perfil = await obtenerPerfilActual();
   const a = admin();

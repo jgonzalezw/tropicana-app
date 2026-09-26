@@ -4350,3 +4350,63 @@ pendiente que Javier lo pruebe él mismo en su local antes de pedir el OK de
 pase (regla de proceso 1: validar en dev, aunque sea a fondo, no lo
 dispara). Backlog que toca: **R1 y R22 se cierran** con este hito (marcado
 en `ROADMAP.md`). Sigue **H5** (liquidación de particulares).
+
+### Después del recorrido: navegación desde /sala + permisos de Particulares (2026-09-26)
+
+Antes de pedir el PR, Javier probó H4 en su local y encontró dos problemas
+más, previos a H4 pero recién visibles al usar el flujo completo:
+
+1. **Navegación confusa desde `/sala`.** Tocar una reserva llevaba a la ficha
+   completa de la membresía (`/particulares/[id]`, con todas sus reservas y
+   su saldo) cuando la intención era actuar sobre esa reserva puntual.
+   **Arreglado**: el bloque por-reserva de `ClienteMembresiaParticular.tsx`
+   se extrajo a `src/components/GestionReserva.tsx` (regla de proceso 4 —
+   una pieza por entidad). `/particulares/[id]` la sigue montando igual, una
+   por reserva, sin cambio de comportamiento. `/sala` monta la MISMA pieza
+   como un panel enfocado: un botón "Gestionar" (en vez del link a la ficha)
+   abre un recuadro con solo esa reserva y sus opciones — datos que trae
+   `obtenerReservaParaGestion(reservaId)`, una lectura nueva en
+   `particulares/acciones.ts` que comparte el mapeo `armarReservaConHistorial`
+   con `obtenerMembresiaParticular` (no hay dos copias del mismo cálculo). Al
+   aplicar un cambio, el panel se cierra y la disponibilidad de la sala se
+   recarga sola — nunca navega. Un link secundario "Ver ficha completa de la
+   membresía →" queda para cuando de verdad hace falta ver todo.
+2. **"particulares" no tenía alcance propio/todo.** Probado con la cuenta de
+   Oscar Núñez (rol Profesor): con Particulares·Ver veía TODAS las
+   membresías de particulares, no solo las suyas (los nombres ajenos salían
+   vacíos, pero por el RLS de `contactos`, no por diseño); con
+   Particulares·Editar podía cambiar reservas de alumnos de OTRO profesor.
+   **Arreglado** (mismo mecanismo de la 0043, migración **0056**): se suma
+   `"particulares"` a `MODULOS_CON_ALCANCE`, el Profesor arranca en
+   `propio`, y `listarMembresiasParticulares`, `obtenerMembresiaParticular`,
+   `obtenerReservaParaGestion`, `crearReserva`, `cambiarEstadoReserva`,
+   `reprogramarReserva`, `cancelarAPedido`, `venderParticular` y
+   `previsualizarParticular` (más el selector de profesor de `/inscribir`)
+   validan la propiedad con el helper nuevo `alcancePropioDe` (`@/lib/
+   sesion.ts`) antes de mostrar o escribir.
+3. **Hallazgo de paso: el permiso de `/sala` no tenía casilla propia.** Al
+   buscar cómo dar acceso a "Disponibilidad de sala", Javier tocó la única
+   casilla que existía — "Sala y horarios" — que en realidad gobernaba
+   Administración → Sala y horarios (el horario base) Y `/sala` a la vez, y
+   sin querer le sacó `/sala` a Oscar. **Arreglado** (regla de proceso 11):
+   módulo nuevo `disponibilidad_sala`, propio de `/sala` y sus acciones
+   (`consultarDisponibilidad`, `crearBloqueoSala`, `cancelarReservaSala`); el
+   módulo `sala` queda solo para el horario base, rotulado "Sala y horarios
+   (horario base)". La misma migración 0056 copia los permisos de `sala` a
+   `disponibilidad_sala` para cada rol (nadie pierde ni gana acceso) y
+   corrige el Ver del Profesor a `true` (lo que ya había decidido la 0041).
+
+**Verificado en dev**: `tsc`, lint y `npm test` (132/132, sin tocar lógica
+pura) en verde; `npm run build` compila. Migración 0056 aplicada en
+`tropicana-dev` y confirmada por SQL directo (Profesor: `particulares` en
+`propio`, `disponibilidad_sala.ver = true`). **Recorrido en el navegador**
+como Administrador: `/particulares/58` (Javier Gonzalez Weise, profesor
+Oscar Núñez) se ve igual que antes del refactor; desde `/sala`, "Gestionar"
+sobre esa reserva abre el panel enfocado, suspenderla (motivo "Conflicto
+operativo") cierra el panel y actualiza la sala sola (la reserva deja de
+listarse como ocupada), y `/particulares/58` confirma "Suspendida" con el
+saldo devuelto (1 h disponible). `/administracion/roles` muestra "Disponibilidad
+de sala" y el selector Propio/Todo de "Particulares" con los valores
+esperados. **Falta que Javier repita el recorrido con la cuenta de Oscar**
+(alcance propio real) antes del PR — no se intentó loguear con su cuenta por
+no tener ni intentar obtener su contraseña.

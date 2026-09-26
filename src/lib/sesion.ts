@@ -96,3 +96,18 @@ export async function obtenerProfesorActual(): Promise<{ id: number } | null> {
     .maybeSingle();
   return (data as { id: number } | null) ?? null;
 }
+
+/**
+ * Atajo de `alcanceDe` + `obtenerProfesorActual` para los módulos con dueño
+ * "profesor" (asistencia, liquidaciones, particulares — 0043/H4): dice si hay
+ * que acotar a lo propio y, si es así, a qué profesor. Con `propio: true` y
+ * `profesorId: null` la cuenta no está vinculada a ningún profesor — no ve
+ * nada, y quien llama tiene que explicarlo (regla de calidad 5), nunca
+ * mostrar una lista vacía sin más.
+ */
+export async function alcancePropioDe(modulo: string): Promise<{ propio: boolean; profesorId: number | null }> {
+  const alcance = await alcanceDe(modulo);
+  if (alcance !== "propio") return { propio: false, profesorId: null };
+  const profesor = await obtenerProfesorActual();
+  return { propio: true, profesorId: profesor?.id ?? null };
+}

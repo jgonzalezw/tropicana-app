@@ -25,6 +25,7 @@ export default function BarraLateral({
   puedeLiquidaciones,
   puedePrecios,
   puedeSala,
+  puedeDisponibilidadSala,
   puedeParticulares,
   temas,
   temaActual,
@@ -42,7 +43,10 @@ export default function BarraLateral({
   puedePlanes: boolean;
   puedeLiquidaciones: boolean;
   puedePrecios: boolean;
+  /** Administración → Sala y horarios (horario base). */
   puedeSala: boolean;
+  /** Gestión → Disponibilidad de sala (H4): permiso propio, separado de `puedeSala`. */
+  puedeDisponibilidadSala: boolean;
   puedeParticulares: boolean;
   temas: OpcionTema[];
   temaActual: string;
@@ -97,7 +101,7 @@ export default function BarraLateral({
         {
           href: "/sala",
           etiqueta: "Disponibilidad de sala",
-          mostrar: puedeSala,
+          mostrar: puedeDisponibilidadSala,
         },
         {
           href: "/particulares",
