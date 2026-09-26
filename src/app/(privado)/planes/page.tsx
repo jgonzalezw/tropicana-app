@@ -35,7 +35,7 @@ export default async function PaginaPlanes() {
     supabase.from("plan_cursos").select("plan_id, curso_id"),
     supabase.from("membresias").select("plan_id"),
     supabase.from("estilos").select("*").eq("activo", true).order("orden"),
-    supabase.from("salas").select("*").eq("activa", true).order("orden"),
+    supabase.from("salas").select("*").eq("activa", true).eq("es_externa", false).order("orden"),
     supabase.from("plan_salas").select("plan_id, sala_id"),
   ]);
 

@@ -35,6 +35,7 @@ export default async function PaginaSalaHorario() {
     sb
       .from("salas")
       .select("id, nombre, orden, activa")
+      .eq("es_externa", false)
       .order("orden")
       .order("id")
       .then((r) => exigir(r, "las salas")),
