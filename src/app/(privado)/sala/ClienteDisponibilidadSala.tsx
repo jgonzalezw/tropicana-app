@@ -17,6 +17,7 @@
  */
 
 import { useEffect, useState, useTransition } from "react";
+import Link from "next/link";
 import { describirTramos, describirVentanas } from "@/lib/sala";
 import { etiquetaDuracion } from "@/lib/horarios";
 import {
@@ -161,15 +162,25 @@ export default function ClienteDisponibilidadSala({
   }
 
   const cerrado = !datos.error && datos.ventanas.length === 0;
+  // Al cambiar de fecha/sala, `datos` sigue teniendo lo del día ANTERIOR
+  // mientras se pide lo nuevo — mostrarlo sin avisar hace parecer que la
+  // pantalla ya cambió cuando en realidad está desactualizada (Javier,
+  // 26/09: "se actualizan las fechas y después de segundos recién los
+  // detalles"). Se atenúa y se avisa; recién el primer load (datos === vacia)
+  // usa el texto "Cargando…" de más abajo, porque ahí no hay nada que atenuar.
+  const actualizando = cargando && datos !== vacia;
 
   return (
     <div className="bg-[var(--fondo-panel)] border border-[var(--borde)] rounded-[var(--radio-tarjeta)] p-6">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <h2 className="text-xl font-semibold">{salaNombre}</h2>
-        <div className="font-medium text-[var(--texto-tenue)] capitalize">{diaLargo(fecha)}</div>
+        <div className="flex items-center gap-2">
+          {actualizando && <span className="text-xs text-[var(--texto-tenue)]">Actualizando…</span>}
+          <div className="font-medium text-[var(--texto-tenue)] capitalize">{diaLargo(fecha)}</div>
+        </div>
       </div>
 
-      <div className="mt-3">
+      <div className={`mt-3 ${actualizando ? "opacity-50 transition-opacity" : ""}`}>
         {datos.error ? (
           <p className="text-base text-[var(--peligro)] mt-2">{datos.error}</p>
         ) : cargando && datos === vacia ? (
@@ -203,7 +214,13 @@ export default function ClienteDisponibilidadSala({
                         <strong>
                           {ini}–{fin}
                         </strong>{" "}
-                        {b.etiqueta}
+                        {b.membresiaId != null ? (
+                          <Link href={`/particulares/${b.membresiaId}`} className="underline hover:no-underline">
+                            {b.etiqueta}
+                          </Link>
+                        ) : (
+                          b.etiqueta
+                        )}
                       </div>
                       {b.detalle && <div className="text-sm text-[var(--texto-tenue)]">{b.detalle}</div>}
                       {b.notas && (

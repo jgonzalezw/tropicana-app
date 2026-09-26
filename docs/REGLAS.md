@@ -40,7 +40,7 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
 | **Referencias ≠ Referido** | catálogo `canal_captacion` | Dos cosas distintas que suenan igual. **Referencias** = boca a boca, sin una persona identificada detrás (un canal de captación más, como Instagram o un letrero). **Referido** = `contacto_relaciones` tipo `referido_por`, una relación con un contacto concreto que lo trajo. Confundirlos pierde la trazabilidad de a quién agradecer o, eventualmente, comisionar por el referido. |
 | **Matriz de mínimos** | `matriz_minimos` | Qué tan obligatorio es cada campo de un contacto (nombre, WhatsApp, red social, documento...) según el **contexto** en que se carga: alumno adulto, alumno menor, prueba, profesor, tercero, etc. Tres niveles — `O` obligatorio, `V` visible opcional, `-` oculto. El formulario (`CamposContacto`, C3-0a.3) elige el contexto solo — `alumno_menor` si está marcado "es menor", **incluso viniendo de una clase de prueba** (Javier, 2026-09-24: "las reglas de alumno menor", no las de `prueba` — no se vende una prueba a un menor sin tutor). **La valida el servidor** (`validarContraMatriz`), nunca solo la pantalla. Algunas celdas están **bloqueadas** (`CELDAS_BLOQUEADAS` en `matrizMinimos.ts`, control 27): de ellas depende la detección de duplicados o un `check` de la base (nombre/razón social por `tipo`), y cambiarlas rompería eso, no solo un campo visual. `interes` y `facturacion` quedan sembradas pero **sin columna donde guardarse**: no editables, con aviso (regla de calidad 5). |
 | **Plan de servicio** | `planes` + `planes.tipo_servicio` | Lo único que se vende (regla 22). Cinco tipos: `curso_regular`, `particular`, `alquiler`, `taller` y servicio especial (etapa siguiente). El plan fija el criterio de liquidación, la forma de pago al profesor, la vigencia, la modalidad de reserva y los márgenes de extensión. *(Hasta C3 el código fuerza `curso_regular`: los otros tipos se abren con C3.)* |
-| **Reserva** | `reservas_sala` | Una franja de sala (propia o externa) para una sesión. Cuelga de **una sola** cosa: una membresía (particular, alquiler), un plan (taller) o nada (bloqueo, con motivo). Siete estados: Solicitada, Confirmada, Reprogramada, Reagendar, Suspendida, Ausente, Realizada; qué hace cada uno con el saldo, en la regla 23. *(Los 7 estados se construyen en C3; hoy existen `reservada`/`dictada`/`cancelada`.)* |
+| **Reserva** | `reservas_sala` | Una franja de sala (propia o externa) para una sesión. Cuelga de **una sola** cosa: una membresía (particular, alquiler), un plan (taller) o nada (bloqueo, con motivo). Siete estados para particular/alquiler/taller — Solicitada, Confirmada, Reprogramada, Reagendar, Suspendida, Ausente, Realizada; qué hace cada uno con el saldo, en la regla 23. *(Construidos en C3 H3, migración 0054. Los bloqueos (D7) siguen aparte, con su propio par `reservada`/`cancelada` — no entran a esta máquina de estados.)* |
 | **Sala externa** | `salas` (genérica) | Una ubicación fuera de Tropicana —el salón de una boda, un hotel—. Hay **una sola** sala externa genérica; al vender se le pone un nombre descriptivo por membresía (en talleres, por plan). **No se valida su ocupación.** |
 | **Período vencido** | parámetro `periodicidad_liquidacion` | Se paga en la liquidación del período siguiente; el período (semana, mes o membresía) lo fija el parámetro. Reemplaza a "mes vencido". *(Hoy el cálculo está fijo en mes calendario aunque el parámetro diga otra cosa; se corrige en C3.)* |
 | **Extensión** | *(se construye en C3)* | Sumar horas a una membresía ya vendida, dentro de los márgenes que fija su plan; lo adicional se cobra a precio de lista o con recargo, según el plan, con su propia cuota. |
@@ -344,6 +344,22 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
    *Costó una vez: la sesión en la nube no podía ver el `stash` de la carpeta
    de Javier, y ese stash tenía trabajo sin commitear que la mudanza del repo
    habría borrado sin que nadie se enterara.*
+   **Javier no programa: solo actualiza y prueba.** Cuando una sesión en la
+   nube pushea a una rama que él va a mirar en su local, el cierre de esa
+   respuesta **siempre** trae el comando exacto (`git fetch origin <rama> &&
+   git pull origin <rama>`, o el que corresponda si la rama recién se crea) y,
+   si hay código nuevo (no solo docs), el recordatorio de `npm run
+   dev:limpio`. No hace falta que él lo pida cada vez — pedirle que adivine el
+   comando es exactamente el tipo de trabajo que le toca a esta sesión, no a
+   él (mismo espíritu que la regla de proceso 10). *(Javier, 2026-09-26: "yo
+   no hago ningún cambio, solo necesito actualizar lo tuyo en local".)*
+   **Todo cierre de hito actualiza el bloque "Dónde retomar"** (arriba de
+   `DECISIONES.md` §4) en el mismo commit de cierre: rama activa, último
+   commit, qué sigue y el comando exacto para adelantar la rama designada de
+   la sesión siguiente. Una sesión nueva lo lee **antes** de mirar ramas —
+   así no repite el trabajo de averiguar dónde quedó el hito anterior.
+   *(Javier, 2026-09-26: pedido explícito, para no perder tokens
+   analizándolo al abrir la sesión de H4.)*
 10. **Toda decisión postergada vive en `docs/DECISIONES.md` con su disparador**
    (cuándo conviene hacerla, qué la vuelve urgente). **Todo plan que se le
    proponga a Javier abre mostrando el backlog** de decisiones postergadas que
@@ -360,15 +376,37 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
     porque no existía uno propio. Un asistente con permiso de `cursos` veía
     Planes sin que hubiera forma de evitarlo — encontrado por Javier ya con el
     asistente operando la aplicación, 2026-09-16.*
-12. **Toda notificación que entrega una pantalla lleva su mecanismo de
-    copiar, para poder mandarla al cliente.** Vale para cualquier aviso que
-    nombre a una persona y algo que le pasó o le va a pasar (una clase
-    suspendida, un cobro, un vencimiento) — no para los banners de éxito
-    genéricos que no hablan de nadie en particular. Sin envío automático
-    todavía, el mínimo es poder copiar el texto ya armado en vez de tener que
-    redactarlo a mano por cada persona.
-    *(Javier, 2026-09-16, al construir el aviso de C5.)* La revisión retroactiva
-    de las pantallas existentes con notificación queda en `ROADMAP.md` (R21).
+12. **Toda notificación que entrega una pantalla se puede mandar por WhatsApp
+    en un clic, y también copiar.** Vale para cualquier aviso que nombre a una
+    persona y algo que le pasó o le va a pasar (una clase suspendida, un cobro,
+    un vencimiento) — no para los banners de éxito genéricos que no hablan de
+    nadie en particular. Mientras no exista el módulo de notificaciones
+    multicanal, el mínimo dejó de ser copiar el texto: es un botón que abre
+    WhatsApp con el mensaje ya escrito, dirigido al número del contacto —
+    "Copiar" queda como respaldo. La pieza es `src/components/AvisoWhatsapp.tsx`
+    (regla de proceso 4): recibe nombre, WhatsApp y mensaje, y si el número no
+    está en formato internacional deja el botón deshabilitado con la
+    explicación (calidad 5), nunca lo esconde. A un alumno menor el aviso le
+    llega a su tutor, que es quien lo identifica.
+    **El botón intenta primero la aplicación del dispositivo, no la web**
+    (Javier, 2026-09-26): antes iba directo a `wa.me`, que es la propia
+    página de WhatsApp la que pregunta si se sigue ahí o se pasa a la
+    aplicación — un paso de más. `abrirWhatsapp` (`src/lib/
+    whatsappCliente.ts`) navega primero al esquema `whatsapp://` (que abre
+    la app de escritorio o del teléfono directo, sin pasar por esa página) y
+    si nada la atiende — no hay forma de saber de antemano si está instalada
+    — recién ahí abre `wa.me` como respaldo, mejor esfuerzo con un margen
+    corto. `urlChatWhatsapp` (el link web) y `urlAppWhatsapp` (el esquema
+    `whatsapp://`), las dos en `src/lib/contactos.ts`, comparten la misma
+    validación de formato. La misma pieza gobierna los tres lugares que
+    abren un chat — `AvisoWhatsapp`, y los dos enlaces de número que
+    aparecen sueltos en las fichas (`EnlaceWhatsapp`, `AbrirChatWhatsapp`,
+    en `src/components/entidades/`) — para no dejar dos comportamientos
+    distintos con el mismo botón.
+    *(Javier, 2026-09-16, al construir el aviso de C5; ampliado a WhatsApp en
+    un clic el 2026-09-25, al construir C3 H2 — la venta de particulares.)* La
+    revisión retroactiva de las pantallas existentes con notificación queda en
+    `ROADMAP.md` (R21).
 
 ## 4. Calidad del código
 
@@ -451,6 +489,27 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
    *Costó dos veces el mismo día (Inscribir y Cuenta del alumno,
    2026-09-24): cada pantalla tenía su contenedor y algunas se centraban
    solas. Javier: "estandarizar que siempre se comporten igual".*
+9. **Ningún botón de guardar se puede apretar con un dato obligatorio sin
+   cargar.** El servidor siempre valida (regla de calidad 1), pero **el
+   botón además queda deshabilitado** mientras falte algo — no alcanza con
+   que el clic muestre el error recién después: eso dejaba que Jhonny
+   vendiera una particular sin elegir sala, o guardara una plantilla sin
+   estilo ni forma de pago, y se enterara del error con el formulario ya
+   armado. La validación **es una sola función pura**, compartida por el
+   cliente (para deshabilitar y decir qué falta) y el servidor (para
+   decidir) — nunca dos copias de la misma regla que puedan desalinearse.
+   Ejemplos ya hechos así: `puedeConfirmar` en `ClienteInscribir.tsx`,
+   `puedeVender` en `inscribir/VenderParticular.tsx` (con `validarReservaSala`
+   corriendo también del lado servidor) y `puedeGuardar` en
+   `planes/ClientePlanes.tsx` (con `validarDatosPlan`, en `src/lib/planes.ts`,
+   importada tal cual por `planes/acciones.ts`).
+   *Costó en C3 H1 y H2 (2026-09-26): las dos pantallas nuevas dejaban
+   apretar "Vender"/"Crear plan" con la sala, el profesor o el estilo sin
+   elegir, y el error recién aparecía después del clic. Javier: "todas las
+   pantallas creadas en H1 y H2 deben tener los datos completos antes de
+   guardar... debe ser una regla siempre, antes lo hacías, ahora has
+   relajado la calidad." Corregido el mismo día; queda como regla general,
+   no solo para esas dos pantallas.*
 
 ## 5. Controles
 

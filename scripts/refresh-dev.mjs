@@ -45,14 +45,33 @@ const ORDEN = [
   "contacto_redes",
   "consentimientos",
   "profesor_estilos",
+  // Sala (0035+) y sus dependientes (C3 H1/H2): salas es independiente;
+  // tarifas_particular depende de estilos; plan_salas/membresia_salas de
+  // planes|membresias + salas. Sin estas filas, el truncate ... cascade de
+  // mas abajo las vacia igual (por las FK) pero nunca se reponen, porque
+  // no estaban en este ORDEN -- el sintoma era perder tarifas_particular,
+  // plan_salas y los bloqueos de reservas_sala en cada refresh (hallazgo
+  // medido en 0053).
+  "salas",
+  "tarifas_particular",
   "cursos",
   "curso_tarifas",
   "planes",
   "plan_cursos",
+  "plan_salas",
   "asignaciones",
   "descuentos_adelanto",
   "membresias",
   "membresia_cursos",
+  "membresia_salas",
+  "membresia_asistentes",
+  // Antes de comisiones_devengadas: su reserva_sala_id le apunta.
+  "alquileres_sala",
+  "reservas_sala",
+  // Depende de reservas_sala (0054, C3 H3): el rastro de cada cambio de
+  // estado. Mismo hallazgo que el de arriba (0053): sin entrar acá, el
+  // truncate ... cascade la vacía igual pero nunca se repone.
+  "reservas_historial",
   "cuotas",
   "sesiones",
   "asistencias",

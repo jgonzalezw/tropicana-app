@@ -1,4 +1,7 @@
-import { normalizarWhatsapp, urlChatWhatsapp } from "@/lib/contactos";
+"use client";
+
+import { normalizarWhatsapp, urlChatWhatsapp, urlAppWhatsapp } from "@/lib/contactos";
+import { abrirWhatsapp } from "@/lib/whatsappCliente";
 import IconoRed from "./IconoRed";
 
 /**
@@ -8,7 +11,9 @@ import IconoRed from "./IconoRed";
  * ficha de alumno (adulto y tutor) y de profesor.
  */
 export default function AbrirChatWhatsapp({ numero }: { numero: string }) {
-  const url = urlChatWhatsapp(normalizarWhatsapp(numero));
+  const numeroNormalizado = normalizarWhatsapp(numero);
+  const url = urlChatWhatsapp(numeroNormalizado);
+  const urlApp = urlAppWhatsapp(numeroNormalizado);
   if (!url) return null;
   return (
     <a
@@ -16,6 +21,10 @@ export default function AbrirChatWhatsapp({ numero }: { numero: string }) {
       target="_blank"
       rel="noopener noreferrer"
       className="mt-1.5 inline-flex items-center gap-1 text-sm text-[var(--primario)] hover:underline"
+      onClick={(e) => {
+        e.preventDefault();
+        abrirWhatsapp(urlApp, url);
+      }}
     >
       <IconoRed red="whatsapp" nombre="WhatsApp" className="w-3.5 h-3.5" />
       Abrir chat ↗

@@ -138,7 +138,7 @@ export async function guardarPrecios(c: CambiosPrecios): Promise<Resultado> {
     // llamador ya lo sabe (se lo dice la pantalla), pero el servidor es el que
     // valida: la lista ayuda, no decide.
     const { count } = await a
-      .from("paquetes_particular")
+      .from("membresias")
       .select("id", { count: "exact", head: true })
       .eq("tarifa_particular_id", id);
     if ((count ?? 0) > 0) {

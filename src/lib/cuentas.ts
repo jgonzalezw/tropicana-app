@@ -8,7 +8,7 @@ import {
 import { fechaClaseN, gs } from "@/lib/inscripcion";
 import { obtenerParametro } from "@/lib/sesion";
 import type { CuotaCuenta, EntradaCobro, EstadoCuenta, MembresiaCuenta, PagoCuenta } from "@/lib/tipos";
-import type { LineaPendiente } from "@/lib/caja";
+import type { Bucket, LineaPendiente } from "@/lib/caja";
 import { exigir } from "@/lib/datos";
 import { saldoDeReemplazos, type ClaseReemplazo } from "@/lib/liquidacion/reemplazos";
 
@@ -375,7 +375,7 @@ export async function lineasPorCobrar(
     .select(
       "id, membresia_id, monto_devengado, descuento_adelanto, vencimiento, fecha_compromiso, " +
         "inscripcion:membresias(id, alumno_id, alumno:alumnos(id, contacto:contactos(nombre, apellido)), " +
-        "plan:planes(nombre), curso:cursos(nombre))"
+        "plan:planes(nombre, tipo_servicio), curso:cursos(nombre))"
     )
     .neq("estado", "pagada");
 
@@ -390,7 +390,7 @@ export async function lineasPorCobrar(
       id: number;
       alumno_id: number;
       alumno: { id: number; contacto: { nombre: string | null; apellido: string | null } | null } | null;
-      plan: { nombre: string } | null;
+      plan: { nombre: string; tipo_servicio: string } | null;
       curso: { nombre: string } | null;
     } | null;
   };
@@ -413,9 +413,13 @@ export async function lineasPorCobrar(
     .map((f) => {
       const al = f.inscripcion!.alumno!;
       const servicio = f.inscripcion!.plan?.nombre ?? f.inscripcion!.curso?.nombre ?? "Membresía";
+      // Una membresía de particulares no tiene curso (H2): el bucket y el
+      // motivo sugerido siguen el tipo de servicio del plan, no "membresía".
+      const esParticular = f.inscripcion!.plan?.tipo_servicio === "particular";
+      const bucket: Bucket = esParticular ? "particulares" : "cuotas";
       return {
         clave: `cuota:${f.id}`,
-        bucket: "cuotas" as const,
+        bucket,
         cuotaId: f.id,
         sujetoTipo: "alumno" as const,
         sujetoId: al.id,
@@ -425,7 +429,7 @@ export async function lineasPorCobrar(
         // Si se pactó una fecha de compromiso, esa manda sobre el vencimiento
         // original: es la que la escuela acordó con el alumno.
         fechaLimite: f.fecha_compromiso ?? f.vencimiento,
-        motivoSugerido: "membresia",
+        motivoSugerido: esParticular ? "clase_particular" : "membresia",
       };
     })
     .filter((l) => l.saldo > 0)

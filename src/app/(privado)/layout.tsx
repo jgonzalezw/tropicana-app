@@ -57,6 +57,7 @@ export default async function LayoutPrivado({
     puedeLiquidaciones,
     puedePrecios,
     puedeSala,
+    puedeParticulares,
     temas,
   ] = await Promise.all([
     tienePermiso("usuarios", "ver"),
@@ -73,6 +74,7 @@ export default async function LayoutPrivado({
     tienePermiso("liquidaciones", "ver"),
     tienePermiso("precios", "ver"),
     tienePermiso("sala", "ver"),
+    tienePermiso("particulares", "ver"),
     obtenerTemas(),
   ]);
 
@@ -92,6 +94,7 @@ export default async function LayoutPrivado({
         puedeLiquidaciones={puedeLiquidaciones}
         puedePrecios={puedePrecios}
         puedeSala={puedeSala}
+        puedeParticulares={puedeParticulares}
         temas={temas.map((t) => ({ clave: t.clave, nombre: t.nombre }))}
         temaActual={perfil.tema ?? TEMA_DEFECTO}
         infoRelease={obtenerInfoRelease()}

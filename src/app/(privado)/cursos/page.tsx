@@ -31,6 +31,7 @@ export default async function PaginaCursos() {
         .from("salas")
         .select("id, nombre")
         .eq("activa", true)
+        .eq("es_externa", false)
         .order("orden")
         .order("id")
         .then((r) => exigir(r, "las salas")),

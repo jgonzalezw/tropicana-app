@@ -59,6 +59,14 @@ export function etiquetaDuracion(duracionMin: number | null | undefined): string
   return m === 0 ? `${h} h` : `${h} h ${m}`;
 }
 
+/** "8", "7.5", "0.5" — el saldo de un paquete se expone SIEMPRE en horas,
+ *  nunca en minutos (pedido de Javier, 26/09): entero si no tiene fracción,
+ *  con el mínimo de decimales si tiene (hasta 2 — el incremento estándar
+ *  nunca pide más). Recibe HORAS, no minutos: convertir antes de llamarla. */
+export function formatearHoras(horas: number): string {
+  return horas.toFixed(2).replace(/\.?0+$/, "");
+}
+
 /** ¿`min` es un múltiplo positivo de `incrementoMin`? El criterio único de
  *  incrementos (ítem 3, Javier 2026-09-16): duración de curso, horario de
  *  sala y —en adelante— uso de paquetes se cargan en el mismo paso. */
@@ -79,6 +87,27 @@ export function opcionesDuracion(incrementoMin: number, minimoMin: number, topeM
   const out: number[] = [];
   for (let m = piso; m <= topeMin; m += paso) out.push(m);
   return out.length ? out : [piso];
+}
+
+/**
+ * Duraciones elegibles para una **reserva** (particular, alquiler, bloqueo):
+ * múltiplos de la duración mínima, nunca menos que ella. Regla distinta a la
+ * de los cursos (`opcionesDuracion`): en una reserva el intervalo estándar
+ * gobierna la **hora de inicio**, y la duración va en bloques del mínimo
+ * (Javier, 2026-09-26: "solo se debe poder reservar para duraciones múltiplos
+ * del mínimo… el parámetro de los intervalos es para la hora de inicio").
+ */
+export function opcionesDuracionReserva(minimoMin: number, topeMin = 240): number[] {
+  const paso = minimoMin > 0 ? minimoMin : 60;
+  const out: number[] = [];
+  for (let m = paso; m <= topeMin; m += paso) out.push(m);
+  return out.length ? out : [paso];
+}
+
+/** ¿La hora empieza en un múltiplo del intervalo estándar? ("18:30" con 30 → sí). */
+export function horaAlineada(hora: string, incrementoMin: number): boolean {
+  const m = aMinutos(hora);
+  return m != null && incrementoMin > 0 && m % incrementoMin === 0;
 }
 
 /**

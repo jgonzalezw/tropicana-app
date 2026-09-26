@@ -174,18 +174,52 @@ export function urlPerfilRed(patron: string | null, red: string, usuario: string
 }
 
 /**
- * El link para abrir un chat de WhatsApp (`wa.me`). Solo si el número está
- * en formato internacional reconocido (`+591...` u otro `+<país>`): un
- * número crudo de los que marca el control 23 (9 u 11 dígitos sin `+`) no
- * alcanza para armar el link sin inventarle el país (regla de calidad 1).
+ * Los dígitos de un WhatsApp, listos para wa.me o el esquema `whatsapp://`
+ * — los dos entienden el mismo formato (código de país + número, sin `+`).
+ * `null` si el número no está en formato internacional reconocido
+ * (`+591...` u otro `+<país>`): uno crudo de los que marca el control 23 (9
+ * u 11 dígitos sin `+`) no alcanza para armar ningún link sin inventarle el
+ * país (regla de calidad 1).
  */
-export function urlChatWhatsapp(numero: string | null | undefined, texto?: string): string | null {
+function digitosWhatsapp(numero: string | null | undefined): string | null {
   const n = (numero ?? "").trim();
   if (!n.startsWith("+")) return null;
   const digitos = soloDigitos(n);
-  if (digitos.length < 8) return null;
+  return digitos.length >= 8 ? digitos : null;
+}
+
+/**
+ * El link para abrir un chat de WhatsApp en la web (`wa.me`). Es el
+ * respaldo de `urlAppWhatsapp` — el que de verdad funciona en cualquier
+ * dispositivo, con o sin la aplicación instalada — y el que queda en el
+ * `href` del botón para que un clic con el mouse (nueva pestaña, copiar
+ * link) siga sirviendo aunque el intento de abrir la app no pueda
+ * interceptarse.
+ */
+export function urlChatWhatsapp(numero: string | null | undefined, texto?: string): string | null {
+  const digitos = digitosWhatsapp(numero);
+  if (!digitos) return null;
   const query = texto?.trim() ? `?text=${encodeURIComponent(texto.trim())}` : "";
   return `https://wa.me/${digitos}${query}`;
+}
+
+/**
+ * El link que abre la aplicación de WhatsApp del dispositivo directo — de
+ * escritorio o del teléfono, las dos la registran como manejador del
+ * esquema `whatsapp:` al instalarse —, sin pasar por la página de wa.me a
+ * preguntar. Se usa junto con `urlChatWhatsapp` a través de
+ * `abrirWhatsapp` (`src/lib/whatsappCliente.ts`): éste primero, y si la
+ * aplicación no está instalada, ese como respaldo automático. Nunca se usa
+ * solo, porque sin la app no hace nada — no hay forma de detectarlo antes
+ * de intentarlo (Javier, 2026-09-26: *"que primero intente abrir la
+ * aplicación de whatsapp y en caso de no encontrarla recién abra en la
+ * web"*).
+ */
+export function urlAppWhatsapp(numero: string | null | undefined, texto?: string): string | null {
+  const digitos = digitosWhatsapp(numero);
+  if (!digitos) return null;
+  const query = texto?.trim() ? `&text=${encodeURIComponent(texto.trim())}` : "";
+  return `whatsapp://send?phone=${digitos}${query}`;
 }
 
 /** Edad en años cumplidos a hoy, a partir de una fecha ISO (YYYY-MM-DD). */

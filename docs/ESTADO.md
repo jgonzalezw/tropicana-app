@@ -13,7 +13,26 @@
 > vive en las tablas (§0bis, la cola C1→C5), en `DECISIONES.md` (decisiones y
 > registro de pases) y en `ROADMAP.md` (trabajo pendiente).
 >
-> **Última actualización:** 2026-09-25 — **C3 redefinido: definiciones v2 de
+> **Última actualización:** 2026-09-26 — **C3, hito H2 (vender un plan de
+> particulares) construido y validado en dev, con datos reales.** Migración
+> `0053` (sobre la 0052 de H1, que se acumula con este pase): la primera
+> reserva es real (ocupa sala y profesor, validada) y con agenda fija se
+> genera el calendario completo al vender. Pestaña "Clase particular" en
+> Inscribir y cobrar, con `AvisoWhatsapp` — nueva pieza reutilizable que
+> manda la confirmación por WhatsApp en un clic (pedido de Javier, ver
+> `REGLAS.md` proceso 12), adoptada también por el aviso de excepciones de
+> sala. D5 (motivo del cobro) queda cerrada para particulares; D9 (tarjeta
+> específica) resuelta para este caso. Detalle al final de este documento,
+> sección "C3 — H2: vender un plan de particulares". **En producción desde
+> el 2026-09-26**, junto con H1 y H3.
+>
+> **2026-09-25 (antes)** — **C3, hito H1 (plantillas de plan de
+> particulares) construido y validado en dev por Javier.** Migración `0052`,
+> pestaña de particulares en Planes, tarifas del profesor agrupadas y
+> renombradas tras la validación. Detalle al final de este documento, sección
+> "C3 — H1: plantillas de plan de particulares".
+>
+> **2026-09-25 (antes)** — **C3 redefinido: definiciones v2 de
 > Natalia, contraste con el repo y plan en nueve hitos. Sin construir.**
 > Javier trajo las definiciones cerradas con Natalia el 25/09
 > (`docs/relevamientos/2026-09-25-C3-definiciones-v2.md`), que reemplazan al
@@ -2245,7 +2264,7 @@ habría que desacoplarla después.
 | --- | --- | --- |
 | **C1** | **Horario base de la sala**: patrón semanal de apertura + excepciones por rango de fechas. Es el lienzo — fuera de él no se puede reservar. **Vacío significa cerrado, no abierto** (confirmado por Javier): si valiera "24 h", olvidarse de configurarlo produce justo el bug que C1 evita | ✅ **CERRADO y validado en dev por Javier** (2026-09-12). Migraciones **0036** y **0037**. Javier cargó el horario real de Tropicana |
 | **C2** | Disponibilidad + reserva mínima: validar contra horario base + cursos + otras reservas, y **lista textual** de lo ocupado ese día (*"Lu 15: ocupado 9-10, 11-12:30; resto libre"*). **Sin grilla visual todavía** — 80% del beneficio, 20% del costo | ✅ **EN PRODUCCIÓN desde el 2026-09-17.** Pantalla operativa propia (`/sala`, grupo Gestión), separada de Administración → Sala y horarios. Solo bloqueos (D7) — sin C3 todavía no hay otra reserva posible |
-| **C3** | Venta de particulares/alquiler apoyada en la disponibilidad. **Redefinido el 2026-09-25** por las definiciones v2 de Natalia: todo por plan, particulares + alquiler + talleres, reservas con 7 estados, cinco criterios de liquidación | **Lo siguiente; plan H1–H9 propuesto, sin construir, esperando el OK de Javier** (`docs/relevamientos/2026-09-25-C3-plan-construccion.md`). Su prerrequisito C3-0a (contactos + matriz de mínimos) está **en producción desde el 2026-09-24**. C3-0b (captación pública) espera a C3 |
+| **C3** | Venta de particulares/alquiler apoyada en la disponibilidad. **Redefinido el 2026-09-25** por las definiciones v2 de Natalia: todo por plan, particulares + alquiler + talleres, reservas con 7 estados, cinco criterios de liquidación | 🟡 **H1+H2+H3 en producción desde el 2026-09-26** (plantillas, venta y reservas de particulares; `docs/relevamientos/2026-09-25-C3-plan-construccion.md`). Falta H4–H9. Su prerrequisito C3-0a (contactos + matriz de mínimos) está en producción desde el 2026-09-24. C3-0b (captación pública) espera a C3 |
 | **C4** | Agenda visual (grilla día/semana/mes). **Pasa por Claude Design** | Pendiente, después de C3 → `ROADMAP.md` R2 |
 | **C5** | Conflicto bloqueo-vs-agendado: el sistema junta los conflictos y **el humano decide**, nunca cancelación automática silenciosa | 🟡 **A medias.** Lado cursos regulares **en producción desde el 2026-09-16** (un cierre de sala avisa, pide confirmación y suspende; ver el bloque "C5 (lado de cursos regulares)"). **Falta el lado reservas**: `calcularImpacto` no mira `reservas_sala`, y el hueco ya existe hoy con los bloqueos de C2 → `ROADMAP.md` R1 y R22 |
 
@@ -3447,3 +3466,696 @@ pendientes"*). Orden seguido (regla de proceso, §3 de `DECISIONES.md`):
 **En producción.** Migración `0047_d1_membresias.sql` aplicada en las dos
 bases. Código en `main`, commit `574636c`. Control 15 pasa a **OK** en las dos
 bases — D1 y D3 quedan cerradas en `DECISIONES.md`.
+
+## C3 — H1: plantillas de plan de particulares · 2026-09-25 (dev)
+
+Primer hito del plan de nueve (`docs/relevamientos/2026-09-25-C3-plan-construccion.md`).
+Abre la pantalla de Planes a `tipo_servicio`, con una pestaña y un formulario
+propios para clases particulares — el resto de la venta (H2) y la liquidación
+(H5) siguen sin construirse; este hito es solo la **plantilla**.
+
+### Qué se construyó
+
+- **Migración `0052_plantillas_particulares.sql`** (aditiva, aplicada en dev):
+  - `planes` gana `estilo`, `vigencia_dias`, `reserva_modalidad` (fija/
+    flexible), `salas_modo` + `plan_salas` (mismo patrón que `plan_cursos`),
+    `forma_pago_profesor` (fee_hora/pct_margen/monto_fijo) + `pago_pct_margen`
+    + `pago_descuenta_sala` + `pago_monto_fijo`, `extension_modo` (lista/
+    recargo) + `extension_recargo_pct`, y `registra_acompanantes`. Dos checks
+    de coherencia (`planes_forma_pago_coherente`, `planes_extension_coherente`)
+    exigen el dato que cada modo realmente usa.
+  - `criterio_liquidacion` pasa de 1-4 a **1-5** (`planes` y
+    `comisiones_devengadas`), con un check nuevo que ata el 4 y el 5 a
+    `tipo_servicio='taller'` (`planes_criterio_taller_check`).
+  - `profesores.fee_hora`. `comision_particular_pct` queda **OBSOLETA**
+    (comentario en la columna): se midió 0 usos en `src/` antes de tocarla.
+  - Parámetros nuevos: `categoria_gracia_dias` (7) y
+    `reserva_cancelacion_plazo_horas` (8), sembrados ahora aunque H3/H7 recién
+    los vayan a leer (calidad 7). `vencimiento_paquete_meses` **ya existía**
+    (0048, sin uso) y es la vigencia default que pedía el hito — no se creó
+    una segunda para lo mismo.
+  - **"Horas y tramos desde `tarifas_particular`"**: esa tabla no se tocó. La
+    plantilla solo fija el `estilo`; qué tramos ofrece se resuelve leyendo
+    `tarifas_particular` por ese estilo al vender (H2).
+- **`src/lib/planesParticular.ts`**: `vigenciaDiasEfectiva` y
+  `validarPlanParticular`, con 11 pruebas (`planesParticular.test.ts`).
+- **`planes/acciones.ts`**: `validar()` ahora bifurca por `tipo_servicio`
+  (curso regular vs. particular) y valida el criterio 4/5 contra taller;
+  `crearPlan`/`actualizarPlan` guardan las columnas nuevas
+  (`camposParticular`, neutras en cualquier otro tipo) y sincronizan
+  `plan_salas` (`guardarSalas`, igual patrón que `guardarCursos`).
+  `tipo_servicio` se fija al crear y no se reedita.
+- **`planes/page.tsx` + `ClientePlanes.tsx`**: pestañas por tipo de servicio
+  (Cursos regulares · Clases particulares · Alquiler de salas · Talleres).
+  Alquiler y Talleres muestran un panel explicando que se construyen en H7/H8
+  (calidad 5: la capacidad que falta se explica, no desaparece) — no hay
+  campo `tipo_servicio='servicio_especial'` en la base todavía, por eso no
+  tienen pestaña. El formulario de particulares cubre estilo, vigencia,
+  modalidad de reserva, salas permitidas, forma de pago al profesor,
+  criterio (acotado a 1-3 en la UI), reglas de extensión y la política de
+  asistentes del grupo (7.4: nunca afecta la liquidación).
+- **Ficha de profesor** (`EntidadProfesor.tsx` + `profesores/acciones.ts`):
+  campo "Fee por hora (clases particulares)", mismo patrón que la tarifa de
+  reemplazante.
+- **`scripts/control_migracion.sql`**: controles 28 y 29 (plan de
+  particulares activo sin estilo / sin forma de pago al profesor).
+
+### Verificado en dev
+
+- Migración aplicada contra `tropicana-dev`; `get_advisors` sin hallazgos
+  nuevos atribuibles a la 0052.
+- Controles 28 y 29 corridos contra dev: **OK** (0 planes de particulares
+  todavía, es la condición inicial esperada).
+- `npx tsc --noEmit`: limpio (los dos errores que aparecen son preexistentes
+  y no tocados por este hito — `ClienteCatalogos.tsx` sin tipos de React
+  instalados de fábrica en el contenedor, y `layout.tsx` con `LayoutProps`).
+- `npx eslint` sobre los archivos tocados: limpio.
+- `npm test`: **88/88** en verde (11 nuevas de `planesParticular.test.ts`).
+- `npx next build`: compila y genera las 21 rutas sin error.
+
+### Lo que esta sesión en la nube no pudo verificar sola, y por qué
+
+Contra lo que decía `docs/ENTORNOS_CLAUDE.md` ("`npm run dev` — solo en el
+local"), este contenedor en la nube **sí tenía** las variables de Supabase de
+dev cargadas (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
+`SUPABASE_SERVICE_ROLE_KEY`) y pudo levantar el server: `/login` dio 200,
+`/planes` sin sesión redirigió (307) — el server y la conexión a Supabase
+andaban bien. Lo que faltó fue el **login**: existe una cuenta de prueba
+(`qa-cloud@tropicana.local`, Administrador) pensada justo para esto, pero
+resetearle la contraseña con la `service_role` key lo bloqueó el clasificador
+de permisos de la sesión (escritura en el secret store, aun en dev). La
+sesión no insistió por otra vía. Javier guardó la contraseña como variable de
+entorno del entorno en la nube (`QA_CLOUD_PASSWORD`) para que una **sesión
+nueva** pueda loguearse y validar sola de acá en adelante — no es automático:
+esta sesión, con el contenedor ya corriendo desde antes, no la toma en
+caliente, hace falta un contenedor nuevo. Este hito, mientras tanto, lo
+validó **Javier a mano**: levantó su propio server local
+(`npm run dev:limpio`, con su `.env.local`) y probó ahí, no en el server de
+la nube.
+
+### Validado por Javier en dev local (25/09)
+
+1. **Creación de planes de particulares con distintas combinaciones: OK.**
+2. **Ficha de profesor**: apareció el campo nuevo, OK — pero pidió
+   estandarizar el rótulo: "Tarifa por clase como reemplazante" y "Fee por
+   hora (clases particulares)" quedaban sueltos y con nombres distintos entre
+   sí. Se agruparon bajo **"Tarifas del profesor"**, con etiquetas cortas y
+   paralelas: **"Por clase (como reemplazante)"** / **"Por hora (clases
+   particulares)"**, en la vista y en la edición. Commit `ecb8566`, mismos
+   controles (`tsc`, `eslint`, `npm test` 88/88) en verde.
+3. El resto, OK.
+
+### Estado
+
+**Construido, validado en dev por Javier y en producción desde el
+2026-09-26**, junto con H2 y H3 (regla de proceso 1). `docs/relevamientos/
+2026-09-25-C3-plan-construccion.md` (fila H1) y `DECISIONES.md` (D11) quedan
+anotados con este avance.
+
+## C3 — H2: vender un plan de particulares · 2026-09-26 (dev)
+
+Segundo hito del plan de nueve. Un plan de particulares (H1) se puede
+**vender**: se elige la plantilla, se personaliza y se crean la membresía, la
+cuota, el cobro y la **primera reserva real** — ocupa sala y profesor,
+validada, con el estado `reservada` que ya existía (decisión de Javier,
+25/09: H3 recién trae los 7 estados). Con agenda **fija** se genera el
+calendario completo al vender; con **flexible**, solo la primera clase.
+
+### Hallazgo que cambió el plan escrito
+
+`reservas_sala` exigía `paquete_particular_id` cuando `tipo='particular'`, y
+H2 elimina `paquetes_particular` — no se podía dejar la migración de
+`reservas_sala` para H3 como decía el plan original. Se resolvió en la misma
+0053: `reservas_sala` pasa a colgar de `membresia_id` (o `alquiler_id`, hasta
+H7, o `motivo` para bloqueos), con `profesor_id` y `ocupa_sala` (para que la
+sala externa nunca choque) traídos de H3 adelantados.
+
+### Qué se construyó
+
+- **Migración `0053_venta_particulares.sql`** (aditiva, aplicada en dev):
+  - `membresias.contacto_id` (rellenado desde `alumnos.contacto_id`, NOT
+    NULL — el titular es un contacto, regla 21), `curso_id` pasa a nullable
+    (una particular no tiene curso, tiene horas), y el snapshot de la venta:
+    `horas_contratadas`, `tarifa_particular_id`, `profesor_id`,
+    `forma_pago_profesor`/`pago_*`, `fee_hora_aplicado` (regla 12: editar el
+    plan o al profesor después no reescribe lo vendido). Check
+    `membresias_curso_o_horas`; `membresias_acompanantes_valido` se relaja
+    para admitir acompañantes también sin curso.
+  - `membresia_asistentes` (asistentes con identidad, regla 21) — creada,
+    todavía sin UI: v1 deja los acompañantes como contador
+    (`membresias.acompanantes`), igual que la prueba grupal.
+  - `salas.es_externa` + `capacidad`, con una sala externa genérica
+    sembrada; `membresia_salas` (sala + nombre descriptivo, obligatorio en
+    la externa por trigger, porque un check de columna no puede mirar otra
+    tabla).
+  - `reservas_sala`: `membresia_id`, `profesor_id`, `ocupa_sala` (trigger
+    desde `salas.es_externa`); se saca `paquete_particular_id`; el check y
+    el EXCLUDE se reescriben (ver hallazgo arriba).
+  - Se elimina `paquetes_particular` (0 filas, medido antes) y
+    `comisiones_devengadas.paquete_particular_id` (0 usos en `src/`).
+  - Sin hallazgos nuevos en `get_advisors` — los dos triggers nuevos llevan
+    `set search_path = public` desde el vamos.
+- **`src/lib/reservas.ts`** (nuevo, puro): `validarReservaSala` —extraída de
+  `crearBloqueoSala`, que pasa a llamarla— valida horario de sala, choque de
+  sala, capacidad y choque del profesor (contra sus cursos y sus reservas).
+  Con sala externa se saltea todo lo de sala, nunca el choque del profesor.
+  13 pruebas nuevas. `sala.ts` pasó sus imports internos de alias a
+  relativos con extensión, porque era el único módulo de `src/lib` que
+  ningún test podía importar (Node exige extensión explícita para imports
+  de valor bajo `--experimental-strip-types`; sin este cambio no había forma
+  de testear nada que dependiera de él).
+- **`src/components/AvisoWhatsapp.tsx`** (nuevo, reutilizable): pedido de
+  Javier el mismo día — mientras no exista el módulo de notificaciones
+  multicanal, toda confirmación se manda por WhatsApp en un clic (`wa.me`
+  con el mensaje ya escrito), con "Copiar" de respaldo; sin WhatsApp en
+  formato internacional el botón queda deshabilitado con la explicación, no
+  desaparece. Ver `REGLAS.md`, proceso 12. El aviso de excepciones de sala
+  (C2) pasa a montar esta misma pieza en vez de su bloque propio.
+- **`inscribir/acciones.ts`: `venderParticular`.** Valida **todas** las
+  sesiones de la venta antes de grabar nada (si alguna choca, no se graba
+  ninguna); crea la membresía, `membresia_salas`, la cuota, el pago con
+  motivo `clase_particular` (D5, cerrado para particulares) y las reservas.
+  Si es menor, el aviso va al tutor.
+- **`inscribir/VenderParticular.tsx`** + pestaña nueva "Clase particular" en
+  `MostradorVenta.tsx` (gateada por el permiso `particulares`, que ya
+  existía sin pantalla): titular con `EntidadAlumno` (mismo camino que
+  cualquier otra venta — el rol alumno se adquiere al elegirlo o crearlo),
+  plantilla, tramo de horas, profesor, sala (propia permitida por la
+  plantilla, o externa con nombre), agenda y `Cobro`. La confirmación (D9,
+  resuelto para este caso) muestra dos `AvisoWhatsapp` — al titular y al
+  profesor.
+- **`scripts/control_migracion.sql`**: controles 30 (particular sin horas,
+  profesor o contacto), 31 (particular activa sin ninguna reserva) y 32
+  (reserva que ocupa la externa — tiene que dar siempre 0).
+- **`scripts/refresh-dev.mjs`**: `ORDEN` no traía `salas`, `tarifas_particular`,
+  `plan_salas` ni `reservas_sala` — el `truncate ... cascade` las vaciaba
+  igual por las FK, pero nunca se reponían en cada refresh. Se agregan en el
+  orden de dependencia correcto, junto con `membresia_salas` y
+  `membresia_asistentes`.
+- **Dos regresiones encontradas recorriendo dev con Playwright y
+  corregidas en el mismo pase:**
+  - `/precios` daba 500: leía `paquetes_particular` (recién eliminada) para
+    saber cuántas ventas usan cada tramo. Pasa a medirlo contra
+    `membresias.tarifa_particular_id`.
+  - La sala externa (activa desde que se siembra) aparecía como una más en:
+    asignarle un curso, `plan_salas`, el editor de Administración → Sala
+    (con riesgo de que alguien la desactive o renombre sin saber que es la
+    genérica) y `/sala`. Las cuatro pantallas filtran `es_externa = false`;
+    el guard "tiene que quedar al menos una sala activa" vuelve a mirar solo
+    salas reales, sin tocar su código.
+  - De paso, `lineasPorCobrar` (Caja) sugería motivo `membresia` y bucket
+    `cuotas` para **toda** cuota pendiente, particulares incluidas —
+    `particulares`/`clase_particular` ya existían en `caja.ts` sin uso.
+    Ahora se eligen según `planes.tipo_servicio`.
+
+### Verificado en dev, con datos reales
+
+Recorrido completo en el navegador de este contenedor (`qa-cloud@tropicana.
+local`, con `QA_CLOUD_PASSWORD`), contra `tropicana-dev`:
+
+- **Venta de punta a punta, dos veces**, sobre las plantillas que Javier
+  dejó al validar H1: un particular de bachata flexible (Sala principal,
+  cobro completo en efectivo) y uno de salsa flexible con grupo (Sala
+  alterna, plan `salas_modo='solo'`). Las dos crearon membresía, `membresia_
+  salas`, cuota `pagada`, pago `clase_particular` y la reserva `reservada`
+  — verificado fila por fila en la base, no solo en pantalla.
+  - La **segunda venta**, a propósito con la misma sala/fecha/hora que la
+    primera, fue **rechazada** con el mensaje de choque exacto ("La sala ya
+    está ocupada… choca con Clase particular (16:00 → 16:30)"): la
+    validación funciona de verdad, no solo en las pruebas unitarias.
+  - La confirmación mostró los dos `AvisoWhatsapp` (titular y profesor),
+    con "Enviar por WhatsApp" habilitado — el alumno de prueba tenía
+    WhatsApp en formato internacional.
+- **Controles 30, 31, 32 en OK** contra los datos reales de las dos ventas.
+  Controles 1, 6, 8, 21, 22 (los que tocan `membresias`) siguen en OK.
+- Recorrido de regresión (7 pantallas + las 3 pestañas de `/inscribir`): 0
+  errores de consola, 0 HTTP 5xx, después de corregir las dos regresiones de
+  arriba.
+- `Caja` muestra las dos ventas en "Últimos movimientos" como "Clase
+  particular", no "Membresía". `alumnos/[id]/cuenta` no rompe con una
+  membresía particular, aunque todavía dice "Curso sin determinar" en vez de
+  "N h con [profesor]" — queda como ajuste cosmético pendiente (Design
+  refina), no es un error de datos.
+- `tsc`, `eslint`, `npm test` (101/101) y `next build` limpios en cada
+  commit.
+
+### Lo que queda fuera de v1, a propósito
+
+- **Acompañantes con identidad** (`membresia_asistentes`): la tabla existe,
+  la UI todavía trata al grupo como un contador, igual que la prueba grupal.
+- **Reprogramar o cancelar** una reserva ya creada: es H3 (los 7 estados).
+- **Repartir una misma membresía en varias salas**: v1 pide una sola sala
+  (propia o externa) por venta; la sección 9 de definiciones-v2 lo permite,
+  queda para cuando haga falta un caso real.
+
+### Corrección del 26/09: agenda fija sin sobrante, revisión previa y nombres en `/sala`
+
+Javier probó H2 el mismo día y encontró tres problemas, los tres corregidos
+y verificados en dev antes de seguir:
+
+- **La agenda fija podía reservar más horas de las compradas.** El cálculo
+  de cuántas sesiones hacen falta redondeaba para arriba (`Math.ceil`):
+  con 1 h contratada y clases de 40 min, por ejemplo, daba 1 sesión — bien
+  por casualidad —, pero con otras combinaciones se pasaba del paquete.
+  `calcularAgendaParticular` pasa a `Math.floor` y reporta el sobrante
+  (`leftoverMin`) en vez de agendarlo de más; el modo flexible además
+  rechaza una duración mayor a las horas contratadas. El mensaje de
+  confirmación deja de decir "primera clase + N más" y detalla la agenda
+  completa (fecha y hora de cada sesión), y un rechazo por choque de
+  horario lista **todas** las sesiones que chocan, no solo la primera.
+- **No había cómo ver, antes de vender, cuántas clases quedaron y en qué
+  días.** `VenderParticular` agrega un botón "Revisar disponibilidad" que
+  llama a la nueva `previsualizarParticular` (solo lectura) y muestra, una
+  por una, la fecha, hora y si esa clase choca con la sala, el profesor o
+  el horario — con el motivo exacto de `validarReservaSala`. "Vender" queda
+  deshabilitado hasta que exista una revisión **vigente** (sin errores, sin
+  choques) que calce con la agenda actual: cambiar el día, la hora, la sala
+  o el profesor invalida la revisión anterior y obliga a repetirla, en vez
+  de que el choque aparezca recién al intentar guardar. Ayuda además a
+  elegir sin prueba y error: si hay choques, el mensaje linkea a
+  Disponibilidad de sala para ver qué la ocupa.
+- **La pantalla de disponibilidad de sala decía "Clase particular" en vez de
+  decir quién.** El ticket de color a la izquierda de la hora ya dice el
+  tipo; repetirlo en el texto era ruido, y de paso no dejaba ver a quién
+  correspondía cada reserva sin abrir la membresía. `consultarDisponibilidad`
+  ahora trae el alumno, el profesor y el estilo de cada reserva particular
+  (join a través de `membresias` y `reservas_sala.profesor_id`), y
+  `ocupacionDeReservas` (`src/lib/sala.ts`) pone el nombre del alumno en la
+  línea principal y "profesor · estilo" como aclaración, en el texto más
+  chico que ya usaba el campo `detalle`. Verificado en dev contra las
+  reservas reales de las dos ventas de H2 (Sala principal, 28/09): pasan de
+  "Clase particular" a "Javier Gonzalez Weise / Oscar Nuñez · Bachata" y
+  "Jhonny Cutipa / Inamsai De Dazan · Bachata".
+
+`tsc`, `eslint` y `npm test` (101/101) limpios después de cada cambio; los
+tres puntos recorridos en el navegador de este contenedor con datos reales
+de `tropicana-dev` (capturas y `innerText` de la pantalla, no solo la base).
+
+### Segunda ronda de pruebas, mismo día: saldo en horas y /sala lenta
+
+Javier siguió probando y encontró tres puntos más, dos corregidos y uno
+que queda para C4 (ver más abajo):
+
+- **El saldo del paquete se informaba en minutos, no en horas.** El mensaje
+  de sobrante ("Sobran 420 min de las horas contratadas: no alcanzan para
+  otra clase con esta duración") era además **engañoso en agenda flexible**:
+  ahí el sobrante es el paquete completo menos la primera clase — con 8 h
+  contratadas y 1 h agendada, "sobran" 7 h enteras, que obviamente SÍ
+  alcanzan para otra clase de esa duración; lo que pasa es que H2 no agenda
+  más que la primera en modo flexible (eso es H3). Nuevo `formatearHoras()`
+  (`src/lib/horarios.ts`, con pruebas): entero sin fracción, hasta 2
+  decimales si la tiene, siempre en horas — nunca minutos. El mensaje pasa a
+  **"Quedan 7 de 8 h del paquete sin agendar en esta venta. Se coordinan
+  después."**, sin afirmar una imposibilidad que no es tal. La duración
+  mínima por parámetro **ya se validaba** en las dos puntas (cliente:
+  `opcionesDuracion`; servidor: `validarReservaSala` por sesión) — se
+  verificó, no hizo falta tocar nada.
+- **`/sala` lenta al cambiar de fecha, y por una razón más importante que la
+  performance.** Dos causas: `consultarDisponibilidad` encadenaba hasta 6
+  consultas **secuenciales** (se reordenó en 2 rondas en paralelo — todo lo
+  que no depende de otra consulta va junto, incluida `reservas_sala` y el
+  catálogo `estilos` entero); pero la causa de fondo del síntoma que describió
+  Javier ("se actualizan las fechas y después de segundos recién los
+  detalles") era otra: la pantalla **no avisaba que estaba cargando** al
+  cambiar de fecha — `datos` solo se resetea en el primer render, así que
+  mientras se pedía el día nuevo se seguía mostrando el día ANTERIOR sin
+  ninguna marca, y recién "saltaba" al correcto cuando terminaba el fetch.
+  Eso es la regla de calidad 1 (un dato no se muestra como vigente si no lo
+  es): se agregó "Actualizando…" junto al título y se atenúa la lista
+  mientras espera. Verificado en dev: cada `consultarDisponibilidad` bajó de
+  hasta 6 a 2 round-trips, y el aviso aparece/desaparece correctamente al
+  cambiar de fecha (Playwright, con capturas).
+- **Grilla semanal de slots para elegir la agenda visualmente** ("mostrar la
+  ocupación de la sala... y así elegir de slots disponibles directamente sin
+  hacer prueba y error", punto 3 original de Javier): **es el alcance de C4
+  (agenda visual)**, no un agregado chico a H2/H3. Planteado el trade-off
+  (Code v1 ahora vs. esperar mockup de Design vs. una vista intermedia de
+  solo lectura), **Javier decidió pausarlo y pedir el mockup a Design
+  primero** (26/09) — respeta la decisión ya tomada el 2026-09-12 de que C4
+  pasa por Design (`ROADMAP.md` R2). Mientras tanto, la lista de "Revisar
+  disponibilidad" de H2 (sesión por sesión, con motivo del choque) sigue
+  siendo el mecanismo para elegir sin prueba y error — no reemplaza a C4,
+  pero cubre el caso mínimo.
+
+### Estado
+
+### Tercera corrección, mismo día: el mensaje de confirmación
+
+Javier probó de nuevo y encontró que el mensaje al alumno en agenda
+**flexible** terminaba *"Tus clases: mar 29/09 18:00. ¡Te esperamos!"*, como
+si esa fecha fuera toda la agenda — en flexible solo se reserva la primera
+clase (el resto se coordina después, H3). Pasa a **"Tu primera clase
+reservada es: \<fecha\>. ¡Te esperamos!"**, y solo agrega *"El resto se
+coordina después"* cuando de verdad queda paquete sin agendar
+(`leftoverMin > 0`): con un tramo que se cubre justo con la primera clase esa
+frase también sería falsa. En agenda **fija** (donde sí se agenda todo el
+paquete) sigue diciendo "Tus clases"/"Tu clase" según haya una o varias.
+Mismo criterio en el aviso al profesor y en el resumen interno. Verificado en
+dev con los tres casos (flexible sin sobrante, flexible con sobrante, fija).
+
+### Estado
+
+**Construido y validado en dev — con datos reales de una venta completa, las
+tres rondas de correcciones del 26/09 adentro, y el OK explícito de Javier
+tras probarlo él mismo** ("ok, ya actualicé y probé. todo bien."). **En
+producción desde el 2026-09-26**, junto con H1 y H3 (`docs/DECISIONES.md`
+§4). `docs/relevamientos/2026-09-25-C3-plan-
+construccion.md` (fila H2), `DECISIONES.md` (D5, D9) y `REGLAS.md` (proceso
+9, proceso 12) quedan anotados con este avance. **Sigue H3** (reservas con
+los 7 estados), en otra sesión — sin eso, una reserva creada acá no se puede
+reprogramar, suspender ni marcar ausente/realizada todavía. La grilla
+semanal de slots queda **para C4, esperando mockup de Design** (Javier,
+26/09).
+
+## C3 — H3: reservas con los 7 estados · 2026-09-26 (dev)
+
+Tercer hito del plan de nueve, continuado en una sesión nueva (rama
+`claude/adoring-maxwell-2car0j`, adelantada por fast-forward sobre
+`claude/modest-hypatia-qymr45` que traía H1+H2). Una reserva de particulares
+—hoy solo `confirmada` desde H2— gana los 7 estados de la regla de negocio 23:
+Solicitada, Confirmada, Reprogramada, Reagendar, Suspendida, Ausente,
+Realizada, con el saldo de horas calculado sobre ellos y el historial de cada
+cambio.
+
+### Decisiones de Javier para H3 (26/09)
+
+1. **El formulario confirma directo, no solo solicita.** "Solicitar" (ocupa
+   24 h sin descontar) queda como segunda opción para cuando todavía se
+   coordinan recursos; la venta de H2 sigue creando la reserva ya
+   `confirmada`.
+2. **El saldo disponible para pedir cuenta las Solicitadas vigentes** —
+   `disponible = contratadas − consumidas − solicitadas vigentes` — para no
+   dejar pedir más horas de las que quedan, aunque la Solicitada todavía no
+   "descuente" del consumo real.
+3. **Pantalla en el menú Particulares** (`/particulares`), no solo colgada
+   del alumno: lista de membresías activas con su saldo, cada una abre
+   `/particulares/[id]` ("Reservas de la membresía").
+
+### Qué se construyó
+
+- **Migración `0054_reservas_siete_estados.sql`** (aditiva, aplicada en dev):
+  - `reservas_sala` gana `plan_id` (para taller, H8), `solicitada_hasta` y
+    las columnas de trabajo `cambio_motivo`/`cambio_glosa`/
+    `cambio_fuera_de_plazo`/`actualizado_por`, que cada acción completa antes
+    de un `update` para que el trigger de historial sepa qué anotar.
+  - El check `reservas_sala_check` pasa a exigir **una sola** de
+    `membresia_id` (particular) / `alquiler_id` (hasta H7) / `plan_id`
+    (taller) / `motivo` (bloqueo) — la decisión 5 del plan.
+  - Los bloqueos (D7) **conservan** `reservada`/`cancelada`, sin tocar;
+    particular/alquiler/taller pasan a los 7 estados nuevos, con un check
+    que separa los dos vocabularios por `tipo`. Las 21 reservas `reservada`
+    de H2 pasan a `confirmada` en la misma migración (mismo hecho, otro
+    nombre de estado) — hecho **antes** de poner el check nuevo, porque
+    `'reservada'` deja de ser válido para `tipo <> 'bloqueo'`.
+  - El EXCLUDE de no-choque se acota a los estados que de verdad ocupan
+    (`confirmada`, `reprogramada`, `ausente`, `realizada`, y `reservada` para
+    bloqueos): una Solicitada no tiene esa protección de la base — se valida
+    por código al crear la siguiente, porque su vigencia se calcula, no se
+    guarda paso a paso (regla de negocio 4).
+  - `reservas_historial`: **de solo agregar** (mismo patrón que
+    `consentimientos` — un trigger rechaza `update`/`delete`), con el antes y
+    el después completos (estado, sala, fecha, hora, duración), el motivo, la
+    marca de "fuera de plazo" y quién lo hizo. Un trigger sobre
+    `reservas_sala` (`AFTER INSERT OR UPDATE`) escribe cada fila solo, así
+    ningún cambio de estado puede olvidarse de dejar rastro. Backfill: alta
+    para las 28 reservas que ya existían.
+  - Parámetro `reserva_solicitud_validez_horas` (24, sembrado por migración,
+    calidad 7) y catálogo `motivo_suspension_reserva` (profesor no
+    disponible / conflicto operativo / sala fuera de servicio / otro).
+  - `get_advisors`: un hallazgo nuevo (`reservas_historial_solo_insert` sin
+    `search_path` fijo), corregido en la misma migración.
+- **`src/lib/reservas.ts`** (extendido, puro, con pruebas): `ESTADOS_RESERVA`,
+  `TRANSICIONES` (la máquina de estados completa), `puedeTransicionar`,
+  `solicitudVigente`/`ocupaAhora` (una Solicitada vencida no ocupa, se
+  calcula al leer), `evaluarCancelacion` (dentro/fuera del plazo de 8 h →
+  Reagendar/Ausente) y `saldoMembresia` (contratadas/consumidas/solicitadas
+  vigentes/disponible, todo en minutos). `ESTADOS_QUE_LIBERAN` +
+  `FILTRO_ESTADOS_QUE_LIBERAN` reemplazan el viejo `.neq('estado',
+  'cancelada')` en toda consulta de ocupación — un bloqueo cancelado y una
+  reserva Reagendar/Suspendida dejan de ocupar por el mismo filtro. 26
+  pruebas nuevas (144 en total).
+- **Corrección urgente, en la misma migración**: `venderParticular` (H2)
+  todavía insertaba `estado: 'reservada'`, que el check nuevo ya no admite
+  para `tipo='particular'` — pasa a insertar `'confirmada'` directo. Y las
+  cuatro consultas de ocupación que hacía con `.neq('estado','cancelada')`
+  (`sala/acciones.ts` × 2, `inscribir/acciones.ts` × 2) se actualizan al
+  filtro nuevo + `ocupaAhora`: sin este cambio, una reserva Reagendar o
+  Suspendida habría seguido bloqueando esa franja para siempre.
+- **`src/app/(privado)/particulares/acciones.ts`** (nuevo): `crearReserva`
+  (Solicitar o Confirmar directo, valida vigencia de la membresía, sala,
+  profesor y saldo antes de escribir), `cambiarEstadoReserva` (usa
+  `TRANSICIONES`; confirmar una Solicitada revalida choque porque no tuvo la
+  protección del EXCLUDE mientras esperaba), `reprogramarReserva` (misma
+  fila cambia de fecha/hora/sala, revalida excluyéndose a sí misma) y
+  `cancelarAPedido` (aplica `evaluarCancelacion`). Cada acción arma los
+  avisos para `AvisoWhatsapp` (alumno o su tutor si es menor, y profesor).
+  Permisos: `particulares.crear`/`.editar` (`.ver` ya alcanza para leer).
+- **Pantallas nuevas** (Code v1 + Design refina): `/particulares` (lista,
+  ordenada por apellido — regla 15) y `/particulares/[id]` ("Reservas de la
+  membresía": saldo, cada reserva con sus botones de transición según lo que
+  el servidor permite, formulario de suspensión con motivo del catálogo,
+  mini-formulario de reprogramar, historial desplegable y "Nueva reserva"
+  con Solicitar/Confirmar directo). Entrada de menú "Particulares" en
+  Gestión, gateada por `particulares.ver`.
+- **`/sala`**: la disponibilidad ahora enlaza cada reserva particular a su
+  membresía (`/particulares/[id]`) en vez de mostrar solo el texto.
+- **`scripts/control_migracion.sql`**: controles 33 (consumidas > contratadas),
+  34 (Solicitada sin `solicitada_hasta`), 35 (reserva sin historial) y 36
+  (particular sin profesor).
+- **`scripts/refresh-dev.mjs`**: `reservas_historial` agregada al `ORDEN`,
+  después de `reservas_sala` (mismo hallazgo que `membresia_salas` en H2: sin
+  esto, el refresh la vacía pero nunca la repone).
+
+### Lo que queda fuera de v1, a propósito
+
+- **La grilla visual de slots** sigue en C4, esperando mockup de Design
+  (decisión del 26/09, sin cambios).
+- **"Cuenta del alumno" sigue diciendo "Curso sin determinar"** para una
+  membresía particular: es el mismo ajuste cosmético que H2 ya dejó anotado
+  como pendiente de Design refina, no un error de datos — no se tocó
+  `cuentas.ts` para no salir del alcance de H3.
+- **Alquiler y taller** todavía no existen como venta (H7/H8): el check XOR
+  y el EXCLUDE ya los contemplan (`alquiler_id`/`plan_id`), pero nada los usa
+  todavía.
+
+### Verificado en dev
+
+- `npm test`: **118/118** en verde (26 nuevas de `reservas.test.ts`).
+- `npx tsc --noEmit`: limpio (mismos dos errores preexistentes de siempre,
+  no tocados por este hito).
+- `npx eslint` sobre los archivos tocados: limpio.
+- `npx next build`: compila; **23 rutas**, incluidas `/particulares` y
+  `/particulares/[id]`.
+- Migración aplicada contra `tropicana-dev` con ensayo en seco primero
+  (`begin; ... rollback;`, verificando que las 28 reservas existentes
+  quedaran con su historial antes de aplicar de verdad). `get_advisors` sin
+  hallazgos nuevos después de la corrección de `search_path`. Controles
+  28–36 corridos contra dev: **todos OK**.
+
+### Recorrido completo en el navegador (Playwright, `qa-cloud@tropicana.local`, contra dev)
+
+A diferencia de lo que se pensó en un momento del cierre, esta sesión sí pudo
+levantar `next dev` en el contenedor de la nube y recorrer los 7 estados de
+punta a punta contra datos reales (membresías 58, 60 y 61 de H2), verificando
+cada paso también fila por fila en la base:
+
+1. **`/particulares`**: lista las 11 membresías activas, ordenada por
+   apellido, con saldo en horas y Solicitadas por vencer — datos reales de H2.
+2. **`/particulares/[id]`**: saldo (contratadas/consumidas/solicitadas
+   vigentes/disponible) y reservas con sus botones de transición.
+3. **Solicitar**: crea la fila `solicitada` con `solicitada_hasta` = +24 h,
+   ocupa la sala en `/sala`, y el saldo la resta de "disponible" sin tocar
+   "consumidas". Verificado en la base (`reservas_historial` con el alta).
+4. **Confirmar** una Solicitada: revalida choque (no tenía la protección del
+   EXCLUDE) y pasa a `confirmada`.
+5. **Cancelar** (`cancelarAPedido`): una Solicitada cancela directo a
+   `reagendar`; una Confirmada con anticipación de sobra también da
+   `reagendar` — el caso "fuera de plazo → Ausente" se cubre con las 12
+   pruebas de `evaluarCancelacion`, no hacía falta reproducirlo a mano con
+   una fecha del pasado (las membresías de prueba son todas futuras).
+6. **Reprogramar**: el primer intento (mover a un horario que chocaba con el
+   curso regular del profesor) **fue rechazado correctamente**, con el
+   mensaje exacto de `validarReservaSala` — no era un bug, era el validador
+   funcionando. Repetido con un horario libre, actualizó fecha/hora/sala y
+   dejó `reprogramada`, con el historial mostrando el antes y el después.
+7. **Suspender**: exige motivo del catálogo, libera el saldo (confirmado con
+   una recarga limpia de la página, sin el timing engañoso de un
+   `router.refresh()` recién disparado) y avisa a alumno y profesor.
+8. **Marcar Realizada/Ausente antes de que empiece**: rechazado con el
+   mensaje esperado — ninguna reserva de prueba ya había empezado, así que
+   esto confirma el bloqueo, no el camino feliz de marcarlas.
+9. Cada paso mostró su `AvisoWhatsapp` (o dos, alumno/tutor + profesor).
+
+**Tres bugs reales encontrados y corregidos en el mismo recorrido:**
+
+- **Hidratación rota en el historial**: `toLocaleString("es-BO")` armaba
+  "a. m." con un espacio distinto en el ICU de Node y el del navegador —
+  mismo texto visible, árbol de React descartado igual. Se reemplazó por un
+  formateador propio con `Intl.DateTimeFormat` + `timeZone: "America/La_Paz"`
+  fijo y 24 h, para no depender del huso del runtime (servidor en UTC,
+  navegador de Javier en Bolivia habrían dado *horas* distintas, no solo un
+  formato distinto).
+- **Faltaba el botón "Cancelar" en una reserva Confirmada/Reprogramada**: el
+  mapa de transiciones expuesto a la UI (duplicado a mano en vez de usar
+  `TRANSICIONES` de `@/lib/reservas`) omitía `reagendar` para esos dos
+  estados — el caso más común de la regla de negocio 23 quedaba sin acción.
+  Se borró el duplicado y la pantalla usa `TRANSICIONES` directo.
+- **El aviso de suspensión mostraba la clave cruda del catálogo**
+  (`conflicto_operativo`) en vez de la etiqueta (regla de calidad 6). De paso
+  se encontró que el servidor no validaba el motivo contra el catálogo, solo
+  que no viniera vacío — ahora `cambiarEstadoReserva` lo busca en
+  `motivo_suspension_reserva` y devuelve error si no es un valor activo,
+  usando la etiqueta resuelta en el mensaje.
+
+Los tres se corrigieron y se re-verificaron en el mismo recorrido antes de
+cerrar el hito; `npm test`/`tsc`/`eslint`/`build` corrieron limpios después de
+cada uno.
+
+**Datos de prueba que quedaron mutados en dev** (las membresías son las que
+dejó H2, reusadas para no crear ventas nuevas): en la **membresía 61**, la
+reserva `id 26` terminó `suspendida` en 2026-10-05 08:00 (pasó por reprogramar
+y suspender) y la `id 32` terminó `reagendar` en 2026-10-10 (se creó, se
+confirmó y se canceló). En la **membresía 58**, la reserva `id 13` (25/09)
+terminó `suspendida`; las demás (14, 15, 16) siguen `confirmada`, sin tocar.
+Nada de esto rompe ningún control (28–36 en OK) ni necesita revertirse — son
+hechos de prueba, iguales en naturaleza a las reservas reales que van a
+reemplazar cuando se opere de verdad —, pero si Javier abre `/particulares/58`
+o `/particulares/61` va a ver estos estados y no los que dejó al validar H2.
+
+### Ronda 2 — correcciones de la prueba de Javier en su local · 2026-09-26 (dev)
+
+Javier probó H3 en su propio local contra `/particulares/58` y `/particulares/57`
+y encontró cinco problemas reales, más dos pedidos de terminado. Todos se
+corrigieron en la misma sesión, sobre la misma rama:
+
+1. **"Nueva reserva" no respondía al confirmar sobre un paquete agotado.**
+   No era un cuelgue: el servidor devolvía el error ("Quedan 0 h
+   disponibles…"), pero el mensaje se renderizaba arriba de toda la pantalla,
+   lejos del formulario — parecía que no había pasado nada. Se corrigió de
+   raíz, no parcheando el lugar del mensaje: **si el saldo disponible es 0,
+   el formulario ni se ofrece.** En su lugar sale un panel fijo dentro del
+   recuadro de "Nueva reserva" que explica que el paquete se agotó y qué lo
+   puede devolver (una Suspendida o una cancelación a tiempo) o ampliarlo (la
+   extensión de membresía, todavía no construida).
+2. **Los mensajes eran escuetos.** Se homologaron con los de H2: cada acción
+   (`crearReserva`, `cambiarEstadoReserva`, `reprogramarReserva`,
+   `cancelarAPedido`) ahora arma un texto completo — día, hora de inicio y
+   fin, plan, profesor, lugar (sala propia o el nombre descriptivo de la
+   externa) y el saldo que queda — más los dos `AvisoWhatsapp` (alumno o
+   tutor, y profesor) con "Enviar por WhatsApp" y "Copiar mensaje".
+3. **Los mensajes salían arriba de la pantalla, no junto a la reserva.**
+   `ClienteMembresiaParticular.tsx` se reescribió con un estado
+   `{ donde: number | "nueva" }`: el resultado de cada acción se renderiza
+   **dentro del recuadro de la reserva que la originó**, o dentro de "Nueva
+   reserva" si fue una reserva nueva — nunca en un lugar fijo de la página.
+4. **El botón de confirmar reprogramación quedaba al lado del campo sala.**
+   El formulario de reprogramar pasa a una grilla con los campos arriba y
+   los dos botones ("Confirmar reprogramación" / "Volver") en una fila
+   propia, debajo — mismo patrón que "Nueva reserva".
+5. **Reprogramar una reserva vieja de 0.5 h a una duración mayor fallaba**
+   con "La duración tiene que ser un múltiplo de 30 minutos, de al menos
+   60" — un mensaje que ni siquiera tenía sentido consigo mismo. La causa
+   era de regla, no de código: la duración se validaba contra el
+   **intervalo** (`tiempos_incremento_min`, hoy 60 min), la misma regla que
+   la hora de inicio. Pero una reserva vieja de 30 min (creada cuando el
+   intervalo todavía era 30) nunca iba a ser múltiplo de 60, aunque la
+   reprogramación fuera a una duración perfectamente válida. **Javier fijó
+   la regla general que corrige esto**: *"La reserva no puede tener duración
+   menor al mínimo del parámetro, solo se debe poder reservar para
+   duraciones múltiplos del mínimo. El parámetro de los intervalos es para
+   la hora de inicio."* Es decir, dos parámetros para dos preguntas
+   distintas — `duracion_minima_curso_min` gobierna la duración,
+   `tiempos_incremento_min` gobierna dónde puede empezar la reserva — que
+   hasta ahora se confundían en una sola validación.
+
+   Implementado en una función pura nueva, **`validarTiempoReserva`**
+   (`src/lib/reservas.ts`), que separa las dos preguntas y da un mensaje
+   específico para cada una ("la hora de inicio tiene que caer en
+   intervalos de N minutos" / "la duración tiene que ser un múltiplo de X h,
+   la duración mínima de una reserva"). La usan el cliente (para deshabilitar
+   el botón, calidad 9) y el servidor (para decidir), sin dos copias de la
+   regla. Dos helpers nuevos en `src/lib/horarios.ts`:
+   `opcionesDuracionReserva(minimoMin, topeMin)` (los múltiplos del mínimo
+   hasta el tope) y `horaAlineada(hora, incrementoMin)`.
+
+   **Alcance de la regla nueva, a propósito acotado**: se aplicó donde el
+   problema era real — reservas de particulares (H2 y H3) y bloqueos de sala
+   (`/sala`) —, todas gobernadas por `validarReservaSala`/`validarTiempoReserva`.
+   **La duración de un curso** (migración 0034/0039, "Vigencia del curso" /
+   "Intervalo estándar de tiempo" en `docs/DECISIONES.md` §1.b) sigue con la
+   regla anterior — múltiplo del incremento, no del mínimo —, porque ahí no
+   hay reporte de que sea un problema y cambiarla sin que Javier lo pida
+   sería tocar una decisión ya tomada sin otra decisión que la reemplace
+   (regla de proceso 8). Queda anotado en `docs/DECISIONES.md` §1.b para que
+   la próxima vez que se toque la duración de un curso se sepa que las dos
+   reglas conviven aposta, no por descuido.
+
+   Con la reserva de prueba de Javier (`membresía 57`, id 12, 0.5 h → 1 h el
+   mismo mar 06/10 16:00): reprogramar ahora deja un solo valor disponible en
+   "Duración" (`1 h`, el único múltiplo del mínimo que el saldo permite),
+   confirma sin error, la reserva pasa a `reprogramada` con 1 h y el
+   historial pasa a 2 entradas — verificado en el navegador (Playwright,
+   `qa-cloud@tropicana.local`) y en la base.
+6. **El recuadro de "Nueva reserva" no se distinguía de una reserva ya
+   hecha** (pedido, no bug). Pasa a tener un borde punteado del color
+   primario y fondo propio (`border-2 border-dashed border-[var(--primario)]
+   bg-[var(--fondo-panel)]`), el mismo tratamiento que ya usa el resto de la
+   app para distinguir "algo que se está por crear" de un dato existente.
+7. **`/particulares` sin buscador ni forma de volver, y la lista
+   desordenada** (pedido, no bug):
+   - `ClienteParticulares.tsx` gana un panel "Buscar membresía" con el mismo
+     criterio que Alumnos — `coincideBusqueda` (nombre, WhatsApp propio y del
+     tutor si es menor) — más profesor, estilo y plan, que Alumnos no tiene
+     porque no aplican ahí.
+   - Cada fila se reordena: primera línea, nombre del alumno; segunda,
+     **estilo · profesor · vigente dd/mm/yyyy a dd/mm/yyyy**; el nombre del
+     plan baja a una tercera línea en `text-xs text-[var(--texto-tenue)]` —
+     ya no compite por atención con lo que Natalia necesita mirar primero.
+   - El saldo se lee "**X h de Y h disponibles**" en vez de solo el número.
+   - Una membresía con una Solicitada vigente muestra una línea en verde
+     ("Reserva solicitada — pendiente de confirmar") y **esas membresías se
+     ordenan primero** en `listarMembresiasParticulares`, antes que el resto
+     (que sigue por apellido, regla 15).
+   - `/particulares/[id]/page.tsx` gana el link "← Volver a Particulares"
+     arriba del encabezado, en las dos ramas (con y sin error).
+
+### Verificado en dev (ronda 2)
+
+- `npm test`: **120/120** en verde (2 pruebas nuevas de la regla de
+  duración/intervalo, más el reemplazo de la prueba vieja que mezclaba las
+  dos preguntas).
+- `npx tsc --noEmit`, `npx eslint` sobre los archivos tocados y `npx next
+  build` (23 rutas): limpios.
+- Recorrido en el navegador (Playwright, `qa-cloud@tropicana.local`, contra
+  dev), con capturas guardadas en la sesión:
+  - `/particulares`: buscador, orden (Solicitadas primero, después por
+    apellido), las tres líneas por fila y el saldo "X h de Y h disponibles".
+  - `/particulares/58` (el caso de Javier, saldo en 0): el panel de agotado
+    reemplaza al formulario, sin ofrecer una reserva imposible.
+  - `/particulares/57`: reprogramar la reserva de 0.5 h a 1 h — sale bien,
+    con los botones debajo de los campos y el mensaje + los dos
+    `AvisoWhatsapp` dentro del recuadro de esa reserva.
+  - `/particulares/62` (con saldo): "Confirmar directo" sobre una hora
+    alineada crea la reserva, baja el saldo y muestra el mensaje rico más
+    los avisos, todo dentro del recuadro de "Nueva reserva"; una hora
+    desalineada (11:15 con intervalo de 30 min) deja los dos botones
+    deshabilitados con el aviso exacto, sin tocar el servidor.
+  - `/sala`: el formulario de bloqueo ofrece duraciones en múltiplos del
+    mínimo (1 h, 2 h, 3 h, 4 h), confirmando que la regla nueva también rige
+    ahí.
+
+### Estado
+
+**Construido y verificado en dev — con datos reales, los 7 estados
+recorridos de punta a punta, tres bugs de la primera verificación interna y
+cinco problemas + dos pedidos de la prueba de Javier en su local, todos
+corregidos y reverificados en la misma sesión.** **En producción desde el
+2026-09-26**, junto con H1 y H2 y el cambio de WhatsApp app-primero, con el
+OK explícito de Javier (*"ok, pase."*): migraciones 0052→0054 con ensayo en
+seco y hash verificado contra los archivos, controles 1–36 en OK (salvo el
+23, conocido) y `main` en un solo push — el detalle del pase está en
+`docs/DECISIONES.md` §4. `docs/relevamientos/2026-09-25-C3-plan-construccion.md`
+(fila H3), `REGLAS.md` (glosario de "Reserva") y `docs/DECISIONES.md` §1.b
+("Intervalo estándar de tiempo") quedan anotados con este avance. **Sigue
+H4** (cierres de sala sobre reservas — el lado reservas de C5), en otra
+sesión.

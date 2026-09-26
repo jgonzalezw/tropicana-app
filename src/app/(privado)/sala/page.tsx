@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { tienePermiso, obtenerParametro } from "@/lib/sesion";
 import { exigir, exigirUno } from "@/lib/datos";
-import { opcionesDuracion } from "@/lib/horarios";
+import { opcionesDuracionReserva } from "@/lib/horarios";
 import EncabezadoPagina from "@/components/EncabezadoPagina";
 import SinAcceso from "@/components/SinAcceso";
 import ClientePanelSala from "./ClientePanelSala";
@@ -33,6 +33,7 @@ export default async function PaginaSala() {
       .from("salas")
       .select("id, nombre, orden, activa")
       .eq("activa", true)
+      .eq("es_externa", false)
       .order("orden")
       .order("id")
       .then((r) => exigir(r, "las salas")),
@@ -56,9 +57,8 @@ export default async function PaginaSala() {
       ) as { valor: string; etiqueta: string }[])
     : [];
 
-  const incrementoMin = Math.max(1, Number(await obtenerParametro("tiempos_incremento_min")) || 30);
   const minimoMin = Math.max(1, Number(await obtenerParametro("duracion_minima_curso_min")) || 30);
-  const opcionesDuracionMin = opcionesDuracion(incrementoMin, minimoMin);
+  const opcionesDuracionMin = opcionesDuracionReserva(minimoMin);
 
   return (
     <Pagina ancho="6xl">

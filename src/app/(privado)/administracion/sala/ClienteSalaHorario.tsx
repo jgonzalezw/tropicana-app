@@ -15,7 +15,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { describirVentanas } from "@/lib/sala";
-import EnlaceWhatsapp from "@/components/entidades/EnlaceWhatsapp";
+import AvisoWhatsapp from "@/components/AvisoWhatsapp";
 import {
   guardarHorarioSala,
   guardarSalas,
@@ -121,7 +121,6 @@ export default function ClienteSalaHorario({
   // primero, mostrando qué se va a suspender.
   const [porConfirmar, setPorConfirmar] = useState<ClaseAfectada[] | null>(null);
   const [avisos, setAvisos] = useState<AvisoAlumno[] | null>(null);
-  const [copiado, setCopiado] = useState<number | null>(null);
 
   // Mismo problema que con las salas, y mismo arreglo: al guardar una
   // excepción nueva, la base le asigna un `id`, pero el estado local se
@@ -201,17 +200,6 @@ export default function ClienteSalaHorario({
         router.refresh();
       }
     });
-  }
-
-  async function copiarAviso(a: AvisoAlumno) {
-    try {
-      await navigator.clipboard.writeText(a.mensaje);
-      setCopiado(a.alumnoId);
-      setTimeout(() => setCopiado((c) => (c === a.alumnoId ? null : c)), 2000);
-    } catch {
-      // El portapapeles puede fallar sin HTTPS o sin permiso; el mensaje sigue
-      // visible en la tarjeta para seleccionarlo a mano.
-    }
   }
 
   const delDia = (n: number) => filas.filter((f) => f.dia_semana === n);
@@ -679,23 +667,7 @@ export default function ClienteSalaHorario({
           </div>
           <div className="space-y-2">
             {avisos.map((a) => (
-              <div
-                key={a.alumnoId}
-                className="rounded-[var(--radio-panel)] border border-[var(--borde)] p-3 flex items-start gap-3 flex-wrap"
-              >
-                <div className="flex-1 min-w-[16rem]">
-                  <div className="font-medium">
-                    {a.nombre}{" "}
-                    <span className="text-sm text-[var(--texto-tenue)] font-normal">
-                      · <EnlaceWhatsapp numero={a.whatsapp} texto={a.mensaje} vacio="sin WhatsApp cargado" />
-                    </span>
-                  </div>
-                  <p className="text-sm mt-1 whitespace-pre-wrap">{a.mensaje}</p>
-                </div>
-                <button onClick={() => copiarAviso(a)} className={botonTenue}>
-                  {copiado === a.alumnoId ? "Copiado ✓" : "Copiar mensaje"}
-                </button>
-              </div>
+              <AvisoWhatsapp key={a.alumnoId} nombre={a.nombre} whatsapp={a.whatsapp} mensaje={a.mensaje} />
             ))}
           </div>
         </div>

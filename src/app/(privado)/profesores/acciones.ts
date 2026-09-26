@@ -82,6 +82,7 @@ export async function crearProfesor(d: DatosProfesor): Promise<Resultado> {
       contacto_id: contacto.id,
       tipo: d.tipo,
       tarifa_reemplazo: d.tarifa_reemplazo,
+      fee_hora: d.fee_hora,
       usuario_id: d.usuario_id,
     })
     .select("id")
@@ -133,6 +134,7 @@ export async function actualizarProfesor(
     .update({
       tipo: d.tipo,
       tarifa_reemplazo: d.tarifa_reemplazo,
+      fee_hora: d.fee_hora,
       usuario_id: d.usuario_id,
       actualizado_en: new Date().toISOString(),
     })
