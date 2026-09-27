@@ -275,6 +275,121 @@ export async function consultarDisponibilidad(salaId: number, fechaISO: string):
   };
 }
 
+// ── Agendamientos del día en salas externas ─────────────────────────────────
+
+export type AgendamientoExterno = {
+  id: number;
+  tipo: "particular" | "alquiler";
+  hora: string;
+  duracionMin: number;
+  lugar: string;
+  alumnoNombre: string | null;
+  profesorNombre: string | null;
+  /** Mismo criterio de `consultarDisponibilidad`: particulares.editar +
+   *  alcance propio/todo. */
+  gestionable: boolean;
+};
+
+/**
+ * Las reservas de particulares/alquiler del día que caen en la sala externa
+ * genérica, con el lugar real (`membresia_salas.nombre_descriptivo`) de cada
+ * una — hoy invisibles en `/sala` porque la pantalla solo arma una tarjeta
+ * por sala PROPIA (Javier, 2026-09-27: "incluir una forma de ver en
+ * disponibilidad de salas algún apartado con los agendamientos en salas
+ * externas del día"). Lectura pura, no muta nada.
+ */
+export async function consultarAgendamientosExternos(
+  fechaISO: string
+): Promise<{ reservas: AgendamientoExterno[]; error: string | null }> {
+  if (!(await tienePermiso("disponibilidad_sala", "ver")))
+    return { reservas: [], error: "Sin permiso para ver la disponibilidad de la sala." };
+  if (!ISO_FECHA.test(fechaISO)) return { reservas: [], error: "La fecha no es válida." };
+
+  const sb = await createClient();
+
+  const { data: externaRow, error: errExt } = await sb
+    .from("salas")
+    .select("id")
+    .eq("es_externa", true)
+    .eq("activa", true)
+    .maybeSingle();
+  if (errExt) return { reservas: [], error: `No se pudo leer la sala externa: ${errExt.message}` };
+  if (!externaRow) return { reservas: [], error: null }; // sin sala externa configurada: nada que mostrar.
+  const salaExternaId = externaRow.id as number;
+
+  type ReservaConJoins = {
+    id: number;
+    tipo: "particular" | "alquiler";
+    hora: string;
+    duracion_min: number;
+    estado: string;
+    solicitada_hasta: string | null;
+    membresia_id: number | null;
+    profesor_id: number | null;
+    membresia: { alumno: { contacto: { nombre: string | null; apellido: string | null } | null } | null } | null;
+    profesor: { contacto: { nombre: string | null; apellido: string | null } | null } | null;
+  };
+  const { data: resRows, error: errRes } = await sb
+    .from("reservas_sala")
+    .select(
+      "id, tipo, hora, duracion_min, estado, solicitada_hasta, membresia_id, profesor_id, " +
+        "membresia:membresias(alumno:alumnos(contacto:contactos(nombre, apellido))), " +
+        "profesor:profesores(contacto:contactos(nombre, apellido))"
+    )
+    .eq("sala_id", salaExternaId)
+    .eq("fecha", fechaISO)
+    .in("tipo", ["particular", "alquiler"])
+    .not("estado", "in", FILTRO_ESTADOS_QUE_LIBERAN)
+    .order("hora");
+  if (errRes) return { reservas: [], error: `No se pudieron leer los agendamientos externos: ${errRes.message}` };
+
+  const ahora = new Date();
+  const vivas = ((resRows as unknown as ReservaConJoins[]) ?? []).filter((r) =>
+    ocupaAhora({ tipo: r.tipo, estado: r.estado, solicitadaHasta: r.solicitada_hasta }, ahora)
+  );
+  if (!vivas.length) return { reservas: [], error: null };
+
+  const membresiaIds = [...new Set(vivas.map((r) => r.membresia_id).filter((id): id is number => id != null))];
+  const { data: lugaresRows, error: errLug } = membresiaIds.length
+    ? await sb
+        .from("membresia_salas")
+        .select("membresia_id, nombre_descriptivo")
+        .eq("sala_id", salaExternaId)
+        .in("membresia_id", membresiaIds)
+    : { data: [] as { membresia_id: number; nombre_descriptivo: string | null }[], error: null };
+  if (errLug) return { reservas: [], error: `No se pudieron leer los lugares externos: ${errLug.message}` };
+  const lugarPorMembresia = new Map(
+    ((lugaresRows as { membresia_id: number; nombre_descriptivo: string | null }[]) ?? []).map((l) => [
+      l.membresia_id,
+      l.nombre_descriptivo,
+    ])
+  );
+
+  const [puedeEditarParticulares, { propio: alcancePropio, profesorId: profesorPropioId }] = await Promise.all([
+    tienePermiso("particulares", "editar"),
+    alcancePropioDe("particulares"),
+  ]);
+
+  const reservas: AgendamientoExterno[] = vivas.map((r) => {
+    const contactoAlumno = r.membresia?.alumno?.contacto;
+    const contactoProfesor = r.profesor?.contacto;
+    return {
+      id: r.id,
+      tipo: r.tipo,
+      hora: r.hora,
+      duracionMin: r.duracion_min,
+      lugar: (r.membresia_id != null ? lugarPorMembresia.get(r.membresia_id) : null) || "Sala externa",
+      alumnoNombre: contactoAlumno ? `${contactoAlumno.nombre ?? ""} ${contactoAlumno.apellido ?? ""}`.trim() || null : null,
+      profesorNombre: contactoProfesor
+        ? `${contactoProfesor.nombre ?? ""} ${contactoProfesor.apellido ?? ""}`.trim() || null
+        : null,
+      gestionable: puedeEditarParticulares && (!alcancePropio || r.profesor_id === profesorPropioId),
+    };
+  });
+
+  return { reservas, error: null };
+}
+
 export type BloqueoNuevo = {
   fecha: string;
   hora: string;

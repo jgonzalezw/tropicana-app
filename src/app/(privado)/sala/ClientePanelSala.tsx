@@ -12,6 +12,7 @@
 
 import { useState } from "react";
 import ClienteDisponibilidadSala from "./ClienteDisponibilidadSala";
+import AgendamientosExternos from "./AgendamientosExternos";
 
 function hoyISO(): string {
   const d = new Date();
@@ -73,6 +74,17 @@ export default function ClientePanelSala({
           />
         ))}
       </div>
+
+      {/* Aparte de las salas propias, no una más en el selector (Javier,
+          2026-09-27): una reserva en un lugar externo no tiene horario propio
+          ni se bloquea. */}
+      <AgendamientosExternos
+        fecha={fecha}
+        salasPropias={salas}
+        motivosSuspension={motivosSuspension}
+        incrementoMin={incrementoMin}
+        minimoMin={minimoMin}
+      />
     </div>
   );
 }
