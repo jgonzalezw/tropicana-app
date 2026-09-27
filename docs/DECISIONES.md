@@ -88,6 +88,7 @@ pierden y se vuelven a discutir, o peor, se contradicen sin que nadie lo note.
 | D25 | **El WhatsApp compartido entre familiares.** El relleno de la 0048 resolvió el caso medido (un número de familia lo reclama el tutor, no el menor — ver Sebastian Vivancos/Jessica Galvis en `ESTADO.md`) con una regla de orden, no con un modelo de "número compartido por varios contactos". Si aparecen más casos así, ¿conviene modelar el WhatsApp como algo que puede pertenecer a más de un contacto? | Pendiente (surgida en C3-0a.1, 2026-09-24) | La regla de orden (tutores antes que alumnos) resolvió el único caso medido; modelar "compartido" de verdad es más grande que el problema que hay hoy. | Si aparece un caso que la regla de orden no resuelve bien (dos contactos activos que genuinamente comparten un número, sin que uno sea claramente el "dueño"). |
 | D26 | **Verificación automática del WhatsApp.** Hoy un WhatsApp se guarda tal cual lo escribe quien carga el contacto (normalizado, pero no verificado). ¿Conviene confirmar que el número existe/responde antes de darlo por bueno — vía un mensaje de verificación, una API de WhatsApp Business? | Pendiente (surgida en C3-0a.1, 2026-09-24) | Requiere una integración externa (WhatsApp Business API o similar) que hoy no existe en el proyecto. | Cuando el volumen de números mal cargados (los que el control 23 señala) se vuelva un problema operativo real, o cuando C3-0b (formulario público) necesite confirmar identidad sin intervención humana. |
 | D27 | **Que un suplente abra la asistencia desde su propia cuenta.** Hoy, si el titular no puede dar la clase, la asistencia la carga el administrador o el asistente (con el padrón completo, sin depender de a quién ve el suplente) — el suplente no entra al sistema a registrar su propia clase. | **Decidida por ahora: no** (Javier, 2026-09-24, al aprobar el plan de C3-0a.1: *"Dejarlo así por ahora"*) | Habilitar esto exigía decidir de antemano cómo el RLS de `contactos` le muestra el padrón a un suplente que no es el titular del curso — la misma pregunta que motivó la corrección de concepción del plan (ver `ESTADO.md`). Javier prefirió no resolverla ahora. | Cuando un suplente necesite cargar la asistencia él mismo, sin pasar por el administrador o el asistente. |
+| D28 | **Corregir o anular una venta ya cobrada entera.** Hoy la única corrección posible después de vender es un descuento en Caja, y solo mientras la cuota tenga saldo (`registrarCobro`, `cuentas.ts`): rechaza si ya está saldada. No existe ningún `anular*`/`editar*` de una membresía, cuota o pago. Surgió con el caso de Manuel Aguilar (membresía particular 44, producción, 26/09): pidió un descuento de Bs 60 sobre un total de Bs 420 — resoluble hoy porque la cuota seguía pendiente sin ningún pago —, pero si hubiera estado saldada no habría forma de corregirla sin tocar la base a mano. | Pendiente (surgida el 2026-09-26/27) | Anular una venta ya cobrada mueve plata real (caja, y eventualmente comisión) — no es un ajuste de datos, es una decisión de negocio: ¿se genera un pago negativo, una nota de crédito, un motivo propio? Merece su propio diseño, no una función suelta. | Cuando aparezca un caso real con la cuota ya saldada (el de Manuel Aguilar no lo fue) o cuando se decida el modelo de "nota de crédito"/reverso para cualquier venta. |
 
 ## 1.b Decisiones tomadas, y su estado de construcción
 
@@ -214,7 +215,13 @@ lee **antes** de mirar ramas.
 
 ## 4. Registro de pases a producción
 
-**Hoy (2026-09-26) no hay nada pendiente de pase**: todo lo construido está en
+**Pendiente de pase (2026-09-27): el fix de `contacto_id` + sala externa por
+plan + duplicados de Precios (migración 0057) — construido y verificado en
+dev, en la rama `ajustes-particulares`, esperando el OK explícito de Javier.**
+Detalle completo en `docs/ESTADO.md`, sección "Ajustes tras cargar datos
+reales: contacto_id, sala externa por plan, duplicados en Precios". Incluye
+el recordatorio de activar "Permite sala externa" a mano en los dos planes de
+boda después del pase. El resto de lo construido hasta el 2026-09-26 está en
 producción, con migraciones 0001–0056 en las dos bases. Cuando algo quede
 **solo en dev** esperando el OK explícito de Javier (regla de proceso 1), se
 anota arriba de esta línea. Abajo, en orden, cada pase ya hecho.

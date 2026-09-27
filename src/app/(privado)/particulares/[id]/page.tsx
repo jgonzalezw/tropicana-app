@@ -68,7 +68,10 @@ export default async function PaginaMembresiaParticular({ params }: { params: Pr
   const salas = ((salasR.data as { id: number; nombre: string; activa: boolean; es_externa: boolean }[]) ?? []).filter(
     (s) => !s.es_externa
   );
-  const tieneExterna = ((salasR.data as { es_externa: boolean }[]) ?? []).some((s) => s.es_externa);
+  // Ofrecer "Lugar externo" depende del plan (0057), no solo de que exista
+  // una sala externa activa en el sistema (Javier, 26/09).
+  const hayExternaActiva = ((salasR.data as { es_externa: boolean }[]) ?? []).some((s) => s.es_externa);
+  const tieneExterna = detalle.permiteSalaExterna && hayExternaActiva;
 
   return (
     <Pagina ancho="4xl" className="pb-24">

@@ -17,7 +17,7 @@ import { formatearHoras, opcionesDuracionReserva } from "@/lib/horarios";
 import { validarTiempoReserva } from "@/lib/reservas";
 import AvisoWhatsapp from "@/components/AvisoWhatsapp";
 import GestionReserva from "@/components/GestionReserva";
-import { crearReserva, type MembresiaParticularDetalle } from "../acciones";
+import { crearReserva, guardarLugarExterno, type MembresiaParticularDetalle } from "../acciones";
 
 const control =
   "px-3 py-2 rounded-[var(--radio-control)] border border-[var(--borde)] bg-[var(--fondo)] text-base w-full";
@@ -95,6 +95,26 @@ export default function ClienteMembresiaParticular({
   const [nSalaId, setNSalaId] = useState<number | null>(salas[0]?.id ?? null);
   const [nNombreExterna, setNNombreExterna] = useState(externaDeLaMembresia?.nombre ?? "");
 
+  // ── Lugar externo de la membresía (0057): incluir o editar su nombre,
+  //    sin importar cómo se vendió (Javier, 26/09). ──────────────────────
+  const [editandoLugar, setEditandoLugar] = useState(false);
+  const [lugarTexto, setLugarTexto] = useState(externaDeLaMembresia?.nombre ?? "");
+  const [pendienteLugar, startLugar] = useTransition();
+  const [resultadoLugar, setResultadoLugar] = useState<{ error?: string; mensaje?: string } | null>(null);
+
+  function guardarLugar() {
+    const nombre = lugarTexto.trim();
+    if (!nombre) return setResultadoLugar({ error: "Cargá el nombre del lugar." });
+    setResultadoLugar(null);
+    startLugar(async () => {
+      const r = await guardarLugarExterno(detalle.id, nombre);
+      if (r.error) return setResultadoLugar({ error: r.error });
+      setResultadoLugar({ mensaje: "Lugar guardado." });
+      setEditandoLugar(false);
+      router.refresh();
+    });
+  }
+
   const faltaNueva: string | null = !nFecha
     ? "Elegí la fecha."
     : (validarTiempoReserva({ hora: nHora, duracionMin: nDuracion, incrementoMin, minimoMin }) ??
@@ -120,25 +140,81 @@ export default function ClienteMembresiaParticular({
     <div className="space-y-6">
       <section className="rounded-[var(--radio-panel)] border border-[var(--borde)] p-4">
         <h2 className="font-medium mb-3">Saldo del paquete</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm mb-3">
           <div>
             <div className="text-[var(--texto-tenue)]">Contratadas</div>
-            <div className="text-lg tabular-nums">{formatearHoras(detalle.saldo.contratadasMin / 60)} h</div>
+            <div className="text-2xl tabular-nums font-semibold">{formatearHoras(detalle.saldo.contratadasMin / 60)} h</div>
+          </div>
+          <div>
+            <div className="text-[var(--texto-tenue)]">Disponible para pedir</div>
+            <div className="text-2xl tabular-nums font-semibold">{formatearHoras(disponibleMin / 60)} h</div>
+          </div>
+          <div>
+            <div className="text-[var(--texto-tenue)]">Solicitadas vigentes</div>
+            <div className="text-2xl tabular-nums">{formatearHoras(detalle.saldo.solicitadasVigentesMin / 60)} h</div>
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-3 text-sm pt-3 border-t border-[var(--borde)]">
+          <div>
+            <div className="text-[var(--texto-tenue)]">Reservadas</div>
+            <div className="text-lg tabular-nums">{formatearHoras(detalle.saldo.reservadasMin / 60)} h</div>
+          </div>
+          <div>
+            <div className="text-[var(--texto-tenue)]">Realizadas</div>
+            <div className="text-lg tabular-nums">{formatearHoras(detalle.saldo.realizadasMin / 60)} h</div>
           </div>
           <div>
             <div className="text-[var(--texto-tenue)]">Consumidas</div>
             <div className="text-lg tabular-nums">{formatearHoras(detalle.saldo.consumidasMin / 60)} h</div>
           </div>
-          <div>
-            <div className="text-[var(--texto-tenue)]">Solicitadas vigentes</div>
-            <div className="text-lg tabular-nums">{formatearHoras(detalle.saldo.solicitadasVigentesMin / 60)} h</div>
-          </div>
-          <div>
-            <div className="text-[var(--texto-tenue)]">Disponible para pedir</div>
-            <div className="text-lg tabular-nums font-semibold">{formatearHoras(disponibleMin / 60)} h</div>
-          </div>
         </div>
       </section>
+
+      {detalle.permiteSalaExterna && (
+        <section className="rounded-[var(--radio-panel)] border border-[var(--borde)] p-4">
+          <h2 className="font-medium mb-2">Lugar externo</h2>
+          {!editandoLugar ? (
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-sm">
+                {externaDeLaMembresia ? externaDeLaMembresia.nombre : "Todavía no tiene un lugar externo registrado."}
+              </span>
+              {puedeEditar && (
+                <button
+                  className={botonTenue}
+                  onClick={() => {
+                    setLugarTexto(externaDeLaMembresia?.nombre ?? "");
+                    setEditandoLugar(true);
+                  }}
+                >
+                  {externaDeLaMembresia ? "Editar" : "Incluir"}
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="flex gap-2 flex-wrap items-center">
+              <input
+                className={control}
+                style={{ maxWidth: 360 }}
+                placeholder='Ej. "Salón Conquistador — Hotel Los Tajibos"'
+                value={lugarTexto}
+                onChange={(e) => setLugarTexto(e.target.value)}
+              />
+              <button className={botonPrimario} disabled={pendienteLugar} onClick={guardarLugar}>
+                Guardar
+              </button>
+              <button className={botonTenue} disabled={pendienteLugar} onClick={() => setEditandoLugar(false)}>
+                Cancelar
+              </button>
+            </div>
+          )}
+          {resultadoLugar?.error && (
+            <p className="text-[var(--peligro)] mt-2" role="alert">
+              {resultadoLugar.error}
+            </p>
+          )}
+          {resultadoLugar?.mensaje && <p className="text-[var(--exito)] mt-2">{resultadoLugar.mensaje}</p>}
+        </section>
+      )}
 
       <section className="rounded-[var(--radio-panel)] border border-[var(--borde)] divide-y divide-[var(--borde)]">
         <h2 className="font-medium p-4 pb-0">Reservas</h2>

@@ -53,6 +53,7 @@ const VACIO_COMUN = {
   extension_modo: "lista" as const,
   extension_recargo_pct: null,
   registra_acompanantes: false,
+  permite_sala_externa: false,
 };
 
 function vacioPara(tipo: TipoServicioPlan): DatosPlan {
@@ -184,6 +185,7 @@ export default function ClientePlanes({
       extension_modo: p.extension_modo,
       extension_recargo_pct: p.extension_recargo_pct,
       registra_acompanantes: p.registra_acompanantes,
+      permite_sala_externa: p.permite_sala_externa,
     });
     setError(null);
     if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
@@ -323,7 +325,7 @@ export default function ClientePlanes({
                 <label className="text-sm text-[var(--texto-tenue)] block mb-1">Nombre del plan</label>
                 <input
                   value={form.nombre}
-                  onChange={(e) => setForm({ ...form, nombre: e.target.value })}
+                  onChange={(e) => setForm({ ...form, nombre: e.target.value.toUpperCase() })}
                   placeholder={tab === "particular" ? "Ej: Pack 5 horas — Salsa" : "Ej: Plan Regular - Salsa"}
                   className="entrada w-full"
                 />
@@ -1014,6 +1016,15 @@ function FormularioParticular({
         onChange={(v) => setForm({ ...form, registra_acompanantes: v })}
         label="Registrar cada acompañante"
         descripcion="Si el plan admite grupo, decide si los demás asistentes se registran uno a uno o no. No se toma asistencia individual ni afecta la liquidación del profesor."
+      />
+
+      {/* Sala externa por membresía (0057): decisión del plan, no algo que
+          cualquier venta pueda ofrecer. */}
+      <Toggle
+        checked={form.permite_sala_externa}
+        onChange={(v) => setForm({ ...form, permite_sala_externa: v })}
+        label="Permite sala externa"
+        descripcion="Si se puede vender u ofrecer un lugar fuera de Tropicana (por ejemplo, el salón de una boda), con nombre propio por membresía."
       />
     </>
   );

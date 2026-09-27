@@ -483,6 +483,9 @@ export type Plan = {
   /** Política de asistentes de un grupo (definiciones-v2, 7.4): si se
    *  registran uno a uno o no. Nunca afecta la liquidación del profesor. */
   registra_acompanantes: boolean;
+  /** Si el plan permite vender u ofrecer sala externa, con nombre
+   *  descriptivo por membresía (0057). `false` en un plan de curso regular. */
+  permite_sala_externa: boolean;
 };
 
 /** Datos que la pantalla de Planes envía al host para crear/editar. */
@@ -519,6 +522,7 @@ export type DatosPlan = {
   extension_modo: ExtensionModo;
   extension_recargo_pct: number | null;
   registra_acompanantes: boolean;
+  permite_sala_externa: boolean;
 };
 
 export type Asignacion = {

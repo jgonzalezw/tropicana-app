@@ -282,6 +282,12 @@ export type SaldoEntrada = {
 
 export type SaldoMembresia = {
   contratadasMin: number;
+  /** confirmada + reprogramada: ya ocupan sala y profesor, todavía no
+   *  pasaron. Junto con `realizadasMin` suman `consumidasMin` (26/09: la
+   *  cabecera separa "reservado" de "ya dado", antes solo mostraba el total). */
+  reservadasMin: number;
+  /** realizada + ausente: la clase ya pasó (dictada o no, según regla 20). */
+  realizadasMin: number;
   consumidasMin: number;
   solicitadasVigentesMin: number;
   /** Contratadas − consumidas: lo que todavía no pasó, sin descontar las
@@ -300,15 +306,17 @@ export type SaldoMembresia = {
  */
 export function saldoMembresia(e: SaldoEntrada): SaldoMembresia {
   const contratadasMin = Math.round(e.horasContratadas * 60);
-  const consumidasMin = e.reservas
-    .filter((r) => (ESTADOS_QUE_CONSUMEN as string[]).includes(r.estado))
-    .reduce((acc, r) => acc + r.duracion_min, 0);
+  const sumaEstados = (estados: readonly string[]) =>
+    e.reservas.filter((r) => estados.includes(r.estado)).reduce((acc, r) => acc + r.duracion_min, 0);
+  const reservadasMin = sumaEstados(["confirmada", "reprogramada"]);
+  const realizadasMin = sumaEstados(["realizada", "ausente"]);
+  const consumidasMin = reservadasMin + realizadasMin;
   const solicitadasVigentesMin = e.reservas
     .filter((r) => r.estado === "solicitada" && solicitudVigente(r.solicitada_hasta ?? null, e.ahora))
     .reduce((acc, r) => acc + r.duracion_min, 0);
   const sinAgendarMin = Math.max(0, contratadasMin - consumidasMin);
   const disponibleMin = Math.max(0, sinAgendarMin - solicitadasVigentesMin);
-  return { contratadasMin, consumidasMin, solicitadasVigentesMin, sinAgendarMin, disponibleMin };
+  return { contratadasMin, reservadasMin, realizadasMin, consumidasMin, solicitadasVigentesMin, sinAgendarMin, disponibleMin };
 }
 
 // ── Cierres de sala sobre reservas (C3, hito H4) ────────────────────────────

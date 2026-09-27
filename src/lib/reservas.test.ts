@@ -257,6 +257,24 @@ test("saldoMembresia: consumidas cuenta los 4 estados que ocupan, no las Solicit
   assert.equal(s.sinAgendarMin, 300);
 });
 
+test("saldoMembresia: reservadas (confirmada+reprogramada) y realizadas (realizada+ausente) suman consumidas", () => {
+  const ahora = new Date("2026-10-02T10:00:00.000Z");
+  const s = saldoMembresia({
+    horasContratadas: 8,
+    ahora,
+    reservas: [
+      { estado: "confirmada", duracion_min: 60 },
+      { estado: "reprogramada", duracion_min: 30 },
+      { estado: "realizada", duracion_min: 60 },
+      { estado: "ausente", duracion_min: 45 },
+      { estado: "reagendar", duracion_min: 60 }, // liberada, no cuenta en ninguna
+    ],
+  });
+  assert.equal(s.reservadasMin, 90);
+  assert.equal(s.realizadasMin, 105);
+  assert.equal(s.consumidasMin, s.reservadasMin + s.realizadasMin);
+});
+
 test("saldoMembresia: las Solicitadas vigentes descuentan del disponible, no de lo consumido", () => {
   const ahora = new Date("2026-10-02T10:00:00.000Z");
   const s = saldoMembresia({

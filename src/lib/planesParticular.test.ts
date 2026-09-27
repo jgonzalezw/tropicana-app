@@ -39,6 +39,7 @@ const BASE: DatosPlan = {
   extension_modo: "lista",
   extension_recargo_pct: null,
   registra_acompanantes: false,
+  permite_sala_externa: false,
 };
 
 test("validarPlanParticular: un plan bien formado no da error", () => {
