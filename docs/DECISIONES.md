@@ -181,24 +181,32 @@ hito ni gastar tokens reconstruyéndolo (pedido de Javier, 2026-09-26): esto
 se actualiza en el mismo commit que cierra cada hito, y una sesión nueva lo
 lee **antes** de mirar ramas.
 
-- **Rama activa:** `main`. **H4 completo — cierres de sala sobre reservas
-  (0055) + navegación enfocada desde `/sala` y alcance propio de Particulares
-  (0056) — EN PRODUCCIÓN desde el 2026-09-26**, con el OK explícito de Javier
-  ("confirmado", tras revisar el CI del PR). `h4-cierres-reservas` mergeada a
-  `main` (PR #2, merge commit `f4e01af`), rama remota conservada (no borrada).
-- **Último hito:** H4 (migración 0055) + el fix de navegación/permisos
-  construido encima (migración 0056), los dos pasados juntos. Detalle
-  completo, con las dos rondas de recorrido en el navegador (como
-  Administrador y con la cuenta de Oscar Núñez, rol Profesor — confirmado por
-  Javier), en `docs/ESTADO.md`, sección "C3 — H4: cierres de sala sobre
-  reservas" y su subtítulo "Después del recorrido".
-- **Orden del pase, seguido tal cual §3:** 1) migraciones 0055 y 0056
-  aplicadas en `pnvhpbxjbdmbktpwebtx` (dry-run en una transacción con
-  rollback intencional primero, después aplicadas de verdad) — controles
-  1–8 y 32–38 en OK, `get_advisors` sin hallazgos nuevos; 2) recién
-  entonces el PR #2 se mergeó a `main`, con el CI de Vercel en verde
-  (deploy + preview comments). Detalle en §4 de este archivo.
-- **Sigue:** H5 (liquidación de particulares).
+- **Rama activa:** `main`. **Fix de `contacto_id` + sala externa por plan
+  (0057) + corrección del bug de duplicados en Precios y paquetes — EN
+  PRODUCCIÓN desde el 2026-09-27**, con el OK explícito de Javier ("ok para
+  pasar a producción"). `ajustes-particulares` mergeada a `main` (PR #3,
+  merge commit `962e45c`), rama remota conservada (no borrada).
+- **Último hito:** el fix grave de `contacto_id` (rompía toda inscripción de
+  curso regular y de prueba, en dev y en producción desde el pase de H1-H3),
+  más los ajustes de particulares que Javier pidió al probar con datos
+  reales (sala externa por plan, mayúsculas del nombre del plan, "Plantilla"
+  → "Plan Clases Particulares", cabecera de horas con Reservadas/Realizadas)
+  y el bug de duplicados en Precios y paquetes encontrado en paralelo.
+  Detalle completo en `docs/ESTADO.md`, sección "Ajustes tras cargar datos
+  reales: contacto_id, sala externa por plan, duplicados en Precios".
+- **Orden del pase, seguido tal cual §3:** 1) migración 0057 aplicada en
+  `pnvhpbxjbdmbktpwebtx` (dry-run en una transacción con rollback intencional
+  primero, después aplicada de verdad) — controles 1–8 y 28–31 en OK,
+  `get_advisors` sin hallazgos nuevos; 2) recién entonces el PR #3 se
+  mergeó a `main`, con el CI de Vercel en verde. Detalle en §4 de este
+  archivo.
+- **Pendiente, no automatizado a propósito:** activar a mano "Permite sala
+  externa" en los dos planes de boda de producción, desde Planes.
+- **Sigue:** el caso de Manuel Aguilar (membresía 44, producción) se
+  resuelve directamente en Caja con un descuento de Bs 60 sobre la cuota
+  pendiente — no quedó pendiente de código. Después de eso: la sección de
+  agendamientos en salas externas dentro de `/sala` (pedido de Javier al
+  aprobar el PR, ver `ESTADO.md`), y luego H5 (liquidación de particulares).
 - **Para arrancar la sesión siguiente**, si no está ya en `main`:
   ```
   git checkout main
@@ -206,7 +214,7 @@ lee **antes** de mirar ramas.
   git merge --ff-only origin/main
   ```
 - **Para que Javier actualice su local** (regla de proceso 9, "Javier no
-  programa: solo actualiza y prueba") — el código de H4 ya está desplegado:
+  programa: solo actualiza y prueba") — el código ya está desplegado:
   ```
   git checkout main
   git pull origin main
@@ -215,16 +223,30 @@ lee **antes** de mirar ramas.
 
 ## 4. Registro de pases a producción
 
-**Pendiente de pase (2026-09-27): el fix de `contacto_id` + sala externa por
-plan + duplicados de Precios (migración 0057) — construido y verificado en
-dev, en la rama `ajustes-particulares`, esperando el OK explícito de Javier.**
-Detalle completo en `docs/ESTADO.md`, sección "Ajustes tras cargar datos
-reales: contacto_id, sala externa por plan, duplicados en Precios". Incluye
-el recordatorio de activar "Permite sala externa" a mano en los dos planes de
-boda después del pase. El resto de lo construido hasta el 2026-09-26 está en
-producción, con migraciones 0001–0056 en las dos bases. Cuando algo quede
+**Hoy (2026-09-27) no hay nada pendiente de pase**: todo lo construido está en
+producción, con migraciones 0001–0057 en las dos bases. Cuando algo quede
 **solo en dev** esperando el OK explícito de Javier (regla de proceso 1), se
 anota arriba de esta línea. Abajo, en orden, cada pase ya hecho.
+
+- **Fix de `contacto_id` + sala externa por plan + duplicados en Precios y
+  paquetes (migración 0057) — PASADO A PRODUCCIÓN el 2026-09-27**, con el OK
+  explícito de Javier ("te di mi ok explícito: ok para pasar a producción").
+  Orden seguido, tal cual §3: **1)** medido antes: 16 planes (3 de
+  particulares), la columna `permite_sala_externa` no existía. **2)** ensayo
+  en seco en `pnvhpbxjbdmbktpwebtx` (la migración completa dentro de una
+  transacción que termina en un error provocado y lo deshace todo) —
+  confirmó que corre sin errores. **3)** migración **0057** aplicada de
+  verdad: los 16 planes quedaron con `permite_sala_externa = false` (ningún
+  dato de dominio tocado, igual que el ensayo). **4)** controles 1–8 y 28–31
+  del script en **OK**; `get_advisors` sin hallazgos nuevos (los que marca
+  son previos: tablas `*_previo_*`, la extensión `btree_gist`, las funciones
+  `SECURITY DEFINER` ya conocidas). **5)** recién entonces el PR #3
+  (`ajustes-particulares` → `main`) se mergeó, con el CI de Vercel en verde.
+  `main` `2b43e87..962e45c`, confirmado por el chip PROD `#962e45c`.
+  **Pendiente, a mano**: activar "Permite sala externa" en los dos planes de
+  boda desde Planes — la migración no los toca a propósito. Detalle completo
+  del hito en `docs/ESTADO.md`, sección "Ajustes tras cargar datos reales:
+  contacto_id, sala externa por plan, duplicados en Precios".
 
 - **C3 H4 (cierres de sala sobre reservas) + navegación enfocada desde `/sala`
   y alcance propio de Particulares — PASADO A PRODUCCIÓN el 2026-09-26**, con
