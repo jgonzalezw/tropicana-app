@@ -4504,3 +4504,14 @@ contra datos reales de dev. **Pendiente**: aplicar la corrección hoy mismo en
 producción, con el caso puntual de Manuel Aguilar (membresía 44, cuota
 pendiente de Bs 480, descuento de Bs 60 pedido por Javier) resuelto por Caja
 sin necesidad de código — ver "Dónde retomar" y D28 en `docs/DECISIONES.md`.
+
+**PR abierto**: [#3](https://github.com/jgonzalezw/tropicana-app/pull/3),
+rama `ajustes-particulares`, con el "ok a PR" de Javier (2026-09-27).
+
+**Próximo paso, después de este PR y antes de H5** (pedido de Javier,
+2026-09-27, al aprobar el PR): `/sala` (Disponibilidad de sala) no muestra
+hoy ningún agendamiento en salas externas — una reserva particular o de
+alquiler en, por ejemplo, el salón de una boda queda invisible ahí, aunque
+ocupe al profesor ese día. Javier decidió: **una sección aparte, debajo de
+las salas propias** ("Agendamientos externos de hoy"), no una sala más en el
+selector — y construirla **como su propio paso, no junto con H5**.
