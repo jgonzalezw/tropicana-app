@@ -202,11 +202,12 @@ lee **antes** de mirar ramas.
   archivo.
 - **Pendiente, no automatizado a propósito:** activar a mano "Permite sala
   externa" en los dos planes de boda de producción, desde Planes.
-- **Sigue:** el caso de Manuel Aguilar (membresía 44, producción) se
-  resuelve directamente en Caja con un descuento de Bs 60 sobre la cuota
-  pendiente — no quedó pendiente de código. Después de eso: la sección de
-  agendamientos en salas externas dentro de `/sala` (pedido de Javier al
-  aprobar el PR, ver `ESTADO.md`), y luego H5 (liquidación de particulares).
+- **Resuelto:** el caso de Manuel Aguilar (membresía 44, producción) — Javier
+  lo corrigió en Caja el 2026-09-27: cuota 44 `pagada`, Bs 420 cobrados + Bs
+  60 de descuento con motivo (verificado por SQL).
+- **Sigue:** la sección de agendamientos en salas externas dentro de `/sala`
+  (pedido de Javier al aprobar el PR, ver `ESTADO.md`), y luego H5
+  (liquidación de particulares).
 - **Para arrancar la sesión siguiente**, si no está ya en `main`:
   ```
   git checkout main
