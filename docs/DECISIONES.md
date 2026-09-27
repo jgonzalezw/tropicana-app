@@ -181,33 +181,36 @@ hito ni gastar tokens reconstruyéndolo (pedido de Javier, 2026-09-26): esto
 se actualiza en el mismo commit que cierra cada hito, y una sesión nueva lo
 lee **antes** de mirar ramas.
 
-- **Rama activa:** `main`. **Fix de `contacto_id` + sala externa por plan
-  (0057) + corrección del bug de duplicados en Precios y paquetes — EN
-  PRODUCCIÓN desde el 2026-09-27**, con el OK explícito de Javier ("ok para
-  pasar a producción"). `ajustes-particulares` mergeada a `main` (PR #3,
-  merge commit `962e45c`), rama remota conservada (no borrada).
-- **Último hito:** el fix grave de `contacto_id` (rompía toda inscripción de
-  curso regular y de prueba, en dev y en producción desde el pase de H1-H3),
-  más los ajustes de particulares que Javier pidió al probar con datos
-  reales (sala externa por plan, mayúsculas del nombre del plan, "Plantilla"
-  → "Plan Clases Particulares", cabecera de horas con Reservadas/Realizadas)
-  y el bug de duplicados en Precios y paquetes encontrado en paralelo.
-  Detalle completo en `docs/ESTADO.md`, sección "Ajustes tras cargar datos
-  reales: contacto_id, sala externa por plan, duplicados en Precios".
-- **Orden del pase, seguido tal cual §3:** 1) migración 0057 aplicada en
-  `pnvhpbxjbdmbktpwebtx` (dry-run en una transacción con rollback intencional
-  primero, después aplicada de verdad) — controles 1–8 y 28–31 en OK,
-  `get_advisors` sin hallazgos nuevos; 2) recién entonces el PR #3 se
-  mergeó a `main`, con el CI de Vercel en verde. Detalle en §4 de este
-  archivo.
+- **Rama activa:** `main`. **"Agendamientos externos de hoy" en `/sala` — EN
+  PRODUCCIÓN desde el 2026-09-27**, con el OK explícito de Javier ("ok a
+  prod"). `sala-externa-visibilidad` mergeada a `main` (PR #4, merge commit
+  `46bb4d3`), rama remota conservada. Sin migración: reusa `reservas_sala` y
+  `membresia_salas` tal como quedaron con la 0057.
+- **Último hito:** una sección nueva debajo de las salas propias en `/sala`
+  que lista las reservas particulares/alquiler del día en la sala externa
+  genérica, con su lugar real y el mismo panel `GestionReserva` por fila —
+  antes invisibles del todo en la pantalla operativa. Detalle completo en
+  `docs/ESTADO.md`, sección "Agendamientos externos de hoy, en /sala".
+- **Antes de este hito**, en el mismo día: el fix grave de `contacto_id`
+  (rompía toda inscripción de curso regular y de prueba) + sala externa por
+  plan (migración 0057) + duplicados en Precios y paquetes, PR #3, y la
+  corrección puntual del pago de Manuel Aguilar por SQL — ver el detalle más
+  abajo en esta misma sección.
 - **Pendiente, no automatizado a propósito:** activar a mano "Permite sala
   externa" en los dos planes de boda de producción, desde Planes.
-- **Resuelto:** el caso de Manuel Aguilar (membresía 44, producción) — Javier
-  lo corrigió en Caja el 2026-09-27: cuota 44 `pagada`, Bs 420 cobrados + Bs
-  60 de descuento con motivo (verificado por SQL).
-- **Sigue:** la sección de agendamientos en salas externas dentro de `/sala`
-  (pedido de Javier al aprobar el PR, ver `ESTADO.md`), y luego H5
-  (liquidación de particulares).
+- **Resuelto:** el caso de Manuel Aguilar (membresía 44, producción). El
+  primer intento de Javier en Caja quedó mal (el pago se guardó con el monto
+  total cubierto, sin dejar saldo) por un problema de guardado que no se
+  investigó a pedido suyo ("resolvamos puntualmente el caso, NO analices
+  porqué no me dejó"). Se corrigió puntualmente por SQL: cuota 44 `parcial`,
+  Bs 480 devengado, Bs 60 de descuento con motivo, monto cobrado Bs 0 →
+  **saldo Bs 420 pendiente** (verificado, 2026-09-27).
+- **Cerrado (2026-09-27, sin migración):** "Agendamientos externos de hoy" en
+  `/sala` — PASADO A PRODUCCIÓN, con el OK explícito de Javier ("ok a prod").
+  `sala-externa-visibilidad` mergeada a `main` (PR #4, merge commit
+  `46bb4d3`), rama remota conservada. Detalle en `docs/ESTADO.md`, sección
+  "Agendamientos externos de hoy, en /sala".
+- **Sigue:** H5 (liquidación de particulares).
 - **Para arrancar la sesión siguiente**, si no está ya en `main`:
   ```
   git checkout main
@@ -228,6 +231,13 @@ lee **antes** de mirar ramas.
 producción, con migraciones 0001–0057 en las dos bases. Cuando algo quede
 **solo en dev** esperando el OK explícito de Javier (regla de proceso 1), se
 anota arriba de esta línea. Abajo, en orden, cada pase ya hecho.
+
+- **"Agendamientos externos de hoy" en `/sala` — PASADO A PRODUCCIÓN el
+  2026-09-27**, con el OK explícito de Javier ("ok a prod"). Sin migración:
+  solo código, así que el orden fue directo — CI de Vercel en verde, PR #4
+  (`sala-externa-visibilidad` → `main`) mergeado. `main` `c33d8da..46bb4d3`.
+  Detalle completo del hito en `docs/ESTADO.md`, sección "Agendamientos
+  externos de hoy, en /sala".
 
 - **Fix de `contacto_id` + sala externa por plan + duplicados en Precios y
   paquetes (migración 0057) — PASADO A PRODUCCIÓN el 2026-09-27**, con el OK
