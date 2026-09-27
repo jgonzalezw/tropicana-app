@@ -4515,3 +4515,42 @@ alquiler en, por ejemplo, el salón de una boda queda invisible ahí, aunque
 ocupe al profesor ese día. Javier decidió: **una sección aparte, debajo de
 las salas propias** ("Agendamientos externos de hoy"), no una sala más en el
 selector — y construirla **como su propio paso, no junto con H5**.
+
+## Agendamientos externos de hoy, en /sala · 2026-09-27 (dev)
+
+Construido en la rama `sala-externa-visibilidad`, como su propio paso —
+separado del pase de la 0057, tal como Javier lo pidió.
+
+**Qué cambia.** `/sala` (Disponibilidad de sala) agrega una sección nueva,
+debajo de las tarjetas de sala propia: "Agendamientos externos de hoy", con
+la lista de reservas particulares/alquiler que caen ese día en la sala
+externa genérica, cada una con su lugar real (`membresia_salas.
+nombre_descriptivo`) — el mismo lugar que se ve y se edita desde
+`/particulares/[id]` (0057). No es una sala más en el selector: no tiene
+horario propio que abrir o cerrar, ni se puede bloquear (la sala externa no
+se valida, regla de negocio 23) — es una lista plana de quién ocupa a un
+profesor fuera de Tropicana ese día.
+
+**Código:**
+- `consultarAgendamientosExternos(fechaISO)` (`sala/acciones.ts`, lectura
+  pura): resuelve la sala externa genérica, trae sus `reservas_sala` del día
+  filtradas por `tipo in (particular, alquiler)` y `ocupaAhora` (mismo
+  criterio que `consultarDisponibilidad`), y les cruza el lugar real desde
+  `membresia_salas`. `gestionable` se calcula igual que en la sala propia:
+  `particulares.editar` + alcance propio/todo.
+- `AgendamientosExternos.tsx` (componente nuevo): una fila por reserva (hora,
+  alumno, profesor, lugar), con el mismo botón "Gestionar" que abre
+  `GestionReserva` — la misma pieza que ya usa cada tarjeta de sala propia
+  (regla de proceso 4). Montado en `ClientePanelSala.tsx`, debajo de la
+  grilla de salas, compartiendo la misma `fecha` del selector único.
+- Sin migración: reutiliza `reservas_sala` y `membresia_salas` tal como
+  quedaron con la 0057.
+
+**Verificado**: `tsc`, lint y `npm test` (133/133) en verde. Navegador
+(dev): con fecha sin agendamientos externos, "Sin agendamientos externos
+este día."; con la fecha de la reserva de prueba de Manuel Aguilar
+(14/12/2026, "Salón Los Tajibos"), aparece "Particular · 10:00–11:00 Manuel
+Aguilar · Inamsai De Dazan · 📍 Salón Los Tajibos (boda)" con botón
+"Gestionar" que abre el panel completo (Reprogramar, Cancelar, Suspender,
+Marcar Ausente/Realizada, "Ver ficha completa de la membresía →",
+historial) — igual que desde una tarjeta de sala propia.
