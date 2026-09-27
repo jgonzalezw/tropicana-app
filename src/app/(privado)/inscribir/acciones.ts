@@ -132,10 +132,10 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
   // 1. Alumno y plan (datos autoritativos del servidor).
   const { data: alumnoRowRaw } = await sb
     .from("alumnos")
-    .select("id, contacto:contactos(nombre, apellido)")
+    .select("id, contacto_id, contacto:contactos(nombre, apellido)")
     .eq("id", e.alumnoId)
     .maybeSingle();
-  const alumnoRow = alumnoRowRaw as unknown as { id: number; contacto: { nombre: string | null; apellido: string | null } | null } | null;
+  const alumnoRow = alumnoRowRaw as unknown as { id: number; contacto_id: number; contacto: { nombre: string | null; apellido: string | null } | null } | null;
   if (!alumnoRow) return { error: "El alumno no existe." };
   const alumno = { nombre: alumnoRow.contacto?.nombre ?? "", apellido: alumnoRow.contacto?.apellido ?? "" };
 
@@ -294,6 +294,9 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
     .from("membresias")
     .insert({
       alumno_id: e.alumnoId,
+      // El titular de la membresía es un contacto (0053, regla 21): la
+      // columna es obligatoria y nada la completa sola.
+      contacto_id: alumnoRow.contacto_id,
       curso_id: cursoPrincipal,
       modalidad: "mensual",
       fecha_inicio: isoFecha(inicio),
@@ -563,10 +566,10 @@ export async function venderPrueba(
 
   const { data: alumnoRowRaw } = await sb
     .from("alumnos")
-    .select("id, contacto:contactos(nombre, apellido)")
+    .select("id, contacto_id, contacto:contactos(nombre, apellido)")
     .eq("id", e.alumnoId)
     .maybeSingle();
-  const alumnoRow = alumnoRowRaw as unknown as { id: number; contacto: { nombre: string | null; apellido: string | null } | null } | null;
+  const alumnoRow = alumnoRowRaw as unknown as { id: number; contacto_id: number; contacto: { nombre: string | null; apellido: string | null } | null } | null;
   if (!alumnoRow) return { error: "El alumno no existe." };
   const alumno = { nombre: alumnoRow.contacto?.nombre ?? "", apellido: alumnoRow.contacto?.apellido ?? "" };
 
@@ -704,6 +707,7 @@ export async function venderPrueba(
     .from("membresias")
     .insert({
       alumno_id: e.alumnoId,
+      contacto_id: alumnoRow.contacto_id,
       curso_id: cursoIds[0],
       modalidad: "clase",
       fecha_inicio: isoFecha(inicio),
@@ -940,7 +944,9 @@ export type EntradaParticular = {
   planId: number;
   tarifaParticularId: number;
   profesorId: number;
-  sala: { tipo: "propia"; salaId: number } | { tipo: "externa"; nombreDescriptivo: string };
+  sala:
+    | { tipo: "propia"; salaId: number; lugarExternoOpcional?: string }
+    | { tipo: "externa"; nombreDescriptivo: string };
   acompanantes: number;
   fechaInicio: string;
   agenda:
@@ -1021,6 +1027,10 @@ type AgendaCalculada = {
   dondeTexto?: string;
   salaId?: number;
   nombreDescriptivo?: string | null;
+  /** Lugar externo registrado JUNTO a la sala propia elegida (plan con
+   *  `permite_sala_externa`), para poder reprogramar a él después sin haber
+   *  vendido con sala externa (hallazgo de Javier, 26/09). */
+  lugarExternoOpcional?: string | null;
   formaPago?: "fee_hora" | "pct_margen" | "monto_fijo";
   feeHoraAplicado?: number | null;
   pagoPctMargen?: number | null;
@@ -1077,7 +1087,7 @@ async function calcularAgendaParticular(
   const { data: planRow } = await sb
     .from("planes")
     .select(
-      "id, nombre, tipo_servicio, activo, estilo, vigencia_dias, reserva_modalidad, salas_modo, forma_pago_profesor, pago_pct_margen, pago_descuenta_sala, pago_monto_fijo, registra_acompanantes"
+      "id, nombre, tipo_servicio, activo, estilo, vigencia_dias, reserva_modalidad, salas_modo, forma_pago_profesor, pago_pct_margen, pago_descuenta_sala, pago_monto_fijo, registra_acompanantes, permite_sala_externa"
     )
     .eq("id", e.planId)
     .maybeSingle();
@@ -1116,7 +1126,9 @@ async function calcularAgendaParticular(
   let salaId: number;
   let nombreDescriptivo: string | null = null;
   let esExterna = false;
+  let lugarExternoOpcional: string | null = null;
   if (e.sala.tipo === "externa") {
+    if (!planRow.permite_sala_externa) return { error: "Este plan no permite sala externa. Se activa en Planes." };
     const { data: externaRow } = await a.from("salas").select("id").eq("es_externa", true).eq("activa", true).maybeSingle();
     if (!externaRow) return { error: "No hay una sala externa activa configurada." };
     salaId = externaRow.id as number;
@@ -1133,16 +1145,21 @@ async function calcularAgendaParticular(
         .eq("plan_id", planRow.id)
         .eq("sala_id", salaRow.id)
         .maybeSingle();
-      if (!permitida) return { error: "Esta plantilla no permite esa sala. Se ajusta en Planes." };
+      if (!permitida) return { error: "Este plan no permite esa sala. Se ajusta en Planes." };
     }
     salaId = salaRow.id as number;
+    const lugarPedido = e.sala.lugarExternoOpcional?.trim() || null;
+    if (lugarPedido) {
+      if (!planRow.permite_sala_externa) return { error: "Este plan no permite sala externa. Se activa en Planes." };
+      lugarExternoOpcional = lugarPedido;
+    }
   }
 
   const horasContratadas = Number(tarifaRow.horas);
   const precio = Number(tarifaRow.precio);
   const personas = 1 + Math.max(0, Math.trunc(e.acompanantes));
   if (planRow.registra_acompanantes === false && e.acompanantes > 0)
-    return { error: "Esta plantilla no registra acompañantes." };
+    return { error: "Este plan no registra acompañantes." };
 
   const mesesVigencia = Math.max(1, Number(await obtenerParametro("vencimiento_paquete_meses")) || 2);
   const vigenciaDias = vigenciaDiasEfectiva(planRow.vigencia_dias, mesesVigencia);
@@ -1319,6 +1336,7 @@ async function calcularAgendaParticular(
     dondeTexto: esExterna ? nombreDescriptivo! : "Tropicana",
     salaId,
     nombreDescriptivo,
+    lugarExternoOpcional,
     formaPago,
     feeHoraAplicado: formaPago === "fee_hora" ? profesorRow.fee_hora : null,
     pagoPctMargen: planRow.pago_pct_margen,
@@ -1383,6 +1401,7 @@ export async function venderParticular(e: EntradaParticular): Promise<ResultadoP
     dondeTexto,
     salaId,
     nombreDescriptivo,
+    lugarExternoOpcional,
     formaPago,
     feeHoraAplicado,
     pagoPctMargen,
@@ -1461,6 +1480,22 @@ export async function venderParticular(e: EntradaParticular): Promise<ResultadoP
     nombre_descriptivo: nombreDescriptivo ?? null,
   });
   if (errSala) return { error: "Se creó la membresía, pero falló guardar la sala: " + errSala.message };
+
+  // Lugar externo registrado junto a la sala propia (plan con
+  // permite_sala_externa): queda desde ya disponible para Reprogramar, sin
+  // reservar nada ahí todavía (regla de proceso 4: mismo mecanismo que la
+  // sala externa vendida directamente).
+  if (lugarExternoOpcional) {
+    const { data: externaRow } = await a.from("salas").select("id").eq("es_externa", true).eq("activa", true).maybeSingle();
+    if (externaRow) {
+      const { error: errLugar } = await a.from("membresia_salas").insert({
+        membresia_id: membresiaId,
+        sala_id: externaRow.id,
+        nombre_descriptivo: lugarExternoOpcional,
+      });
+      if (errLugar) return { error: "Se creó la membresía, pero falló guardar el lugar externo: " + errLugar.message };
+    }
+  }
 
   const { data: cuota, error: errCuota } = await a
     .from("cuotas")

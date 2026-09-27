@@ -226,12 +226,18 @@ export type MembresiaParticularDetalle = {
   estado: string;
   saldo: {
     contratadasMin: number;
+    reservadasMin: number;
+    realizadasMin: number;
     consumidasMin: number;
     solicitadasVigentesMin: number;
     sinAgendarMin: number;
     disponibleMin: number;
   };
   salasDeLaMembresia: { salaId: number; nombre: string; esExterna: boolean }[];
+  /** Si el plan de esta membresía permite sala externa (0057): habilita
+   *  incluir/editar el lugar externo desde la ficha, sin importar cómo se
+   *  vendió originalmente. */
+  permiteSalaExterna: boolean;
   reservas: ReservaConHistorial[];
   error?: string;
 };
@@ -441,7 +447,7 @@ export async function obtenerMembresiaParticular(membresiaId: number): Promise<M
     .select(
       "id, fecha_inicio, fecha_fin, estado, horas_contratadas, alumno_id, profesor_id, " +
         "alumno:alumnos(contacto:contactos(nombre, apellido)), " +
-        "plan:planes(nombre, estilo), " +
+        "plan:planes(nombre, estilo, permite_sala_externa), " +
         "profesor:profesores(contacto:contactos(nombre, apellido))"
     )
     .eq("id", membresiaId)
@@ -458,7 +464,7 @@ export async function obtenerMembresiaParticular(membresiaId: number): Promise<M
     alumno_id: number;
     profesor_id: number;
     alumno: { contacto: { nombre: string | null; apellido: string | null } | null } | null;
-    plan: { nombre: string; estilo: string | null } | null;
+    plan: { nombre: string; estilo: string | null; permite_sala_externa: boolean } | null;
     profesor: { contacto: { nombre: string | null; apellido: string | null } | null } | null;
   };
   const mm = m as unknown as M;
@@ -531,6 +537,7 @@ export async function obtenerMembresiaParticular(membresiaId: number): Promise<M
     estado: mm.estado,
     saldo,
     salasDeLaMembresia: salasResueltas,
+    permiteSalaExterna: mm.plan?.permite_sala_externa ?? false,
     reservas,
   };
 }
@@ -635,6 +642,52 @@ export async function obtenerReservaParaGestion(reservaId: number): Promise<Deta
   };
 }
 
+// ── Lugar externo de la membresía (0057) ────────────────────────────────────
+
+/**
+ * Incluye o edita el nombre del lugar externo de una membresía, sin importar
+ * cómo se vendió: hace falta para las que ya existían antes de la 0057, y
+ * para las vendidas con sala propia cuyo plan permite sala externa pero no
+ * se cargó el lugar al vender (Javier, 26/09). No reserva nada ahí: solo dice
+ * cómo se llama, para que Reprogramar y "+ Nueva reserva" lo puedan ofrecer.
+ */
+export async function guardarLugarExterno(
+  membresiaId: number,
+  nombreDescriptivo: string
+): Promise<ResultadoAccion> {
+  if (!(await tienePermiso("particulares", "editar"))) return { error: "No tenés permiso para editar esta membresía." };
+  const nombre = nombreDescriptivo.trim();
+  if (!nombre) return { error: "Cargá el nombre del lugar externo." };
+
+  const a = admin();
+  const { data: mRow, error: errM } = await a
+    .from("membresias")
+    .select("id, profesor_id, plan:planes(permite_sala_externa)")
+    .eq("id", membresiaId)
+    .is("curso_id", null)
+    .maybeSingle();
+  if (errM) return { error: `No se pudo leer la membresía: ${errM.message}` };
+  if (!mRow) return { error: "Esa membresía de particulares no existe." };
+  const { propio, profesorId } = await alcancePropioDe("particulares");
+  if (propio && mRow.profesor_id !== profesorId) return { error: "Esta membresía es de otro profesor: no podés editarla." };
+  const plan = mRow.plan as unknown as { permite_sala_externa: boolean } | null;
+  if (!plan?.permite_sala_externa) return { error: "El plan de esta membresía no permite sala externa. Se activa en Planes." };
+
+  const { data: externaRow } = await a.from("salas").select("id").eq("es_externa", true).eq("activa", true).maybeSingle();
+  if (!externaRow) return { error: "No hay una sala externa activa configurada." };
+
+  const { error: errUpsert } = await a
+    .from("membresia_salas")
+    .upsert(
+      { membresia_id: membresiaId, sala_id: externaRow.id, nombre_descriptivo: nombre },
+      { onConflict: "membresia_id,sala_id" }
+    );
+  if (errUpsert) return { error: `No se pudo guardar el lugar externo: ${errUpsert.message}` };
+
+  revalidatePath(`/particulares/${membresiaId}`);
+  return { ok: true };
+}
+
 // ── Crear una reserva nueva ───────────────────────────────────────────────
 
 export type EntradaNuevaReserva = {
@@ -669,7 +722,7 @@ export async function crearReserva(e: EntradaNuevaReserva): Promise<ResultadoAcc
   if (e.fecha < mRow.fecha_inicio || e.fecha > mRow.fecha_fin)
     return { error: `La fecha queda fuera de la vigencia de la membresía (${mRow.fecha_inicio} a ${mRow.fecha_fin}).` };
 
-  const { data: planRow } = await a.from("planes").select("id, salas_modo").eq("id", mRow.plan_id).maybeSingle();
+  const { data: planRow } = await a.from("planes").select("id, salas_modo, permite_sala_externa").eq("id", mRow.plan_id).maybeSingle();
   if (!planRow) return { error: "El plan de esta membresía ya no existe." };
 
   // ── Resolver la sala: una ya usada por la membresía, otra propia que el
@@ -677,6 +730,7 @@ export async function crearReserva(e: EntradaNuevaReserva): Promise<ResultadoAcc
   let salaId: number;
   let esExterna = false;
   if (e.sala.tipo === "externa") {
+    if (!planRow.permite_sala_externa) return { error: "Este plan no permite sala externa. Se activa en Planes." };
     const { data: externaRow } = await a.from("salas").select("id").eq("es_externa", true).eq("activa", true).maybeSingle();
     if (!externaRow) return { error: "No hay una sala externa activa configurada." };
     salaId = externaRow.id as number;
@@ -708,7 +762,7 @@ export async function crearReserva(e: EntradaNuevaReserva): Promise<ResultadoAcc
     if (!yaUsada) {
       if (planRow.salas_modo === "solo") {
         const { data: permitida } = await a.from("plan_salas").select("sala_id").eq("plan_id", planRow.id).eq("sala_id", salaId).maybeSingle();
-        if (!permitida) return { error: "Esta plantilla no permite esa sala. Se ajusta en Planes." };
+        if (!permitida) return { error: "Este plan no permite esa sala. Se ajusta en Planes." };
       }
       const { error: errIns } = await a.from("membresia_salas").insert({ membresia_id: e.membresiaId, sala_id: salaId, nombre_descriptivo: null });
       if (errIns) return { error: `No se pudo asociar la sala: ${errIns.message}` };
@@ -1147,6 +1201,18 @@ export async function reprogramarReserva(e: EntradaReprogramar): Promise<Resulta
         .insert({ membresia_id: rRow.membresia_id, sala_id: e.salaId, nombre_descriptivo: null });
       if (errIns) return { error: `No se pudo asociar la sala: ${errIns.message}` };
     }
+  } else {
+    // La externa no se ofrece "en blanco": tiene que estar registrada con su
+    // nombre en esta membresía (venta con sala externa, "+ Nueva reserva" con
+    // lugar externo, o guardarLugarExterno) — nunca una externa ajena.
+    const { data: lugarRow } = await a
+      .from("membresia_salas")
+      .select("nombre_descriptivo")
+      .eq("membresia_id", rRow.membresia_id)
+      .eq("sala_id", e.salaId)
+      .maybeSingle();
+    if (!lugarRow?.nombre_descriptivo)
+      return { error: "Esta membresía todavía no tiene un lugar externo registrado. Se carga en la ficha o al crear una reserva." };
   }
 
   const ahora = new Date();

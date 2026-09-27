@@ -42,6 +42,7 @@ export type PlanParticular = {
   reservaModalidad: "fija" | "flexible" | null;
   salasModo: "todas" | "solo";
   registraAcompanantes: boolean;
+  permiteSalaExterna: boolean;
   formaPagoProfesor: "fee_hora" | "pct_margen" | "monto_fijo" | null;
 };
 export type TarifaParticularVenta = { id: number; nombre: string; estilo: string; horas: number; precio: number };
@@ -192,7 +193,14 @@ export default function VenderParticular({
           planId: plan.id,
           tarifaParticularId: tarifa.id,
           profesorId,
-          sala: salaTipo === "propia" ? { tipo: "propia", salaId: salaId! } : { tipo: "externa", nombreDescriptivo: nombreExterna.trim() },
+          sala:
+            salaTipo === "propia"
+              ? {
+                  tipo: "propia",
+                  salaId: salaId!,
+                  ...(plan.permiteSalaExterna && nombreExterna.trim() ? { lugarExternoOpcional: nombreExterna.trim() } : {}),
+                }
+              : { tipo: "externa", nombreDescriptivo: nombreExterna.trim() },
           acompanantes: personas - 1,
           fechaInicio,
           agenda: esFija ? { modalidad: "fija", diasSemana, hora, duracionMin } : { modalidad: "flexible", hora, duracionMin },
@@ -236,7 +244,7 @@ export default function VenderParticular({
   const faltaPara: string | null = !alumno
     ? "el titular"
     : !plan
-      ? "la plantilla"
+      ? "el plan"
       : !tarifa
         ? "el tramo de horas"
         : !profesorId
@@ -267,7 +275,7 @@ export default function VenderParticular({
     setError(null);
     setAviso(null);
     if (!alumno) return setError("Elegí el alumno titular.");
-    if (!plan) return setError("Elegí la plantilla.");
+    if (!plan) return setError("Elegí el plan.");
     if (!tarifa) return setError("Elegí el tramo de horas.");
     if (!profesorId) return setError("Elegí el profesor.");
     if (!salaCompleta) return setError(salaTipo === "propia" ? "Elegí la sala." : "Cargá el nombre del lugar.");
@@ -317,7 +325,7 @@ export default function VenderParticular({
   if (planes.length === 0)
     return (
       <div className="rounded-[var(--radio-tarjeta)] bg-[var(--fondo-panel)] border border-[var(--borde)] p-6">
-        <p className="text-base">Todavía no hay ninguna plantilla de particulares para vender.</p>
+        <p className="text-base">Todavía no hay ningún plan de clases particulares para vender.</p>
         <p className="text-sm text-[var(--texto-tenue)] mt-1">Se crean en Planes → Clases particulares.</p>
       </div>
     );
@@ -373,10 +381,10 @@ export default function VenderParticular({
         )}
       </section>
 
-      {/* 2 · Plantilla y tramo */}
+      {/* 2 · Plan y tramo */}
       {alumno && (
         <section className="rounded-[var(--radio-tarjeta)] bg-[var(--fondo-panel)] border border-[var(--borde)] p-5">
-          <h2 className="titulo text-xl mb-3">Plantilla</h2>
+          <h2 className="titulo text-xl mb-3">Plan Clases Particulares</h2>
           <div className="space-y-2">
             {planes.map((p) => (
               <button
@@ -450,31 +458,48 @@ export default function VenderParticular({
           <div>
             <span className="block text-base font-medium mb-1.5">Sala</span>
             <div className="flex gap-2 mb-2">
-              {(["propia", "externa"] as const).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setSalaTipo(t)}
-                  className={`px-3 py-1.5 text-sm rounded-[var(--radio-control)] border ${
-                    salaTipo === t ? "bg-[var(--primario)] text-[var(--primario-texto)] border-[var(--primario)]" : "border-[var(--borde)]"
-                  }`}
-                >
-                  {t === "propia" ? "En Tropicana" : "Ubicación externa"}
-                </button>
-              ))}
+              {(["propia", "externa"] as const)
+                .filter((t) => t === "propia" || plan?.permiteSalaExterna)
+                .map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setSalaTipo(t)}
+                    className={`px-3 py-1.5 text-sm rounded-[var(--radio-control)] border ${
+                      salaTipo === t ? "bg-[var(--primario)] text-[var(--primario-texto)] border-[var(--primario)]" : "border-[var(--borde)]"
+                    }`}
+                  >
+                    {t === "propia" ? "En Tropicana" : "Ubicación externa"}
+                  </button>
+                ))}
             </div>
             {salaTipo === "propia" ? (
               salasPropias.length === 0 ? (
-                <p className="text-sm text-[var(--peligro)]">Esta plantilla no tiene ninguna sala propia permitida.</p>
+                <p className="text-sm text-[var(--peligro)]">Este plan no tiene ninguna sala propia permitida.</p>
               ) : (
-                <select value={salaId ?? ""} onChange={(e) => setSalaId(Number(e.target.value) || null)} className={control}>
-                  <option value="">Elegí…</option>
-                  {salasPropias.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.nombre}
-                    </option>
-                  ))}
-                </select>
+                <>
+                  <select value={salaId ?? ""} onChange={(e) => setSalaId(Number(e.target.value) || null)} className={control}>
+                    <option value="">Elegí…</option>
+                    {salasPropias.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.nombre}
+                      </option>
+                    ))}
+                  </select>
+                  {plan?.permiteSalaExterna && (
+                    <div className="mt-2">
+                      <label className="text-sm text-[var(--texto-tenue)] block mb-1">
+                        Lugar externo para esta membresía (opcional)
+                      </label>
+                      <input
+                        value={nombreExterna}
+                        onChange={(e) => setNombreExterna(e.target.value)}
+                        placeholder='Ej. "Salón Conquistador — Hotel Los Tajibos" (por si hay que reprogramar alguna clase ahí)'
+                        className={control}
+                      />
+                    </div>
+                  )}
+                </>
               )
             ) : (
               <input

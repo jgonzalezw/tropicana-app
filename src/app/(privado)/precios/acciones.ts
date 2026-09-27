@@ -165,6 +165,20 @@ export async function guardarPrecios(c: CambiosPrecios): Promise<Resultado> {
       activo: p.activo,
       actualizado_en: new Date().toISOString(),
     };
+    // Una fila nueva idéntica a una que ya existe es un doble envío, no un
+    // paquete nuevo (duplicados del 26/09): el servidor lo rechaza, no
+    // confía en que la pantalla haya mandado el id.
+    if (!p.id) {
+      const { data: gemela } = await a
+        .from("tarifas_particular")
+        .select("id")
+        .eq("nombre", fila.nombre)
+        .eq("estilo", fila.estilo)
+        .eq("horas", fila.horas)
+        .limit(1)
+        .maybeSingle();
+      if (gemela) return { error: `Ya existe el paquete "${fila.nombre}" (${fila.horas} h). Editalo en vez de crearlo de nuevo.` };
+    }
     const { error } = p.id
       ? await a.from("tarifas_particular").update(fila).eq("id", p.id)
       : await a.from("tarifas_particular").insert(fila);
@@ -198,6 +212,10 @@ export async function guardarPrecios(c: CambiosPrecios): Promise<Resultado> {
           .eq("id", h.id);
         if (error) return { error: `No se pudo guardar el paquete de horas: ${error.message}` };
       } else {
+        // Mismo resguardo que en tarifas_particular: un doble envío no crea
+        // un paquete de horas repetido.
+        const { data: gemela } = await a.from("sala_horas_paquete").select("id").eq("horas", h.horas).limit(1).maybeSingle();
+        if (gemela) return { error: `Ya existe un paquete de ${h.horas} h. Editalo en vez de crearlo de nuevo.` };
         const { error } = await a
           .from("sala_horas_paquete")
           .insert({ horas: h.horas, orden: 0 });

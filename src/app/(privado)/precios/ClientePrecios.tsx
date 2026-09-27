@@ -130,6 +130,30 @@ export default function ClientePrecios({
   const [preciosEd, setPreciosEd] = useState<CeldaSala[]>(inicial.precios);
   const [cat, setCat] = useState<CategoriaSala>("alumno");
 
+  // Tras guardar, `router.refresh()` trae del servidor las filas con su id
+  // real — pero `useState` solo usa su valor inicial al montar, así que el
+  // estado local seguía con las filas nuevas SIN id y la pantalla seguía
+  // diciendo "Hay cambios sin guardar". Un segundo "Guardar" las volvía a
+  // INSERTAR: el duplicado de tramos de particulares que encontró Javier el
+  // 26/09 (y el mismo riesgo en los paquetes de horas de sala). Cuando
+  // llegan datos nuevos del servidor se re-sincroniza todo, en el render
+  // (mismo patrón que BarraLateral: comparar con lo anterior, sin setState en
+  // un efecto). Solo esta pantalla dispara ese refresh, y lo hace después de
+  // guardar TODO, así que no se pisa ningún cambio sin guardar.
+  const fuenteServidor = [tarifas, descuentos, paquetes, tamanos, horasPaquete, precios] as const;
+  const [fuenteAnterior, setFuenteAnterior] = useState(fuenteServidor);
+  if (fuenteServidor.some((x, i) => x !== fuenteAnterior[i])) {
+    setFuenteAnterior(fuenteServidor);
+    setTarifasEd(JSON.parse(JSON.stringify(tarifas)));
+    setDescEd(descuentos.map((d) => ({ ...d })));
+    setPaqEd(paquetes.map((p) => ({ ...p })));
+    setPaqBorrados([]);
+    setTamEd(tamanos.map((t) => ({ ...t })));
+    setHorasEd(horasPaquete.map((h) => ({ ...h })) as FilaHoras[]);
+    setHorasBorradas([]);
+    setPreciosEd(precios.map((p) => ({ ...p })));
+  }
+
   const sucio =
     JSON.stringify({
       t: tarifasEd,

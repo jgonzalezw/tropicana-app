@@ -108,6 +108,7 @@ function camposParticular(d: DatosPlan) {
       extension_modo: "lista" as const,
       extension_recargo_pct: null,
       registra_acompanantes: false,
+      permite_sala_externa: false,
     };
   }
   return {
@@ -122,6 +123,7 @@ function camposParticular(d: DatosPlan) {
     extension_modo: d.extension_modo,
     extension_recargo_pct: d.extension_modo === "recargo" ? d.extension_recargo_pct : null,
     registra_acompanantes: d.registra_acompanantes,
+    permite_sala_externa: d.permite_sala_externa,
   };
 }
 
@@ -134,7 +136,7 @@ export async function crearPlan(d: DatosPlan): Promise<Resultado> {
   const { data, error } = await a
     .from("planes")
     .insert({
-      nombre: d.nombre.trim(),
+      nombre: d.nombre.trim().toUpperCase(),
       tipo_servicio: d.tipo_servicio,
       // modalidad es una etiqueta heredada; los planes de esta pantalla la dejan
       // en null (el motor usa plan_cursos + acceso_modo, no la modalidad).
@@ -180,7 +182,7 @@ export async function actualizarPlan(id: number, d: DatosPlan): Promise<Resultad
   const { error } = await a
     .from("planes")
     .update({
-      nombre: d.nombre.trim(),
+      nombre: d.nombre.trim().toUpperCase(),
       curso_id: d.cursoIds[0] ?? null,
       acceso_modo: d.acceso_modo,
       ...camposLimite(d),

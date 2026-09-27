@@ -4410,3 +4410,108 @@ de sala" y el selector Propio/Todo de "Particulares" con los valores
 esperados. **Falta que Javier repita el recorrido con la cuenta de Oscar**
 (alcance propio real) antes del PR — no se intentó loguear con su cuenta por
 no tener ni intentar obtener su contraseña.
+
+## Ajustes tras cargar datos reales: contacto_id, sala externa por plan, duplicados en Precios · 2026-09-26/27 (dev)
+
+Javier cargó datos reales en producción y probó más a fondo en dev; encontró
+un bug grave y varios ajustes menores, todos en la rama `ajustes-particulares`.
+
+1. **Bug grave: `contacto_id` nulo al inscribir en curso regular o en clase
+   de prueba** (`null value in column "contacto_id" of relation "membresias"
+   violates not-null constraint"`). La columna es `NOT NULL` desde la 0053
+   (regla de negocio 21: el titular de una membresía es un contacto), pero
+   `inscribirYCobrar` y `venderPrueba` (`inscribir/acciones.ts`) nunca la
+   cargaban al insertar — `venderParticular` sí, porque ya traía el
+   `contacto_id` del alumno desde `calcularAgendaParticular`. **Estaba roto
+   también en producción**: la última membresía de curso regular es del
+   23/09 (id 42); después del pase de H1–H3 el 26/09 solo entraron
+   particulares (H1/H2/H3 no tocan este camino). Arreglado agregando
+   `contacto_id` al select del alumno y al insert en las dos funciones.
+   Verificado en el navegador (dev): inscripción de curso regular
+   (CR-SALI-8CL, Bruna Márquez) y clase de prueba (Manuel Aguilar) se graban
+   sin error.
+2. **Sala externa registrable en la membresía, y como opción del plan.**
+   Antes, `membresia_salas` solo guardaba la sala elegida al vender: si se
+   vendía con sala propia, no quedaba ningún lugar externo con nombre y
+   Reprogramar no lo ofrecía después — aunque el plan fuera de los que
+   necesitan coordinar, por ejemplo, el salón de una boda. Y cualquier plan
+   particular podía vender con sala externa, sin que fuera una decisión del
+   plan. **Migración 0057**: `planes.permite_sala_externa boolean not null
+   default false` (arranca en `false` para todos los existentes — Javier
+   confirmó que ninguna membresía de producción usa sala externa hoy, nada
+   que migrar). Cambios de código: toggle "Permite sala externa" en Planes
+   (mismo patrón que `registra_acompanantes`); al vender, con sala propia y
+   plan que lo permite aparece "Lugar externo para esta membresía
+   (opcional)" — si se carga, se guarda también esa fila en
+   `membresia_salas` sin reservar nada ahí; en la ficha `/particulares/[id]`,
+   sección nueva "Lugar externo" para incluirlo o editarlo en cualquier
+   momento (acción `guardarLugarExterno`, con el mismo control de alcance
+   propio/todo); el servidor (`crearReserva`, `reprogramarReserva`,
+   `calcularAgendaParticular`) rechaza la sala externa si el plan no la
+   permite, y `reprogramarReserva` exige que la membresía ya tenga su lugar
+   con nombre. **Pendiente de recordatorio**: activar "Permite sala externa"
+   a mano en los dos planes de boda de producción, después de pasar la 0057
+   (la migración no los toca a propósito). Verificado en el navegador (dev):
+   venta con sala propia + lugar externo graba las dos filas en
+   `membresia_salas`; Reprogramar ofrece el lugar externo con su nombre;
+   "Editar" en la ficha cambia el nombre y se refleja al instante.
+3. **Nombre del plan siempre en mayúsculas.** El campo se convierte a
+   mayúsculas al tipear (crear y editar), y el servidor también lo fuerza
+   (`nombre.trim().toUpperCase()`); los planes existentes cambian solo
+   cuando se editen.
+4. **"Plantilla" → "Plan Clases Particulares".** Título y textos visibles de
+   `VenderParticular.tsx` y los mensajes de error de `inscribir/acciones.ts`
+   y `particulares/acciones.ts` que decían "plantilla" pasan a "plan" (solo
+   texto, sin renombrar código).
+5. **Cabecera de horas de la membresía: Reservadas y Realizadas, además de
+   Consumidas.** `saldoMembresia` (`src/lib/reservas.ts`) separaba todo en un
+   solo número; ahora expone `reservadasMin` (confirmada + reprogramada) y
+   `realizadasMin` (realizada + ausente), que suman `consumidasMin` (sin
+   cambiar el cálculo). La tarjeta de `/particulares/[id]` muestra las dos,
+   además de Contratadas/Disponible/Solicitadas vigentes. Prueba nueva en
+   `reservas.test.ts`.
+6. **Bug encontrado en paralelo: duplicados en "Precios y paquetes"
+   (particulares y horas de sala).** Javier reportó que los tramos de horas
+   se duplicaban solos y que borrar los duplicados no alcanzaba. **Causa
+   raíz**: `ClientePrecios.tsx` guarda su edición en estado local
+   (`useState(inicial.paquetes)`, etc.) inicializado UNA vez al montar. Tras
+   guardar, `router.refresh()` trae del servidor las filas nuevas ya con su
+   id real, pero el estado local no se resincroniza solo porque cambió una
+   prop — así que la fila recién creada quedaba en memoria SIN id, la
+   pantalla seguía diciendo "Hay cambios sin guardar", y un segundo "Guardar
+   cambios" (aunque nada hubiera cambiado a la vista) la volvía a INSERTAR
+   como fila nueva. Mismo patrón para los paquetes de horas de sala (bloque
+   E). **Arreglado**: al detectar que llegaron datos nuevos del servidor
+   (comparando la referencia de cada prop contra la anterior, en el render —
+   mismo patrón que usa `BarraLateral` para no meter `setState` en un
+   efecto), se resincronizan todos los bloques editables. Además, el
+   servidor (`precios/acciones.ts`) ahora rechaza una fila "nueva" (sin id)
+   si ya existe una con el mismo nombre/estilo/horas (paquetes) u horas
+   (paquetes de sala): un doble envío nunca crea una fila repetida, aunque la
+   pantalla se desincronizara por otro motivo. **Medido**: en dev había un
+   solo duplicado real, "Salsa - 8h" (ids 4 y 5, creados el 23/09 con ~2 h de
+   diferencia — un doble clic de una sesión de prueba anterior, no de esta);
+   el id sin uso (4) se borró. **Producción no tiene ningún duplicado**
+   (medido por SQL antes de este hallazgo). Verificado en el navegador (dev):
+   agregar un paquete → Guardar → "Guardado." sin quedar "cambios sin
+   guardar" → Guardar de nuevo no inserta nada → eliminar el paquete →
+   Guardar deja la lista limpia, sin residuos.
+
+**Verificado**: `tsc`, lint y `npm test` (133/133, con la prueba nueva de
+`reservadasMin`/`realizadasMin`) en verde. Migración 0057 aplicada en
+`tropicana-dev`. Recorrido completo en el navegador de los seis puntos,
+contra datos reales de dev. **Pendiente**: aplicar la corrección hoy mismo en
+producción, con el caso puntual de Manuel Aguilar (membresía 44, cuota
+pendiente de Bs 480, descuento de Bs 60 pedido por Javier) resuelto por Caja
+sin necesidad de código — ver "Dónde retomar" y D28 en `docs/DECISIONES.md`.
+
+**PR abierto**: [#3](https://github.com/jgonzalezw/tropicana-app/pull/3),
+rama `ajustes-particulares`, con el "ok a PR" de Javier (2026-09-27).
+
+**Próximo paso, después de este PR y antes de H5** (pedido de Javier,
+2026-09-27, al aprobar el PR): `/sala` (Disponibilidad de sala) no muestra
+hoy ningún agendamiento en salas externas — una reserva particular o de
+alquiler en, por ejemplo, el salón de una boda queda invisible ahí, aunque
+ocupe al profesor ese día. Javier decidió: **una sección aparte, debajo de
+las salas propias** ("Agendamientos externos de hoy"), no una sala más en el
+selector — y construirla **como su propio paso, no junto con H5**.
