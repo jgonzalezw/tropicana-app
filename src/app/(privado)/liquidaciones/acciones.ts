@@ -200,16 +200,16 @@ async function leerDatosMotor(
   const membresias = exigir(
     await sb
       .from("membresias")
-      .select("id, alumno_id, curso_id, plan_id, es_prueba, acompanantes, fecha_inicio, fecha_fin")
+      .select("id, alumno_id, curso_id, plan_id, es_prueba, acompanantes, fecha_inicio, fecha_fin, plan:planes!inner(tipo_servicio)")
       .eq("estado", "completada")
       .not("plan_id", "is", null)
       .not("fecha_fin", "is", null)
       .lte("fecha_fin", hastaISO)
-      // Las particulares (curso_id null) tienen su propio cálculo, en
-      // `leerDatosParticulares`/`particulares.ts` (H5): si entraran acá, el
-      // motor de cursos leería su `curso_id` nulo como "devengado entero" de
-      // una fila vieja pre-multi-curso (`motor.ts`, `devengadoEntero`).
-      .not("curso_id", "is", null),
+      // Solo cursos regulares (la prueba es un plan regular): cuentan CLASES.
+      // Las particulares cuentan HORAS y tienen su propio cálculo (`particulares.ts`).
+      // Se filtra por el tipo del plan, no por `membresias.curso_id`, que es un
+      // resabio que solo significa algo en un plan mono-curso (REGLAS, glosario).
+      .eq("plan.tipo_servicio", "curso_regular"),
     "las membresías a liquidar"
   ) as MembresiaLiq[];
   if (membresias.length === 0) return null;
