@@ -26,6 +26,7 @@ import { enVigencia } from "../vigencia.ts";
 import { diaIso, isoFecha } from "../inscripcion.ts";
 import type { TarifasDeCurso } from "../precios.ts";
 import type { Curso } from "../tipos.ts";
+import { cobroPorMembresia } from "./cobro.ts";
 
 // ── Lo que devuelve ──────────────────────────────────────────────────────
 
@@ -335,21 +336,8 @@ export function calcularDevengos(
 
   // Cuotas y pagos → saldo y plata efectivamente cobrada por membresía.
   // La comisión se calcula sobre lo COBRADO: el descuento no suma (regla 8).
-  const pagadoPorCuota: Record<number, number> = {};
-  const plataPorCuota: Record<number, number> = {};
-  for (const p of datos.pagos) {
-    if (p.cuota_id == null) continue;
-    plataPorCuota[p.cuota_id] = (plataPorCuota[p.cuota_id] ?? 0) + Number(p.monto);
-    pagadoPorCuota[p.cuota_id] = (pagadoPorCuota[p.cuota_id] ?? 0) + Number(p.monto) + Number(p.descuento);
-  }
-  const saldoPorInsc: Record<number, number> = {};
-  const cobradoPorInsc: Record<number, number> = {};
-  for (const c of datos.cuotas) {
-    const efectivo = Math.max(0, Number(c.monto_devengado) - Number(c.descuento_adelanto));
-    saldoPorInsc[c.membresia_id] =
-      (saldoPorInsc[c.membresia_id] ?? 0) + Math.max(0, efectivo - (pagadoPorCuota[c.id] ?? 0));
-    cobradoPorInsc[c.membresia_id] = (cobradoPorInsc[c.membresia_id] ?? 0) + (plataPorCuota[c.id] ?? 0);
-  }
+  // Extraído a `cobro.ts` (H5): lo comparten este motor y el de particulares.
+  const { saldo: saldoPorInsc, cobrado: cobradoPorInsc } = cobroPorMembresia(datos.cuotas, datos.pagos);
 
   // Las clases del ciclo, por curso: **calendario menos suspendidas** (Javier,
   // 2026-09-11). Una clase suspendida no la dio nadie y no pesa (regla 4); una

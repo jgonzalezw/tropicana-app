@@ -109,6 +109,7 @@ function camposParticular(d: DatosPlan) {
       extension_recargo_pct: null,
       registra_acompanantes: false,
       permite_sala_externa: false,
+      permite_cortesia: false,
     };
   }
   return {
@@ -124,6 +125,7 @@ function camposParticular(d: DatosPlan) {
     extension_recargo_pct: d.extension_modo === "recargo" ? d.extension_recargo_pct : null,
     registra_acompanantes: d.registra_acompanantes,
     permite_sala_externa: d.permite_sala_externa,
+    permite_cortesia: d.permite_cortesia,
   };
 }
 

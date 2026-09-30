@@ -54,6 +54,7 @@ const VACIO_COMUN = {
   extension_recargo_pct: null,
   registra_acompanantes: false,
   permite_sala_externa: false,
+  permite_cortesia: false,
 };
 
 function vacioPara(tipo: TipoServicioPlan): DatosPlan {
@@ -186,6 +187,7 @@ export default function ClientePlanes({
       extension_recargo_pct: p.extension_recargo_pct,
       registra_acompanantes: p.registra_acompanantes,
       permite_sala_externa: p.permite_sala_externa,
+      permite_cortesia: p.permite_cortesia,
     });
     setError(null);
     if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
@@ -1025,6 +1027,16 @@ function FormularioParticular({
         onChange={(v) => setForm({ ...form, permite_sala_externa: v })}
         label="Permite sala externa"
         descripcion="Si se puede vender u ofrecer un lugar fuera de Tropicana (por ejemplo, el salón de una boda), con nombre propio por membresía."
+      />
+
+      {/* Cortesía (H5, decisión 6 de Javier): gate único del plan -- sin
+          esto, ninguna reserva suelta ni una membresía entera pueden
+          marcarse de cortesía bajo este plan. */}
+      <Toggle
+        checked={form.permite_cortesia}
+        onChange={(v) => setForm({ ...form, permite_cortesia: v })}
+        label="Permite otorgar cortesías"
+        descripcion="Si se puede marcar una reserva de cortesía en una membresía pagada de este plan, o vender una membresía entera de cortesía (sin costo). No devenga ni descuenta nada."
       />
     </>
   );

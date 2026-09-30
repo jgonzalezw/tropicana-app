@@ -486,6 +486,10 @@ export type Plan = {
   /** Si el plan permite vender u ofrecer sala externa, con nombre
    *  descriptivo por membresía (0057). `false` en un plan de curso regular. */
   permite_sala_externa: boolean;
+  /** Si el plan permite otorgar cortesías -- una reserva suelta en una
+   *  membresía pagada, o una membresía entera de cortesía (0058, H5). Sin
+   *  esto, ninguna de las dos formas está disponible bajo este plan. */
+  permite_cortesia: boolean;
 };
 
 /** Datos que la pantalla de Planes envía al host para crear/editar. */
@@ -523,6 +527,7 @@ export type DatosPlan = {
   extension_recargo_pct: number | null;
   registra_acompanantes: boolean;
   permite_sala_externa: boolean;
+  permite_cortesia: boolean;
 };
 
 export type Asignacion = {

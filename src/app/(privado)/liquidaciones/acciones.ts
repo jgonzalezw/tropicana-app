@@ -8,6 +8,7 @@ import { exigir } from "@/lib/datos";
 import type { Curso } from "@/lib/tipos";
 import { COLUMNAS_ASIGNACION, type AsignacionVigencia } from "@/lib/asignaciones";
 import { imputarPago } from "@/lib/liquidacion/cuenta";
+import { primerDiaMesVencidoISO, finMesVencidoISO, rangoLiquidable } from "@/lib/liquidacion/periodo";
 import {
   calcularDevengos,
   type DatosMotor,
@@ -27,18 +28,8 @@ function admin() {
 }
 type Admin = ReturnType<typeof admin>;
 
-/** Primer día del MES VENCIDO (mes anterior): el período que se liquida. */
-function primerDiaMesVencidoISO(hoy = new Date()): string {
-  const d = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
-}
-
-/** Último día del MES VENCIDO (mes anterior): tope de elegibilidad para liquidar.
- *  Solo entran membresías completadas (fecha_fin) hasta esta fecha inclusive. */
-function finMesVencidoISO(hoy = new Date()): string {
-  const d = new Date(hoy.getFullYear(), hoy.getMonth(), 0); // día 0 del mes actual = último día del anterior
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
+// `primerDiaMesVencidoISO`/`finMesVencidoISO`/`rangoLiquidable` viven ahora en
+// `@/lib/liquidacion/periodo` (H5): las comparte el motor de particulares.
 
 // ── Cálculo de devengos criterio 1 (membresías cobradas + completadas) ────
 //
@@ -205,7 +196,12 @@ async function leerDatosMotor(
       .eq("estado", "completada")
       .not("plan_id", "is", null)
       .not("fecha_fin", "is", null)
-      .lte("fecha_fin", hastaISO),
+      .lte("fecha_fin", hastaISO)
+      // Las particulares (curso_id null) tienen su propio cálculo, en
+      // `leerDatosParticulares`/`particulares.ts` (H5): si entraran acá, el
+      // motor de cursos leería su `curso_id` nulo como "devengado entero" de
+      // una fila vieja pre-multi-curso (`motor.ts`, `devengadoEntero`).
+      .not("curso_id", "is", null),
     "las membresías a liquidar"
   ) as MembresiaLiq[];
   if (membresias.length === 0) return null;
@@ -533,10 +529,11 @@ export async function generarLiquidacion(profesorId: number): Promise<{ ok?: tru
   const a = admin();
   const sb = await createClient();
 
-  const periodicidad = (await obtenerParametro("periodicidad_liquidacion")) || "mes";
-  const periodo = primerDiaMesVencidoISO();
+  const rango = rangoLiquidable((await obtenerParametro("periodicidad_liquidacion")) || "mes");
+  if (!rango.ok) return { error: rango.error };
+  const { periodicidad, periodoVencido: periodo, hastaISO } = rango;
 
-  const calculo = await calcularPendientes(sb, finMesVencidoISO());
+  const calculo = await calcularPendientes(sb, hastaISO);
   const pendientes = calculo.pendientes.filter((p) => p.profesorId === profesorId);
 
   // Regla 17 revisada: las membresías con prorrateo y clases sin registrar ya
@@ -660,7 +657,7 @@ export async function generarLiquidacion(profesorId: number): Promise<{ ok?: tru
   // Los descuentos del profesor (regla 20a). Van en la misma corrida: si se
   // generaran aparte, una liquidación podría pagarse antes de que el descuento
   // entre, y esa plata ya no se recupera.
-  for (const d of (await calcularDescuentos(sb, finMesVencidoISO())).filter(
+  for (const d of (await calcularDescuentos(sb, hastaISO)).filter(
     (d) => d.profesorId === profesorId && d.periodo === periodo
   )) {
     const { error: errDesc } = await a.from("descuentos_liquidacion").insert({

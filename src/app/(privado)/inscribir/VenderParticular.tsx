@@ -43,6 +43,7 @@ export type PlanParticular = {
   salasModo: "todas" | "solo";
   registraAcompanantes: boolean;
   permiteSalaExterna: boolean;
+  permiteCortesia: boolean;
   formaPagoProfesor: "fee_hora" | "pct_margen" | "monto_fijo" | null;
 };
 export type TarifaParticularVenta = { id: number; nombre: string; estilo: string; horas: number; precio: number };
@@ -122,6 +123,8 @@ export default function VenderParticular({
   const [duracionMin, setDuracionMin] = useState(duraciones[0] ?? 60);
   const [cobro, setCobro] = useState<PayloadCobro | null>(null);
   const [fechaCompromiso, setFechaCompromiso] = useState("");
+  const [esCortesia, setEsCortesia] = useState(false);
+  const [cortesiaMotivo, setCortesiaMotivo] = useState("");
   const [aviso, setAviso] = useState<{
     resumen: string;
     avisoAlumno?: { nombre: string; whatsapp: string | null; mensaje: string };
@@ -167,6 +170,8 @@ export default function VenderParticular({
     setSalaId(null);
     setDiasSemana([]);
     setCobro(null);
+    setEsCortesia(false);
+    setCortesiaMotivo("");
     setError(null);
   }
 
@@ -204,6 +209,11 @@ export default function VenderParticular({
           acompanantes: personas - 1,
           fechaInicio,
           agenda: esFija ? { modalidad: "fija", diasSemana, hora, duracionMin } : { modalidad: "flexible", hora, duracionMin },
+          // Placeholder estable (no la glosa real, que se escribe letra por
+          // letra): que ESTE campo cambie no debería invalidar la revisión
+          // de disponibilidad ya hecha. La glosa real se agrega recién en
+          // `confirmar()`.
+          ...(esCortesia ? { cortesia: { motivo: "cortesía" } } : {}),
         }
       : null;
   const firmaAgenda = entradaAgenda ? JSON.stringify(entradaAgenda) : null;
@@ -235,6 +245,7 @@ export default function VenderParticular({
     agendaCompleta &&
     previewVigente &&
     !!preview?.todasOk &&
+    (!esCortesia || cortesiaMotivo.trim().length > 0) &&
     (!cobro || cobro.valido) &&
     (!faltaSaldo || !!fechaCompromisoEfectiva) &&
     !pendiente;
@@ -265,11 +276,13 @@ export default function VenderParticular({
                   ? 'revisar la disponibilidad ("Revisar disponibilidad", abajo)'
                   : !preview?.todasOk
                     ? "resolver los choques que muestra la revisión"
-                    : cobro && !cobro.valido
-                      ? "revisar el cobro"
-                      : faltaSaldo && !fechaCompromisoEfectiva
-                        ? "la fecha de compromiso de pago"
-                        : null;
+                    : esCortesia && !cortesiaMotivo.trim()
+                      ? "el motivo de la cortesía"
+                      : cobro && !cobro.valido
+                        ? "revisar el cobro"
+                        : faltaSaldo && !fechaCompromisoEfectiva
+                          ? "la fecha de compromiso de pago"
+                          : null;
 
   function confirmar() {
     setError(null);
@@ -283,22 +296,24 @@ export default function VenderParticular({
     if (!agendaCompleta) return setError(esFija ? "Elegí los días, la hora y la duración." : "Cargá la hora y la duración de la primera clase.");
     if (!previewVigente) return setError('Revisá la disponibilidad antes de vender ("Revisar disponibilidad").');
     if (!preview?.todasOk) return setError("Hay clases que chocan con la disponibilidad: revisá la agenda.");
+    if (esCortesia && !cortesiaMotivo.trim()) return setError("Cargá el motivo de la cortesía.");
     if (cobro && !cobro.valido) return setError("Revisá el monto, el medio de pago o el motivo del descuento.");
     if (faltaSaldo && !fechaCompromisoEfectiva) return setError("Cargá la fecha de compromiso de pago.");
     if (!entradaAgenda) return setError("No se pudo armar la venta.");
 
     const entrada: EntradaParticular = {
       ...entradaAgenda,
+      ...(esCortesia ? { cortesia: { motivo: cortesiaMotivo.trim() } } : {}),
       cobro: {
-        modo: cobro?.modo ?? "sin",
-        monto: cobro ? cobro.total - cobro.saldo : 0,
-        medio: cobro?.medio ?? null,
+        modo: esCortesia ? "sin" : cobro?.modo ?? "sin",
+        monto: esCortesia ? 0 : cobro ? cobro.total - cobro.saldo : 0,
+        medio: esCortesia ? null : cobro?.medio ?? null,
         notaMedio: cobro?.notaMedio ?? "",
-        ajuste: cobro?.ajuste ?? 0,
+        ajuste: esCortesia ? 0 : cobro?.ajuste ?? 0,
         ajusteMotivo: cobro?.ajusteMotivo ?? "",
-        total,
-        saldo: cobro?.saldo ?? total,
-        fechaCompromiso: faltaSaldo ? fechaCompromisoEfectiva : null,
+        total: esCortesia ? 0 : total,
+        saldo: esCortesia ? 0 : cobro?.saldo ?? total,
+        fechaCompromiso: !esCortesia && faltaSaldo ? fechaCompromisoEfectiva : null,
       },
     };
 
@@ -316,6 +331,8 @@ export default function VenderParticular({
       setAcompanantes("0");
       setDiasSemana([]);
       setCobro(null);
+      setEsCortesia(false);
+      setCortesiaMotivo("");
       setPreview(null);
       setPreviewFirma(null);
       router.refresh();
@@ -428,6 +445,30 @@ export default function VenderParticular({
                     </button>
                   ))}
                 </div>
+              )}
+            </div>
+          )}
+
+          {plan?.permiteCortesia && (
+            <div className="mt-4 pt-4 border-t border-[var(--borde)]">
+              <label className="flex items-center gap-2 text-base">
+                <input
+                  type="checkbox"
+                  checked={esCortesia}
+                  onChange={(e) => setEsCortesia(e.target.checked)}
+                />
+                Es una membresía de cortesía (no se cobra, no le devenga nada a nadie)
+              </label>
+              {esCortesia && (
+                <label className="block mt-2">
+                  <span className="block text-sm text-[var(--texto-tenue)] mb-1">Motivo de la cortesía (quién la otorga, por qué)</span>
+                  <input
+                    value={cortesiaMotivo}
+                    onChange={(e) => setCortesiaMotivo(e.target.value)}
+                    placeholder="Ej. cortesía de bienvenida, autorizada por Javier"
+                    className={control}
+                  />
+                </label>
               )}
             </div>
           )}
@@ -646,8 +687,8 @@ export default function VenderParticular({
         </section>
       )}
 
-      {/* 5 · Cobro */}
-      {plan && tarifa && profesorId && salaCompleta && agendaCompleta && (
+      {/* 5 · Cobro (no aplica a una membresía de cortesía: no se cobra nada) */}
+      {plan && tarifa && profesorId && salaCompleta && agendaCompleta && !esCortesia && (
         <section className="rounded-[var(--radio-tarjeta)] bg-[var(--fondo-panel)] border border-[var(--borde)] p-5">
           <h2 className="titulo text-xl mb-3">Cobro</h2>
           <Cobro
@@ -691,7 +732,7 @@ export default function VenderParticular({
             disabled={!puedeVender}
             className="w-full px-5 py-3 text-lg font-semibold rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)] hover:bg-[var(--primario-hover)] disabled:opacity-40"
           >
-            {pendiente ? "Guardando…" : `Vender · ${gs(total)}`}
+            {pendiente ? "Guardando…" : esCortesia ? "Otorgar cortesía" : `Vender · ${gs(total)}`}
           </button>
           {!puedeVender && !pendiente && faltaPara && (
             <p className="text-sm text-[var(--texto-tenue)] mt-1.5">Falta {faltaPara} para poder vender.</p>

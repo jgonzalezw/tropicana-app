@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { tienePermiso, obtenerParametro, obtenerPerfilActual, alcancePropioDe } from "@/lib/sesion";
 import { validarIdentidadAlumno, validarFechaNacimiento } from "@/lib/contactos";
 import { contextoAlumno, presenteDesdeExtra } from "@/lib/matrizMinimos";
-import type { Alumno, CobroInscripcion, Contacto, DatosAlumno, EntradaInscripcion } from "@/lib/tipos";
+import type { Alumno, CobroInscripcion, Contacto, DatosAlumno, EntradaInscripcion, TipoProfesor } from "@/lib/tipos";
 import {
   crearOReusarContactoPersona,
   resolverTutor,
@@ -31,7 +31,20 @@ import {
   type VigenciaCurso,
 } from "@/lib/vigencia";
 import { validarReservaSala, ocupacionDeProfesor, ocupaAhora, FILTRO_ESTADOS_QUE_LIBERAN } from "@/lib/reservas";
-import { ocupacionDelDia, type CursoOcupa, type ExcepcionHorario, type FranjaPatron, type ReservaSalaOcupa } from "@/lib/sala";
+import {
+  ocupacionDelDia,
+  costoSalaDeVenta,
+  categoriaSalaDeProfesor,
+  tamanoPorPersonas,
+  type CursoOcupa,
+  type ExcepcionHorario,
+  type FranjaPatron,
+  type ReservaSalaOcupa,
+  type CategoriaSala,
+  type ClaveTamano,
+  type TamanoSala,
+  type TarifaSala,
+} from "@/lib/sala";
 import { COLUMNAS_ASIGNACION } from "@/lib/asignaciones";
 import { vigenciaDiasEfectiva } from "@/lib/planesParticular";
 
@@ -953,6 +966,10 @@ export type EntradaParticular = {
     | { modalidad: "flexible"; hora: string; duracionMin: number }
     | { modalidad: "fija"; diasSemana: number[]; hora: string; duracionMin: number };
   cobro: CobroInscripcion;
+  /** Membresía TODA de cortesía (H5, decisión 6 de Javier): no devenga ni
+   *  descuenta nada. Requiere `permite_cortesia` en el plan. La glosa es
+   *  obligatoria (quién la otorgó, por qué) y se copia a cada reserva. */
+  cortesia?: { motivo: string };
 };
 
 type AvisoPersona = { nombre: string; whatsapp: string | null; mensaje: string };
@@ -1031,11 +1048,16 @@ type AgendaCalculada = {
    *  `permite_sala_externa`), para poder reprogramar a él después sin haber
    *  vendido con sala externa (hallazgo de Javier, 26/09). */
   lugarExternoOpcional?: string | null;
-  formaPago?: "fee_hora" | "pct_margen" | "monto_fijo";
+  formaPago?: "fee_hora" | "pct_margen" | "monto_fijo" | null;
   feeHoraAplicado?: number | null;
   pagoPctMargen?: number | null;
   pagoDescuentaSala?: boolean;
   pagoMontoFijo?: number | null;
+  /** Foto del costo de sala (H5): null si no aplica (cortesía, o el plan no
+   *  descuenta sala) o si es sala externa (costo 0, con su propia ruta). */
+  costoSalaPrecio?: number | null;
+  costoSalaRuta?: string | null;
+  criterioLiquidacion?: number | null;
 };
 
 /**
@@ -1087,7 +1109,7 @@ async function calcularAgendaParticular(
   const { data: planRow } = await sb
     .from("planes")
     .select(
-      "id, nombre, tipo_servicio, activo, estilo, vigencia_dias, reserva_modalidad, salas_modo, forma_pago_profesor, pago_pct_margen, pago_descuenta_sala, pago_monto_fijo, registra_acompanantes, permite_sala_externa"
+      "id, nombre, tipo_servicio, activo, estilo, vigencia_dias, reserva_modalidad, salas_modo, forma_pago_profesor, pago_pct_margen, pago_descuenta_sala, pago_monto_fijo, registra_acompanantes, permite_sala_externa, permite_cortesia, criterio_liquidacion"
     )
     .eq("id", e.planId)
     .maybeSingle();
@@ -1106,7 +1128,7 @@ async function calcularAgendaParticular(
 
   const { data: profesorRow } = await sb
     .from("profesores")
-    .select("id, fee_hora, activo, contacto:contactos(nombre, apellido, whatsapp)")
+    .select("id, fee_hora, activo, tipo, contacto:contactos(nombre, apellido, whatsapp)")
     .eq("id", e.profesorId)
     .maybeSingle();
   if (!profesorRow || !profesorRow.activo) return { error: "El profesor no existe o está desactivado." };
@@ -1118,10 +1140,19 @@ async function calcularAgendaParticular(
     .maybeSingle();
   if (!tieneEstilo) return { error: "Ese profesor no tiene cargado el estilo de este plan." };
 
-  const formaPago = planRow.forma_pago_profesor as "fee_hora" | "pct_margen" | "monto_fijo" | null;
-  if (!formaPago) return { error: "Al plan le falta la forma de pago al profesor. Se carga en Planes." };
-  if (formaPago === "fee_hora" && profesorRow.fee_hora == null)
-    return { error: "Este profesor no tiene cargado su fee por hora. Se carga en su ficha." };
+  // Membresía de cortesía (H5, decisión 6 de Javier): no devenga ni descuenta
+  // nada, así que ninguna forma de pago le corresponde. El gate es del plan
+  // -- sin `permite_cortesia`, ni esto ni una reserva suelta de cortesía
+  // están disponibles bajo él.
+  if (e.cortesia && !planRow.permite_cortesia)
+    return { error: "Este plan no permite otorgar cortesías. Se activa en Planes." };
+
+  const formaPago = e.cortesia ? null : (planRow.forma_pago_profesor as "fee_hora" | "pct_margen" | "monto_fijo" | null);
+  if (!e.cortesia) {
+    if (!formaPago) return { error: "Al plan le falta la forma de pago al profesor. Se carga en Planes." };
+    if (formaPago === "fee_hora" && profesorRow.fee_hora == null)
+      return { error: "Este profesor no tiene cargado su fee por hora. Se carga en su ficha." };
+  }
 
   let salaId: number;
   let nombreDescriptivo: string | null = null;
@@ -1156,10 +1187,53 @@ async function calcularAgendaParticular(
   }
 
   const horasContratadas = Number(tarifaRow.horas);
-  const precio = Number(tarifaRow.precio);
+  // Cortesía: precio 0 siempre, sea cual sea el tramo elegido -- el tramo
+  // solo presta la cantidad de horas, regla 12 no aplica porque nunca hubo
+  // venta que "congelar".
+  const precio = e.cortesia ? 0 : Number(tarifaRow.precio);
   const personas = 1 + Math.max(0, Math.trunc(e.acompanantes));
   if (planRow.registra_acompanantes === false && e.acompanantes > 0)
     return { error: "Este plan no registra acompañantes." };
+
+  // Costo de sala (H5, decisión 1 de Javier): UNA foto al vender, para
+  // pct_margen con pago_descuenta_sala. No aplica a cortesía (no hay forma
+  // de pago) ni cuando el plan no descuenta sala.
+  let costoSalaPrecio: number | null = null;
+  let costoSalaRuta: string | null = null;
+  if (!e.cortesia && planRow.pago_descuenta_sala) {
+    const [{ data: tamanosRows }, { data: horasPaqueteRows }, { data: tarifasRows }] = await Promise.all([
+      a.from("sala_tamanos").select("clave, etiqueta, max_personas, orden"),
+      a.from("sala_horas_paquete").select("id, horas"),
+      a.from("sala_tarifas").select("sala_id, categoria, tamano, precio, horas_paquete_id"),
+    ]);
+    const tamanos = (tamanosRows as TamanoSala[]) ?? [];
+    const horasDeId = new Map<number, number>(
+      ((horasPaqueteRows as { id: number; horas: number }[]) ?? []).map((h) => [h.id, Number(h.horas)])
+    );
+    const tarifasSala: TarifaSala[] = (
+      (tarifasRows as { sala_id: number | null; categoria: string; tamano: string; precio: number | null; horas_paquete_id: number }[]) ?? []
+    ).map((t) => ({
+      sala_id: t.sala_id,
+      categoria: t.categoria as CategoriaSala,
+      tamano: t.tamano as ClaveTamano,
+      horas: horasDeId.get(t.horas_paquete_id) ?? 0,
+      precio: t.precio,
+    }));
+    const r = costoSalaDeVenta({
+      descuentaSala: true,
+      esExterna,
+      categoria: categoriaSalaDeProfesor(profesorRow.tipo as TipoProfesor),
+      tamano: tamanoPorPersonas(tamanos, personas),
+      horas: horasContratadas,
+      tarifas: tarifasSala,
+      salaId: esExterna ? null : salaId,
+    });
+    if (r.estado === "falta") return { error: r.motivo };
+    if (r.estado === "ok") {
+      costoSalaPrecio = r.precio;
+      costoSalaRuta = r.ruta;
+    }
+  }
 
   const mesesVigencia = Math.max(1, Number(await obtenerParametro("vencimiento_paquete_meses")) || 2);
   const vigenciaDias = vigenciaDiasEfectiva(planRow.vigencia_dias, mesesVigencia);
@@ -1339,9 +1413,12 @@ async function calcularAgendaParticular(
     lugarExternoOpcional,
     formaPago,
     feeHoraAplicado: formaPago === "fee_hora" ? profesorRow.fee_hora : null,
-    pagoPctMargen: planRow.pago_pct_margen,
-    pagoDescuentaSala: planRow.pago_descuenta_sala,
-    pagoMontoFijo: planRow.pago_monto_fijo,
+    pagoPctMargen: e.cortesia ? null : planRow.pago_pct_margen,
+    pagoDescuentaSala: !e.cortesia && !!planRow.pago_descuenta_sala,
+    pagoMontoFijo: e.cortesia ? null : planRow.pago_monto_fijo,
+    costoSalaPrecio,
+    costoSalaRuta,
+    criterioLiquidacion: planRow.criterio_liquidacion,
   };
 }
 
@@ -1352,6 +1429,8 @@ export type ResultadoPreviewParticular = {
   precio?: number;
   leftoverMin?: number;
   todasOk?: boolean;
+  costoSalaPrecio?: number | null;
+  costoSalaRuta?: string | null;
 };
 
 /**
@@ -1370,7 +1449,15 @@ export async function previsualizarParticular(e: EntradaAgendaParticular): Promi
   const sb = await createClient();
   const r = await calcularAgendaParticular(sb, a, e);
   if (r.error) return { error: r.error };
-  return { sesiones: r.sesiones, horasContratadas: r.horasContratadas, precio: r.precio, leftoverMin: r.leftoverMin, todasOk: r.todasOk };
+  return {
+    sesiones: r.sesiones,
+    horasContratadas: r.horasContratadas,
+    precio: r.precio,
+    leftoverMin: r.leftoverMin,
+    todasOk: r.todasOk,
+    costoSalaPrecio: r.costoSalaPrecio,
+    costoSalaRuta: r.costoSalaRuta,
+  };
 }
 
 export async function venderParticular(e: EntradaParticular): Promise<ResultadoParticular> {
@@ -1407,6 +1494,9 @@ export async function venderParticular(e: EntradaParticular): Promise<ResultadoP
     pagoPctMargen,
     pagoDescuentaSala,
     pagoMontoFijo,
+    costoSalaPrecio,
+    costoSalaRuta,
+    criterioLiquidacion,
     leftoverMin,
   } = r;
   if (!alumno || !sesiones || salaId == null || precio == null || horasContratadas == null)
@@ -1467,6 +1557,10 @@ export async function venderParticular(e: EntradaParticular): Promise<ResultadoP
       pago_descuenta_sala: pagoDescuentaSala,
       pago_monto_fijo: pagoMontoFijo,
       fee_hora_aplicado: feeHoraAplicado,
+      costo_sala_aplicado: costoSalaPrecio,
+      costo_sala_ruta: costoSalaRuta,
+      criterio_liquidacion: criterioLiquidacion ?? null,
+      es_cortesia: !!e.cortesia,
       acompanantes: e.acompanantes,
     })
     .select("id")
@@ -1506,7 +1600,9 @@ export async function venderParticular(e: EntradaParticular): Promise<ResultadoP
       descuento_adelanto: 0,
       vencimiento: fechaCompromiso ?? isoFecha(sumarMeses(inicio, 1)),
       fecha_compromiso: fechaCompromiso,
-      estado: mueve + descManual >= precio && precio > 0 ? "pagada" : mueve + descManual > 0 ? "parcial" : "pendiente",
+      // precio<=0 (cortesía): nada que cobrar, la cuota nace pagada. Antes de
+      // H5 esto nunca pasaba (una particular siempre tenía precio>0).
+      estado: precio <= 0 ? "pagada" : mueve + descManual >= precio ? "pagada" : mueve + descManual > 0 ? "parcial" : "pendiente",
     })
     .select("id")
     .single();
@@ -1542,6 +1638,8 @@ export async function venderParticular(e: EntradaParticular): Promise<ResultadoP
       // ocupa sala y profesor y descuenta la hora en el mismo paso, así que
       // nace directo confirmada, no como una Solicitada a medio coordinar.
       estado: "confirmada",
+      es_cortesia: !!e.cortesia,
+      cortesia_motivo: e.cortesia?.motivo ?? null,
       creado_por: perfil?.id ?? null,
     }))
   );

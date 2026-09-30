@@ -190,6 +190,17 @@ export const ESTADOS_QUE_OCUPAN: readonly EstadoReserva[] = [
  *  físico? ¿gastó una sesión del paquete?) que en H3 dan la misma respuesta. */
 export const ESTADOS_QUE_CONSUMEN: readonly EstadoReserva[] = ESTADOS_QUE_OCUPAN;
 
+/**
+ * Estados que le pagan al profesor cuando liquida por `fee_hora` (H5, C3):
+ * `realizada` y `ausente` son las dos "consumida" (el profesor estuvo
+ * disponible, dio la clase o el alumno no vino/canceló fuera de plazo).
+ * `reagendar` y `suspendida` no pagan nada — la sesión volvió al saldo y el
+ * profesor no dictó nada (regla de negocio 19). Es un subconjunto de
+ * `ESTADOS_QUE_CONSUMEN` (que además incluye `confirmada`/`reprogramada`,
+ * que todavía no pasaron).
+ */
+export const ESTADOS_QUE_SE_PAGAN: readonly EstadoReserva[] = ["realizada", "ausente"];
+
 /** Estados que liberan sala y profesor: la sesión vuelve al saldo y hace
  *  falta una reserva nueva para recuperarla (definiciones-v2 8.2). Junto con
  *  'cancelada' (el único estado que libera un *bloqueo*), es el filtro único

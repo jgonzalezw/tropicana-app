@@ -688,6 +688,61 @@ export async function guardarLugarExterno(
   return { ok: true };
 }
 
+// ── Cortesía en una reserva puntual (H5, decisión 6 de Javier) ──────────────
+
+/**
+ * Marca (o desmarca) una reserva de particular como cortesía: no le paga
+ * nada al profesor ni descuenta el saldo de horas de la membresía
+ * (`saldoMembresia`/`particulares.ts` la excluyen por completo). Es la
+ * cortesía AD-HOC sobre una membresía pagada -- la otra forma, una membresía
+ * ENTERA de cortesía, se decide al vender (`venderParticular`).
+ *
+ * El gate es del plan (`permite_cortesia`), igual que la sala externa: sin
+ * eso, ninguna reserva de este plan puede marcarse.
+ */
+export async function marcarCortesiaReserva(
+  reservaId: number,
+  motivo: string | null
+): Promise<ResultadoAccion> {
+  if (!(await tienePermiso("particulares", "editar"))) return { error: "No tenés permiso para editar esta reserva." };
+  // `motivo: null` = desmarcar (siempre permitido, sin glosa). Con un motivo,
+  // tiene que venir con texto: no se marca cortesía sin decir por qué.
+  const desmarcar = motivo === null;
+  const glosa = motivo?.trim() ?? "";
+  if (!desmarcar && !glosa) return { error: "Cargá el motivo de la cortesía." };
+
+  const a = admin();
+  const { data: rRow, error: errR } = await a
+    .from("reservas_sala")
+    .select("id, tipo, membresia_id")
+    .eq("id", reservaId)
+    .maybeSingle();
+  if (errR) return { error: `No se pudo leer la reserva: ${errR.message}` };
+  if (!rRow || rRow.tipo !== "particular" || rRow.membresia_id == null) return { error: "Esa reserva no existe." };
+
+  const { data: mRow, error: errM } = await a
+    .from("membresias")
+    .select("id, profesor_id, plan:planes(permite_cortesia)")
+    .eq("id", rRow.membresia_id)
+    .maybeSingle();
+  if (errM) return { error: `No se pudo leer la membresía: ${errM.message}` };
+  if (!mRow) return { error: "La membresía de esta reserva ya no existe." };
+  const { propio, profesorId } = await alcancePropioDe("particulares");
+  if (propio && mRow.profesor_id !== profesorId) return { error: "Esta reserva es de otro profesor: no tenés acceso a ella." };
+  const plan = mRow.plan as unknown as { permite_cortesia: boolean } | null;
+  if (!desmarcar && !plan?.permite_cortesia)
+    return { error: "El plan de esta membresía no permite otorgar cortesías. Se activa en Planes." };
+
+  const { error: errUpd } = await a
+    .from("reservas_sala")
+    .update({ es_cortesia: !desmarcar, cortesia_motivo: desmarcar ? null : glosa })
+    .eq("id", reservaId);
+  if (errUpd) return { error: `No se pudo guardar la cortesía: ${errUpd.message}` };
+
+  revalidatePath(`/particulares/${rRow.membresia_id}`);
+  return { ok: true };
+}
+
 // ── Crear una reserva nueva ───────────────────────────────────────────────
 
 export type EntradaNuevaReserva = {
