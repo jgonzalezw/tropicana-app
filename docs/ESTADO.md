@@ -4554,3 +4554,47 @@ Aguilar · Inamsai De Dazan · 📍 Salón Los Tajibos (boda)" con botón
 "Gestionar" que abre el panel completo (Reprogramar, Cancelar, Suspender,
 Marcar Ausente/Realizada, "Ver ficha completa de la membresía →",
 historial) — igual que desde una tarjeta de sala propia.
+
+## C3 — H5: liquidación de particulares · 2026-09-27 → 2026-09-30 (dev, sin cerrar)
+
+Rama `h5-liquidacion-particulares` (local, sin pushear). Migración **0058**
+aplicada solo en **dev**; producción sin tocar. Decisiones de diseño en
+`docs/DECISIONES.md`, fila "H5", más la **ampliación del 2026-09-30**:
+los criterios 1–3 y las tres formas de pago deben funcionar para **todos**
+los tipos de membresía (los 4 y 5 siguen siendo de taller).
+
+### Construido
+- **0058** (aditiva): parámetro `particular_vencida_modo`; en `membresias`,
+  `costo_sala_aplicado`/`costo_sala_ruta`/`criterio_liquidacion`/`es_cortesia`;
+  `planes.permite_cortesia`; `reservas_sala.es_cortesia`/`cortesia_motivo`;
+  `comisiones_devengadas.tipo='avance'` y `detalle_particular`.
+- `src/lib/liquidacion/particulares.ts` (+ 12 pruebas): el cálculo puro —
+  criterios 1/2/3, fee/hora, % margen, monto fijo, vencida proporcional o
+  completa, cortesía, ajuste firmado, avance del criterio 2.
+- `cobro.ts` y `periodo.ts`: extraídos de `motor.ts` / `liquidaciones/acciones.ts`.
+  `rangoLiquidable` ya no ignora `periodicidad_liquidacion` (error explícito
+  si no es `mes`).
+- Venta: costo de sala guardado al vender (bloquea si falta la tarifa),
+  criterio guardado, membresía entera de cortesía (precio 0, cuota pagada).
+- Reservas: `marcarCortesiaReserva` + control en `GestionReserva`;
+  `saldoMembresia` excluye cortesías.
+- `generarLiquidacion` y `cargarLiquidaciones` suman las particulares;
+  `membresias.recalcularMembresia` cierra el paquete de horas (agotada y
+  cobrada ⇒ `completada`, regla 1) y se llama al cambiar el estado de una reserva.
+- Toggle "Permite otorgar cortesías" en Planes.
+
+### Verificado
+`tsc` y `eslint` limpios; `npm test` 153/153. Datos de dev leídos: 14
+particulares activas, todas `pct_margen`, ninguna con foto de costo (filas de
+prueba anteriores al hito) — la restricción `NOT VALID` las deja pasar y el
+liquidador las marca bloqueadas con su motivo, sin inventar un costo.
+
+### Pendiente
+- **Recorrido en el navegador** de punta a punta (vender con cortesía, marcar
+  una reserva, generar una liquidación) — no se hizo.
+- Enchufar el motor de **cursos regulares** (hoy solo criterio 1 a prorrata) y
+  alquiler a los mismos criterios/formas: es la ampliación del 30/09.
+- Control nuevo en `scripts/control_migracion.sql` (particulares completadas
+  sin comisión / comisión sin membresía completa).
+- Permisos: no hay pantalla nueva en este hito (regla de proceso 11 no aplica).
+- Pase a producción: requiere OK explícito de Javier (migración 0058 antes del código).

@@ -437,3 +437,18 @@ test("reservasQueChocanCon: filtra por solapamiento, criterio de intervalo medio
     [2]
   );
 });
+
+test("saldoMembresia: una reserva de cortesía no descuenta el saldo (H5)", () => {
+  const ahora = new Date("2026-09-30T10:00:00Z");
+  const s = saldoMembresia({
+    horasContratadas: 4,
+    reservas: [
+      { estado: "realizada", duracion_min: 60 },
+      { estado: "realizada", duracion_min: 60, es_cortesia: true },
+      { estado: "confirmada", duracion_min: 60, es_cortesia: true },
+    ],
+    ahora,
+  });
+  assert.equal(s.consumidasMin, 60);
+  assert.equal(s.sinAgendarMin, 180);
+});

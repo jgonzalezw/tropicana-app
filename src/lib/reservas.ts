@@ -287,7 +287,7 @@ export function evaluarCancelacion(ahora: Date, inicioReserva: Date, plazoHoras:
 export type SaldoEntrada = {
   /** `membresias.horas_contratadas` (decimal, ver `formatearHoras`). */
   horasContratadas: number;
-  reservas: { estado: string; duracion_min: number; solicitada_hasta?: string | null }[];
+  reservas: { estado: string; duracion_min: number; solicitada_hasta?: string | null; es_cortesia?: boolean }[];
   ahora: Date;
 };
 
@@ -317,12 +317,15 @@ export type SaldoMembresia = {
  */
 export function saldoMembresia(e: SaldoEntrada): SaldoMembresia {
   const contratadasMin = Math.round(e.horasContratadas * 60);
+  // Una reserva de cortesía (H5) ocupa sala y profesor pero no toca el saldo
+  // de horas de nadie: no descuenta.
+  const propias = e.reservas.filter((r) => !r.es_cortesia);
   const sumaEstados = (estados: readonly string[]) =>
-    e.reservas.filter((r) => estados.includes(r.estado)).reduce((acc, r) => acc + r.duracion_min, 0);
+    propias.filter((r) => estados.includes(r.estado)).reduce((acc, r) => acc + r.duracion_min, 0);
   const reservadasMin = sumaEstados(["confirmada", "reprogramada"]);
   const realizadasMin = sumaEstados(["realizada", "ausente"]);
   const consumidasMin = reservadasMin + realizadasMin;
-  const solicitadasVigentesMin = e.reservas
+  const solicitadasVigentesMin = propias
     .filter((r) => r.estado === "solicitada" && solicitudVigente(r.solicitada_hasta ?? null, e.ahora))
     .reduce((acc, r) => acc + r.duracion_min, 0);
   const sinAgendarMin = Math.max(0, contratadasMin - consumidasMin);

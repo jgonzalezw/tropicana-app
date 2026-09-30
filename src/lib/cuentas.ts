@@ -221,7 +221,7 @@ export async function estadoDeCuenta(sb: ClienteLectura, alumnoId: number): Prom
   if (conHoras.length) {
     const { data: resRows } = await sb
       .from("reservas_sala")
-      .select("membresia_id, fecha, hora, duracion_min, estado, solicitada_hasta, sala:salas(nombre)")
+      .select("membresia_id, fecha, hora, duracion_min, estado, solicitada_hasta, es_cortesia, sala:salas(nombre)")
       .in(
         "membresia_id",
         conHoras.map((r) => r.id)

@@ -26,6 +26,11 @@ export function finMesVencidoISO(hoy = new Date()): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+/** Hoy como fecha ISO local ("2026-09-30"). */
+export function isoHoy(hoy = new Date()): string {
+  return `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}-${String(hoy.getDate()).padStart(2, "0")}`;
+}
+
 /** Primer día del mes de una fecha ISO cualquiera ("2026-09-20" → "2026-09-01"). */
 export function primerDiaMesDe(fechaISO: string): string {
   return `${fechaISO.slice(0, 7)}-01`;

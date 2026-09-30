@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { obtenerParametro } from "@/lib/sesion";
+import { situacionParticular, type ReservaParticular } from "@/lib/liquidacion/particulares";
 
 /**
  * Motor de membresías: el ciclo de vida de una membresía, compartido por todo
@@ -43,10 +44,14 @@ type EstadoAsistencia = "presente" | "ausente";
 export async function recalcularMembresia(a: ClienteAdmin, inscripcionId: number): Promise<boolean> {
   const { data: insc } = await a
     .from("membresias")
-    .select("id, plan_id, clases_plan, clases_total, estado, tolerancia_faltas")
+    .select("id, plan_id, curso_id, clases_plan, clases_total, estado, tolerancia_faltas, horas_contratadas, fecha_fin")
     .eq("id", inscripcionId)
     .maybeSingle();
   if (!insc || insc.estado === "baja") return false;
+  // Paquete de horas (particular o alquiler): se agota por horas dadas o por
+  // vigencia, regla 3. Se cierra agotada Y cobrada, regla 1.
+  if (insc.curso_id == null && insc.plan_id != null && insc.horas_contratadas != null)
+    return await recalcularPaqueteDeHoras(a, insc);
   const esPlanConN = insc.plan_id != null && insc.clases_plan != null;
   if (!esPlanConN && insc.clases_total == null) return false;
 
@@ -113,6 +118,33 @@ export async function recalcularMembresia(a: ClienteAdmin, inscripcionId: number
     })
     .eq("id", inscripcionId);
   return completada;
+}
+
+/**
+ * Cierra (o reabre) una membresía de paquete de horas: `completada` solo si
+ * está agotada —horas dadas o vigencia vencida— y cobrada (regla 1). Las
+ * horas dadas son `realizada`+`ausente` sin cortesías (regla 23 / H5).
+ */
+async function recalcularPaqueteDeHoras(
+  a: ClienteAdmin,
+  insc: { id: number; estado: string; horas_contratadas: number | string; fecha_fin: string | null }
+): Promise<boolean> {
+  const { data: res } = await a
+    .from("reservas_sala")
+    .select("membresia_id, fecha, estado, duracion_min, es_cortesia")
+    .eq("membresia_id", insc.id);
+  const hoy = new Date();
+  const hoyISO = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}-${String(hoy.getDate()).padStart(2, "0")}`;
+  const sit = situacionParticular(
+    { horas_contratadas: Number(insc.horas_contratadas), fecha_fin: insc.fecha_fin },
+    (res as ReservaParticular[]) ?? [],
+    await saldoDeMembresia(a, insc.id),
+    hoyISO
+  );
+  const nuevo = sit.completa ? "completada" : "activa";
+  if (nuevo !== insc.estado)
+    await a.from("membresias").update({ estado: nuevo, actualizado_en: new Date().toISOString() }).eq("id", insc.id);
+  return sit.completa;
 }
 
 // ── Fin de ciclo: se calcula desde las clases que REALMENTE ocurrieron ────
