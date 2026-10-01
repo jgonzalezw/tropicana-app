@@ -133,7 +133,18 @@ async function copiarTabla(prod, dev, t, nullCols, deferCols) {
   const { rows } = await prod.query(`select * from public.${t}`);
   if (rows.length === 0) return { tabla: t, filas: 0 };
 
-  const cols = Object.keys(rows[0]);
+  // Las columnas generadas (p. ej. reservas_sala.rango) no admiten valor al
+  // insertar: dev las recalcula solo.
+  const generadas = new Set(
+    (
+      await dev.query(
+        `select column_name from information_schema.columns
+          where table_schema = 'public' and table_name = $1 and is_generated = 'ALWAYS'`,
+        [t]
+      )
+    ).rows.map((r) => r.column_name)
+  );
+  const cols = Object.keys(rows[0]).filter((c) => !generadas.has(c));
   const pendientes = []; // { id, valores {col:val} } para deferCols
 
   const filas = rows.map((r) => {
@@ -151,6 +162,12 @@ async function copiarTabla(prod, dev, t, nullCols, deferCols) {
     if (hayDif) pendientes.push({ id: fila.id, dif });
     return fila;
   });
+
+  // Un trigger de la tabla padre puede haber sembrado filas aca (p. ej. el
+  // historial de reservas_sala, 0054): se descartan, la fuente es prod.
+  // truncate y no delete: algunas son de solo agregar y el delete lo rechaza.
+  const sembradas = (await dev.query(`select exists (select 1 from public.${t}) as hay`)).rows[0].hay;
+  if (sembradas) await dev.query(`truncate public.${t}`);
 
   const colList = cols.map((c) => `"${c}"`).join(", ");
   const LOTE = 400;
@@ -277,7 +294,12 @@ async function sincronizarConfig(prod, dev) {
        values (${cols.map((_, i) => `$${i + 1}`).join(", ")})
        on conflict (clave) do update set
          ${otras.map((c) => `"${c}" = excluded."${c}"`).join(", ")}`,
-      cols.map((c) => r[c])
+      // pg manda un array de JS como array de Postgres, no como json(b):
+      // las columnas json (parametros.opciones) se serializan a mano.
+      cols.map((c) => {
+        const v = r[c];
+        return v !== null && typeof v === "object" && !(v instanceof Date) ? JSON.stringify(v) : v;
+      })
     );
   }
   tocadas.push(`parametros: ${params.rows.length}`);
