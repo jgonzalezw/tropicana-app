@@ -4730,3 +4730,13 @@ Primera de tres tandas (plan aprobado por Javier; se valida en dev entre cada un
 **Verificación:** `tsc` y `eslint` limpios; `npm test` 211/211. Falta el recorrido en el navegador y que Javier pruebe en su local antes de pasar a la tanda 2.
 
 **Hallazgo (dev):** el catálogo `categoria_comprador` tiene un 5º valor `clientes_varios` que la matriz no usa; se revisa si existe en producción antes del pase.
+
+## C3 — H7: alquiler de sala, tanda 2 (la venta) · 2026-10-01 (dev, sin pase)
+
+- **Migración 0061** (solo dev): en `membresias` `categoria_propuesta`, `categoria_aplicada`, `categoria_motivo`, `categoria_glosa`, `alquiler_personas`, `alquiler_tamano`, `alquiler_ruta`; `alumno_id` pasa a nullable con check por tipo de servicio; se elimina `alquileres_sala` (0 filas en las dos bases) y `reservas_sala.alquiler_id` (la reserva cuelga de `membresia_id`).
+- **Un alquiler = membresía con `categoria_aplicada`**, titular `contacto_id` (sin rol alumno, regla 21), reservas `tipo='alquiler'` confirmadas, cuota y pago con motivo `alquiler` (cierra D5, lado alquiler).
+- **Código**: `categoriaAlquiler.ts` (política + 12 pruebas), `ventaAlquiler.ts` (`faltaParaAlquiler`, validación única cliente/servidor), `inscribir/{accionesAlquiler.ts,VenderAlquiler.tsx,agendaSala.ts}`, `/alquileres` (solo lectura), Caja (`lineasPorCobrar`/`registrarCobro` con titular contacto). Controles **43 y 44** nuevos.
+- **Verificado en dev (navegador)**: titular, categoría propuesta con motivo, precio de la tabla, choque real con clases, venta de 2 h Bs 100 (membresía 49, 2 reservas, 1 cuota, 1 pago), Caja, `/alquileres`, y que `/particulares` no la lista. tsc/lint limpios, 223 pruebas, advisors sin hallazgos nuevos.
+- **Para probar la venta hubo que cargar un horario de sala en dev** (`sala_horario_patron`, sala 1, 09:00–22:00): sin horario la sala no es reservable (mensaje de calidad 5, no bug).
+- **Límite conocido**: `/alquileres` es solo lectura; confirmar/reprogramar/cancelar reservas de alquiler (gestión de H3) no está enchufado todavía.
+- **Falta**: tanda 3 (titular como contacto: persona/organización, NIT, persona de contacto) y el pase a producción (cargar antes la tabla de precios de alquiler: hoy 1 paquete y 9 celdas).

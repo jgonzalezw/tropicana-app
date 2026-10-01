@@ -7,6 +7,8 @@ import { compararContactosPorApellido } from "@/lib/contactos";
 import MostradorVenta from "./MostradorVenta";
 import type { PlanVenta } from "./ClienteInscribir";
 import type { PlanParticular, ProfesorParticular, SalaVenta, TarifaParticularVenta } from "./VenderParticular";
+import type { PaqueteHoras, PlanAlquiler } from "./VenderAlquiler";
+import { ETIQUETA_CATEGORIA, type CategoriaSala, type ClaveTamano, type TamanoSala, type TarifaSala } from "@/lib/sala";
 import type { Alumno, Contacto, Curso } from "@/lib/tipos";
 import { cargarListasContacto } from "@/app/(privado)/contactos/acciones";
 
@@ -389,6 +391,80 @@ export default async function PaginaInscribir() {
     minimoMin = Math.max(1, Number(minimoParam) || 30);
   }
 
+  // ── Alquiler de sala (C3, hito H7) ─────────────────────────────────────
+  const puedeVenderAlquileres = await tienePermiso("alquileres", "crear");
+  let planesAlquiler: PlanAlquiler[] = [];
+  let paquetesAlquiler: PaqueteHoras[] = [];
+  let tarifasAlquiler: TarifaSala[] = [];
+  let tamanosAlquiler: TamanoSala[] = [];
+  const etiquetasCategoria: Record<CategoriaSala, string> = { ...ETIQUETA_CATEGORIA };
+  let modoCategoria: "automatica" | "editable" = "automatica";
+  let salasAlquiler: SalaVenta[] = [];
+  const salaIdsPorPlanAlquiler: Record<number, number[]> = {};
+  let incrementoAlq = 30;
+  let minimoAlq = 30;
+
+  if (puedeVenderAlquileres) {
+    const [planesAlq, paqRows, tarRows, tamRows, catRows, salasRows, planSalasRows, modoParam, incParam, minParam] = await Promise.all([
+      supabase
+        .from("planes")
+        .select("id, nombre, reserva_modalidad, salas_modo, permite_sala_externa, vigencia_dias")
+        .eq("tipo_servicio", "alquiler")
+        .eq("activo", true)
+        .order("nombre"),
+      supabase.from("sala_horas_paquete").select("id, horas").order("orden"),
+      supabase.from("sala_tarifas").select("sala_id, categoria, tamano, precio, horas_paquete_id"),
+      supabase.from("sala_tamanos").select("clave, etiqueta, max_personas, orden").order("orden"),
+      supabase
+        .from("catalogo_valores")
+        .select("valor, etiqueta, catalogos!inner(clave)")
+        .eq("catalogos.clave", "categoria_comprador"),
+      supabase.from("salas").select("id, nombre, activa, es_externa").eq("activa", true).order("orden"),
+      supabase.from("plan_salas").select("plan_id, sala_id"),
+      obtenerParametro("alquiler_categoria_modo"),
+      obtenerParametro("tiempos_incremento_min"),
+      obtenerParametro("duracion_minima_curso_min"),
+    ]);
+    // Sin planes o sin tabla de precios no hay venta: un fallo no puede pasar por "no hay ninguno".
+    const planesData = exigir(planesAlq, "los planes de alquiler");
+    const paqData = exigir(paqRows, "los paquetes de horas de alquiler") as { id: number; horas: number }[];
+    const tarData = exigir(tarRows, "la tabla de precios de alquiler") as {
+      sala_id: number | null; categoria: string; tamano: string; precio: number | null; horas_paquete_id: number;
+    }[];
+    tamanosAlquiler = exigir(tamRows, "los tamaños de sala") as TamanoSala[];
+    const catData = exigir(catRows, "las categorías de cliente") as unknown as { valor: string; etiqueta: string }[];
+    for (const c of catData) if (c.valor in etiquetasCategoria) etiquetasCategoria[c.valor as CategoriaSala] = c.etiqueta;
+
+    planesAlquiler = (planesData as {
+      id: number; nombre: string; reserva_modalidad: "fija" | "flexible" | null; salas_modo: "todas" | "solo";
+      permite_sala_externa: boolean; vigencia_dias: number | null;
+    }[]).map((p) => ({
+      id: p.id,
+      nombre: p.nombre,
+      reservaModalidad: p.reserva_modalidad,
+      salasModo: p.salas_modo,
+      permiteSalaExterna: p.permite_sala_externa,
+      vigenciaDias: p.vigencia_dias,
+    }));
+    paquetesAlquiler = paqData.map((p) => ({ id: p.id, horas: Number(p.horas) }));
+    const horasDeId = new Map(paquetesAlquiler.map((p) => [p.id, p.horas]));
+    tarifasAlquiler = tarData.map((t) => ({
+      sala_id: t.sala_id,
+      categoria: t.categoria as CategoriaSala,
+      tamano: t.tamano as ClaveTamano,
+      horas: horasDeId.get(t.horas_paquete_id) ?? 0,
+      precio: t.precio == null ? null : Number(t.precio),
+    }));
+    modoCategoria = modoParam === "editable" ? "editable" : "automatica";
+    salasAlquiler = ((salasRows.data as { id: number; nombre: string; activa: boolean; es_externa: boolean }[]) ?? []).map((s) => ({
+      id: s.id, nombre: s.nombre, esExterna: s.es_externa, activa: s.activa,
+    }));
+    for (const r of (planSalasRows.data as { plan_id: number; sala_id: number }[]) ?? [])
+      (salaIdsPorPlanAlquiler[r.plan_id] ??= []).push(r.sala_id);
+    incrementoAlq = Math.max(1, Number(incParam) || 30);
+    minimoAlq = Math.max(1, Number(minParam) || 30);
+  }
+
   return (
     <MostradorVenta
       alumnos={padronAlumnos}
@@ -413,6 +489,17 @@ export default async function PaginaInscribir() {
       incrementoMin={incrementoMin}
       minimoMin={minimoMin}
       puedeVenderParticulares={puedeVenderParticulares}
+      puedeVenderAlquileres={puedeVenderAlquileres}
+      planesAlquiler={planesAlquiler}
+      paquetesAlquiler={paquetesAlquiler}
+      tarifasAlquiler={tarifasAlquiler}
+      tamanosAlquiler={tamanosAlquiler}
+      etiquetasCategoria={etiquetasCategoria}
+      modoCategoria={modoCategoria}
+      salasAlquiler={salasAlquiler}
+      salaIdsPorPlanAlquiler={salaIdsPorPlanAlquiler}
+      incrementoAlquilerMin={incrementoAlq}
+      minimoAlquilerMin={minimoAlq}
     />
   );
 }

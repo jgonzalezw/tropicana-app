@@ -27,6 +27,7 @@ export default function BarraLateral({
   puedeSala,
   puedeDisponibilidadSala,
   puedeParticulares,
+  puedeAlquileres,
   temas,
   temaActual,
   infoRelease,
@@ -48,6 +49,7 @@ export default function BarraLateral({
   /** Gestión → Disponibilidad de sala (H4): permiso propio, separado de `puedeSala`. */
   puedeDisponibilidadSala: boolean;
   puedeParticulares: boolean;
+  puedeAlquileres: boolean;
   temas: OpcionTema[];
   temaActual: string;
   infoRelease: InfoRelease;
@@ -107,6 +109,11 @@ export default function BarraLateral({
           href: "/particulares",
           etiqueta: "Particulares",
           mostrar: puedeParticulares,
+        },
+        {
+          href: "/alquileres",
+          etiqueta: "Alquileres",
+          mostrar: puedeAlquileres,
         },
         {
           href: "/alumnos",

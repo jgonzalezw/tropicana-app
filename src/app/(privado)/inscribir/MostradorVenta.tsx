@@ -10,10 +10,12 @@ import VenderParticular, {
   type SalaVenta,
   type TarifaParticularVenta,
 } from "./VenderParticular";
+import VenderAlquiler, { type PaqueteHoras, type PlanAlquiler } from "./VenderAlquiler";
+import type { CategoriaSala, TamanoSala, TarifaSala } from "@/lib/sala";
 import Pagina from "@/components/Pagina";
 
 type Canal = { valor: string; etiqueta: string };
-type Modo = "inscripcion" | "prueba" | "particular";
+type Modo = "inscripcion" | "prueba" | "particular" | "alquiler";
 
 /**
  * Las dos formas de vender un plan: la inscripción normal y la clase de
@@ -49,6 +51,17 @@ export default function MostradorVenta(props: {
   incrementoMin: number;
   minimoMin: number;
   puedeVenderParticulares: boolean;
+  puedeVenderAlquileres: boolean;
+  planesAlquiler: PlanAlquiler[];
+  paquetesAlquiler: PaqueteHoras[];
+  tarifasAlquiler: TarifaSala[];
+  tamanosAlquiler: TamanoSala[];
+  etiquetasCategoria: Record<CategoriaSala, string>;
+  modoCategoria: "automatica" | "editable";
+  salasAlquiler: SalaVenta[];
+  salaIdsPorPlanAlquiler: Record<number, number[]>;
+  incrementoAlquilerMin: number;
+  minimoAlquilerMin: number;
 }) {
   const { suspendidas } = props;
   const [modo, setModo] = useState<Modo>("inscripcion");
@@ -74,12 +87,13 @@ export default function MostradorVenta(props: {
 
   return (
     <Pagina ancho="3xl">
-      <div className="flex gap-2 max-w-md mb-6">
+      <div className="flex gap-2 max-w-2xl mb-6">
         {(
           [
             ["inscripcion", "Inscripción"],
             ["prueba", "Clase de prueba"],
             ...(props.puedeVenderParticulares ? ([["particular", "Clase particular"]] as [Modo, string][]) : []),
+            ...(props.puedeVenderAlquileres ? ([["alquiler", "Alquiler de sala"]] as [Modo, string][]) : []),
           ] as [Modo, string][]
         ).map(([m, etiqueta]) => (
           <button
@@ -115,6 +129,21 @@ export default function MostradorVenta(props: {
           matriz={props.matriz}
           listasContacto={props.listasContacto}
           puedeVerPrivados={props.puedeVerPrivados}
+        />
+      ) : modo === "alquiler" ? (
+        <VenderAlquiler
+          planes={props.planesAlquiler}
+          paquetes={props.paquetesAlquiler}
+          tarifas={props.tarifasAlquiler}
+          tamanos={props.tamanosAlquiler}
+          etiquetasCategoria={props.etiquetasCategoria}
+          modoCategoria={props.modoCategoria}
+          salas={props.salasAlquiler}
+          salaIdsPorPlan={props.salaIdsPorPlanAlquiler}
+          medios={props.medios}
+          diasCompromiso={props.diasCompromiso}
+          incrementoMin={props.incrementoAlquilerMin}
+          minimoMin={props.minimoAlquilerMin}
         />
       ) : vendibles.length > 0 ? (
         <div>

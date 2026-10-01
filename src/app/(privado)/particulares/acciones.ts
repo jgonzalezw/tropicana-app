@@ -295,6 +295,7 @@ export async function listarMembresiasParticulares(): Promise<{ items: FilaParti
         "reservas:reservas_sala(estado, duracion_min, solicitada_hasta, es_cortesia)"
     )
     .is("curso_id", null)
+    .is("categoria_aplicada", null)
     .eq("estado", "activa");
   if (propio && profesorId) query = query.eq("profesor_id", profesorId);
   const [memR, estR] = await Promise.all([query, sb.from("estilos").select("clave, nombre")]);
@@ -464,6 +465,7 @@ export async function obtenerMembresiaParticular(membresiaId: number): Promise<M
     )
     .eq("id", membresiaId)
     .is("curso_id", null)
+    .is("categoria_aplicada", null)
     .maybeSingle();
   if (error) return { error: `No se pudo leer la membresía: ${error.message}` };
   if (!m) return { error: "Esa membresía de particulares no existe." };
@@ -680,6 +682,7 @@ export async function guardarLugarExterno(
     .select("id, profesor_id, plan:planes(permite_sala_externa)")
     .eq("id", membresiaId)
     .is("curso_id", null)
+    .is("categoria_aplicada", null)
     .maybeSingle();
   if (errM) return { error: `No se pudo leer la membresía: ${errM.message}` };
   if (!mRow) return { error: "Esa membresía de particulares no existe." };
@@ -786,6 +789,7 @@ export async function crearReserva(e: EntradaNuevaReserva): Promise<ResultadoAcc
     .select("id, estado, fecha_inicio, fecha_fin, horas_contratadas, alumno_id, profesor_id, plan_id, acompanantes")
     .eq("id", e.membresiaId)
     .is("curso_id", null)
+    .is("categoria_aplicada", null)
     .maybeSingle();
   if (errM) return { error: `No se pudo leer la membresía: ${errM.message}` };
   if (!mRow) return { error: "Esa membresía de particulares no existe." };

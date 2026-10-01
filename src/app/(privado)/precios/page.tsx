@@ -75,9 +75,12 @@ export default async function PaginaPrecios() {
       .select("tarifa_particular_id")
       .not("tarifa_particular_id", "is", null)
       .then((r) => exigir(r, "el uso de los paquetes de particulares")),
+    // Un alquiler es una membresía de plan (0061): usa el paquete de horas
+    // que compró, y eso decide si la fila se puede borrar o solo desactivar.
     sb
-      .from("alquileres_sala")
-      .select("horas_total")
+      .from("membresias")
+      .select("horas_contratadas")
+      .not("categoria_aplicada", "is", null)
       .then((r) => exigir(r, "el uso de los paquetes de horas")),
     sb
       .from("salas")
@@ -111,8 +114,8 @@ export default async function PaginaPrecios() {
       usoPorPaquete[u.tarifa_particular_id] = (usoPorPaquete[u.tarifa_particular_id] ?? 0) + 1;
   }
   const usoPorHoras: Record<number, number> = {};
-  for (const u of usoAlquiler as { horas_total: number }[]) {
-    const h = Number(u.horas_total);
+  for (const u of usoAlquiler as { horas_contratadas: number | null }[]) {
+    const h = Number(u.horas_contratadas);
     usoPorHoras[h] = (usoPorHoras[h] ?? 0) + 1;
   }
 

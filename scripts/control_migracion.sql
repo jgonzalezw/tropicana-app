@@ -866,6 +866,34 @@ select '43. cierres de cuentas sin liquidacion o sin item' as control,
         or not exists (select 1 from public.liquidacion_items i where i.comision_id = c.id));
 
 -- ---------------------------------------------------------------------
+-- 44. ALQUILER SIN CATEGORIA, SIN TITULAR O CON ROL ALUMNO (migracion 0061)
+--     Un alquiler es una membresia con categoria_aplicada. Su titular es un
+--     contacto (regla 21) y no adquiere el rol alumno; sin categoria no se
+--     sabria con que tarifa se cobro (regla 24).
+-- ---------------------------------------------------------------------
+select '44. alquiler con categoria propuesta nula, sin contacto o con alumno_id' as control,
+       count(*) as n,
+       case when count(*) = 0 then 'OK' else 'REVISAR' end as estado
+  from public.membresias m
+  join public.planes p on p.id = m.plan_id
+ where p.tipo_servicio = 'alquiler'
+   and (m.categoria_aplicada is null or m.categoria_propuesta is null
+        or m.contacto_id is null or m.alumno_id is not null);
+
+-- ---------------------------------------------------------------------
+-- 45. CATEGORIA CAMBIADA A MANO SIN GLOSA
+--     Solo es posible con el parametro alquiler_categoria_modo = editable, y
+--     exige glosa (regla 24).
+-- ---------------------------------------------------------------------
+select '45. alquiler con categoria distinta de la propuesta y sin glosa' as control,
+       count(*) as n,
+       case when count(*) = 0 then 'OK' else 'REVISAR' end as estado
+  from public.membresias m
+ where m.categoria_aplicada is not null
+   and m.categoria_aplicada is distinct from m.categoria_propuesta
+   and coalesce(trim(m.categoria_glosa), '') = '';
+
+-- ---------------------------------------------------------------------
 -- Detalle, por si algun control da REVISAR:
 -- ---------------------------------------------------------------------
 -- select id, alumno_id, curso_id, estado, fecha_inicio, fecha_fin,
