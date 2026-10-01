@@ -200,8 +200,8 @@ lee **antes** de mirar ramas.
   base (migración 0059 aplicada solo en dev, motor + 9 pruebas en
   `motor.criterios.test.ts`), conteo de ilimitadas por asistidas (regla 10) y
   diálogo al cambiar el criterio de un plan. **Falta:** que Javier pruebe;
-  duda abierta: ilimitada + criterio 2 cuenta por calendario (el avance
-  necesita un total previsto). Liquidada la #37 (liquidación #5) en dev, el
+  decidido el 2026-10-01: el criterio 2 **no se permite en planes
+  ilimitados** (sin total de clases no hay avance), validado en el plan. Liquidada la #37 (liquidación #5) en dev, el
   próximo generar emite su ajuste firmado. **Pendiente posterior** (memoria del proyecto): migración de datos
   de inicio (asignaciones #22/#12–#14, membresías #17–#19) e informe imprimible
   de pre-liquidación.

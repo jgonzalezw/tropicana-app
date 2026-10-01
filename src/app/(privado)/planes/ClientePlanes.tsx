@@ -213,6 +213,7 @@ export default function ClientePlanes({
     setError(null);
     setMsg(null);
     startTransition(async () => {
+      let avisoDevengadas = "";
       if (editId && aplicarCriterio === undefined) {
         const original = planes.find((p) => p.id === editId);
         if (original && original.criterio_liquidacion !== form.criterio_liquidacion) {
@@ -225,13 +226,15 @@ export default function ClientePlanes({
             setPreguntaCriterio(c.n as number);
             return;
           }
+          if ((c.conDevengo ?? 0) > 0)
+            avisoDevengadas = ` ${c.conDevengo} ${c.conDevengo === 1 ? "membresía ya vendida conserva" : "membresías ya vendidas conservan"} su criterio anterior porque ya tiene comisión devengada (no se reescribe).`;
         }
       }
       setPreguntaCriterio(null);
       const res = editId ? await actualizarPlan(editId, form, aplicarCriterio === true) : await crearPlan(form);
       if (res?.error) setError(res.error);
       else {
-        setMsg(editId ? "Plan actualizado." : "Plan creado.");
+        setMsg((editId ? "Plan actualizado." : "Plan creado.") + avisoDevengadas);
         nuevo();
         router.refresh();
       }
@@ -851,7 +854,10 @@ function FormularioCursoRegular({
           className="entrada w-full"
         >
           <option value={1}>{CRITERIO_LABEL[1]}</option>
-          <option value={2}>{CRITERIO_LABEL[2]}</option>
+          <option value={2} disabled={form.clases_ilimitadas}>
+            {CRITERIO_LABEL[2]}
+            {form.clases_ilimitadas ? " (no disponible en ilimitados)" : ""}
+          </option>
           <option value={3}>{CRITERIO_LABEL[3]}</option>
         </select>
       </div>

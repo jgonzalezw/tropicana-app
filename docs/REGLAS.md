@@ -140,9 +140,9 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
     **ilimitados** se cuentan solo las clases **asistidas por el alumno** (no
     hay compromiso previo de asistir); los planes con N clases siguen por
     calendario menos suspendidas. Una clase sin registrar sigue trabando el
-    prorrateo multi-curso (regla 17). Con criterio 2 (avance) las ilimitadas
-    siguen por calendario hasta que Javier decida el total previsto — ver
-    `docs/DECISIONES.md`, fila H5.
+    prorrateo multi-curso (regla 17). **El criterio 2 (avance) no se permite en
+    planes ilimitados** (Javier, 2026-10-01): sin total de clases no hay
+    avance que medir; lo valida el plan (`validarDatosPlan`).
     **El "precio de su curso" es el valor de UNA clase del curso —su tarifa de
     clase suelta—, no el valor por tramo.** El tramo es para *proponer* un
     precio (regla 9): ahí la pregunta es cuánto costaría comprar eso por

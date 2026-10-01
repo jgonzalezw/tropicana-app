@@ -181,7 +181,7 @@ async function membresiasSinDevengarConOtroCriterio(
   a: ReturnType<typeof admin>,
   planId: number,
   nuevo: number
-): Promise<number[]> {
+): Promise<{ libres: number[]; conDevengo: number }> {
   const { data: ms, error } = await a
     .from("membresias")
     .select("id, criterio_liquidacion")
@@ -191,24 +191,26 @@ async function membresiasSinDevengarConOtroCriterio(
   const candidatas = ((ms as { id: number; criterio_liquidacion: number | null }[]) ?? [])
     .filter((m) => m.criterio_liquidacion !== nuevo)
     .map((m) => m.id);
-  if (!candidatas.length) return [];
+  if (!candidatas.length) return { libres: [], conDevengo: 0 };
   const { data: dev, error: e2 } = await a
     .from("comisiones_devengadas")
     .select("membresia_id")
     .in("membresia_id", candidatas);
   if (e2) throw new Error("No se pudieron leer las comisiones devengadas: " + e2.message);
   const conDevengo = new Set(((dev as { membresia_id: number }[]) ?? []).map((r) => r.membresia_id));
-  return candidatas.filter((id) => !conDevengo.has(id));
+  const libres = candidatas.filter((id) => !conDevengo.has(id));
+  return { libres, conDevengo: candidatas.length - libres.length };
 }
 
 /** Cuántas membresías ya vendidas podrían tomar el nuevo criterio (para preguntar antes de guardar). */
 export async function contarMembresiasParaNuevoCriterio(
   planId: number,
   nuevo: number
-): Promise<{ n?: number; error?: string }> {
+): Promise<{ n?: number; conDevengo?: number; error?: string }> {
   if (!(await tienePermiso("planes", "editar"))) return { error: "Sin permiso." };
   try {
-    return { n: (await membresiasSinDevengarConOtroCriterio(admin(), planId, nuevo)).length };
+    const r = await membresiasSinDevengarConOtroCriterio(admin(), planId, nuevo);
+    return { n: r.libres.length, conDevengo: r.conDevengo };
   } catch (e) {
     return { error: (e as Error).message };
   }
@@ -259,7 +261,7 @@ export async function actualizarPlan(
   // pidió, las membresías sin nada devengado toman el criterio nuevo.
   if (aplicarCriterioAMembresias) {
     try {
-      const ids = await membresiasSinDevengarConOtroCriterio(a, id, d.criterio_liquidacion);
+      const { libres: ids } = await membresiasSinDevengarConOtroCriterio(a, id, d.criterio_liquidacion);
       if (ids.length) {
         const { error: errM } = await a
           .from("membresias")
