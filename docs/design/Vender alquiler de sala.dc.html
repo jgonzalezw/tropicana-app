@@ -1,0 +1,1118 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/organic-186d334f-848b-405d-95ba-b805f2b70bf6/styles.css">
+<script src="_ds/organic-186d334f-848b-405d-95ba-b805f2b70bf6/_ds_bundle.js"></script>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&display=swap">
+<style>
+:root {
+  --color-bg: #1c1815; --color-surface: #272220; --color-text: #f4ebdd;
+  --color-divider: color-mix(in srgb, #f4ebdd 16%, transparent);
+  --color-accent: #e08b4f; --color-accent-2: #9bad78;
+  --color-neutral-100: #302a25; --color-neutral-200: #3a332d; --color-neutral-300: #463e37; --color-neutral-400: #6d6359; --color-neutral-500: #8f8578; --color-neutral-600: #ab9f91; --color-neutral-700: #c8bbaa; --color-neutral-800: #e2d7c6; --color-neutral-900: #f4ebdd;
+  --color-accent-100: #37200f; --color-accent-200: #6b3714; --color-accent-300: #8c491a; --color-accent-400: #b2622d; --color-accent-500: #d67f48; --color-accent-600: #f6a06b; --color-accent-700: #ffc0a0; --color-accent-800: #ffd3b5; --color-accent-900: #fff2eb;
+  --color-accent-2-100: #232a18; --color-accent-2-200: #3a4726; --color-accent-2-300: #56633f; --color-accent-2-400: #728157; --color-accent-2-500: #8fa073; --color-accent-2-600: #a8bb88; --color-accent-2-700: #ccdbb2; --color-accent-2-800: #dcebc4; --color-accent-2-900: #f0fae1;
+  --tropi-chip: #f4ebdd;
+  --font-heading: "Montserrat", system-ui, sans-serif; --font-heading-weight: 800;
+}
+h1, h2, h3, h4 { letter-spacing: -0.025em; }
+.btn { font-weight: 700; letter-spacing: 0.01em; }
+.nw { white-space: nowrap; }
+body { margin: 0; background: var(--color-neutral-300); }
+a { color: var(--color-accent-700); }
+a:hover { color: var(--color-accent-800); }
+.input option, select.input { color: var(--color-text); background: var(--color-neutral-100); }
+.tropi-in { font-size: 17px !important; min-height: 52px !important; background: var(--color-neutral-200) !important; }
+.tropi-btn-big { font-size: 18px !important; min-height: 56px !important; }
+.tropi-seg { display: flex; width: 100%; flex-wrap: wrap; }
+.tropi-seg .seg-opt { flex: 1 1 40%; justify-content: center; font-size: 15px; padding: 12px 4px; text-align: center; }
+@keyframes tropiIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+</style>
+</helmet>
+<div style="min-height:100dvh;display:flex;justify-content:center;background:var(--color-neutral-300)">
+<div style="width:100%;max-width:680px;height:100dvh;display:flex;flex-direction:column;background:var(--color-bg);font-family:var(--font-body);color:var(--color-text)">
+
+  <div style="padding:18px 18px 6px;display:flex;align-items:center;gap:10px">
+    <div style="background:var(--tropi-chip);border-radius:999px;padding:5px 13px;display:flex;flex:none"><img src="assets/tropicana-logo.png" alt="Tropicana" style="height:24px;width:auto"></img></div>
+    <div class="nw" style="margin-left:auto;font-size:13px;color:var(--color-neutral-700)">Natalia · admin</div>
+  </div>
+  <div style="padding:4px 18px 14px">
+    <h1 style="font-size:clamp(29px,4vw,36px);margin:0">Vender alquiler de sala</h1>
+    <div style="font-size:15px;color:var(--color-neutral-700);margin-top:4px">Un contacto alquila horas de sala por plan, con su cobro.</div>
+  </div>
+
+  <div style="flex:1;overflow:auto;padding:0 clamp(14px,2vw,18px) 26px">
+
+    <sc-if value="{{ verCargando }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <sc-for list="{{ esqueleto }}" as="k" hint-placeholder-count="3">
+          <div style="background:var(--color-surface);border-radius:26px;padding:16px;display:flex;flex-direction:column;gap:10px">
+            <div style="width:45%;height:20px;border-radius:999px;background:var(--color-neutral-200)"></div>
+            <div style="width:100%;height:52px;border-radius:999px;background:var(--color-neutral-100)"></div>
+          </div>
+        </sc-for>
+        <div style="font-size:15px;color:var(--color-neutral-700);padding:0 4px">Leyendo planes, precios y agenda de salas…</div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ verError }}" hint-placeholder-val="{{ false }}">
+      <div style="background:var(--color-accent-100);border-radius:26px;padding:18px">
+        <div style="font-size:18px;font-weight:700;color:var(--color-accent-900)">No pudimos leer los datos de alquiler</div>
+        <div style="font-size:15px;line-height:1.5;color:var(--color-accent-800);margin-top:6px">Falló la lectura de planes, precios o agenda de salas. Esto no quiere decir que no haya planes cargados: no vendas hasta que se lean bien.</div>
+        <button class="btn btn-primary" style="margin-top:14px;min-height:48px;font-size:16px">Reintentar</button>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ verSinPermiso }}" hint-placeholder-val="{{ false }}">
+      <div style="background:var(--color-surface);border-radius:26px;padding:18px">
+        <div style="font-size:18px;font-weight:700">Tu usuario no puede vender alquileres</div>
+        <div style="font-size:15px;line-height:1.5;color:var(--color-neutral-700);margin-top:6px">Hace falta el permiso <strong>Vender servicios</strong>. Pedíselo a un admin desde Usuarios y permisos.</div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ verConfirmacion }}" hint-placeholder-val="{{ false }}">
+      <div style="background:var(--color-surface);border-radius:26px;padding:18px;animation:tropiIn .25s ease-out">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="width:34px;height:34px;border-radius:999px;background:var(--color-accent-2-200);display:grid;place-items:center;flex:none">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-2-800)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>
+          </div>
+          <div style="font-family:var(--font-heading);font-size:20px">Alquiler vendido</div>
+        </div>
+        <div style="font-size:22px;font-weight:700;margin-top:14px">{{ cf.contacto }}</div>
+        <div style="font-size:15px;color:var(--color-neutral-700);margin-top:2px">{{ cf.contactoMeta }}</div>
+        <div style="display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px 16px;margin-top:14px;font-size:15px">
+          <div style="color:var(--color-neutral-700)">Plan</div><div style="font-weight:600">{{ cf.plan }}</div>
+          <div style="color:var(--color-neutral-700)">Categoría</div><div style="font-weight:600">{{ cf.categoria }}</div>
+          <div style="color:var(--color-neutral-700)">Personas</div><div style="font-weight:600">{{ cf.personas }}</div>
+          <div style="color:var(--color-neutral-700)">Horas</div><div style="font-weight:600">{{ cf.horas }}</div>
+          <div style="color:var(--color-neutral-700)">Vigencia</div><div style="font-weight:600">{{ cf.vigencia }}</div>
+        </div>
+        <div style="font-size:14px;color:var(--color-neutral-700);margin:16px 0 6px">{{ cf.reservasTitulo }}</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <sc-for list="{{ cf.reservas }}" as="r" hint-placeholder-count="2">
+            <div style="display:flex;gap:10px;background:var(--color-neutral-100);border-radius:16px;padding:10px 14px;font-size:15px">
+              <div style="flex:1;min-width:0">{{ r.fecha }}</div>
+              <div class="nw" style="font-weight:600">{{ r.horario }}</div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="font-size:14px;color:var(--color-neutral-700);margin-top:6px">{{ cf.salaTexto }}</div>
+        <div style="display:flex;flex-direction:column;gap:6px;margin-top:16px;padding-top:14px;border-top:1px solid var(--color-divider);font-size:15px">
+          <div style="display:flex"><span style="color:var(--color-neutral-700)">Total</span><span class="nw" style="margin-left:auto;font-weight:700">{{ cf.total }}</span></div>
+          <div style="display:flex"><span style="color:var(--color-neutral-700)">Pagó hoy</span><span class="nw" style="margin-left:auto;font-weight:700">{{ cf.pago }}</span></div>
+          <div style="display:flex"><span style="color:var(--color-neutral-700)">Saldo</span><span class="nw" style="margin-left:auto;font-weight:700">{{ cf.saldo }}</span></div>
+        </div>
+        <sc-if value="{{ cf.waNo }}" hint-placeholder-val="{{ false }}"><div style="background:var(--color-accent-100);border-radius:18px;padding:12px 14px;margin-top:16px;font-size:15px;line-height:1.45;color:var(--color-accent-900)">{{ cf.waMotivo }}</div></sc-if>
+        <sc-if value="{{ cf.waInv }}" hint-placeholder-val="{{ false }}"><div style="background:var(--color-accent-100);border-radius:18px;padding:12px 14px;margin-top:16px;font-size:15px;line-height:1.45;color:var(--color-accent-900)">{{ cf.waMotivo }}</div></sc-if>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:18px">
+          <sc-if value="{{ cf.waOk }}" hint-placeholder-val="{{ true }}"><a class="btn btn-primary" href="{{ cf.waLink }}" target="_blank" rel="noopener" style="flex:1 1 220px;min-height:52px;font-size:17px;text-decoration:none;justify-content:center">Enviar por WhatsApp</a></sc-if>
+          <sc-if value="{{ cf.waInv }}" hint-placeholder-val="{{ false }}"><button class="btn btn-primary" disabled="{{ true }}" style="flex:1 1 220px;min-height:52px;font-size:17px">Enviar por WhatsApp</button></sc-if>
+          <button class="btn btn-secondary" onClick="{{ copiar }}" style="flex:0 1 auto;min-height:52px;font-size:16px;background:var(--color-neutral-100)">{{ copiarTexto }}</button>
+        </div>
+        <sc-if value="{{ cf.waOk }}" hint-placeholder-val="{{ false }}"><div style="font-size:14px;color:var(--color-neutral-700);margin-top:8px">{{ cf.waDestino }}</div></sc-if>
+        <button class="btn btn-ghost" onClick="{{ nuevaVenta }}" style="margin-top:10px;font-size:15px">Nueva venta</button>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ verForm }}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex;flex-direction:column;gap:12px">
+
+        <div style="background:var(--color-surface);border-radius:26px;padding:16px">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+            <div style="width:30px;height:30px;border-radius:999px;background:var(--color-accent);color:var(--color-bg);display:grid;place-items:center;font-family:var(--font-heading);font-size:15px;flex:none">1</div>
+            <div class="nw" style="font-family:var(--font-heading);font-size:18px">Titular</div>
+          </div>
+          <sc-if value="{{ verBuscador }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div class="field" style="margin:0">
+                <label style="font-size:14px">Contacto · nombre o WhatsApp</label>
+                <input class="input tropi-in" value="{{ q }}" onChange="{{ onQuery }}" placeholder="ej. Virginia · 7105 · Colegio"></input>
+              </div>
+              <sc-if value="{{ verBuscando }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;flex-direction:column;gap:8px">
+                  <div style="height:62px;border-radius:20px;background:var(--color-neutral-100)"></div>
+                  <div style="height:62px;border-radius:20px;background:var(--color-neutral-100)"></div>
+                  <div style="font-size:14px;color:var(--color-neutral-700)">Buscando contactos…</div>
+                </div>
+              </sc-if>
+              <sc-if value="{{ verErrorBusqueda }}" hint-placeholder-val="{{ false }}">
+                <div style="background:var(--color-accent-100);border-radius:20px;padding:14px">
+                  <div style="font-size:16px;font-weight:600;color:var(--color-accent-900)">No pudimos buscar contactos</div>
+                  <div style="font-size:15px;line-height:1.45;color:var(--color-accent-800);margin-top:4px">Esto no quiere decir que no exista. Reintentá antes de crear uno nuevo, para no duplicarlo.</div>
+                  <button class="btn btn-primary" onClick="{{ reintentarBusqueda }}" style="margin-top:12px;min-height:48px;font-size:16px">Reintentar</button>
+                </div>
+              </sc-if>
+              <sc-for list="{{ resultados }}" as="r" hint-placeholder-count="2">
+                <button onClick="{{ r.elegir }}" style="width:100%;display:flex;align-items:center;gap:10px;text-align:left;background:var(--color-neutral-100);border:1px solid var(--color-divider);border-radius:20px;padding:12px 14px;cursor:pointer;font-family:var(--font-body);color:var(--color-text)">
+                  <div style="flex:1;min-width:0">
+                    <div style="font-size:17px;font-weight:600">{{ r.nombre }}</div>
+                    <div style="font-size:14px;color:var(--color-neutral-700)">{{ r.meta }}</div>
+                  </div>
+                  <span class="tag nw {{ r.rolCls }}" style="font-size:13px;flex:none">{{ r.rol }}</span>
+                </button>
+              </sc-for>
+              <sc-if value="{{ sinResultados }}" hint-placeholder-val="{{ false }}">
+                <div style="font-size:15px;color:var(--color-neutral-700)">Nadie con «{{ qTexto }}». Si es nuevo, cargalo como contacto nuevo.</div>
+              </sc-if>
+              <sc-if value="{{ verAltaBotones }}" hint-placeholder-val="{{ true }}">
+                <button class="btn btn-secondary btn-block tropi-btn-big" onClick="{{ altaNuevo }}" style="background:var(--color-neutral-100)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>Contacto nuevo</button>
+              </sc-if>
+              <div style="font-size:14px;color:var(--color-neutral-700);line-height:1.45">Si ya es alumno, profesor o alquiló antes, aparece arriba con su rol y no se le pide ningún dato. Alquilar no lo convierte en alumno ni lo suma al padrón.</div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ verAlta }}" hint-placeholder-val="{{ false }}">
+            <div style="background:var(--color-neutral-100);border-radius:22px;padding:14px;display:flex;flex-direction:column;gap:12px;animation:tropiIn .2s ease-out">
+              <div style="display:flex;align-items:center;gap:10px">
+                <div style="min-width:0">
+                  <div style="font-size:13px;color:var(--color-neutral-700)">Alta mínima</div>
+                  <div style="font-size:16px;font-weight:700">{{ altaContexto }}</div>
+                </div>
+                <button class="btn btn-ghost" onClick="{{ cerrarAlta }}" style="margin-left:auto;flex:none;font-size:14px">Cancelar</button>
+              </div>
+              <div class="seg tropi-seg">
+                <label class="seg-opt"><input type="radio" name="altipo" checked="{{ altaEsPersona }}" onChange="{{ setAltaPersona }}"></input><span>Persona</span></label>
+                <label class="seg-opt"><input type="radio" name="altipo" checked="{{ altaEsOrg }}" onChange="{{ setAltaOrg }}"></input><span>Organización</span></label>
+              </div>
+
+              <sc-if value="{{ altaEsPersona }}" hint-placeholder-val="{{ true }}">
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px">
+                  <sc-if value="{{ fNombre.ver }}" hint-placeholder-val="{{ true }}">
+                    <div class="field" style="margin:0"><label style="font-size:14px;display:flex;flex-wrap:wrap;align-items:center;gap:6px">{{ fNombre.label }}<sc-if value="{{ fNombre.oculto }}" hint-placeholder-val="{{ false }}"><span class="tag tag-outline nw" style="font-size:12px">Oculto por la matriz</span></sc-if></label><input class="input tropi-in" value="{{ aNom }}" onChange="{{ onANom }}" placeholder="Javier"></input></div>
+                  </sc-if>
+                  <sc-if value="{{ fApellido.ver }}" hint-placeholder-val="{{ true }}">
+                    <div class="field" style="margin:0"><label style="font-size:14px;display:flex;flex-wrap:wrap;align-items:center;gap:6px">{{ fApellido.label }}<sc-if value="{{ fApellido.oculto }}" hint-placeholder-val="{{ false }}"><span class="tag tag-outline nw" style="font-size:12px">Oculto por la matriz</span></sc-if></label><input class="input tropi-in" value="{{ aApe }}" onChange="{{ onAApe }}" placeholder="González"></input></div>
+                  </sc-if>
+                </div>
+              </sc-if>
+              <sc-if value="{{ fRazon.ver }}" hint-placeholder-val="{{ false }}">
+                <div class="field" style="margin:0"><label style="font-size:14px;display:flex;flex-wrap:wrap;align-items:center;gap:6px">{{ fRazon.label }}<sc-if value="{{ fRazon.oculto }}" hint-placeholder-val="{{ false }}"><span class="tag tag-outline nw" style="font-size:12px">Oculto por la matriz</span></sc-if></label><input class="input tropi-in" value="{{ aRazon }}" onChange="{{ onARazon }}" placeholder="ej. Colegio San Andrés"></input></div>
+              </sc-if>
+
+              <div class="field" style="margin:0">
+                <label style="font-size:14px;display:flex;flex-wrap:wrap;align-items:center;gap:6px">{{ fWa.label }}<sc-if value="{{ fWa.oculto }}" hint-placeholder-val="{{ false }}"><span class="tag tag-outline nw" style="font-size:12px">Oculto por la matriz</span></sc-if></label>
+                <input class="input tropi-in" value="{{ aWa }}" onChange="{{ onAWa }}" placeholder="71 054 962" inputMode="tel"></input>
+                <div style="font-size:14px;color:{{ waHintColor }};margin-top:6px;line-height:1.45">{{ waHint }}</div>
+                <sc-if value="{{ altaWaLink }}" hint-placeholder-val="{{ false }}">
+                  <a href="{{ altaWaLink }}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;font-size:14px;font-weight:600;margin-top:6px;text-decoration:none"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-2-700)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path></svg>Abrir chat ↗</a>
+                </sc-if>
+              </div>
+              <sc-if value="{{ altaDupeWa }}" hint-placeholder-val="{{ false }}">
+                <div style="background:var(--color-accent-100);border-radius:20px;padding:14px;animation:tropiIn .25s ease-out">
+                  <div style="font-size:14px;color:var(--color-accent-800);font-weight:600;margin-bottom:6px">Ese WhatsApp ya está cargado</div>
+                  <div style="font-size:17px;font-weight:600">{{ dupeWaNombre }}</div>
+                  <div style="font-size:14px;color:var(--color-neutral-700);margin-top:2px">{{ dupeWaMeta }}</div>
+                  <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">
+                    <button class="btn btn-primary" onClick="{{ usarDupeWa }}" style="flex:1;min-height:48px;font-size:16px">Usar este contacto</button>
+                    <button class="btn btn-secondary" onClick="{{ ignorarDupeWa }}" style="flex:none;min-height:48px;font-size:15px">Es otro contacto</button>
+                  </div>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ altaEsOrg }}" hint-placeholder-val="{{ false }}">
+                <div style="border:1px solid var(--color-divider);border-radius:18px;padding:12px;display:flex;flex-direction:column;gap:10px">
+                  <div>
+                    <div style="font-size:15px;font-weight:600">Persona de contacto · opcional</div>
+                    <div style="font-size:13px;color:var(--color-neutral-700);line-height:1.45;margin-top:2px">Otro contacto (persona) unido a la organización con la relación «trabaja en». Si la cargás, el WhatsApp de la venta le llega a ella.</div>
+                  </div>
+                  <sc-if value="{{ verPcSel }}" hint-placeholder-val="{{ false }}">
+                    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;background:var(--color-neutral-200);border-radius:16px;padding:10px 14px">
+                      <div style="flex:1 1 160px;min-width:0">
+                        <div style="font-size:16px;font-weight:600">{{ pcNombre }}</div>
+                        <div style="font-size:14px;color:var(--color-neutral-700)">{{ pcMeta }}</div>
+                      </div>
+                      <span class="tag tag-accent-2 nw" style="font-size:12px">trabaja en</span>
+                      <button class="btn btn-ghost" onClick="{{ quitarPc }}" style="font-size:14px;flex:none">Quitar</button>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ verPcBuscar }}" hint-placeholder-val="{{ true }}">
+                    <div style="display:flex;flex-direction:column;gap:8px">
+                      <input class="input tropi-in" value="{{ pcQ }}" onChange="{{ onPcQ }}" placeholder="Buscar persona · nombre o WhatsApp"></input>
+                      <sc-for list="{{ pcResultados }}" as="r" hint-placeholder-count="1">
+                        <button onClick="{{ r.elegir }}" style="width:100%;text-align:left;background:var(--color-neutral-200);border:1px solid var(--color-divider);border-radius:16px;padding:10px 14px;cursor:pointer;font-family:var(--font-body);color:var(--color-text)">
+                          <div style="font-size:16px;font-weight:600">{{ r.nombre }}</div>
+                          <div style="font-size:14px;color:var(--color-neutral-700)">{{ r.meta }}</div>
+                        </button>
+                      </sc-for>
+                      <button class="btn btn-ghost" onClick="{{ abrirPcNuevo }}" style="align-self:flex-start;font-size:15px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>Persona nueva</button>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ verPcNuevo }}" hint-placeholder-val="{{ false }}">
+                    <div style="display:flex;flex-direction:column;gap:8px">
+                      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px">
+                        <div class="field" style="margin:0"><label style="font-size:14px">Nombre</label><input class="input tropi-in" value="{{ pcNom }}" onChange="{{ onPcNom }}" placeholder="Carla Rojas"></input></div>
+                        <div class="field" style="margin:0"><label style="font-size:14px">WhatsApp</label><input class="input tropi-in" value="{{ pcWa }}" onChange="{{ onPcWa }}" placeholder="79 911 230" inputMode="tel"></input></div>
+                      </div>
+                      <div style="font-size:14px;color:var(--color-neutral-700)">{{ pcWaHint }}</div>
+                      <button class="btn btn-ghost" onClick="{{ cerrarPcNuevo }}" style="align-self:flex-start;font-size:14px">Cancelar persona nueva</button>
+                    </div>
+                  </sc-if>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ fDoc.ver }}" hint-placeholder-val="{{ false }}">
+                <div style="border:1px solid var(--color-divider);border-radius:18px;padding:12px;display:flex;flex-direction:column;gap:10px">
+                  <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px">
+                    <div style="font-size:15px;font-weight:600">{{ fDoc.label }}</div>
+                    <span class="tag tag-accent nw" style="font-size:12px;display:inline-flex;align-items:center;gap:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>Dato privado</span>
+                    <sc-if value="{{ fDoc.oculto }}" hint-placeholder-val="{{ false }}"><span class="tag tag-outline nw" style="font-size:12px">Oculto por la matriz</span></sc-if>
+                  </div>
+                  <div style="font-size:13px;color:var(--color-neutral-700);line-height:1.45">Solo lo ven los roles con permiso de datos privados. {{ docNotaUso }}</div>
+                  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px">
+                    <div class="field" style="margin:0"><label style="font-size:14px">Tipo</label>
+                      <select class="input tropi-in" value="{{ docTipo }}" onChange="{{ onDocTipo }}"><sc-for list="{{ docTipos }}" as="o" hint-placeholder-count="4"><option value="{{ o.v }}">{{ o.l }}</option></sc-for></select>
+                    </div>
+                    <div class="field" style="margin:0"><label style="font-size:14px">Número</label>
+                      <input class="input tropi-in" value="{{ docNum }}" onChange="{{ onDocNum }}" placeholder="{{ docHint }}"></input>
+                    </div>
+                    <sc-if value="{{ docEsCI }}" hint-placeholder-val="{{ false }}">
+                      <div class="field" style="margin:0"><label style="font-size:14px">Complemento · opcional</label><input class="input tropi-in" value="{{ docComp }}" onChange="{{ onDocComp }}" placeholder="1A"></input></div>
+                    </sc-if>
+                    <sc-if value="{{ docEsCI }}" hint-placeholder-val="{{ false }}">
+                      <div class="field" style="margin:0"><label style="font-size:14px">Expedido</label>
+                        <select class="input tropi-in" value="{{ docExp }}" onChange="{{ onDocExp }}"><sc-for list="{{ expedidos }}" as="o" hint-placeholder-count="3"><option value="{{ o.v }}">{{ o.l }}</option></sc-for></select>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{ docVerPais }}" hint-placeholder-val="{{ false }}">
+                      <div class="field" style="margin:0"><label style="font-size:14px">País emisor</label>
+                        <select class="input tropi-in" value="{{ docPais }}" onChange="{{ onDocPais }}"><sc-for list="{{ paises }}" as="o" hint-placeholder-count="3"><option value="{{ o.v }}">{{ o.l }}</option></sc-for></select>
+                      </div>
+                    </sc-if>
+                  </div>
+                  <div style="font-size:14px;color:{{ docHintColor }}">{{ docHintTexto }}</div>
+                </div>
+              </sc-if>
+              <sc-if value="{{ altaDupeDoc }}" hint-placeholder-val="{{ false }}">
+                <div style="background:var(--color-accent-100);border-radius:20px;padding:14px">
+                  <div style="font-size:14px;color:var(--color-accent-800);font-weight:600;margin-bottom:6px">Ese documento ya es de otro contacto</div>
+                  <div style="font-size:17px;font-weight:600">{{ dupeDocNombre }}</div>
+                  <div style="font-size:14px;color:var(--color-neutral-700);margin-top:2px">{{ dupeDocMeta }}</div>
+                  <div style="font-size:14px;color:var(--color-accent-800);margin-top:6px">No puede haber dos contactos con el mismo documento.</div>
+                  <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">
+                    <button class="btn btn-primary" onClick="{{ usarDupeDoc }}" style="flex:1;min-height:48px;font-size:16px">Usar este contacto</button>
+                    <button class="btn btn-secondary" onClick="{{ corregirDoc }}" style="flex:none;min-height:48px;font-size:15px">Corregir el número</button>
+                  </div>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ fRed.ver }}" hint-placeholder-val="{{ true }}">
+                <div style="display:flex;flex-direction:column;gap:8px">
+                  <label style="font-size:14px;display:flex;flex-wrap:wrap;align-items:center;gap:6px">{{ fRed.label }}<sc-if value="{{ fRed.oculto }}" hint-placeholder-val="{{ false }}"><span class="tag tag-outline nw" style="font-size:12px">Oculto por la matriz</span></sc-if></label>
+                  <sc-for list="{{ redes }}" as="r" hint-placeholder-count="0">
+                    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+                      <span style="display:flex;flex:none"><sc-if value="{{ r.esIg }}" hint-placeholder-val="{{ false }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-700)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><path d="M17.5 6.5h.01"></path></svg></sc-if><sc-if value="{{ r.esFb }}" hint-placeholder-val="{{ false }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-700)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"></path></svg></sc-if><sc-if value="{{ r.esTt }}" hint-placeholder-val="{{ false }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-700)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg></sc-if><sc-if value="{{ r.esWa }}" hint-placeholder-val="{{ false }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-2-700)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path></svg></sc-if></span>
+                      <select class="input tropi-in" value="{{ r.red }}" onChange="{{ r.onRed }}" style="flex:1 1 130px"><sc-for list="{{ r.opts }}" as="o" hint-placeholder-count="4"><option value="{{ o.v }}">{{ o.l }}</option></sc-for></select>
+                      <input class="input tropi-in" value="{{ r.u }}" onChange="{{ r.onU }}" placeholder="{{ r.ph }}" style="flex:1 1 160px"></input>
+                      <div style="display:flex;gap:2px;flex:none">
+                        <a class="btn btn-ghost" href="{{ r.link }}" target="_blank" rel="noopener" style="font-size:14px;text-decoration:none">Abrir ↗</a>
+                        <button class="btn btn-ghost" onClick="{{ r.quitar }}" style="font-size:14px">Quitar</button>
+                      </div>
+                    </div>
+                  </sc-for>
+                  <button class="btn btn-ghost" onClick="{{ agregarRed }}" style="align-self:flex-start;font-size:15px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>Agregar red</button>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ fConsent.ver }}" hint-placeholder-val="{{ true }}">
+                <div style="border:1px solid var(--color-divider);border-radius:18px;padding:12px;display:flex;flex-direction:column;gap:10px">
+                  <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px"><div style="font-size:15px;font-weight:600">{{ fConsent.label }}</div><sc-if value="{{ fConsent.oculto }}" hint-placeholder-val="{{ false }}"><span class="tag tag-outline nw" style="font-size:12px">Oculto por la matriz</span></sc-if></div>
+                  <div style="background:var(--color-neutral-200);border-radius:16px;padding:12px 14px">
+                    <div style="font-size:13px;color:var(--color-neutral-700)">Política de contacto · versión 3 · finalidad contacto</div>
+                    <div style="font-size:15px;line-height:1.5;margin-top:4px">Tropicana usa tu WhatsApp para confirmarte reservas, avisarte cambios de horario y recordarte saldos pendientes. No compartimos tus datos fuera de la escuela. Podés pedir en cualquier momento que no te contactemos.</div>
+                    <div style="font-size:13px;color:var(--color-neutral-700);margin-top:6px">Leela o leésela al cliente antes de marcar.</div>
+                  </div>
+                  <div class="seg tropi-seg">
+                    <label class="seg-opt"><input type="radio" name="alcons" checked="{{ consSi }}" onChange="{{ setConsSi }}"></input><span>Otorga</span></label>
+                    <label class="seg-opt"><input type="radio" name="alcons" checked="{{ consNo }}" onChange="{{ setConsNo }}"></input><span>No contactar</span></label>
+                  </div>
+                  <sc-if value="{{ verConsMedio }}" hint-placeholder-val="{{ false }}">
+                    <div class="field" style="margin:0"><label style="font-size:14px">Medio por el que se otorgó</label>
+                      <select class="input tropi-in" value="{{ consMedio }}" onChange="{{ onConsMedio }}"><option value="">Elegí el medio</option><sc-for list="{{ medios }}" as="o" hint-placeholder-count="3"><option value="{{ o.v }}">{{ o.l }}</option></sc-for></select>
+                    </div>
+                  </sc-if>
+                  <div style="font-size:13px;color:var(--color-neutral-700);line-height:1.45">{{ consNota }}</div>
+                  <sc-if value="{{ puedeLimpiarCons }}" hint-placeholder-val="{{ false }}">
+                    <button class="btn btn-ghost" onClick="{{ limpiarCons }}" style="align-self:flex-start;font-size:14px">No registrar ahora</button>
+                  </sc-if>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ fEmail.ver }}" hint-placeholder-val="{{ false }}">
+                <div class="field" style="margin:0"><label style="font-size:14px;display:flex;flex-wrap:wrap;align-items:center;gap:6px">{{ fEmail.label }}<sc-if value="{{ fEmail.oculto }}" hint-placeholder-val="{{ false }}"><span class="tag tag-outline nw" style="font-size:12px">Oculto por la matriz</span></sc-if></label><input class="input tropi-in" type="email" value="{{ email }}" onChange="{{ onEmail }}" placeholder="nombre@correo.com"></input></div>
+              </sc-if>
+              <sc-if value="{{ fTel2.ver }}" hint-placeholder-val="{{ false }}">
+                <div class="field" style="margin:0"><label style="font-size:14px;display:flex;flex-wrap:wrap;align-items:center;gap:6px">{{ fTel2.label }}<sc-if value="{{ fTel2.oculto }}" hint-placeholder-val="{{ false }}"><span class="tag tag-outline nw" style="font-size:12px">Oculto por la matriz</span></sc-if></label><input class="input tropi-in" value="{{ tel2 }}" onChange="{{ onTel2 }}" placeholder="2 279 4410" inputMode="tel"></input></div>
+              </sc-if>
+              <sc-if value="{{ fNac.ver }}" hint-placeholder-val="{{ false }}">
+                <div class="field" style="margin:0"><label style="font-size:14px;display:flex;flex-wrap:wrap;align-items:center;gap:6px">{{ fNac.label }}<sc-if value="{{ fNac.oculto }}" hint-placeholder-val="{{ false }}"><span class="tag tag-outline nw" style="font-size:12px">Oculto por la matriz</span></sc-if></label><input class="input tropi-in" type="date" value="{{ nac }}" onChange="{{ onNac }}"></input></div>
+              </sc-if>
+              <sc-if value="{{ fSexo.ver }}" hint-placeholder-val="{{ false }}">
+                <div class="field" style="margin:0"><label style="font-size:14px;display:flex;flex-wrap:wrap;align-items:center;gap:6px">{{ fSexo.label }}<sc-if value="{{ fSexo.oculto }}" hint-placeholder-val="{{ false }}"><span class="tag tag-outline nw" style="font-size:12px">Oculto por la matriz</span></sc-if></label><select class="input tropi-in" value="{{ sexo }}" onChange="{{ onSexo }}"><option value="">Elegí</option><sc-for list="{{ sexos }}" as="o" hint-placeholder-count="3"><option value="{{ o.v }}">{{ o.l }}</option></sc-for></select></div>
+              </sc-if>
+              <sc-if value="{{ fCanal.ver }}" hint-placeholder-val="{{ false }}">
+                <div class="field" style="margin:0"><label style="font-size:14px;display:flex;flex-wrap:wrap;align-items:center;gap:6px">{{ fCanal.label }}<sc-if value="{{ fCanal.oculto }}" hint-placeholder-val="{{ false }}"><span class="tag tag-outline nw" style="font-size:12px">Oculto por la matriz</span></sc-if></label><select class="input tropi-in" value="{{ canal }}" onChange="{{ onCanal }}"><option value="">Elegí</option><sc-for list="{{ canales }}" as="o" hint-placeholder-count="3"><option value="{{ o.v }}">{{ o.l }}</option></sc-for></select></div>
+              </sc-if>
+
+              <div style="border:1px dashed var(--color-neutral-400);border-radius:18px;padding:12px;display:flex;flex-direction:column;gap:8px">
+                <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px"><div style="font-size:15px;font-weight:600">Facturación</div><span class="tag tag-neutral nw" style="font-size:12px">Todavía no disponible</span></div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px">
+                  <input class="input tropi-in" disabled placeholder="Nombre para la factura"></input>
+                  <input class="input tropi-in" disabled placeholder="NIT o CI de la factura"></input>
+                </div>
+                <div style="font-size:13px;color:var(--color-neutral-700);line-height:1.45">La matriz contempla estos datos, pero el sistema todavía no tiene dónde guardarlos. Se habilitan cuando exista la facturación.</div>
+              </div>
+
+              <div style="font-size:14px;color:{{ altaFaltaColor }};line-height:1.45">{{ altaFalta }}</div>
+              <button class="btn btn-primary btn-block tropi-btn-big" onClick="{{ guardarAlta }}" disabled="{{ altaIncompleta }}">Guardar contacto</button>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ verTitular }}" hint-placeholder-val="{{ false }}">
+            <div style="background:var(--color-neutral-100);border-radius:22px;padding:14px;display:flex;flex-direction:column;gap:12px">
+              <div style="display:flex;align-items:flex-start;gap:10px">
+                <div style="flex:1;min-width:0">
+                  <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px"><span class="tag nw {{ titularRolCls }}" style="font-size:12px">{{ titularRol }}</span><span class="tag tag-outline nw" style="font-size:12px">{{ titularTipo }}</span></div>
+                  <div style="font-size:20px;font-weight:700">{{ titularNombre }}</div>
+                </div>
+                <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex:none">
+                  <button class="btn btn-ghost" onClick="{{ cambiarTitular }}" style="font-size:15px">Cambiar</button>
+                  <a href="#" style="font-size:14px;font-weight:600;padding:0 14px">Ver ficha ↗</a>
+                </div>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px 16px">
+                <div style="min-width:0">
+                  <div style="font-size:13px;color:var(--color-neutral-700);margin-bottom:3px">WhatsApp</div>
+                  <sc-if value="{{ titularWaLink }}" hint-placeholder-val="{{ false }}">
+                    <a href="{{ titularWaLink }}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;font-size:16px;font-weight:600;text-decoration:none"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-2-700)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path></svg>{{ titularWa }} ↗</a>
+                  </sc-if>
+                  <sc-if value="{{ titularWaSinLink }}" hint-placeholder-val="{{ false }}">
+                    <div style="display:flex;align-items:center;gap:6px;font-size:16px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-2-700)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path></svg>{{ titularWa }}</div>
+                  </sc-if>
+                </div>
+                <div style="min-width:0">
+                  <div style="font-size:13px;color:var(--color-neutral-700);margin-bottom:3px">Redes sociales</div>
+                  <sc-for list="{{ titularRedes }}" as="r" hint-placeholder-count="1">
+                    <a href="{{ r.link }}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:6px;font-size:16px;font-weight:600;text-decoration:none;margin-bottom:2px;overflow-wrap:anywhere"><sc-if value="{{ r.esIg }}" hint-placeholder-val="{{ false }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-700)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><path d="M17.5 6.5h.01"></path></svg></sc-if><sc-if value="{{ r.esFb }}" hint-placeholder-val="{{ false }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-700)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"></path></svg></sc-if><sc-if value="{{ r.esTt }}" hint-placeholder-val="{{ false }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-700)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg></sc-if><sc-if value="{{ r.esWa }}" hint-placeholder-val="{{ false }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-2-700)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path></svg></sc-if>{{ r.u }} ↗</a>
+                  </sc-for>
+                  <sc-if value="{{ titularSinRedes }}" hint-placeholder-val="{{ false }}"><div style="font-size:16px">—</div></sc-if>
+                </div>
+                <sc-if value="{{ verPcTitular }}" hint-placeholder-val="{{ false }}">
+                  <div style="min-width:0">
+                    <div style="font-size:13px;color:var(--color-neutral-700);margin-bottom:3px">Persona de contacto · trabaja en</div>
+                    <div style="font-size:16px;font-weight:600">{{ pcTitularNombre }}</div>
+                    <sc-if value="{{ pcTitularWaLink }}" hint-placeholder-val="{{ false }}">
+                      <a href="{{ pcTitularWaLink }}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;font-size:15px;font-weight:600;text-decoration:none"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-2-700)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path></svg>{{ pcTitularWa }} ↗</a>
+                    </sc-if>
+                  </div>
+                </sc-if>
+                <div style="min-width:0">
+                  <div style="font-size:13px;color:var(--color-neutral-700);margin-bottom:3px">Consentimiento</div>
+                  <div style="font-size:16px">{{ consentTexto }}</div>
+                </div>
+              </div>
+              <sc-if value="{{ verNoContactar }}" hint-placeholder-val="{{ false }}"><div style="background:var(--color-accent-100);border-radius:18px;padding:12px 14px;font-size:15px;line-height:1.45;color:var(--color-accent-900)">{{ noContactarTexto }}</div></sc-if>
+              <sc-if value="{{ verWaInvalido }}" hint-placeholder-val="{{ false }}"><div style="background:var(--color-accent-100);border-radius:18px;padding:12px 14px;font-size:15px;line-height:1.45;color:var(--color-accent-900)">{{ waInvalidoTexto }}</div></sc-if>
+            </div>
+          </sc-if>
+        </div>
+
+        <div style="background:var(--color-surface);border-radius:26px;padding:16px">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+            <div style="width:30px;height:30px;border-radius:999px;background:var(--color-accent);color:var(--color-bg);display:grid;place-items:center;font-family:var(--font-heading);font-size:15px;flex:none">2</div>
+            <div class="nw" style="font-family:var(--font-heading);font-size:18px">Plan de alquiler</div>
+          </div>
+          <sc-if value="{{ paso2Bloqueado }}" hint-placeholder-val="{{ true }}">
+            <div style="font-size:15px;color:var(--color-neutral-700)">Elegí primero el titular.</div>
+          </sc-if>
+          <sc-if value="{{ verSinPlanes }}" hint-placeholder-val="{{ false }}">
+            <div style="background:var(--color-accent-100);border-radius:20px;padding:14px">
+              <div style="font-size:16px;font-weight:600;color:var(--color-accent-900)">No hay planes de alquiler</div>
+              <div style="font-size:15px;line-height:1.45;color:var(--color-accent-800);margin-top:4px">Todo alquiler se vende por plan. Crealo en <a href="#">Planes → Nuevo plan → tipo Alquiler</a>, con su vigencia, modalidad y salas.</div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ eligiendoPlan }}" hint-placeholder-val="{{ false }}">
+            <div>
+              <sc-for list="{{ planes }}" as="p" hint-placeholder-count="3">
+                <button onClick="{{ p.elegir }}" style="width:100%;display:flex;align-items:center;gap:12px;text-align:left;background:var(--color-neutral-100);border:1px solid var(--color-divider);border-radius:20px;padding:12px 14px;margin-bottom:8px;cursor:pointer;font-family:var(--font-body);color:var(--color-text)">
+                  <div style="flex:1;min-width:0">
+                    <div style="font-size:17px;font-weight:600">{{ p.nombre }}</div>
+                    <div style="font-size:14px;color:var(--color-neutral-700);margin-top:1px">{{ p.meta }}</div>
+                  </div>
+                </button>
+              </sc-for>
+              <div style="font-size:14px;color:var(--color-neutral-700);line-height:1.45">El plan no tiene precio fijo: sale de la tabla de alquiler de Precios y paquetes.</div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ hayPlan }}" hint-placeholder-val="{{ false }}">
+            <div style="background:var(--color-neutral-100);border-radius:22px;padding:14px;display:flex;align-items:flex-start;gap:10px">
+              <div style="flex:1;min-width:0">
+                <div style="font-size:19px;font-weight:700">{{ planNombre }}</div>
+                <div style="font-size:15px;color:var(--color-neutral-700);margin-top:2px">{{ planMeta }}</div>
+              </div>
+              <button class="btn btn-ghost" onClick="{{ cambiarPlan }}" style="font-size:15px;flex:none">Cambiar</button>
+            </div>
+          </sc-if>
+        </div>
+
+        <div style="background:var(--color-surface);border-radius:26px;padding:16px">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+            <div style="width:30px;height:30px;border-radius:999px;background:var(--color-accent);color:var(--color-bg);display:grid;place-items:center;font-family:var(--font-heading);font-size:15px;flex:none">3</div>
+            <div class="nw" style="font-family:var(--font-heading);font-size:18px">Categoría, personas y horas</div>
+          </div>
+          <sc-if value="{{ paso3Bloqueado }}" hint-placeholder-val="{{ true }}">
+            <div style="font-size:15px;color:var(--color-neutral-700)">Elegí el plan para calcular el precio.</div>
+          </sc-if>
+          <sc-if value="{{ verPaso3 }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:16px">
+              <div>
+                <div style="font-size:14px;color:var(--color-neutral-700);margin-bottom:6px">Categoría aplicada</div>
+                <div style="display:flex;align-items:flex-start;gap:10px;background:var(--color-accent-2-200);border-radius:20px;padding:12px 14px">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-2-800)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:2px"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"></path><path d="m9 12 2 2 4-4"></path></svg>
+                  <div style="min-width:0">
+                    <div style="font-size:17px;font-weight:700;color:var(--color-accent-2-900)">{{ sugLabel }}</div>
+                    <div style="font-size:15px;line-height:1.45;color:var(--color-accent-2-900);margin-top:2px">{{ sugRazon }}</div>
+                    <div style="font-size:13px;line-height:1.45;color:var(--color-accent-2-800);margin-top:6px">La determina la política de categorías: alumno, profesor de Tropicana o externo; si no cumple ninguna, tercero. No se elige a mano y queda guardada con la venta.</div>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <div style="font-size:14px;color:var(--color-neutral-700);margin-bottom:6px">Cantidad de personas</div>
+                <div style="display:flex;align-items:center;gap:12px">
+                  <button class="btn btn-secondary" onClick="{{ menosPersonas }}" disabled="{{ personasMin }}" aria-label="Una persona menos" style="width:52px;height:52px;padding:0;justify-content:center;background:var(--color-neutral-100);font-size:22px">−</button>
+                  <div class="nw" style="font-size:24px;font-weight:700;min-width:36px;text-align:center">{{ personas }}</div>
+                  <button class="btn btn-secondary" onClick="{{ masPersonas }}" aria-label="Una persona más" style="width:52px;height:52px;padding:0;justify-content:center;background:var(--color-neutral-100);font-size:22px">+</button>
+                  <span class="tag tag-accent-2 nw" style="margin-left:auto;font-size:14px">{{ tramoTexto }}</span>
+                </div>
+              </div>
+
+              <div>
+                <div style="font-size:14px;color:var(--color-neutral-700);margin-bottom:6px">Horas · paquetes de la tabla</div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px">
+                  <sc-for list="{{ horasOpts }}" as="h" hint-placeholder-count="4">
+                    <button onClick="{{ h.elegir }}" style="display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;background:{{ h.bg }};border:1px solid {{ h.borde }};border-radius:20px;padding:12px 14px;min-height:64px;cursor:pointer;font-family:var(--font-body);color:var(--color-text)">
+                      <span style="font-size:17px;font-weight:700">{{ h.label }}</span>
+                      <span style="font-size:14px;color:var(--color-neutral-700)">{{ h.precio }}</span>
+                    </button>
+                  </sc-for>
+                </div>
+              </div>
+
+              <sc-if value="{{ verPrecio }}" hint-placeholder-val="{{ false }}">
+                <div style="background:var(--color-neutral-100);border-radius:22px;padding:14px">
+                  <div style="font-size:14px;color:var(--color-neutral-700);line-height:1.45">{{ ruta }}</div>
+                  <div style="display:flex;align-items:baseline;gap:8px;margin-top:8px">
+                    <div style="font-size:15px;color:var(--color-neutral-700)">Precio del alquiler</div>
+                    <div class="nw" style="margin-left:auto;font-family:var(--font-heading);font-size:26px">{{ precioTexto }}</div>
+                  </div>
+                </div>
+              </sc-if>
+              <sc-if value="{{ verFaltaPrecio }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;align-items:flex-start;gap:10px;background:var(--color-accent-100);border-radius:22px;padding:14px 16px">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-700)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:1px"><path d="M12 9v4M12 17h.01"></path><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path></svg>
+                  <div style="min-width:0">
+                    <div style="font-size:16px;line-height:1.45;color:var(--color-accent-900)">{{ faltaPrecioTexto }}</div>
+                    <div style="font-size:14px;color:var(--color-accent-800);margin-top:4px">{{ ruta }}</div>
+                    <a href="#" style="display:inline-block;font-size:15px;font-weight:600;margin-top:8px">Cargar en Precios y paquetes → Alquiler</a>
+                  </div>
+                </div>
+              </sc-if>
+            </div>
+          </sc-if>
+        </div>
+
+        <div style="background:var(--color-surface);border-radius:26px;padding:16px">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+            <div style="width:30px;height:30px;border-radius:999px;background:var(--color-accent);color:var(--color-bg);display:grid;place-items:center;font-family:var(--font-heading);font-size:15px;flex:none">4</div>
+            <div class="nw" style="font-family:var(--font-heading);font-size:18px">Sala y horario</div>
+          </div>
+          <sc-if value="{{ paso4Bloqueado }}" hint-placeholder-val="{{ true }}">
+            <div style="font-size:15px;color:var(--color-neutral-700)">Completá categoría, personas y horas con un precio cargado.</div>
+          </sc-if>
+          <sc-if value="{{ verPaso4 }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:14px">
+              <div>
+                <div style="font-size:14px;color:var(--color-neutral-700);margin-bottom:6px">Sala</div>
+                <div class="seg tropi-seg">
+                  <sc-for list="{{ salas }}" as="x" hint-placeholder-count="2">
+                    <label class="seg-opt"><input type="radio" name="alsala" checked="{{ x.sel }}" onChange="{{ x.elegir }}"></input><span>{{ x.label }}</span></label>
+                  </sc-for>
+                </div>
+                <sc-if value="{{ salaExtNoPermitida }}" hint-placeholder-val="{{ false }}">
+                  <div style="font-size:14px;color:var(--color-neutral-700);margin-top:8px;line-height:1.45">Este plan no permite sala externa. Se habilita en Planes → {{ planNombre }} → Permite sala externa.</div>
+                </sc-if>
+              </div>
+              <sc-if value="{{ esExterna }}" hint-placeholder-val="{{ false }}">
+                <div class="field">
+                  <label style="font-size:14px">Nombre de la sala externa</label>
+                  <input class="input tropi-in" value="{{ nombreExt }}" onChange="{{ onNombreExt }}" placeholder="ej. Salón Los Pinos"></input>
+                  <div style="font-size:14px;color:var(--color-neutral-700);margin-top:6px;line-height:1.45">Fuera de Tropicana: no se valida ocupación y no lleva costo de sala.</div>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ esFija }}" hint-placeholder-val="{{ false }}">
+                <div>
+                  <div style="font-size:14px;color:var(--color-neutral-700);margin-bottom:6px">Días de la semana · agenda fija</div>
+                  <div style="display:flex;flex-wrap:wrap;gap:6px">
+                    <sc-for list="{{ dias }}" as="d" hint-placeholder-count="7">
+                      <button onClick="{{ d.toggle }}" aria-pressed="{{ d.sel }}" style="width:46px;height:46px;border-radius:999px;border:1px solid {{ d.borde }};background:{{ d.bg }};color:var(--color-text);font-family:var(--font-body);font-size:15px;font-weight:700;cursor:pointer">{{ d.label }}</button>
+                    </sc-for>
+                  </div>
+                </div>
+              </sc-if>
+
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px">
+                <div class="field">
+                  <label style="font-size:14px">{{ fechaLabel }}</label>
+                  <select class="input tropi-in" value="{{ fechaOff }}" onChange="{{ onFecha }}">
+                    <sc-for list="{{ fechas }}" as="o" hint-placeholder-count="3"><option value="{{ o.v }}">{{ o.l }}</option></sc-for>
+                  </select>
+                </div>
+                <div class="field">
+                  <label style="font-size:14px">Hora de inicio</label>
+                  <select class="input tropi-in" value="{{ hora }}" onChange="{{ onHora }}">
+                    <sc-for list="{{ horasInicio }}" as="o" hint-placeholder-count="3"><option value="{{ o.v }}">{{ o.l }}</option></sc-for>
+                  </select>
+                </div>
+                <div class="field">
+                  <label style="font-size:14px">Duración</label>
+                  <select class="input tropi-in" value="{{ dur }}" onChange="{{ onDur }}">
+                    <sc-for list="{{ duraciones }}" as="o" hint-placeholder-count="3"><option value="{{ o.v }}">{{ o.l }}</option></sc-for>
+                  </select>
+                </div>
+              </div>
+              <div style="font-size:14px;color:var(--color-neutral-700);line-height:1.45;margin-top:-6px">Inicio cada 30 min; duración en múltiplos de 30 min. {{ modoNota }}</div>
+
+              <sc-if value="{{ haySesiones }}" hint-placeholder-val="{{ false }}">
+                <div>
+                  <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px">
+                    <div style="font-size:14px;color:var(--color-neutral-700)">{{ sesionesTitulo }}</div>
+                    <div class="nw" style="margin-left:auto;font-size:14px;color:var(--color-neutral-700)">Una reserva por horario</div>
+                  </div>
+                  <div style="display:flex;flex-direction:column;gap:6px">
+                    <sc-for list="{{ sesiones }}" as="r" hint-placeholder-count="2">
+                      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;background:{{ r.bg }};border-radius:16px;padding:10px 14px;font-size:15px">
+                        <div style="flex:1 1 140px;min-width:0">{{ r.fecha }}</div>
+                        <div class="nw" style="font-weight:600">{{ r.horario }}</div>
+                        <span class="tag nw {{ r.tagCls }}" style="font-size:13px">{{ r.estado }}</span>
+                        <sc-if value="{{ r.choque }}" hint-placeholder-val="{{ false }}">
+                          <div style="flex-basis:100%;font-size:14px;color:var(--color-accent-800)">{{ r.choque }}</div>
+                        </sc-if>
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+              </sc-if>
+              <sc-if value="{{ fueraVig }}" hint-placeholder-val="{{ false }}">
+                <div style="font-size:15px;color:var(--color-accent-800);background:var(--color-accent-100);border-radius:18px;padding:12px 14px;line-height:1.45">{{ fueraVigTexto }}</div>
+              </sc-if>
+            </div>
+          </sc-if>
+        </div>
+
+        <div style="background:var(--color-surface);border-radius:26px;padding:16px">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+            <div style="width:30px;height:30px;border-radius:999px;background:var(--color-accent);color:var(--color-bg);display:grid;place-items:center;font-family:var(--font-heading);font-size:15px;flex:none">5</div>
+            <div class="nw" style="font-family:var(--font-heading);font-size:18px">Cobro</div>
+          </div>
+          <sc-if value="{{ paso5Bloqueado }}" hint-placeholder-val="{{ true }}">
+            <div style="font-size:15px;color:var(--color-neutral-700)">Definí sala y horario sin choques.</div>
+          </sc-if>
+          <sc-if value="{{ verPaso5 }}" hint-placeholder-val="{{ false }}">
+            <div style="background:var(--color-neutral-100);border-radius:22px;padding:14px">
+              <dc-import name="Cobro" sujeto="" detalle="" referencia="{{ precio }}" referencia-label="Precio del alquiler" politica="descuento" direccion="cobro" medios="Efectivo,QR / transf.,Otro" permitir-sin-cobro="{{ permitirSinCobro }}" cuenta-id="{{ cuentaId }}" onChange="{{ onCobro }}" hint-size="100%,230px"></dc-import>
+            </div>
+            <sc-if value="{{ verCompromiso }}" hint-placeholder-val="{{ false }}">
+              <div class="field" style="margin-top:12px">
+                <label style="font-size:14px">Fecha de compromiso del saldo</label>
+                <select class="input tropi-in" value="{{ compromiso }}" onChange="{{ onCompromiso }}">
+                  <option value="">Elegí una fecha</option>
+                  <sc-for list="{{ compromisos }}" as="o" hint-placeholder-count="3"><option value="{{ o.v }}">{{ o.l }}</option></sc-for>
+                </select>
+              </div>
+            </sc-if>
+          </sc-if>
+        </div>
+
+      </div>
+    </sc-if>
+  </div>
+
+  <sc-if value="{{ verBarra }}" hint-placeholder-val="{{ true }}">
+    <div style="padding:12px 16px 16px;background:var(--color-surface);border-top:1px solid var(--color-divider)">
+      <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px">
+        <div style="font-size:15px;color:{{ pieColor }};min-width:0;line-height:1.4">{{ resumenPie }}</div>
+        <div class="nw" style="margin-left:auto;font-family:var(--font-heading);font-size:22px">{{ totalTexto }}</div>
+      </div>
+      <button class="btn btn-primary btn-block tropi-btn-big" onClick="{{ vender }}" disabled="{{ noPuede }}">Vender</button>
+    </div>
+  </sc-if>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:450,&quot;height&quot;:940},&quot;estado&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;datos&quot;,&quot;cargando&quot;,&quot;error&quot;,&quot;sinPlanes&quot;,&quot;sinPermiso&quot;],&quot;default&quot;:&quot;datos&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Revisión&quot;},&quot;estadoBusqueda&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;normal&quot;,&quot;buscando&quot;,&quot;error&quot;],&quot;default&quot;:&quot;normal&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Revisión&quot;},&quot;verOcultos&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Matriz de mínimos&quot;},&quot;consentObligatorio&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Matriz de mínimos&quot;},&quot;permitirSinCobro&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Cobro&quot;}}">
+const CONTACTOS = [
+  { id: 'C01', memb: { curso: 'Salsa Intermedio', estado: 'activa' }, nombre: 'Virginia Martínez', tipo: 'Persona', wa: '71054962', redes: [{ red: 'Instagram', u: 'virginia.baila' }], rol: 'Alumno', sug: 'alu', motivo: 'Es alumna: tiene la membresía de Salsa Intermedio activa.', doc: { tipo: 'Cédula de identidad', num: '4876512' }, consent: { otorgado: true, fecha: '12 ago 2026', medio: 'En persona', version: 'v3' } },
+  { id: 'C02', memb: { curso: 'Bachata', estado: 'cerrada', dias: 3 }, nombre: 'Laida Salinas', tipo: 'Persona', wa: '67359811', rol: 'Alumno', sug: 'alu', motivo: 'Fue alumna: su membresía de Bachata cerró hace 3 días, rige la gracia de 7 días.' },
+  { id: 'C03', prof: { cursos: 'Salsa y Bachata' }, nombre: 'Natalia Salek', tipo: 'Persona', wa: '70112340', redes: [{ red: 'Instagram', u: 'nataliasalek.dance' }, { red: 'TikTok', u: 'nataliasalek' }], rol: 'Profesor', sug: 'pact', motivo: 'Profesora de Tropicana: tiene cursos asignados activos (Salsa y Bachata).' },
+  { id: 'C04', prof: { dias: 45 }, nombre: 'Mariela Ávila', tipo: 'Persona', wa: '76450218', rol: 'Profesor', sug: 'pext', motivo: 'Profesora externa: no tiene cursos ni particulares activos en Tropicana.' },
+  { id: 'C05', nombre: 'Colegio San Andrés', tipo: 'Organización', wa: '72794410', redes: [{ red: 'Facebook', u: 'colegiosanandreslp' }], rol: 'Solo contacto', sug: 'ter', motivo: 'Tercero: organización sin membresías ni cursos en Tropicana.', doc: { tipo: 'NIT', num: '1020304025' } },
+  { id: 'C06', nombre: 'Carla Rojas', tipo: 'Persona', wa: '79911230', rol: 'Solo contacto', sug: 'ter', motivo: 'Tercero: solo contacto, sin membresías ni cursos.', trabajaEn: 'C05' },
+  { id: 'C07', nombre: 'Rolando Salvatierra', tipo: 'Persona', wa: '62203938', rol: 'Solo contacto', sug: 'ter', motivo: 'Tercero: solo contacto, alquiló la sala en agosto.', noContactar: true, consent: { otorgado: false, fecha: '3 sep 2026', medio: 'Por WhatsApp', version: 'v3' } },
+  { id: 'C08', nombre: 'Lucía Ferreyra', tipo: 'Persona', wa: '+5491155550101', rol: 'Solo contacto', sug: 'ter', motivo: 'Tercero: solo contacto, número de Argentina.' },
+  { id: 'C09', nombre: 'Grupo Folklórico Kantuta', tipo: 'Organización', wa: '2279441', rol: 'Solo contacto', sug: 'ter', motivo: 'Tercero: organización, alquiló la sala en julio.', doc: { tipo: 'NIT', num: '30455120' } }
+];
+// Matriz de mínimos (Administración → Catálogos): obl / opc / oculto por contexto.
+const MATRIZ = {
+  per: { nombre: 'obl', apellido: 'opc', razon: 'oculto', wa: 'obl', red: 'opc', consent: 'opc', doc: 'oculto', email: 'oculto', tel2: 'oculto', nac: 'oculto', sexo: 'oculto', canal: 'oculto' },
+  org: { nombre: 'oculto', apellido: 'oculto', razon: 'obl', wa: 'obl', red: 'opc', consent: 'opc', doc: 'obl', email: 'oculto', tel2: 'oculto', nac: 'oculto', sexo: 'oculto', canal: 'oculto' }
+};
+const DOC_REGLA = { 'Cédula de identidad': [/^\d{5,10}$/, '5 a 10 dígitos'], 'CI extranjero': [/^.+$/, 'formato libre'], 'Pasaporte': [/^[A-Za-z0-9]{5,15}$/, 'letras y números, 5 a 15'], 'NIT': [/^\d{5,15}$/, '5 a 15 dígitos'] };
+const EXPEDIDO = ['La Paz', 'Cochabamba', 'Santa Cruz', 'Oruro', 'Potosí', 'Chuquisaca', 'Tarija', 'Beni', 'Pando'];
+const PAISES = ['Argentina', 'Brasil', 'Chile', 'Colombia', 'España', 'Estados Unidos', 'Paraguay', 'Perú', 'Venezuela', 'Otro'];
+const REDES = ['Instagram', 'Facebook', 'TikTok', 'WhatsApp'];
+const MEDIOS = ['En persona, leída en voz alta', 'Leída por el cliente en pantalla', 'Por WhatsApp, respuesta escrita', 'Formulario firmado'];
+const SEXOS = ['Femenino', 'Masculino', 'Otro', 'Prefiere no decir'];
+const CANALES = ['Instagram', 'Facebook', 'TikTok', 'Recomendación', 'Pasó por la escuela', 'Otro'];
+const opts = (a) => a.map((x) => ({ v: x, l: x }));
+// Política de categorías (Precios y paquetes → Alquiler). N = días de gracia tras el cierre.
+const GRACIA = 7;
+function categoria(c) {
+  const m = c.memb, p = c.prof;
+  if (m && m.estado === 'activa') return { id: 'alu', motivo: 'Es alumno: tiene la membresía de ' + m.curso + ' activa.' };
+  if (m && m.dias <= GRACIA) return { id: 'alu', motivo: 'Fue alumno: su membresía de ' + m.curso + ' cerró hace ' + m.dias + ' días; rige la gracia de ' + GRACIA + ' días.' };
+  if (p) {
+    if (p.cursos) return { id: 'pact', motivo: 'Profesor de Tropicana: tiene cursos asignados activos (' + p.cursos + ').' };
+    if (p.particulares) return { id: 'pact', motivo: 'Profesor de Tropicana: tiene particulares vendidas activas.' };
+    if (p.dias != null && p.dias <= GRACIA) return { id: 'pact', motivo: 'Profesor de Tropicana: su último curso cerró hace ' + p.dias + ' días; rige la gracia de ' + GRACIA + ' días.' };
+    return { id: 'pext', motivo: 'Profesor externo: está cargado como profesor, pero no tiene cursos ni particulares activos' + (p.dias != null ? ' (lo último cerró hace ' + p.dias + ' días)' : '') + '.' };
+  }
+  if (m) return { id: 'ter', motivo: 'Tercero: fue alumno, pero su membresía cerró hace ' + m.dias + ' días (la gracia es de ' + GRACIA + ').' };
+  return { id: 'ter', motivo: 'Tercero: no es alumno ni profesor de Tropicana.' };
+}
+// Patrón estándar de contactos: WhatsApp y redes siempre como enlace a la app o al perfil.
+const waLink = (raw) => { const n = normWa(raw); return n ? 'https://wa.me/' + n.slice(1) : ''; };
+const redVista = (r) => ({ u: r.red === 'WhatsApp' ? waTxt(r.u) : '@' + String(r.u).replace(/^@/, ''), link: redLink(r.red, r.u), esIg: r.red === 'Instagram', esFb: r.red === 'Facebook', esTt: r.red === 'TikTok', esWa: r.red === 'WhatsApp' });
+const PLANES = [
+  { id: 'PL1', nombre: 'Alquiler libre 30 días', modo: 'flex', vig: 30, salas: ['S1', 'S2'], ext: false },
+  { id: 'PL2', nombre: 'Alquiler agenda fija', modo: 'fija', vig: 60, salas: ['S1', 'S2'], ext: true },
+  { id: 'PL3', nombre: 'Ensayo de evento', modo: 'flex', vig: 15, salas: ['S2'], ext: true }
+];
+const SALAS = { S1: 'Sala 1', S2: 'Sala 2' };
+const CATS = [
+  { id: 'alu', label: 'Alumno' }, { id: 'pact', label: 'Profesor de Tropicana' },
+  { id: 'pext', label: 'Profesor externo' }, { id: 'ter', label: 'Tercero' }
+];
+const TRAMOS = [{ id: 'ind', label: 'Individual', max: 1 }, { id: 'par', label: 'Pareja', max: 2 }, { id: 'gru', label: 'Grupo', max: 16 }];
+const HORAS = [1, 2, 4, 8];
+// Tabla de alquiler de Precios y paquetes: categoría × tramo × horas. null = celda vacía.
+const PRECIOS = {
+  alu: { ind: { 1: 40, 2: 75, 4: 140, 8: 260 }, par: { 1: 70, 2: 130, 4: 250, 8: 460 }, gru: { 1: 90, 2: 170, 4: 320, 8: 600 } },
+  pact: { ind: { 1: 30, 2: 55, 4: 100, 8: 190 }, par: { 1: 40, 2: 75, 4: 140, 8: 260 }, gru: { 1: 70, 2: 130, 4: 240, 8: 450 } },
+  pext: { ind: { 1: 50, 2: 95, 4: 180, 8: 340 }, par: { 1: 65, 2: 125, 4: 235, 8: null }, gru: { 1: 110, 2: 210, 4: 400, 8: 750 } },
+  ter: { ind: { 1: 60, 2: 115, 4: 215, 8: 400 }, par: { 1: 80, 2: 150, 4: 285, 8: 530 }, gru: { 1: 130, 2: 250, 4: 475, 8: null } }
+};
+const BASE = [8 * 60, 22 * 60];
+const PASO = 30;
+const CLASES = [
+  { sala: 'S1', dows: [2, 4], ini: 19 * 60, fin: 20 * 60 + 30, txt: 'Clase Salsa Intermedio' },
+  { sala: 'S1', dows: [6], ini: 10 * 60, fin: 12 * 60, txt: 'Clase Bachata Inicial' },
+  { sala: 'S2', dows: [1, 3], ini: 20 * 60, fin: 21 * 60 + 30, txt: 'Clase Heels' }
+];
+const RESERVAS = [{ sala: 'S2', off: 2, ini: 10 * 60, fin: 12 * 60, txt: 'Reserva de Mariela Ávila' }];
+const BLOQUEOS = [{ sala: 'S1', off: 11, txt: 'Bloqueo: mantenimiento de piso' }];
+
+const DIAS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+const DIAS1 = ['D', 'L', 'M', 'X', 'J', 'V', 'S'];
+const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+const fecha = (off) => new Date(2026, 9, 1 + off);
+const dow = (off) => fecha(off).getDay();
+const fmtF = (off) => { const d = fecha(off); return DIAS[d.getDay()] + ' ' + d.getDate() + ' ' + MESES[d.getMonth()]; };
+const hhmm = (m) => String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+const durTxt = (m) => m < 60 ? m + ' min' : Math.floor(m / 60) + ' h' + (m % 60 ? ' ' + (m % 60) : '');
+const gs = (n) => 'Bs. ' + Number(n || 0).toLocaleString('es-BO');
+const soloNum = (s) => String(s || '').replace(/\D/g, '');
+// WhatsApp a formato internacional: 8 dígitos → +591; con "+" a mano se conserva.
+function normWa(raw) {
+  const t = String(raw || '').trim(), d = soloNum(t);
+  if (!d) return null;
+  if (t[0] === '+') return d.length >= 8 && d.length <= 15 ? '+' + d : null;
+  if (d.length === 8) return '+591' + d;
+  if (d.length === 11 && d.indexOf('591') === 0) return '+' + d;
+  return null;
+}
+const fmtWa = (n) => n && n.indexOf('+591') === 0 ? '+591 ' + n.slice(4, 8) + ' ' + n.slice(8) : (n || '');
+const waTxt = (raw) => { const n = normWa(raw); return n ? fmtWa(n) : raw + ' · formato no válido'; };
+const joinY = (a) => a.length < 2 ? a.join('') : a.slice(0, -1).join(', ') + ' y ' + a[a.length - 1];
+function redLink(red, u) {
+  const x = String(u || '').trim().replace(/^@/, '');
+  if (!x) return '#';
+  if (red === 'WhatsApp') { const n = normWa(x); return n ? 'https://wa.me/' + n.slice(1) : '#'; }
+  return red === 'Instagram' ? 'https://instagram.com/' + x : red === 'Facebook' ? 'https://facebook.com/' + x : 'https://www.tiktok.com/@' + x;
+}
+const catL = (id) => (CATS.filter((c) => c.id === id)[0] || CATS[3]).label;
+const horasTxt = (h) => h + (h === 1 ? ' hora' : ' horas');
+
+function choque(sala, off, ini, dur) {
+  if (sala === 'EXT') return null;
+  const fin = ini + dur;
+  if (ini < BASE[0] || fin > BASE[1]) return 'Fuera del horario base (' + hhmm(BASE[0]) + '–' + hhmm(BASE[1]) + ')';
+  const b = BLOQUEOS.filter((x) => x.sala === sala && x.off === off)[0];
+  if (b) return b.txt + ' todo el día';
+  const c = CLASES.filter((x) => x.sala === sala && x.dows.indexOf(dow(off)) >= 0 && ini < x.fin && fin > x.ini)[0];
+  if (c) return 'Choca con ' + c.txt + ' (' + hhmm(c.ini) + '–' + hhmm(c.fin) + ')';
+  const r = RESERVAS.filter((x) => x.sala === sala && x.off === off && ini < x.fin && fin > x.ini)[0];
+  if (r) return 'Choca con ' + r.txt + ' (' + hhmm(r.ini) + '–' + hhmm(r.fin) + ')';
+  return null;
+}
+
+const INICIAL = {
+  q: '', contacto: null, alta: false, altaTipo: 'per', aNom: '', aApe: '', aRazon: '', aWa: '', ignorarDupeWa: false,
+  docTipo: 'Cédula de identidad', docNum: '', docComp: '', docExp: 'La Paz', docPais: 'Argentina', redes: [], consent: '', consMedio: '',
+  pcQ: '', pc: null, pcNuevo: false, pcNom: '', pcWa: '', email: '', tel2: '', nac: '', sexo: '', canal: '', reintentos: 0,
+  planId: null, catId: null, personas: 1, horas: null,
+  salaId: null, nombreExt: '', dias: [2, 4], fechaOff: 1, hora: 18 * 60, dur: 60,
+  cobro: null, compromiso: '', hecho: null, copiado: false
+};
+
+class Component extends DCLogic {
+  state = Object.assign({ contactos: CONTACTOS.slice() }, INICIAL);
+  set = (p) => this.setState(p);
+
+  personaContacto(c) { return c && c.tipo === 'Organización' ? this.state.contactos.filter((x) => x.trabajaEn === c.id)[0] || null : null; }
+
+  destinoWa(c) {
+    if (c.noContactar) return { estado: 'no', motivo: c.nombre + ' pidió no ser contactado: el WhatsApp no se ofrece y no se le manda ningún aviso de esta operación.' };
+    const pc = this.personaContacto(c);
+    const obj = pc && !pc.noContactar ? pc : c;
+    const n = normWa(obj.wa);
+    if (!n) return { estado: 'inv', motivo: 'El WhatsApp de ' + obj.nombre + ' («' + obj.wa + '») no tiene formato válido: 8 dígitos de Bolivia, o + y código de país. Corregilo en su ficha para poder enviarlo.' };
+    return { estado: 'ok', num: n, texto: 'Se envía a ' + (obj === pc ? pc.nombre + ', que trabaja en ' + c.nombre : c.nombre) + ' · ' + fmtWa(n) };
+  }
+
+  abrirAlta(tipo) {
+    const q = this.state.q.trim(), esNum = soloNum(q).length >= 4;
+    this.set({ alta: true, altaTipo: tipo, docTipo: tipo === 'org' ? 'NIT' : 'Cédula de identidad', aNom: tipo === 'per' && !esNum ? q : '', aRazon: tipo === 'org' && !esNum ? q : '', aWa: esNum ? q : '', ignorarDupeWa: false });
+  }
+
+  alta() {
+    const s = this.state, per = s.altaTipo === 'per', verOc = !!this.props.verOcultos;
+    const M = Object.assign({}, MATRIZ[s.altaTipo]);
+    if (this.props.consentObligatorio) M.consent = 'obl';
+    const fld = (k, nombre, aplica) => {
+      const r = M[k] || 'oculto', ap = aplica !== false;
+      return { ver: ap && (r !== 'oculto' || verOc), oculto: r === 'oculto', activo: ap && r !== 'oculto', obl: r === 'obl', label: nombre + (r === 'opc' ? ' · opcional' : '') };
+    };
+    const f = {
+      nombre: fld('nombre', 'Nombre', per), apellido: fld('apellido', 'Apellido', per), razon: fld('razon', 'Razón social', !per),
+      wa: fld('wa', 'WhatsApp'), red: fld('red', 'Redes sociales'), consent: fld('consent', 'Consentimiento de contacto'),
+      doc: fld('doc', 'Documento'), email: fld('email', 'Email'), tel2: fld('tel2', 'Teléfono alternativo'),
+      nac: fld('nac', 'Fecha de nacimiento', per), sexo: fld('sexo', 'Sexo', per), canal: fld('canal', 'Cómo nos conoció')
+    };
+    const waN = normWa(s.aWa), pcWaN = normWa(s.pcWa);
+    const dupeWa = waN && !s.ignorarDupeWa ? s.contactos.filter((c) => normWa(c.wa) === waN)[0] || null : null;
+    const regla = DOC_REGLA[s.docTipo], num = s.docNum.trim();
+    const docOk = !num || regla[0].test(num);
+    const docDupe = f.doc.ver && num && docOk ? s.contactos.filter((c) => c.doc && c.doc.tipo === s.docTipo && c.doc.num.toUpperCase() === num.toUpperCase())[0] || null : null;
+    const falta = [];
+    if (f.nombre.activo && f.nombre.obl && !s.aNom.trim()) falta.push('el nombre');
+    if (f.razon.activo && f.razon.obl && !s.aRazon.trim()) falta.push('la razón social');
+    if (!waN) falta.push(s.aWa.trim() ? 'un WhatsApp válido' : 'el WhatsApp');
+    if (f.doc.activo && f.doc.obl && !num) falta.push(per ? 'el documento' : 'el NIT');
+    else if (num && !docOk) falta.push('un número de documento válido');
+    if (f.consent.activo && f.consent.obl && !s.consent) falta.push('el consentimiento');
+    if (s.consent && !s.consMedio) falta.push('el medio del consentimiento');
+    if (!per && !s.pc && s.pcNuevo && (!s.pcNom.trim() || !pcWaN)) falta.push('nombre y WhatsApp de la persona de contacto');
+    if (dupeWa) falta.push('decidir sobre el WhatsApp repetido');
+    if (docDupe) falta.push('resolver el documento repetido');
+    const hint = (raw, n) => !String(raw).trim() ? 'Bolivia: 8 dígitos, se antepone +591. Extranjero: escribí + y el código de país.' : (n ? 'Se guarda como ' + fmtWa(n) : 'Formato no válido: 8 dígitos, o + y código de país.');
+    const setV = (k) => (e) => this.set({ [k]: e.target.value });
+    const pq = s.pcQ.trim().toLowerCase(), pd = soloNum(pq);
+    const pcRes = pq.length < 2 ? [] : s.contactos.filter((c) => c.tipo === 'Persona' && (c.nombre.toLowerCase().indexOf(pq) >= 0 || (pd.length >= 2 && soloNum(c.wa).indexOf(pd) >= 0))).slice(0, 3)
+      .map((c) => ({ nombre: c.nombre, meta: waTxt(c.wa), elegir: () => this.set({ pc: c, pcQ: '' }) }));
+    return { puede: !falta.length, vals: {
+      altaContexto: per ? 'Tercero · persona' : 'Tercero · organización',
+      altaEsPersona: per, altaEsOrg: !per,
+      setAltaPersona: () => this.set({ altaTipo: 'per', docTipo: 'Cédula de identidad' }),
+      setAltaOrg: () => this.set({ altaTipo: 'org', docTipo: 'NIT' }),
+      cerrarAlta: () => this.set({ alta: false }),
+      fNombre: f.nombre, fApellido: f.apellido, fRazon: f.razon, fWa: f.wa, fRed: f.red, fConsent: f.consent, fDoc: f.doc,
+      fEmail: f.email, fTel2: f.tel2, fNac: f.nac, fSexo: f.sexo, fCanal: f.canal,
+      aNom: s.aNom, aApe: s.aApe, aRazon: s.aRazon, aWa: s.aWa,
+      onANom: setV('aNom'), onAApe: setV('aApe'), onARazon: setV('aRazon'),
+      onAWa: (e) => this.set({ aWa: e.target.value, ignorarDupeWa: false }),
+      waHint: hint(s.aWa, waN), altaWaLink: waN ? 'https://wa.me/' + waN.slice(1) : '', waHintColor: s.aWa.trim() && !waN ? 'var(--color-accent-700)' : 'var(--color-neutral-700)',
+      altaDupeWa: !!dupeWa, dupeWaNombre: dupeWa ? dupeWa.nombre : '', dupeWaMeta: dupeWa ? dupeWa.tipo + ' · ' + dupeWa.rol + ' · ' + waTxt(dupeWa.wa) : '',
+      usarDupeWa: () => this.set({ contacto: dupeWa, alta: false, catId: null }),
+      ignorarDupeWa: () => this.set({ ignorarDupeWa: true }),
+      verPcSel: !per && !!s.pc, verPcBuscar: !per && !s.pc && !s.pcNuevo, verPcNuevo: !per && !s.pc && s.pcNuevo,
+      pcNombre: s.pc ? s.pc.nombre : '', pcMeta: s.pc ? waTxt(s.pc.wa) : '', quitarPc: () => this.set({ pc: null }),
+      pcQ: s.pcQ, onPcQ: setV('pcQ'), pcResultados: pcRes,
+      abrirPcNuevo: () => this.set({ pcNuevo: true, pcNom: s.pcQ.trim(), pcWa: '' }), cerrarPcNuevo: () => this.set({ pcNuevo: false }),
+      pcNom: s.pcNom, pcWa: s.pcWa, onPcNom: setV('pcNom'), onPcWa: setV('pcWa'), pcWaHint: hint(s.pcWa, pcWaN),
+      docTipos: opts(Object.keys(DOC_REGLA)), docTipo: s.docTipo, onDocTipo: setV('docTipo'),
+      docNum: s.docNum, onDocNum: setV('docNum'), docHint: regla[1],
+      docEsCI: s.docTipo === 'Cédula de identidad', docVerPais: s.docTipo === 'Pasaporte' || s.docTipo === 'CI extranjero',
+      docComp: s.docComp, onDocComp: setV('docComp'), docExp: s.docExp, onDocExp: setV('docExp'), expedidos: opts(EXPEDIDO),
+      docPais: s.docPais, onDocPais: setV('docPais'), paises: opts(PAISES),
+      docHintTexto: num && !docOk ? 'No cumple el formato de ' + s.docTipo + ': ' + regla[1] + '.' : 'Formato de ' + s.docTipo + ': ' + regla[1] + '.',
+      docHintColor: num && !docOk ? 'var(--color-accent-700)' : 'var(--color-neutral-700)',
+      docNotaUso: per ? '' : 'Para una organización es el NIT, con el que se factura.',
+      altaDupeDoc: !!docDupe, dupeDocNombre: docDupe ? docDupe.nombre : '', dupeDocMeta: docDupe ? docDupe.doc.tipo + ' ' + docDupe.doc.num + ' · ' + waTxt(docDupe.wa) : '',
+      usarDupeDoc: () => this.set({ contacto: docDupe, alta: false, catId: null }), corregirDoc: () => this.set({ docNum: '' }),
+      redes: s.redes.map((r, i) => ({
+        red: r.red, u: r.u, opts: opts(REDES), esIg: r.red === 'Instagram', esFb: r.red === 'Facebook', esTt: r.red === 'TikTok', esWa: r.red === 'WhatsApp', ph: r.red === 'WhatsApp' ? 'Número' : '@usuario', link: redLink(r.red, r.u),
+        onRed: (e) => this.set({ redes: s.redes.map((x, j) => j === i ? { red: e.target.value, u: x.u } : x) }),
+        onU: (e) => this.set({ redes: s.redes.map((x, j) => j === i ? { red: x.red, u: e.target.value } : x) }),
+        quitar: () => this.set({ redes: s.redes.filter((x, j) => j !== i) })
+      })),
+      agregarRed: () => this.set({ redes: s.redes.concat([{ red: 'Instagram', u: '' }]) }),
+      consSi: s.consent === 'si', consNo: s.consent === 'no',
+      setConsSi: () => this.set({ consent: 'si' }), setConsNo: () => this.set({ consent: 'no' }),
+      verConsMedio: !!s.consent, consMedio: s.consMedio, onConsMedio: setV('consMedio'), medios: opts(MEDIOS),
+      consNota: 'Se registra como un hecho con fecha, medio y versión de la política; después no se edita ni se borra, un cambio es un registro nuevo.' + (s.consent === 'no' ? ' Con «No contactar» no se le manda ningún aviso de esta operación.' : ''),
+      puedeLimpiarCons: !!s.consent && !f.consent.obl, limpiarCons: () => this.set({ consent: '', consMedio: '' }),
+      email: s.email, onEmail: setV('email'), tel2: s.tel2, onTel2: setV('tel2'), nac: s.nac, onNac: setV('nac'),
+      sexo: s.sexo, onSexo: setV('sexo'), sexos: opts(SEXOS), canal: s.canal, onCanal: setV('canal'), canales: opts(CANALES),
+      altaFalta: falta.length ? 'Falta ' + joinY(falta) + '.' : 'Listo para guardar.',
+      altaFaltaColor: falta.length ? 'var(--color-accent-700)' : 'var(--color-neutral-700)',
+      altaIncompleta: falta.length > 0, guardarAlta: this.guardarAlta
+    } };
+  }
+
+  guardarAlta = () => {
+    const s = this.state;
+    if (!this.alta().puede) return;
+    const per = s.altaTipo === 'per', id = 'C' + Date.now();
+    const nuevo = {
+      id: id, nombre: per ? (s.aNom.trim() + ' ' + s.aApe.trim()).trim() : s.aRazon.trim(), tipo: per ? 'Persona' : 'Organización',
+      wa: normWa(s.aWa), rol: 'Solo contacto', sug: 'ter', motivo: 'Tercero: contacto nuevo, sin membresías ni cursos en Tropicana.',
+      doc: s.docNum.trim() ? { tipo: s.docTipo, num: s.docNum.trim() } : null, redes: s.redes.filter((r) => String(r.u).trim()), noContactar: s.consent === 'no',
+      consent: s.consent ? { otorgado: s.consent === 'si', fecha: '1 oct 2026', medio: s.consMedio, version: 'v3' } : null
+    };
+    let lista = s.contactos.concat([nuevo]);
+    if (!per && s.pc) lista = lista.map((c) => c.id === s.pc.id ? Object.assign({}, c, { trabajaEn: id }) : c);
+    else if (!per && s.pcNuevo) lista = lista.concat([{ id: id + 'p', nombre: s.pcNom.trim(), tipo: 'Persona', wa: normWa(s.pcWa), rol: 'Solo contacto', sug: 'ter', motivo: 'Tercero: solo contacto.', trabajaEn: id }]);
+    this.set({ contactos: lista, contacto: nuevo, alta: false, catId: null, q: '' });
+  };
+
+  valsTitular(v) {
+    const s = this.state, eb = this.props.estadoBusqueda || 'normal';
+    const t = s.q.trim().toLowerCase(), d = soloNum(t);
+    const ROL = { 'Alumno': 'tag-accent-2', 'Profesor': 'tag-accent', 'Solo contacto': 'tag-neutral' };
+    const res = eb !== 'normal' || t.length < 2 ? [] : s.contactos.filter((c) => c.nombre.toLowerCase().indexOf(t) >= 0 || (d.length >= 2 && soloNum(c.wa).indexOf(d) >= 0)).slice(0, 4);
+    const c = v.c, pc = this.personaContacto(c), dest = c ? this.destinoWa(c) : null, cs = c && c.consent;
+    return Object.assign({
+      verBuscador: !c && !s.alta, q: s.q, onQuery: (e) => this.set({ q: e.target.value }),
+      verBuscando: eb === 'buscando' && !c, verErrorBusqueda: eb === 'error' && !c,
+      reintentarBusqueda: () => this.set({ reintentos: s.reintentos + 1 }),
+      resultados: res.map((x) => ({ nombre: x.nombre, meta: x.tipo + ' · ' + waTxt(x.wa), rol: x.rol, rolCls: ROL[x.rol] || 'tag-neutral', elegir: () => this.set({ contacto: x, q: '', catId: null }) })),
+      sinResultados: eb === 'normal' && t.length >= 2 && !res.length, qTexto: s.q.trim(),
+      verAltaBotones: eb !== 'error',
+      altaNuevo: () => this.abrirAlta('per'),
+      verAlta: !c && s.alta, verTitular: !!c,
+      titularNombre: c ? c.nombre : '', titularRol: c ? c.rol : '', titularRolCls: c ? ROL[c.rol] || 'tag-neutral' : '', titularTipo: c ? c.tipo : '',
+      titularWa: c ? waTxt(c.wa) : '',
+      titularWaLink: c && !c.noContactar ? waLink(c.wa) : '',
+      titularWaSinLink: !!c && (c.noContactar || !waLink(c.wa)),
+      titularRedes: c && c.redes ? c.redes.map(redVista) : [], titularSinRedes: !c || !c.redes || !c.redes.length,
+      verPcTitular: !!pc, pcTitularNombre: pc ? pc.nombre : '', pcTitularWa: pc ? waTxt(pc.wa) : '', pcTitularWaLink: pc && !pc.noContactar ? waLink(pc.wa) : '',
+      consentTexto: cs ? (cs.otorgado ? 'Otorgado' : 'No contactar') + ' · ' + cs.medio + ' · ' + cs.fecha + ' · política ' + cs.version : 'Sin registrar',
+      verNoContactar: !!dest && dest.estado === 'no', noContactarTexto: dest ? dest.motivo : '',
+      verWaInvalido: !!dest && dest.estado === 'inv', waInvalidoTexto: dest ? dest.motivo : '',
+      cambiarTitular: () => this.set({ contacto: null, catId: null, cobro: null })
+    }, this.alta().vals);
+  }
+
+  vista() {
+    const s = this.state;
+    const planes = this.props.estado === 'sinPlanes' ? [] : PLANES;
+    const plan = planes.filter((p) => p.id === s.planId)[0] || null;
+    const c = s.contacto;
+    const catId = c ? categoria(c).id : null;
+    const tramo = TRAMOS.filter((t) => s.personas <= t.max)[0] || null;
+    const precio = plan && catId && tramo && s.horas ? PRECIOS[catId][tramo.id][s.horas] : null;
+    const listo1 = !!c, listo2 = listo1 && !!plan;
+    const listo3 = listo2 && !!tramo && !!s.horas && precio != null;
+    let ses = [];
+    if (listo3 && s.salaId) {
+      const total = s.horas * 60;
+      if (plan.modo === 'fija') {
+        let rest = total, off = s.fechaOff, guard = 0;
+        while (rest > 0 && s.dias.length && guard < 400) {
+          if (s.dias.indexOf(dow(off)) >= 0) { const d = Math.min(s.dur, rest); ses.push({ off: off, ini: s.hora, dur: d }); rest -= d; }
+          off++; guard++;
+        }
+      } else ses = [{ off: s.fechaOff, ini: s.hora, dur: Math.min(s.dur, total) }];
+    }
+    ses = ses.map((x) => Object.assign(x, { choque: choque(s.salaId, x.off, x.ini, x.dur) }));
+    const nChoques = ses.filter((x) => x.choque).length;
+    const ultimo = ses.length ? ses[ses.length - 1].off : s.fechaOff;
+    const fueraVig = !!plan && ses.length > 0 && ultimo - s.fechaOff + 1 > plan.vig;
+    const extOk = s.salaId !== 'EXT' || !!s.nombreExt.trim();
+    const listo4 = listo3 && !!s.salaId && extOk && ses.length > 0 && !nChoques && !fueraVig;
+    const cobro = s.cobro || {};
+    const saldo = cobro.saldo || 0;
+    const listo5 = listo4 && cobro.valido === true && (saldo <= 0 || !!s.compromiso);
+    let falta = null;
+    if (!listo1) falta = 'Falta el titular.';
+    else if (!plan) falta = 'Falta el plan de alquiler.';
+    else if (!tramo) falta = 'Más de 16 personas: no hay tramo cargado.';
+    else if (!s.horas) falta = 'Faltan las horas.';
+    else if (precio == null) falta = 'Falta el precio en Precios y paquetes.';
+    else if (!s.salaId) falta = 'Falta la sala.';
+    else if (!extOk) falta = 'Falta el nombre de la sala externa.';
+    else if (!ses.length) falta = 'Faltan los días de la semana.';
+    else if (nChoques) falta = nChoques === 1 ? 'Hay 1 horario con choque.' : 'Hay ' + nChoques + ' horarios con choque.';
+    else if (fueraVig) falta = 'Las fechas pasan la vigencia del plan.';
+    else if (cobro.valido !== true) falta = 'Falta completar el cobro.';
+    else if (saldo > 0 && !s.compromiso) falta = 'Falta la fecha de compromiso del saldo.';
+    return { planes, plan, c, catId, tramo, precio, listo1, listo2, listo3, listo4, listo5, ses, nChoques, fueraVig, ultimo, cobro, saldo, falta };
+  }
+
+  salaTxt(s) { return s.salaId === 'EXT' ? 'Sala externa · ' + s.nombreExt.trim() : SALAS[s.salaId]; }
+
+  vender = () => {
+    const v = this.vista();
+    if (!v.listo5) return;
+    const s = this.state;
+    const reservas = v.ses.map((x) => ({ fecha: fmtF(x.off), horario: hhmm(x.ini) + '–' + hhmm(x.ini + x.dur) }));
+    const pend = v.plan.modo === 'flex' ? s.horas * 60 - v.ses[0].dur : 0;
+    const comp = s.compromiso ? fmtF(Number(s.compromiso)) : '';
+    const cf = {
+      contacto: v.c.nombre, contactoMeta: v.c.tipo + ' · ' + waTxt(v.c.wa),
+      plan: v.plan.nombre, categoria: catL(v.catId),
+      personas: s.personas + ' · ' + v.tramo.label, horas: horasTxt(s.horas),
+      vigencia: v.plan.vig + ' días, hasta ' + fmtF(s.fechaOff + v.plan.vig - 1),
+      reservasTitulo: reservas.length === 1 ? 'Reserva' : reservas.length + ' reservas',
+      reservas: reservas,
+      salaTexto: this.salaTxt(s) + (pend ? ' · quedan ' + durTxt(pend) + ' por reservar' : ''),
+      total: gs(v.cobro.total), pago: gs(v.cobro.total - v.saldo),
+      saldo: v.saldo > 0 ? gs(v.saldo) + ' · compromiso ' + comp : gs(0)
+    };
+    const msg = ['Hola ' + v.c.nombre + ', te confirmamos tu alquiler de sala en Tropicana.',
+      'Plan: ' + cf.plan, 'Personas: ' + cf.personas, 'Horas: ' + cf.horas, 'Sala: ' + this.salaTxt(s),
+      'Reservas:'].concat(reservas.map((r) => '· ' + r.fecha + ' ' + r.horario)).concat([
+      'Total: ' + cf.total + ' · Pagado: ' + cf.pago + ' · Saldo: ' + cf.saldo,
+      'Vigencia: ' + cf.vigencia + '. Las horas no usadas se pierden.']).join('\n');
+    const dest = this.destinoWa(v.c);
+    cf.msg = msg; cf.waOk = dest.estado === 'ok'; cf.waInv = dest.estado === 'inv'; cf.waNo = dest.estado === 'no';
+    cf.waMotivo = dest.motivo || ''; cf.waDestino = dest.texto || '';
+    cf.waLink = dest.num ? 'https://wa.me/' + dest.num.slice(1) + '?text=' + encodeURIComponent(msg) : '#';
+    this.setState({ hecho: cf, copiado: false });
+  };
+
+  renderVals() {
+    const s = this.state;
+    const estado = this.props.estado || 'datos';
+    const v = this.vista();
+    const datos = estado === 'datos' || estado === 'sinPlanes';
+    const plan = v.plan;
+    const modoTxt = (p) => (p.modo === 'fija' ? 'Agenda fija' : 'Flexible') + ' · vigencia ' + p.vig + ' días · ' + p.salas.map((x) => SALAS[x]).join(', ') + (p.ext ? ' o externa' : '');
+    const totalMin = (s.horas || 0) * 60;
+    const durMax = plan && plan.modo === 'flex' ? totalMin : Math.min(totalMin, 240);
+    const duraciones = [];
+    for (let m = PASO; m <= Math.max(PASO, durMax); m += PASO) duraciones.push({ v: m, l: durTxt(m) });
+    const horasInicio = [];
+    for (let m = BASE[0]; m < BASE[1]; m += PASO) horasInicio.push({ v: m, l: hhmm(m) });
+    const fechas = [];
+    for (let o = 0; o < 21; o++) fechas.push({ v: o, l: (o === 0 ? 'Hoy · ' : '') + fmtF(o) });
+    const salas = plan ? plan.salas.map((id) => ({ id: id, label: SALAS[id] })).concat(plan.ext ? [{ id: 'EXT', label: 'Sala externa' }] : []) : [];
+    const resetDesde3 = { salaId: null, cobro: null, compromiso: '' };
+    const pendFlex = plan && plan.modo === 'flex' && v.ses.length ? totalMin - v.ses[0].dur : 0;
+    const ruta = 'Alquiler de sala → ' + catL(v.catId) + ' × ' + (v.tramo ? v.tramo.label : 'sin tramo') + ' × ' + (s.horas || '—') + ' h' + (v.precio != null ? ' = ' + gs(v.precio) : '');
+    let faltaPrecio = '';
+    if (!v.tramo) faltaPrecio = s.personas + ' personas no entran en ningún tramo (el más grande es Grupo, hasta 16). Ampliá el tramo en Precios y paquetes.';
+    else if (s.horas && v.precio == null) faltaPrecio = 'La celda ' + catL(v.catId) + ' × ' + v.tramo.label + ' × ' + s.horas + ' h está vacía. Cargala para poder vender.';
+    const cf = s.hecho || {};
+
+    return {
+      verCargando: estado === 'cargando', esqueleto: [1, 2, 3],
+      verError: estado === 'error', verSinPermiso: estado === 'sinPermiso',
+      verConfirmacion: datos && !!s.hecho, verForm: datos && !s.hecho, verBarra: datos && !s.hecho,
+      cf: cf,
+      copiar: () => { try { navigator.clipboard.writeText(cf.msg || ''); } catch (e) {} this.set({ copiado: true }); },
+      copiarTexto: s.copiado ? 'Copiado' : 'Copiar',
+      nuevaVenta: () => this.setState(Object.assign({}, INICIAL)),
+
+      ...this.valsTitular(v),
+
+      paso2Bloqueado: !v.listo1,
+      verSinPlanes: v.listo1 && !v.planes.length,
+      eligiendoPlan: v.listo1 && !plan && v.planes.length > 0,
+      planes: v.planes.map((p) => ({ nombre: p.nombre, meta: modoTxt(p), elegir: () => this.set(Object.assign({ planId: p.id }, resetDesde3)) })),
+      hayPlan: !!plan, planNombre: plan ? plan.nombre : '', planMeta: plan ? modoTxt(plan) : '',
+      cambiarPlan: () => this.set(Object.assign({ planId: null }, resetDesde3)),
+
+      paso3Bloqueado: !v.listo2, verPaso3: v.listo2,
+      sugLabel: v.c ? catL(v.catId) : '', sugRazon: v.c ? categoria(v.c).motivo : '',
+      categorias: CATS.map((c) => ({ label: c.label, sel: v.catId === c.id, elegir: () => this.set(Object.assign({ catId: c.id }, resetDesde3)) })),
+      catCambiada: !!v.c && !!s.catId && s.catId !== v.c.sug,
+      volverSug: () => this.set(Object.assign({ catId: null }, resetDesde3)),
+      personas: s.personas, personasMin: s.personas <= 1,
+      menosPersonas: () => this.set(Object.assign({ personas: Math.max(1, s.personas - 1) }, resetDesde3)),
+      masPersonas: () => this.set(Object.assign({ personas: Math.min(40, s.personas + 1) }, resetDesde3)),
+      tramoTexto: v.tramo ? 'Tramo ' + v.tramo.label + (v.tramo.max > 1 ? ' · hasta ' + v.tramo.max : '') : 'Sin tramo',
+      horasOpts: HORAS.map((h) => {
+        const p = v.tramo && v.catId ? PRECIOS[v.catId][v.tramo.id][h] : null;
+        const sel = s.horas === h;
+        return { label: h + ' h', precio: p == null ? 'Sin precio' : gs(p),
+          bg: sel ? 'var(--color-accent-2-200)' : 'var(--color-neutral-100)', borde: sel ? 'var(--color-accent-2-400)' : 'var(--color-divider)',
+          elegir: () => this.set(Object.assign({ horas: h, dur: Math.min(s.dur, h * 60) }, resetDesde3)) };
+      }),
+      ruta: ruta, verPrecio: v.listo3, precioTexto: gs(v.precio),
+      verFaltaPrecio: v.listo2 && !!faltaPrecio, faltaPrecioTexto: faltaPrecio,
+
+      paso4Bloqueado: !v.listo3, verPaso4: v.listo3,
+      salas: salas.map((x) => ({ label: x.label, sel: s.salaId === x.id, elegir: () => this.set({ salaId: x.id, cobro: null }) })),
+      salaExtNoPermitida: !!plan && !plan.ext,
+      esExterna: s.salaId === 'EXT', nombreExt: s.nombreExt, onNombreExt: (e) => this.set({ nombreExt: e.target.value }),
+      esFija: !!plan && plan.modo === 'fija',
+      dias: [1, 2, 3, 4, 5, 6, 0].map((n) => {
+        const sel = s.dias.indexOf(n) >= 0;
+        return { label: DIAS1[n], sel: sel, bg: sel ? 'var(--color-accent-2-200)' : 'var(--color-neutral-100)', borde: sel ? 'var(--color-accent-2-400)' : 'var(--color-divider)',
+          toggle: () => this.set({ dias: sel ? s.dias.filter((x) => x !== n) : s.dias.concat([n]), cobro: null }) };
+      }),
+      fechaLabel: plan && plan.modo === 'fija' ? 'Desde' : 'Fecha', fechas: fechas,
+      fechaOff: s.fechaOff, onFecha: (e) => this.set({ fechaOff: Number(e.target.value) }),
+      horasInicio: horasInicio, hora: s.hora, onHora: (e) => this.set({ hora: Number(e.target.value) }),
+      duraciones: duraciones, dur: s.dur, onDur: (e) => this.set({ dur: Number(e.target.value) }),
+      modoNota: plan && plan.modo === 'fija' ? 'Se genera el calendario hasta agotar las ' + horasTxt(s.horas || 0) + '.'
+        : (pendFlex ? 'Plan flexible: se reserva solo la primera; las otras ' + durTxt(pendFlex) + ' se reservan después.' : 'Plan flexible: esta reserva usa todas las horas.'),
+      haySesiones: v.ses.length > 0,
+      sesionesTitulo: (v.ses.length === 1 ? '1 reserva' : v.ses.length + ' reservas') + ' · ' + (s.salaId ? this.salaTxt(s) || 'Sala externa' : ''),
+      sesiones: v.ses.map((x) => ({
+        fecha: fmtF(x.off), horario: hhmm(x.ini) + '–' + hhmm(x.ini + x.dur),
+        estado: x.choque ? 'Choque' : (s.salaId === 'EXT' ? 'Sin validar' : 'Libre'),
+        tagCls: x.choque ? 'tag-accent' : (s.salaId === 'EXT' ? 'tag-neutral' : 'tag-accent-2'),
+        choque: x.choque, bg: x.choque ? 'var(--color-accent-100)' : 'var(--color-neutral-100)'
+      })),
+      fueraVig: v.fueraVig,
+      fueraVigTexto: plan ? 'La última reserva cae el ' + fmtF(v.ultimo) + ' y el plan vence el ' + fmtF(s.fechaOff + plan.vig - 1) + ' (' + plan.vig + ' días). Agregá días por semana o alargá la duración.' : '',
+
+      paso5Bloqueado: !v.listo4, verPaso5: v.listo4,
+      precio: v.precio || 0, permitirSinCobro: this.props.permitirSinCobro ?? false,
+      cuentaId: 'alq:' + s.planId + ':' + v.catId + ':' + s.personas + ':' + s.horas,
+      onCobro: (p) => this.setState({ cobro: p }),
+      verCompromiso: v.listo4 && v.saldo > 0,
+      compromiso: s.compromiso, onCompromiso: (e) => this.set({ compromiso: e.target.value }),
+      compromisos: [7, 14, 30].map((n) => ({ v: n, l: fmtF(n) + ' · en ' + n + ' días' })),
+
+      resumenPie: v.listo5 ? (plan.nombre + ' · ' + v.c.nombre) : v.falta,
+      pieColor: v.listo5 ? 'var(--color-neutral-700)' : 'var(--color-accent-700)',
+      totalTexto: gs(v.cobro.total != null ? v.cobro.total : (v.precio || 0)),
+      noPuede: !v.listo5, vender: this.vender
+    };
+  }
+}
+</script>
+</body>
+</html>

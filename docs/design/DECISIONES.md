@@ -232,6 +232,48 @@ Una sola animación de entrada: `opacity: 0; translateY(6px)` → `opacity: 1`, 
 
 ## 9. Historial de cambios
 
+### 01 oct 2026 — Categoría automática
+- **N71** (reemplaza N60): la categoría aplicada la calcula la política de categorías, en este orden: alumno (membresía activa o cerrada hace ≤ N días), profesor de Tropicana (cursos o particulares activos, o cerrados hace ≤ N días), profesor externo (profesor que no cumple lo anterior), tercero (el resto). Hoy N = 7. Se muestra con su motivo y no se elige a mano. La venta la guarda.
+- En *Precios y paquetes v2* se ajustó la nota de Categorías de cliente para que coincida.
+
+### 01 oct 2026 — Titular: un solo botón de alta y enlaces de contacto
+- El buscador vuelve a tener un solo botón, **Contacto nuevo**. Persona u organización se elige dentro del alta, con el selector que ya estaba, y se puede cambiar. Al guardar, el contacto queda elegido como titular.
+- **N70 · Patrón estándar de contactos:** en cualquier pantalla que muestre un contacto, el WhatsApp es un enlace que abre el chat en la app del dispositivo (wa.me) y cada red social abre su perfil. Ambos llevan su ícono y ↗. Se aplica en la ficha de solo lectura del titular, en la persona de contacto y en el alta («Abrir chat ↗», «Abrir ↗»). Excepciones: con «No contactar» el número se muestra sin enlace; con formato no válido, también sin enlace y con el motivo.
+
+### 01 oct 2026 — Titular del alquiler: contactos (H7 complemento)
+`Vender alquiler de sala`, bloque 1, rehecho según el prompt de contactos.
+
+- **N64** El buscador muestra el rol de cada contacto como etiqueta (Alumno · Profesor · Solo contacto). Si elegís a alguien que ya existe, no se le pide ningún dato. La etiqueta explica la categoría que propone el bloque 3.
+- **N65** El alta mínima tiene dos contextos, *Tercero · persona* (nombre, apellido opcional) y *Tercero · organización* (razón social, NIT obligatorio). Una organización puede tener una **persona de contacto** («trabaja en»), que se busca o se crea ahí mismo. Si la tiene, el WhatsApp de la venta le llega a ella.
+- **N66** Qué campos son obligatorios no lo fija el diseño: sale de la **matriz de mínimos** (obligatorio / opcional / oculto). Todos los campos están diseñados, también los ocultos (email, teléfono alternativo, nacimiento, sexo, canal y documento de persona). El ajuste de revisión `verOcultos` los muestra con la etiqueta «Oculto por la matriz». Facturación aparece siempre, deshabilitada y con una nota.
+- **N67** El documento tiene tipo (CI, CI extranjero, pasaporte, NIT), número, complemento, expedido y país, con validación por tipo. Se marca como **dato privado**. Si el documento ya está cargado, sale un panel de duplicado sin la opción «es otro».
+- **N68** El WhatsApp se normaliza a +591 (8 dígitos) o se conserva el «+» si es extranjero. Si el formato no es válido, **Enviar por WhatsApp** aparece deshabilitado y explica por qué. Si el contacto marcó «No contactar», el botón no se ofrece y se muestra el motivo.
+- **N69** El consentimiento se registra como un hecho: elegís si lo otorga o no, por qué medio (de una lista) y se guarda con la versión de la política, que se muestra en pantalla. No se edita después. La ficha del titular muestra el consentimiento vigente. El ajuste `consentObligatorio` simula que la matriz lo exija.
+
+Estados nuevos en `estadoBusqueda`: buscando y error de lectura (con Reintentar; no se presenta como «sin resultados»). Si no hay resultados, la pantalla ofrece crear al contacto.
+
+**Sin desviaciones nuevas de Organic.**
+
+**A revisar:** en este diseño un contacto pertenece a una sola organización. Falta decidir si una persona puede trabajar en varias. El texto de la política es un borrador.
+
+### 01 oct 2026 — Alquiler de sala (H7)
+Reemplaza la mitad "alquiler" de `Vender servicio` (handoff del 30 ago), que contradecía las definiciones v2 del 25/09. Tres piezas:
+
+- `Vender alquiler de sala.dc.html` (nueva): cinco bloques progresivos (Titular → Plan → Categoría, personas y horas → Sala y horario → Cobro), barra fija con **Vender** y qué falta, tarjeta de confirmación con **Enviar por WhatsApp** y **Copiar**. Estados: cargando, error de lectura, sin planes de alquiler, sin permiso (prop `estado`).
+- `Plan de alquiler.dc.html` (nueva): editor del tipo Alquiler dentro de *Planes*: nombre, vigencia en días, modalidad (agenda fija / flexible), salas (todas / algunas), **Permite sala externa**, extensión (precio de lista / recargo %).
+- `Precios y paquetes v2.dc.html`: pestaña Alquiler con **Tramos de personas** y **Categorías de cliente** renombrables; claves bloqueadas con candado y nota. El aviso de la pestaña ya no habla de costo de sala de particulares y se oculta el simulador "Cómo lo resuelve una particular" (contradice v2). La v1 queda sin tocar.
+
+Reglas nuevas:
+- **N59** El titular de un alquiler es un contacto (persona u organización); no entra al padrón. Alta en línea con nombre + WhatsApp y el mismo panel de duplicado.
+- **N60** La categoría la propone el sistema con su motivo visible; se puede cambiar y queda marcada "cambiada a mano"; la venta guarda la aplicada.
+- **N61** Horas solo de los paquetes de la tabla; personas → tramo automático. Celda vacía o personas fuera de tramo: panel con qué falta y enlace a *Precios y paquetes*; **Vender** deshabilitado.
+- **N62** Una reserva = un horario. Agenda fija genera todas hasta agotar las horas; flexible, solo la primera. Inicio cada 30 min, duración en múltiplos de 30 min. Un choque (clase, reserva, bloqueo, horario base) o pasar la vigencia bloquea la venta. Sala externa: nombre obligatorio, sin validar ni costo.
+- **N63** Saldo pendiente exige fecha de compromiso (lista de fechas) antes de vender.
+
+**Sin desviaciones nuevas de Organic.** Mismo tema oscuro y patrón de bloques que *Inscribir y cobrar* / *Vender servicio*.
+
+**A revisar:** el paso compartido `Cobro` no trae fecha de compromiso; acá se agregó debajo. Conviene subirla a `Cobro` para todas las ventas. Las salas, horarios de clases y precios son de muestra. El recargo de extensión no tiene tope.
+
 ### 01 oct 2026 — se agrega Pre-liquidación
 Pantalla nueva `Pre-liquidación.dc.html` (escritorio, celular 375, impreso A4) con estados vacío, error y cargando. Reglas N54–N58. **Desviación:** la versión impresa es papel blanco y tinta negra, fuera de los tokens oscuros, para que funcione en una impresora en blanco y negro. **A revisar:** el link de "Ciclo que termina después del corte" dice *Ver membresía* en lugar de *Resolver*, porque ahí no hay nada que corregir.
 
