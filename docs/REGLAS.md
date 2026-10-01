@@ -136,11 +136,13 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
     un trámite pendiente y no algo que haya pasado en la sala. Su contrapeso es
     la regla 17. *(Javier, 2026-09-11: "Vamos por el criterio calendario menos
     suspendidas".)*
-    **Excepción decidida el 2026-10-01, aún sin construir:** en planes
+    **Excepción decidida el 2026-10-01, construida en el Paso 4:** en planes
     **ilimitados** se cuentan solo las clases **asistidas por el alumno** (no
     hay compromiso previo de asistir); los planes con N clases siguen por
-    calendario menos suspendidas. Hasta que se construya, el motor aplica la
-    regla de arriba — ver `docs/DECISIONES.md`, fila H5.
+    calendario menos suspendidas. Una clase sin registrar sigue trabando el
+    prorrateo multi-curso (regla 17). Con criterio 2 (avance) las ilimitadas
+    siguen por calendario hasta que Javier decida el total previsto — ver
+    `docs/DECISIONES.md`, fila H5.
     **El "precio de su curso" es el valor de UNA clase del curso —su tarifa de
     clase suelta—, no el valor por tramo.** El tramo es para *proponer* un
     precio (regla 9): ahí la pregunta es cuánto costaría comprar eso por

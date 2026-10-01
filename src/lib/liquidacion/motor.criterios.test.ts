@@ -136,3 +136,47 @@ test("criterio 2 multi-curso: las clases futuras sin registrar no bloquean; las 
 test("criterio 4 o 5 en una regular no se liquida por este motor", () => {
   assert.deepEqual(calcularDevengos(datos({ criterio_liquidacion: 4 }), "2026-08-31").pendientes, []);
 });
+
+// ── Ilimitadas: cuentan solo las clases asistidas (regla 10, 2026-10-01) ─────
+
+const MIERC = ["2026-08-05", "2026-08-12", "2026-08-19", "2026-08-26"];
+
+function multi(m: Partial<MembresiaLiq>): DatosMotor {
+  const d = datos(m);
+  d.cursosDeMembresia = [
+    { membresia_id: 1, curso_id: 1, dias: [1], fecha: null },
+    { membresia_id: 1, curso_id: 2, dias: [3], fecha: null },
+  ];
+  d.cursos = [curso(1, "Salsa", [1]), curso(2, "Bachata", [3])];
+  d.tarifas = [1, 2].map((c) => ({ curso_id: c, modalidad: "clase", precio: 50 }));
+  d.asignaciones = [1, 2].map((c) => ({ id: c, curso_id: c, profesor_id: c, pct_ingresos: 50, desde: "2026-01-01", hasta: null }));
+  d.profesores = [1, 2].map((id) => ({ id, nombre: `P${id}`, apellido: "A" }));
+  d.sesiones = [...LUNES.map((f) => sesion(1, f)), ...MIERC.map((f) => sesion(2, f))];
+  return d;
+}
+
+test("ilimitada: el conteo es lo que el alumno asistió, no el calendario", () => {
+  const d = multi({ clases_plan: null });
+  d.asistencias = [
+    ...LUNES.slice(0, 3).map((f) => ({ membresia_id: 1, curso_id: 1, fecha: f })),
+    ...MIERC.map((f) => ({ membresia_id: 1, curso_id: 2, fecha: f })),
+  ];
+  const p = calcularDevengos(d, "2026-08-31").pendientes;
+  assert.deepEqual(Object.fromEntries(p.map((x) => [x.cursoId, x.clases])), { 1: 3, 2: 4 });
+  assert.equal(Math.round(p.reduce((s, x) => s + x.base, 0) * 100) / 100, 1000);
+});
+
+test("plan con N clases sigue por calendario aunque falte asistencia", () => {
+  const d = multi({ clases_plan: 8 });
+  d.asistencias = LUNES.slice(0, 3).map((f) => ({ membresia_id: 1, curso_id: 1, fecha: f }));
+  const p = calcularDevengos(d, "2026-08-31").pendientes;
+  assert.deepEqual(Object.fromEntries(p.map((x) => [x.cursoId, x.clases])), { 1: 5, 2: 4 });
+});
+
+test("ilimitada: un curso sin ninguna asistencia no cobra", () => {
+  const d = multi({ clases_plan: null });
+  d.asistencias = LUNES.map((f) => ({ membresia_id: 1, curso_id: 1, fecha: f }));
+  const p = calcularDevengos(d, "2026-08-31").pendientes;
+  assert.deepEqual(p.map((x) => x.cursoId), [1]);
+  assert.equal(p[0].base, 1000);
+});

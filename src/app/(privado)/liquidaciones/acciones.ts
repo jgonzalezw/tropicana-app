@@ -202,7 +202,7 @@ async function leerDatosMotor(
   const membresiasRaw = exigir(
     await sb
       .from("membresias")
-      .select("id, alumno_id, curso_id, plan_id, es_prueba, acompanantes, fecha_inicio, fecha_fin, estado, criterio_liquidacion, plan:planes!inner(tipo_servicio, criterio_liquidacion)")
+      .select("id, alumno_id, curso_id, plan_id, es_prueba, acompanantes, fecha_inicio, fecha_fin, estado, clases_plan, criterio_liquidacion, plan:planes!inner(tipo_servicio, criterio_liquidacion)")
       .in("estado", ["activa", "completada"])
       .not("plan_id", "is", null)
       .not("fecha_fin", "is", null)
@@ -279,6 +279,22 @@ async function leerDatosMotor(
     "las clases del período"
   ) as DatosMotor["sesiones"];
 
+  // 5b. Presentes de las ilimitadas: su conteo es lo asistido (regla 10).
+  const ilimitadas = membresias.filter((m) => m.clases_plan == null && m.es_prueba !== true).map((m) => m.id);
+  const asistRaw = ilimitadas.length
+    ? (exigir(
+        await sb
+          .from("asistencias")
+          .select("membresia_id, sesion:sesiones!inner(curso_id, fecha, estado)")
+          .eq("estado", "presente")
+          .in("membresia_id", ilimitadas),
+        "las asistencias de las ilimitadas"
+      ) as unknown as { membresia_id: number; sesion: { curso_id: number; fecha: string; estado: string } }[])
+    : [];
+  const asistencias = asistRaw
+    .filter((r) => r.sesion.estado === "dictada")
+    .map((r) => ({ membresia_id: r.membresia_id, curso_id: r.sesion.curso_id, fecha: r.sesion.fecha }));
+
   // 6. Cursos y tarifas → precio de una clase (regla 9 / regla 10).
   const cursos = exigir(
     await sb.from("cursos").select("*").in("id", cursoIds),
@@ -331,6 +347,7 @@ async function leerDatosMotor(
     cuotas,
     pagos,
     sesiones,
+    asistencias,
     cursos,
     tarifas,
     asignaciones,

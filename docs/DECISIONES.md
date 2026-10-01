@@ -198,9 +198,11 @@ lee **antes** de mirar ramas.
 - **Paso 4 (2026-10-01, rama `h5-paso4-criterios-regulares`, sale de
   `h5-liquidacion-particulares`):** criterios 2 y 3 en regulares sobre la misma
   base (migración 0059 aplicada solo en dev, motor + 9 pruebas en
-  `motor.criterios.test.ts`). **Falta:** conteo de ilimitadas por asistidas
-  (regla 10), diálogo al cambiar el criterio de un plan, recorrido en
-  navegador. **Pendiente posterior** (memoria del proyecto): migración de datos
+  `motor.criterios.test.ts`), conteo de ilimitadas por asistidas (regla 10) y
+  diálogo al cambiar el criterio de un plan. **Falta:** que Javier pruebe;
+  duda abierta: ilimitada + criterio 2 cuenta por calendario (el avance
+  necesita un total previsto). Liquidada la #37 (liquidación #5) en dev, el
+  próximo generar emite su ajuste firmado. **Pendiente posterior** (memoria del proyecto): migración de datos
   de inicio (asignaciones #22/#12–#14, membresías #17–#19) e informe imprimible
   de pre-liquidación.
 - **Pendiente, no automatizado a propósito:** activar a mano "Permite sala

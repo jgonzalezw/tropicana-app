@@ -129,6 +129,8 @@ export type MembresiaLiq = {
   fecha_fin: string | null;
   /** `activa` o `completada`. Ausente = `completada` (el motor del criterio 1). */
   estado?: string;
+  /** Clases del plan (N). Nulo (explícito) con plan = ilimitada; ausente = sin dato, por calendario (cuenta solo lo asistido, regla 10). */
+  clases_plan?: number | null;
   /** Foto del criterio del plan (0059). Ausente/nulo = 1. */
   criterio_liquidacion?: number | null;
 };
@@ -169,6 +171,9 @@ export type SesionLiq = {
   reemplazo_motivo: string | null;
 };
 
+/** Una asistencia **presente** del alumno, con el curso y la fecha de su clase. */
+export type AsistenciaLiq = { membresia_id: number; curso_id: number; fecha: string };
+
 export type TarifaLiq = { curso_id: number; modalidad: string; precio: number };
 
 export type PersonaLiq = { id: number; nombre: string; apellido: string };
@@ -181,6 +186,11 @@ export type DatosMotor = {
   cuotas: CuotaLiq[];
   pagos: PagoLiq[];
   sesiones: SesionLiq[];
+  /**
+   * Presentes de las membresías **ilimitadas** (solo esas hacen falta). Sin
+   * este dato el motor cuenta por calendario para todas, como antes.
+   */
+  asistencias?: AsistenciaLiq[];
   cursos: Curso[];
   tarifas: TarifaLiq[];
   asignaciones: AsignacionVigencia[];
@@ -395,6 +405,15 @@ export function calcularDevengos(
   // el comprobante tiene que poder decir quién se llevó qué parte.
   const profNombre = new Map(datos.profesores.map((p) => [p.id, `${p.apellido}, ${p.nombre}`]));
 
+  // Presentes por (membresía, curso): el conteo de las ilimitadas.
+  const presentes = new Map<string, string[]>();
+  for (const a of datos.asistencias ?? []) {
+    const k = `${a.membresia_id}|${a.curso_id}`;
+    const ya = presentes.get(k);
+    if (ya) ya.push(a.fecha);
+    else presentes.set(k, [a.fecha]);
+  }
+
   // Repartir.
   const out: DevengoPendiente[] = [];
   const bloqueadas: MembresiaBloqueada[] = [];
@@ -419,9 +438,24 @@ export function calcularDevengos(
     const propios = cursosDe.get(m.id) ?? [];
 
     // Peso de cada curso = precio de una clase × clases del ciclo × personas.
+    // **Ilimitadas (regla 10, decidido el 2026-10-01):** no hay compromiso previo
+    // de asistir, así que cuentan solo las clases que el alumno asistió en el
+    // ciclo. Los planes con N siguen por calendario menos suspendidas. Con
+    // criterio 2 (avance) se mantiene el calendario: el avance necesita un total
+    // previsto, y las asistidas hasta hoy siempre serían el 100% de sí mismas.
+    const soloAsistidas =
+      m.plan_id != null && m.clases_plan === null && m.es_prueba !== true && criterio !== 2;
     const pesos = propios.map((ic) => {
       const curso = cursoPorId.get(ic.curso_id);
-      const { fechas, faltan } = clasesDelCiclo(ic, m, curso, suspendidas, registradas);
+      const cal = clasesDelCiclo(ic, m, curso, suspendidas, registradas);
+      // Las clases sin registrar siguen trabando el prorrateo (regla 17): una
+      // asistencia sin cargar sería una clase que no se contó.
+      const faltan = cal.faltan;
+      const fechas = soloAsistidas
+        ? (presentes.get(`${m.id}|${ic.curso_id}`) ?? [])
+            .filter((f) => f >= m.fecha_inicio && (!m.fecha_fin || f <= m.fecha_fin))
+            .sort()
+        : cal.fechas;
       const precio = precioDeUnaClase(curso, tarifaDe.get(ic.curso_id) ?? {}, m.es_prueba === true);
       const clases = fechas.length;
       return { ic, curso, clases, fechas, faltan, peso: clases > 0 ? precio * clases * personas : 0 };

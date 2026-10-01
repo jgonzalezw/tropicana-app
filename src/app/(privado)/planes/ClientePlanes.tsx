@@ -23,7 +23,7 @@ import {
   referenciaPorPeriodo,
   type TarifasDeCurso,
 } from "@/lib/precios";
-import { crearPlan, actualizarPlan, eliminarODesactivarPlan, activarPlan } from "./acciones";
+import { crearPlan, actualizarPlan, eliminarODesactivarPlan, activarPlan, contarMembresiasParaNuevoCriterio } from "./acciones";
 
 type Sala = { id: number; nombre: string };
 
@@ -154,6 +154,7 @@ export default function ClientePlanes({
     setEditId(null);
     setForm(vacioPara(tab));
     setError(null);
+    setPreguntaCriterio(null);
   }
 
   function editar(p: Plan) {
@@ -205,11 +206,29 @@ export default function ClientePlanes({
     }));
   }
 
-  function guardar() {
+  /** Cambió el criterio de un plan con membresías sin devengar: se pregunta antes de guardar. */
+  const [preguntaCriterio, setPreguntaCriterio] = useState<number | null>(null);
+
+  function guardar(aplicarCriterio?: boolean) {
     setError(null);
     setMsg(null);
     startTransition(async () => {
-      const res = editId ? await actualizarPlan(editId, form) : await crearPlan(form);
+      if (editId && aplicarCriterio === undefined) {
+        const original = planes.find((p) => p.id === editId);
+        if (original && original.criterio_liquidacion !== form.criterio_liquidacion) {
+          const c = await contarMembresiasParaNuevoCriterio(editId, form.criterio_liquidacion);
+          if (c.error) {
+            setError(c.error);
+            return;
+          }
+          if ((c.n ?? 0) > 0) {
+            setPreguntaCriterio(c.n as number);
+            return;
+          }
+        }
+      }
+      setPreguntaCriterio(null);
+      const res = editId ? await actualizarPlan(editId, form, aplicarCriterio === true) : await crearPlan(form);
       if (res?.error) setError(res.error);
       else {
         setMsg(editId ? "Plan actualizado." : "Plan creado.");
@@ -359,10 +378,46 @@ export default function ClientePlanes({
 
               {error && <p className="text-[var(--peligro)] text-sm" role="alert">{error}</p>}
 
+              {preguntaCriterio != null && (
+                <div className="rounded-[var(--radio-panel)] border border-[var(--advertencia)] bg-[var(--advertencia-fill)] text-[var(--advertencia-texto)] p-4 space-y-3">
+                  <div className="font-semibold">
+                    Cambiaste el criterio de liquidación del plan
+                  </div>
+                  <p className="text-sm leading-relaxed">
+                    Hay {preguntaCriterio} {preguntaCriterio === 1 ? "membresía ya vendida" : "membresías ya vendidas"} de
+                    este plan, sin comisión devengada, que conservan el criterio anterior (se guarda al vender).
+                    ¿Les aplicás el criterio nuevo? Las que ya tienen comisión nunca se tocan.
+                  </p>
+                  <div className="flex gap-2 flex-wrap">
+                    <button
+                      onClick={() => guardar(true)}
+                      disabled={pendiente}
+                      className="px-4 py-2 text-sm font-semibold rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)] disabled:opacity-40"
+                    >
+                      Aplicar a las {preguntaCriterio}
+                    </button>
+                    <button
+                      onClick={() => guardar(false)}
+                      disabled={pendiente}
+                      className="px-4 py-2 text-sm rounded-[var(--radio-control)] border border-[var(--borde)] disabled:opacity-40"
+                    >
+                      Solo a las ventas nuevas
+                    </button>
+                    <button
+                      onClick={() => setPreguntaCriterio(null)}
+                      disabled={pendiente}
+                      className="px-4 py-2 text-sm rounded-[var(--radio-control)] border border-[var(--borde)] disabled:opacity-40"
+                    >
+                      Volver
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="flex gap-2 items-start">
                 <div>
                   <button
-                    onClick={guardar}
+                    onClick={() => guardar()}
                     disabled={!puedeGuardar}
                     className="px-5 py-2.5 text-base font-semibold rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)] hover:bg-[var(--primario-hover)] disabled:opacity-40"
                   >
