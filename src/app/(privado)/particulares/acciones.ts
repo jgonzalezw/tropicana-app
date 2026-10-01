@@ -24,6 +24,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { tienePermiso, obtenerParametro, obtenerPerfilActual, alcancePropioDe } from "@/lib/sesion";
 import { apellidoDe } from "@/lib/contactos";
+import { recalcularMembresia } from "@/lib/membresias";
 import { formatearHoras, aMinutos, horaFin } from "@/lib/horarios";
 import {
   puedeTransicionar,
@@ -152,7 +153,7 @@ async function contextoAviso(
   const [salasR, msR, resR, destinatario] = await Promise.all([
     a.from("salas").select("id, nombre"),
     a.from("membresia_salas").select("sala_id, nombre_descriptivo").eq("membresia_id", membresiaId),
-    a.from("reservas_sala").select("estado, duracion_min, solicitada_hasta").eq("membresia_id", membresiaId),
+    a.from("reservas_sala").select("estado, duracion_min, solicitada_hasta, es_cortesia").eq("membresia_id", membresiaId),
     destinatarioDeAlumno(sb, m.alumno_id),
   ]);
   const salas = (salasR.data as { id: number; nombre: string }[]) ?? [];
@@ -201,6 +202,11 @@ export type ReservaConHistorial = {
   sala_id: number;
   salaNombre: string;
   ocupaAhora: boolean;
+  /** Cortesía (H5): no devenga ni descuenta saldo. */
+  esCortesia: boolean;
+  cortesiaMotivo: string | null;
+  /** El plan de la membresía permite marcar cortesías (`planes.permite_cortesia`). */
+  permiteCortesia: boolean;
   transicionesPermitidas: EstadoReserva[];
   historial: {
     estado_nuevo: string;
@@ -286,7 +292,7 @@ export async function listarMembresiasParticulares(): Promise<{ items: FilaParti
         "alumno:alumnos(es_menor, contacto_id, contacto:contactos(nombre, apellido, whatsapp)), " +
         "plan:planes(nombre, estilo), " +
         "profesor:profesores(contacto:contactos(nombre, apellido)), " +
-        "reservas:reservas_sala(estado, duracion_min, solicitada_hasta)"
+        "reservas:reservas_sala(estado, duracion_min, solicitada_hasta, es_cortesia)"
     )
     .is("curso_id", null)
     .eq("estado", "activa");
@@ -381,6 +387,8 @@ type FilaReservaConSala = {
   estado: string;
   solicitada_hasta: string | null;
   sala_id: number;
+  es_cortesia?: boolean;
+  cortesia_motivo?: string | null;
   sala: { nombre: string } | null;
 };
 type FilaHistorialReserva = {
@@ -403,7 +411,8 @@ function armarReservaConHistorial(
   historialDeEsta: FilaHistorialReserva[],
   salasDeLaMembresia: SalaDeMembresia[],
   etiquetaMotivo: Map<string, string>,
-  ahora: Date
+  ahora: Date,
+  permiteCortesia = false
 ): ReservaConHistorial {
   const estado = r.estado as EstadoReserva;
   const salaNombre = salasDeLaMembresia.find((s) => s.salaId === r.sala_id)?.nombre || r.sala?.nombre || "—";
@@ -417,6 +426,9 @@ function armarReservaConHistorial(
     sala_id: r.sala_id,
     salaNombre,
     ocupaAhora: ocupaAhora({ tipo: "particular", estado, solicitadaHasta: r.solicitada_hasta }, ahora),
+    esCortesia: !!r.es_cortesia,
+    cortesiaMotivo: r.cortesia_motivo ?? null,
+    permiteCortesia,
     transicionesPermitidas: [...TRANSICIONES[estado]],
     historial: historialDeEsta.map((h) => ({
       estado_nuevo: h.estado_nuevo,
@@ -447,7 +459,7 @@ export async function obtenerMembresiaParticular(membresiaId: number): Promise<M
     .select(
       "id, fecha_inicio, fecha_fin, estado, horas_contratadas, alumno_id, profesor_id, " +
         "alumno:alumnos(contacto:contactos(nombre, apellido)), " +
-        "plan:planes(nombre, estilo, permite_sala_externa), " +
+        "plan:planes(nombre, estilo, permite_sala_externa, permite_cortesia), " +
         "profesor:profesores(contacto:contactos(nombre, apellido))"
     )
     .eq("id", membresiaId)
@@ -464,7 +476,7 @@ export async function obtenerMembresiaParticular(membresiaId: number): Promise<M
     alumno_id: number;
     profesor_id: number;
     alumno: { contacto: { nombre: string | null; apellido: string | null } | null } | null;
-    plan: { nombre: string; estilo: string | null; permite_sala_externa: boolean } | null;
+    plan: { nombre: string; estilo: string | null; permite_sala_externa: boolean; permite_cortesia: boolean } | null;
     profesor: { contacto: { nombre: string | null; apellido: string | null } | null } | null;
   };
   const mm = m as unknown as M;
@@ -477,7 +489,7 @@ export async function obtenerMembresiaParticular(membresiaId: number): Promise<M
     sb.from("membresia_salas").select("sala_id, nombre_descriptivo, sala:salas(nombre, es_externa)").eq("membresia_id", membresiaId),
     sb
       .from("reservas_sala")
-      .select("id, fecha, hora, duracion_min, estado, solicitada_hasta, sala_id, sala:salas(nombre)")
+      .select("id, fecha, hora, duracion_min, estado, solicitada_hasta, sala_id, es_cortesia, cortesia_motivo, sala:salas(nombre)")
       .eq("membresia_id", membresiaId)
       .order("fecha", { ascending: true })
       .order("hora", { ascending: true }),
@@ -514,7 +526,8 @@ export async function obtenerMembresiaParticular(membresiaId: number): Promise<M
       historialRaw.filter((h) => h.reserva_id === r.id),
       salasResueltas,
       etiquetaMotivo,
-      ahora
+      ahora,
+      !!mm.plan?.permite_cortesia
     )
   );
 
@@ -571,7 +584,7 @@ export async function obtenerReservaParaGestion(reservaId: number): Promise<Deta
   const sb = await createClient();
   const { data: rRow, error: errR } = await sb
     .from("reservas_sala")
-    .select("id, fecha, hora, duracion_min, estado, solicitada_hasta, sala_id, tipo, membresia_id, sala:salas(nombre)")
+    .select("id, fecha, hora, duracion_min, estado, solicitada_hasta, sala_id, tipo, membresia_id, es_cortesia, cortesia_motivo, sala:salas(nombre)")
     .eq("id", reservaId)
     .maybeSingle();
   if (errR) return { error: `No se pudo leer la reserva: ${errR.message}` };
@@ -580,7 +593,7 @@ export async function obtenerReservaParaGestion(reservaId: number): Promise<Deta
   const { data: m, error: errM } = await sb
     .from("membresias")
     .select(
-      "fecha_inicio, fecha_fin, horas_contratadas, profesor_id, alumno:alumnos(contacto:contactos(nombre, apellido))"
+      "fecha_inicio, fecha_fin, horas_contratadas, profesor_id, plan:planes(permite_cortesia), alumno:alumnos(contacto:contactos(nombre, apellido))"
     )
     .eq("id", rRow.membresia_id)
     .maybeSingle();
@@ -591,6 +604,7 @@ export async function obtenerReservaParaGestion(reservaId: number): Promise<Deta
     fecha_fin: string;
     horas_contratadas: number;
     profesor_id: number;
+    plan: { permite_cortesia: boolean } | null;
     alumno: { contacto: { nombre: string | null; apellido: string | null } | null } | null;
   };
   const mm = m as unknown as M;
@@ -598,7 +612,7 @@ export async function obtenerReservaParaGestion(reservaId: number): Promise<Deta
 
   const [salasR, reservasR, historialR] = await Promise.all([
     sb.from("membresia_salas").select("sala_id, nombre_descriptivo, sala:salas(nombre, es_externa)").eq("membresia_id", rRow.membresia_id),
-    sb.from("reservas_sala").select("estado, duracion_min, solicitada_hasta").eq("membresia_id", rRow.membresia_id),
+    sb.from("reservas_sala").select("estado, duracion_min, solicitada_hasta, es_cortesia").eq("membresia_id", rRow.membresia_id),
     sb
       .from("reservas_historial")
       .select("reserva_id, estado_nuevo, fecha_nueva, hora_nueva, motivo, glosa, fuera_de_plazo, creado_en")
@@ -628,7 +642,8 @@ export async function obtenerReservaParaGestion(reservaId: number): Promise<Deta
     (historialR.data as unknown as FilaHistorialReserva[]) ?? [],
     salasResueltas,
     etiquetaMotivo,
-    ahora
+    ahora,
+    !!mm.plan?.permite_cortesia
   );
 
   return {
@@ -685,6 +700,64 @@ export async function guardarLugarExterno(
   if (errUpsert) return { error: `No se pudo guardar el lugar externo: ${errUpsert.message}` };
 
   revalidatePath(`/particulares/${membresiaId}`);
+  return { ok: true };
+}
+
+// ── Cortesía en una reserva puntual (H5, decisión 6 de Javier) ──────────────
+
+/**
+ * Marca (o desmarca) una reserva de particular como cortesía: no le paga
+ * nada al profesor ni descuenta el saldo de horas de la membresía
+ * (`saldoMembresia`/`particulares.ts` la excluyen por completo). Es la
+ * cortesía AD-HOC sobre una membresía pagada -- la otra forma, una membresía
+ * ENTERA de cortesía, se decide al vender (`venderParticular`).
+ *
+ * El gate es del plan (`permite_cortesia`), igual que la sala externa: sin
+ * eso, ninguna reserva de este plan puede marcarse.
+ */
+export async function marcarCortesiaReserva(
+  reservaId: number,
+  motivo: string | null
+): Promise<ResultadoAccion> {
+  if (!(await tienePermiso("particulares", "editar"))) return { error: "No tenés permiso para editar esta reserva." };
+  // `motivo: null` = desmarcar (siempre permitido, sin glosa). Con un motivo,
+  // tiene que venir con texto: no se marca cortesía sin decir por qué.
+  const desmarcar = motivo === null;
+  const glosa = motivo?.trim() ?? "";
+  if (!desmarcar && !glosa) return { error: "Cargá el motivo de la cortesía." };
+
+  const a = admin();
+  const { data: rRow, error: errR } = await a
+    .from("reservas_sala")
+    .select("id, tipo, membresia_id")
+    .eq("id", reservaId)
+    .maybeSingle();
+  if (errR) return { error: `No se pudo leer la reserva: ${errR.message}` };
+  if (!rRow || rRow.tipo !== "particular" || rRow.membresia_id == null) return { error: "Esa reserva no existe." };
+
+  const { data: mRow, error: errM } = await a
+    .from("membresias")
+    .select("id, profesor_id, plan:planes(permite_cortesia)")
+    .eq("id", rRow.membresia_id)
+    .maybeSingle();
+  if (errM) return { error: `No se pudo leer la membresía: ${errM.message}` };
+  if (!mRow) return { error: "La membresía de esta reserva ya no existe." };
+  const { propio, profesorId } = await alcancePropioDe("particulares");
+  if (propio && mRow.profesor_id !== profesorId) return { error: "Esta reserva es de otro profesor: no tenés acceso a ella." };
+  const plan = mRow.plan as unknown as { permite_cortesia: boolean } | null;
+  if (!desmarcar && !plan?.permite_cortesia)
+    return { error: "El plan de esta membresía no permite otorgar cortesías. Se activa en Planes." };
+
+  const { error: errUpd } = await a
+    .from("reservas_sala")
+    .update({ es_cortesia: !desmarcar, cortesia_motivo: desmarcar ? null : glosa })
+    .eq("id", reservaId);
+  if (errUpd) return { error: `No se pudo guardar la cortesía: ${errUpd.message}` };
+
+  // Las horas dadas cambiaron: la membresía puede agotarse (y cerrarse, si
+  // está cobrada) o reabrirse (regla 1, H5).
+  await recalcularMembresia(a, rRow.membresia_id);
+  revalidatePath(`/particulares/${rRow.membresia_id}`);
   return { ok: true };
 }
 
@@ -772,7 +845,7 @@ export async function crearReserva(e: EntradaNuevaReserva): Promise<ResultadoAcc
   // ── Saldo: no se puede pedir más de lo que queda (decisión de Javier, 26/09) ──
   const { data: reservasRows, error: errRes } = await a
     .from("reservas_sala")
-    .select("estado, duracion_min, solicitada_hasta")
+    .select("estado, duracion_min, solicitada_hasta, es_cortesia")
     .eq("membresia_id", e.membresiaId);
   if (errRes) return { error: `No se pudo leer el saldo de la membresía: ${errRes.message}` };
   const ahora = new Date();
@@ -920,6 +993,9 @@ export async function cambiarEstadoReserva(
   if (!actualizado || actualizado.length === 0)
     return { error: "El estado de esta reserva cambió mientras tanto. Recargá e intentá de nuevo." };
 
+  // Las horas dadas cambiaron: la membresía puede agotarse (y cerrarse, si
+  // está cobrada) o reabrirse (regla 1, H5).
+  await recalcularMembresia(a, rRow.membresia_id);
   revalidatePath(`/particulares/${rRow.membresia_id}`);
   revalidatePath("/particulares");
   revalidatePath("/sala");
@@ -1077,7 +1153,7 @@ export async function revertirSuspension(reservaId: number): Promise<ResultadoAc
   // horas mientras tanto.
   const { data: resRows, error: errSaldo } = await a
     .from("reservas_sala")
-    .select("estado, duracion_min, solicitada_hasta")
+    .select("estado, duracion_min, solicitada_hasta, es_cortesia")
     .eq("membresia_id", rRow.membresia_id);
   if (errSaldo) return { error: `No se pudo leer el saldo de la membresía: ${errSaldo.message}` };
   const saldo = saldoMembresia({ horasContratadas: Number(mRow.horas_contratadas) || 0, reservas: resRows ?? [], ahora });
@@ -1174,7 +1250,7 @@ export async function reprogramarReserva(e: EntradaReprogramar): Promise<Resulta
   if (e.duracionMin > rRow.duracion_min) {
     const { data: resRows, error: errSaldo } = await a
       .from("reservas_sala")
-      .select("estado, duracion_min, solicitada_hasta")
+      .select("estado, duracion_min, solicitada_hasta, es_cortesia")
       .eq("membresia_id", rRow.membresia_id);
     if (errSaldo) return { error: `No se pudo leer el saldo de la membresía: ${errSaldo.message}` };
     const saldo = saldoMembresia({ horasContratadas: Number(mRow.horas_contratadas) || 0, reservas: resRows ?? [], ahora: new Date() });
@@ -1245,6 +1321,9 @@ export async function reprogramarReserva(e: EntradaReprogramar): Promise<Resulta
   if (!actualizado || actualizado.length === 0)
     return { error: "El estado de esta reserva cambió mientras tanto. Recargá e intentá de nuevo." };
 
+  // Las horas dadas cambiaron: la membresía puede agotarse (y cerrarse, si
+  // está cobrada) o reabrirse (regla 1, H5).
+  await recalcularMembresia(a, rRow.membresia_id);
   revalidatePath(`/particulares/${rRow.membresia_id}`);
   revalidatePath("/particulares");
   revalidatePath("/sala");
@@ -1321,6 +1400,9 @@ export async function cancelarAPedido(reservaId: number): Promise<ResultadoAccio
   if (!actualizado || actualizado.length === 0)
     return { error: "El estado de esta reserva cambió mientras tanto. Recargá e intentá de nuevo." };
 
+  // Las horas dadas cambiaron: la membresía puede agotarse (y cerrarse, si
+  // está cobrada) o reabrirse (regla 1, H5).
+  await recalcularMembresia(a, rRow.membresia_id);
   revalidatePath(`/particulares/${rRow.membresia_id}`);
   revalidatePath("/particulares");
   revalidatePath("/sala");

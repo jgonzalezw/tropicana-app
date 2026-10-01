@@ -27,6 +27,7 @@ import {
   cambiarEstadoReserva,
   reprogramarReserva,
   cancelarAPedido,
+  marcarCortesiaReserva,
   type ReservaConHistorial,
 } from "@/app/(privado)/particulares/acciones";
 
@@ -143,6 +144,8 @@ export default function GestionReserva({
   const [resultado, setResultado] = useState<Resultado | null>(null);
   const [accion, setAccion] = useState<EstadoReserva | null>(null);
   const [motivoSuspension, setMotivoSuspension] = useState("");
+  const [abrirCortesia, setAbrirCortesia] = useState(false);
+  const [motivoCortesia, setMotivoCortesia] = useState("");
 
   const todasLasDuraciones = useMemo(() => opcionesDuracionReserva(minimoMin), [minimoMin]);
 
@@ -191,6 +194,20 @@ export default function GestionReserva({
       if (!r.error) {
         setAccion(null);
         setMotivoSuspension("");
+        onCambio();
+      }
+    });
+  }
+
+  /** Cortesía (H5): marcar con glosa obligatoria, o desmarcar sin pedirla. */
+  function guardarCortesia(motivo: string | null) {
+    setResultado(null);
+    startTransition(async () => {
+      const r = await marcarCortesiaReserva(reserva.id, motivo);
+      setResultado(r);
+      if (!r.error) {
+        setAbrirCortesia(false);
+        setMotivoCortesia("");
         onCambio();
       }
     });
@@ -328,6 +345,44 @@ export default function GestionReserva({
               {ETIQUETA_DESTINO[destino]}
             </button>
           ))}
+        </div>
+      )}
+
+      {reserva.esCortesia && (
+        <p className="mt-2 text-sm text-[var(--texto-tenue)]">
+          <span className="font-medium text-[var(--texto)]">Cortesía</span> — no devenga ni descuenta horas.
+          {reserva.cortesiaMotivo ? ` Motivo: ${reserva.cortesiaMotivo}` : ""}
+        </p>
+      )}
+
+      {puedeEditar && !accion && (reserva.permiteCortesia || reserva.esCortesia) && (
+        <div className="mt-3">
+          {reserva.esCortesia ? (
+            <button disabled={pendiente} className={botonTenue} onClick={() => guardarCortesia(null)}>
+              Quitar cortesía
+            </button>
+          ) : !abrirCortesia ? (
+            <button disabled={pendiente} className={botonTenue} onClick={() => setAbrirCortesia(true)}>
+              Marcar como cortesía
+            </button>
+          ) : (
+            <div>
+              <label className={etiqueta}>Motivo de la cortesía (quién la otorga, por qué)</label>
+              <input className={control} value={motivoCortesia} onChange={(e) => setMotivoCortesia(e.target.value)} />
+              <div className="mt-2 flex gap-2 flex-wrap">
+                <button
+                  disabled={pendiente || !motivoCortesia.trim()}
+                  className={botonPrimario}
+                  onClick={() => guardarCortesia(motivoCortesia)}
+                >
+                  Guardar cortesía
+                </button>
+                <button disabled={pendiente} className={botonTenue} onClick={() => { setAbrirCortesia(false); setMotivoCortesia(""); }}>
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

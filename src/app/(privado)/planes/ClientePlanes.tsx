@@ -23,7 +23,7 @@ import {
   referenciaPorPeriodo,
   type TarifasDeCurso,
 } from "@/lib/precios";
-import { crearPlan, actualizarPlan, eliminarODesactivarPlan, activarPlan } from "./acciones";
+import { crearPlan, actualizarPlan, eliminarODesactivarPlan, activarPlan, contarMembresiasParaNuevoCriterio } from "./acciones";
 
 type Sala = { id: number; nombre: string };
 
@@ -54,6 +54,7 @@ const VACIO_COMUN = {
   extension_recargo_pct: null,
   registra_acompanantes: false,
   permite_sala_externa: false,
+  permite_cortesia: false,
 };
 
 function vacioPara(tipo: TipoServicioPlan): DatosPlan {
@@ -153,6 +154,7 @@ export default function ClientePlanes({
     setEditId(null);
     setForm(vacioPara(tab));
     setError(null);
+    setPreguntaCriterio(null);
   }
 
   function editar(p: Plan) {
@@ -186,6 +188,7 @@ export default function ClientePlanes({
       extension_recargo_pct: p.extension_recargo_pct,
       registra_acompanantes: p.registra_acompanantes,
       permite_sala_externa: p.permite_sala_externa,
+      permite_cortesia: p.permite_cortesia,
     });
     setError(null);
     if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
@@ -203,14 +206,35 @@ export default function ClientePlanes({
     }));
   }
 
-  function guardar() {
+  /** Cambió el criterio de un plan con membresías sin devengar: se pregunta antes de guardar. */
+  const [preguntaCriterio, setPreguntaCriterio] = useState<number | null>(null);
+
+  function guardar(aplicarCriterio?: boolean) {
     setError(null);
     setMsg(null);
     startTransition(async () => {
-      const res = editId ? await actualizarPlan(editId, form) : await crearPlan(form);
+      let avisoDevengadas = "";
+      if (editId && aplicarCriterio === undefined) {
+        const original = planes.find((p) => p.id === editId);
+        if (original && original.criterio_liquidacion !== form.criterio_liquidacion) {
+          const c = await contarMembresiasParaNuevoCriterio(editId, form.criterio_liquidacion);
+          if (c.error) {
+            setError(c.error);
+            return;
+          }
+          if ((c.n ?? 0) > 0) {
+            setPreguntaCriterio(c.n as number);
+            return;
+          }
+          if ((c.conDevengo ?? 0) > 0)
+            avisoDevengadas = ` ${c.conDevengo} ${c.conDevengo === 1 ? "membresía ya vendida conserva" : "membresías ya vendidas conservan"} su criterio anterior porque ya tiene comisión devengada (no se reescribe).`;
+        }
+      }
+      setPreguntaCriterio(null);
+      const res = editId ? await actualizarPlan(editId, form, aplicarCriterio === true) : await crearPlan(form);
       if (res?.error) setError(res.error);
       else {
-        setMsg(editId ? "Plan actualizado." : "Plan creado.");
+        setMsg((editId ? "Plan actualizado." : "Plan creado.") + avisoDevengadas);
         nuevo();
         router.refresh();
       }
@@ -357,10 +381,46 @@ export default function ClientePlanes({
 
               {error && <p className="text-[var(--peligro)] text-sm" role="alert">{error}</p>}
 
+              {preguntaCriterio != null && (
+                <div className="rounded-[var(--radio-panel)] border border-[var(--advertencia)] bg-[var(--advertencia-fill)] text-[var(--advertencia-texto)] p-4 space-y-3">
+                  <div className="font-semibold">
+                    Cambiaste el criterio de liquidación del plan
+                  </div>
+                  <p className="text-sm leading-relaxed">
+                    Hay {preguntaCriterio} {preguntaCriterio === 1 ? "membresía ya vendida" : "membresías ya vendidas"} de
+                    este plan, sin comisión devengada, que conservan el criterio anterior (se guarda al vender).
+                    ¿Les aplicás el criterio nuevo? Las que ya tienen comisión nunca se tocan.
+                  </p>
+                  <div className="flex gap-2 flex-wrap">
+                    <button
+                      onClick={() => guardar(true)}
+                      disabled={pendiente}
+                      className="px-4 py-2 text-sm font-semibold rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)] disabled:opacity-40"
+                    >
+                      Aplicar a las {preguntaCriterio}
+                    </button>
+                    <button
+                      onClick={() => guardar(false)}
+                      disabled={pendiente}
+                      className="px-4 py-2 text-sm rounded-[var(--radio-control)] border border-[var(--borde)] disabled:opacity-40"
+                    >
+                      Solo a las ventas nuevas
+                    </button>
+                    <button
+                      onClick={() => setPreguntaCriterio(null)}
+                      disabled={pendiente}
+                      className="px-4 py-2 text-sm rounded-[var(--radio-control)] border border-[var(--borde)] disabled:opacity-40"
+                    >
+                      Volver
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="flex gap-2 items-start">
                 <div>
                   <button
-                    onClick={guardar}
+                    onClick={() => guardar()}
                     disabled={!puedeGuardar}
                     className="px-5 py-2.5 text-base font-semibold rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)] hover:bg-[var(--primario-hover)] disabled:opacity-40"
                   >
@@ -794,7 +854,10 @@ function FormularioCursoRegular({
           className="entrada w-full"
         >
           <option value={1}>{CRITERIO_LABEL[1]}</option>
-          <option value={2}>{CRITERIO_LABEL[2]}</option>
+          <option value={2} disabled={form.clases_ilimitadas}>
+            {CRITERIO_LABEL[2]}
+            {form.clases_ilimitadas ? " (no disponible en ilimitados)" : ""}
+          </option>
           <option value={3}>{CRITERIO_LABEL[3]}</option>
         </select>
       </div>
@@ -1025,6 +1088,16 @@ function FormularioParticular({
         onChange={(v) => setForm({ ...form, permite_sala_externa: v })}
         label="Permite sala externa"
         descripcion="Si se puede vender u ofrecer un lugar fuera de Tropicana (por ejemplo, el salón de una boda), con nombre propio por membresía."
+      />
+
+      {/* Cortesía (H5, decisión 6 de Javier): gate único del plan -- sin
+          esto, ninguna reserva suelta ni una membresía entera pueden
+          marcarse de cortesía bajo este plan. */}
+      <Toggle
+        checked={form.permite_cortesia}
+        onChange={(v) => setForm({ ...form, permite_cortesia: v })}
+        label="Permite otorgar cortesías"
+        descripcion="Si se puede marcar una reserva de cortesía en una membresía pagada de este plan, o vender una membresía entera de cortesía (sin costo). No devenga ni descuenta nada."
       />
     </>
   );

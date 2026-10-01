@@ -184,6 +184,11 @@ export default function ClienteLiquidaciones({
                         esto informa, no traba. Colapsado por default: la lista
                         abierta ocupaba trece líneas por profesor. */}
                     <SinRegistrar cursos={p.sinRegistrar} ventas={p.ventasEsperando} />
+                    {p.particularesBloqueadas.map((b, i) => (
+                      <p key={i} className="mt-1.5 text-sm font-normal text-[var(--peligro-texto)]">
+                        Particular sin liquidar · {b.alumno}: {b.motivo}
+                      </p>
+                    ))}
                   </td>
                   <td className="py-3 px-4 text-right">{p.pendienteCount}</td>
                   <td className="py-3 px-4 text-right font-bold">{gs(p.pendienteMonto)}</td>

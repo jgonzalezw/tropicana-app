@@ -5,7 +5,31 @@ import Link from "next/link";
 import { gs } from "@/lib/inscripcion";
 import Pagina from "@/components/Pagina";
 
+/** Lo que el comprobante necesita para explicar una comisión de clase particular (H5). */
+export type ParticularItem = {
+  /** Estado de la membresía hoy: `completada` o `activa` (el criterio 2 paga el avance en curso). */
+  estado: string;
+  vigenciaFin: string | null;
+  horasContratadas: number;
+  horasDadas: number;
+  factor: number;
+  forma: "fee_hora" | "pct_margen" | "monto_fijo";
+  criterio: number;
+  completadaPor: string | null;
+  cobrado: number;
+  costoSala: number | null;
+  pct: number | null;
+  fee: number | null;
+  montoFijo: number | null;
+  objetivo: number;
+  yaDevengado: number;
+};
+
 export type ItemComprobante = {
+  /** Presente solo en clases particulares: cambia cómo se explica la línea. */
+  particular?: ParticularItem;
+  /** Criterio de liquidación con que se devengó (1, 2 o 3). Se muestra en toda línea. */
+  criterio?: number | null;
   alumno: string;
   curso: string;
   plan: string;
@@ -145,6 +169,24 @@ function repartoHTML(it: ItemComprobante, modo: "completo" | "compacto"): string
  */
 function membresiasDelPeriodo(items: ItemComprobante[]): number {
   return new Set(items.map((i) => `${i.alumno}|${i.cicloInicio}|${i.cicloFin}`)).size;
+}
+
+/**
+ * Sumario del período: cuántas membresías se procesaron según el criterio con
+ * que se liquidaron. Una membresía de varios cursos deja varias líneas pero
+ * cuenta una sola vez; un avance o un ajuste cuenta la membresía a la que
+ * pertenece (por eso se cuenta por alumno y ciclo, igual que arriba).
+ */
+function sumarioPorCriterio(items: ItemComprobante[]): { criterio: number; membresias: number }[] {
+  const porCriterio = new Map<number, Set<string>>();
+  for (const it of items) {
+    const crit = it.particular?.criterio ?? it.criterio;
+    if (crit == null) continue;
+    const set = porCriterio.get(crit) ?? new Set<string>();
+    set.add(`${it.alumno}|${it.cicloInicio}|${it.cicloFin}|${it.particular ? "p" : "r"}`);
+    porCriterio.set(crit, set);
+  }
+  return [...porCriterio.entries()].sort((a, b) => a[0] - b[0]).map(([criterio, set]) => ({ criterio, membresias: set.size }));
 }
 
 /** ¿Esta comisión salió de repartir una venta entre varios cursos? */
@@ -321,6 +363,43 @@ export type DatosComprobante = {
   pagos: { fecha: string; monto: number; medio: string; concepto: string }[];
 };
 
+const horasTxt = (n: number) => String(Math.round(n * 100) / 100).replace(".", ",");
+
+const CRITERIO_TXT: Record<number, string> = {
+  1: "Criterio 1: al completarse la membresía, período vencido",
+  2: "Criterio 2: proporcional al avance, período vencido",
+  3: "Criterio 3: al completarse la membresía, inmediato",
+};
+
+/** El plan con el criterio con que se liquidó, en una sola línea: "Plan X - C1". */
+function planConCriterio(plan: string, criterio: number | null | undefined): string {
+  return criterio != null ? `${plan} - C${criterio}` : plan;
+}
+
+
+/**
+ * El texto de una clase particular, una sola vez para la pantalla y el papel:
+ * cuántas horas, en qué estado está la membresía, bajo qué criterio y cómo se
+ * llegó al monto. Sin esto el profesor ve un número y no sabe qué se liquidó.
+ */
+function textoParticular(it: ItemComprobante): { horas: string; calculo: string } {
+  const p = it.particular!;
+  const horas = `${horasTxt(p.horasDadas)} de ${horasTxt(p.horasContratadas)} h dadas (realizadas y ausencias; las cortesías no cuentan)`;
+  const parte = p.factor < 1 ? ` × ${Math.round(p.factor * 100)}% (horas dadas sobre contratadas)` : "";
+  let calculo: string;
+  if (it.tipo === "avance")
+    calculo = `Avance a la fecha ${gs(p.objetivo)} − ya liquidado ${gs(p.yaDevengado)} = ${gs(it.monto)}`;
+  else if (it.tipo === "ajuste")
+    calculo = `Recalculado ${gs(p.objetivo)} − ya liquidado ${gs(p.yaDevengado)} = ${gs(it.monto)}`;
+  else if (p.forma === "fee_hora") calculo = `${horasTxt(p.horasDadas)} h × ${gs(p.fee ?? 0)} por hora = ${gs(it.monto)}`;
+  else if (p.forma === "monto_fijo") calculo = `Monto fijo por membresía ${gs(p.montoFijo ?? 0)}${parte} = ${gs(it.monto)}`;
+  else
+    calculo = `${p.pct ?? 0}% de ${gs(p.cobrado - (p.costoSala ?? 0))} (cobrado ${gs(p.cobrado)}${
+      p.costoSala != null ? ` − sala ${gs(p.costoSala)}` : ""
+    })${parte} = ${gs(it.monto)}`;
+  return { horas, calculo };
+}
+
 const MESES = [
   "enero", "febrero", "marzo", "abril", "mayo", "junio",
   "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
@@ -432,23 +511,7 @@ export default function Comprobante({ datos }: { datos: DatosComprobante }) {
           <div className="text-right">
             <div className="text-[var(--texto-tenue)]">Período liquidado</div>
             <div className="font-semibold text-base">{periodoLargo(datos.periodo)}</div>
-            <div className="text-[var(--texto-tenue)] text-xs">({datos.periodicidad} vencido)</div>
           </div>
-        </div>
-
-        {/* Cuántas ventas cerró en el período: es el volumen del trabajo del
-            profesor, y estaba solo en la pantalla "Por liquidar". Un
-            comprobante que no lo dice obliga a contar las líneas a mano — y
-            con el prorrateo, una membresía puede dejar varias líneas. */}
-        <div className="text-sm mb-3">
-          <span className="text-[var(--texto-tenue)]">Membresías cerradas en el período: </span>
-          <span className="font-semibold">{membresiasDelPeriodo(datos.items)}</span>
-          {datos.items.length !== membresiasDelPeriodo(datos.items) && (
-            <span className="text-[var(--texto-tenue)]">
-              {" "}
-              ({datos.items.length} líneas de comisión, una por curso)
-            </span>
-          )}
         </div>
 
         {/* Detalle por membresía */}
@@ -498,7 +561,7 @@ export default function Comprobante({ datos }: { datos: DatosComprobante }) {
                       Ajuste por recálculo
                     </div>
                     <div className="text-sm text-[var(--texto-tenue)]">
-                      {it.alumno} · {it.curso}
+                      {it.alumno} · {it.particular ? "Clase particular" : it.curso}
                     </div>
                   </div>
                   <p className="text-xs text-[var(--texto-tenue)] mt-1 leading-relaxed">
@@ -511,17 +574,47 @@ export default function Comprobante({ datos }: { datos: DatosComprobante }) {
                   </div>
                 </div>
               );
+            if (it.particular) {
+              const t = textoParticular(it);
+              return (
+                <div key={i} className="border border-[var(--borde)] rounded-[var(--radio-chico)] p-3">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <div className="font-semibold">{it.alumno}</div>
+                    <div className="text-sm text-[var(--texto-tenue)]">
+                      Clase particular · {it.personas > 1 ? `Grupal, ${it.personas} alumnos` : "Individual"}
+                      {it.tipo === "avance" ? " · Avance" : ""}
+                    </div>
+                  </div>
+                  <div className="text-xs text-[var(--texto-tenue)] mt-0.5">
+                    {planConCriterio(it.plan, it.particular.criterio)}
+                  </div>
+                  <div className="text-xs mt-0.5 font-semibold">{t.horas}</div>
+                  <div className="text-xs text-[var(--texto-tenue)] mt-0.5">{t.calculo}</div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-1 mt-2 text-sm">
+                    <Cifra etiqueta="Valor total" valor={gs(it.valorTotal)} />
+                    <Cifra
+                      etiqueta={`Descuento${it.motivo ? ` (${it.motivo})` : ""}`}
+                      valor={it.descuento > 0 ? `− ${gs(it.descuento)}` : gs(0)}
+                    />
+                    <Cifra etiqueta="Cobrado" valor={gs(it.cobrado)} />
+                    <Cifra etiqueta="Comisión" valor={gs(it.monto)} fuerte />
+                  </div>
+                </div>
+              );
+            }
             return (
               <div key={i} className="border border-[var(--borde)] rounded-[var(--radio-chico)] p-3">
                 <div className="flex items-baseline justify-between gap-2">
                   <div className="font-semibold">{it.alumno}</div>
-                  <div className="text-sm text-[var(--texto-tenue)]">
+                  <div className="text-sm text-[var(--texto-tenue)] text-right">
                     {it.tipoServicio} ·{" "}
                     {it.personas > 1 ? `Grupal, ${it.personas} alumnos` : "Individual"}
+                    {it.tipo === "avance" ? " · Avance" : ""}
+                    <div className="text-xs">{it.curso}</div>
                   </div>
                 </div>
                 <div className="text-xs text-[var(--texto-tenue)] mt-0.5">
-                  {it.plan} · {it.curso}
+                  {planConCriterio(it.plan, it.criterio)}
                 </div>
                 <div className="text-xs text-[var(--texto-tenue)] mt-0.5">
                   Ciclo {fechaCorta(it.cicloInicio)} → {fechaCorta(it.cicloFin)}
@@ -560,6 +653,27 @@ export default function Comprobante({ datos }: { datos: DatosComprobante }) {
           <span className="text-sm text-[var(--texto-tenue)]">Total devengado</span>
           <span className="font-semibold text-lg">{gs(datos.totalDevengado)}</span>
         </div>
+
+        {/* Sumario del período: membresías procesadas según el criterio. */}
+        {sumarioPorCriterio(datos.items).length > 0 && (
+          <div className="mb-4 text-sm">
+            <div className="text-[var(--texto-tenue)] mb-1">
+              Membresías procesadas en el período, según el criterio de liquidación
+            </div>
+            <ul className="space-y-0.5">
+              {sumarioPorCriterio(datos.items).map((r) => (
+                <li key={r.criterio} className="flex justify-between">
+                  <span>{CRITERIO_TXT[r.criterio] ?? `Criterio ${r.criterio}`}</span>
+                  <span className="font-semibold">{r.membresias}</span>
+                </li>
+              ))}
+              <li className="flex justify-between border-t border-[var(--borde)] pt-0.5">
+                <span className="text-[var(--texto-tenue)]">Total de membresías</span>
+                <span className="font-semibold">{membresiasDelPeriodo(datos.items)}</span>
+              </li>
+            </ul>
+          </div>
+        )}
 
         {/* Pagos previos con concepto/fecha/monto */}
         {datos.pagos.length > 0 && (
@@ -661,7 +775,7 @@ function construirHTMLImpresion(d: DatosComprobante): string {
         <div class="item">
           <div class="item-top">
             <span class="b">Ajuste por recálculo</span>
-            <span class="muted">${esc(it.alumno)} &middot; ${esc(it.curso)}</span>
+            <span class="muted">${esc(it.alumno)} &middot; ${esc(it.particular ? "Clase particular" : it.curso)}</span>
           </div>
           <div class="small muted">${esc(
             it.origen ??
@@ -672,15 +786,36 @@ function construirHTMLImpresion(d: DatosComprobante): string {
             <div><div class="k">Comisión (${it.pct}%)</div><div class="b">${gs(it.monto)}</div></div>
           </div>
         </div>`;
+      if (it.particular) {
+        const t = textoParticular(it);
+        return `
+        <div class="item">
+          <div class="item-top">
+            <span class="b">${esc(it.alumno)}</span>
+            <span class="muted">Clase particular &middot; ${it.personas > 1 ? `Grupal, ${it.personas} alumnos` : "Individual"}${
+              it.tipo === "avance" ? " &middot; Avance" : ""
+            }</span>
+          </div>
+          <div class="small muted">${esc(planConCriterio(it.plan, it.particular.criterio))}</div>
+          <div class="small b">${esc(t.horas)}</div>
+          <div class="small muted">${esc(t.calculo)}</div>
+          <div class="grid">
+            <div><div class="k">Valor total</div><div>${gs(it.valorTotal)}</div></div>
+            <div><div class="k">${descEtq}</div><div>${desc}</div></div>
+            <div><div class="k">Cobrado</div><div>${gs(it.cobrado)}</div></div>
+            <div><div class="k">Comisión</div><div class="b">${gs(it.monto)}</div></div>
+          </div>
+        </div>`;
+      }
       return `
         <div class="item">
           <div class="item-top">
             <span class="b">${esc(it.alumno)}</span>
-            <span class="muted">${esc(it.tipoServicio)} &middot; ${
+            <span class="muted r">${esc(it.tipoServicio)} &middot; ${
               it.personas > 1 ? `Grupal, ${it.personas} alumnos` : "Individual"
-            }</span>
+            }${it.tipo === "avance" ? " &middot; Avance" : ""}<br><span class="small">${esc(it.curso)}</span></span>
           </div>
-          <div class="small muted">${esc(it.plan)} · ${esc(it.curso)}</div>
+          <div class="small muted">${esc(planConCriterio(it.plan, it.criterio))}</div>
           <div class="small muted">
             Ciclo ${fechaCorta(it.cicloInicio)} &rarr; ${fechaCorta(it.cicloFin)} ·
             ${
@@ -774,18 +909,21 @@ function construirHTMLImpresion(d: DatosComprobante): string {
         <div class="r">
           <div class="muted small">Período liquidado</div>
           <div class="b">${periodoLargo(d.periodo)}</div>
-          <div class="muted small">(${esc(d.periodicidad)} vencido)</div>
         </div>
-      </div>
-      <div class="small" style="margin-bottom:6px">
-        <span class="muted">Membresias cerradas en el periodo: </span><b>${membresiasDelPeriodo(d.items)}</b>${
-          d.items.length !== membresiasDelPeriodo(d.items)
-            ? ` <span class="muted">(${d.items.length} lineas de comision, una por curso)</span>`
-            : ""
-        }
       </div>
       <div class="muted small">Detalle de comisiones</div>
       ${filasItems || '<div class="muted small">Sin ítems.</div>'}
+      ${
+        sumarioPorCriterio(d.items).length
+          ? `<div class="muted small mt8">Membresías procesadas en el período, según el criterio de liquidación</div>
+      <table><tbody>${sumarioPorCriterio(d.items)
+        .map(
+          (r) =>
+            `<tr><td>${esc(CRITERIO_TXT[r.criterio] ?? `Criterio ${r.criterio}`)}</td><td class="r">${r.membresias}</td></tr>`
+        )
+        .join("")}<tr><td class="muted">Total de membresías</td><td class="r b">${membresiasDelPeriodo(d.items)}</td></tr></tbody></table>`
+          : ""
+      }
       <div class="tot">
         <div class="row"><span class="muted">Total devengado</span><span>${gs(d.totalDevengado)}</span></div>
         ${d.descuentos

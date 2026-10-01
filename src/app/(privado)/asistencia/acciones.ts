@@ -7,6 +7,7 @@ import { tienePermiso, obtenerParametro, obtenerPerfilActual } from "@/lib/sesio
 import { compararPorApellido } from "@/lib/texto";
 import { diaIso } from "@/lib/inscripcion";
 import { cargarImpacto, liquidacionesTocadas, avisoDeImpacto } from "@/lib/periodos";
+import { finMesVencidoISO } from "@/lib/liquidacion/periodo";
 import {
   COLS_VIGENCIA,
   enVigencia,
@@ -61,11 +62,10 @@ function restarDias(iso: string, dias: number): string {
   d.setDate(d.getDate() - dias);
   return fmt(d);
 }
-/** Último día del mes vencido: el tope hasta donde llega una liquidación. */
-function finMesVencidoISO(hoy = new Date()): string {
-  const d = new Date(hoy.getFullYear(), hoy.getMonth(), 0);
-  return fmt(d);
-}
+// `finMesVencidoISO` vive en `@/lib/liquidacion/periodo` (H5): antes estaba
+// duplicada acá porque un archivo `"use server"` solo puede importar
+// funciones async de otro `"use server"` — al vivir en un módulo puro, ya no
+// hace falta la copia.
 /** Próxima fecha (ISO) del patrón semanal del curso, estrictamente posterior a `baseIso`. */
 /**
  * Valida la fecha para operar asistencia: nunca futuro; pasado solo con
@@ -467,7 +467,11 @@ export async function cargarPadron(
     // Al día `f`, no con el saldo de hoy: un paquete agotado en septiembre
     // igual cubría sus clases de agosto, y si no, el chip de esa fecha diría
     // "completa" con gente del padrón sin marcar.
-    (r.modalidad === "mensual" || !cicloAgotadoAl(r, f));
+    // Misma pregunta que le hace el padrón (`filas`): si el ciclo ya estaba
+    // agotado ese día, la membresía no figura en la lista y no se la puede
+    // marcar, así que tampoco puede dejar la clase "incompleta" (antes las
+    // mensuales con N clases quedaban exentas y el chip pedía marcar a 0 alumnos).
+    !cicloAgotadoAl(r, f);
 
   // Estado de cada fecha para el selector. "incompleta" = la asistencia ya se
   // tomó pero quedan alumnos del padrón de ESA fecha sin marcar: es lo que pasa

@@ -190,6 +190,17 @@ export const ESTADOS_QUE_OCUPAN: readonly EstadoReserva[] = [
  *  físico? ¿gastó una sesión del paquete?) que en H3 dan la misma respuesta. */
 export const ESTADOS_QUE_CONSUMEN: readonly EstadoReserva[] = ESTADOS_QUE_OCUPAN;
 
+/**
+ * Estados que le pagan al profesor cuando liquida por `fee_hora` (H5, C3):
+ * `realizada` y `ausente` son las dos "consumida" (el profesor estuvo
+ * disponible, dio la clase o el alumno no vino/canceló fuera de plazo).
+ * `reagendar` y `suspendida` no pagan nada — la sesión volvió al saldo y el
+ * profesor no dictó nada (regla de negocio 19). Es un subconjunto de
+ * `ESTADOS_QUE_CONSUMEN` (que además incluye `confirmada`/`reprogramada`,
+ * que todavía no pasaron).
+ */
+export const ESTADOS_QUE_SE_PAGAN: readonly EstadoReserva[] = ["realizada", "ausente"];
+
 /** Estados que liberan sala y profesor: la sesión vuelve al saldo y hace
  *  falta una reserva nueva para recuperarla (definiciones-v2 8.2). Junto con
  *  'cancelada' (el único estado que libera un *bloqueo*), es el filtro único
@@ -276,7 +287,7 @@ export function evaluarCancelacion(ahora: Date, inicioReserva: Date, plazoHoras:
 export type SaldoEntrada = {
   /** `membresias.horas_contratadas` (decimal, ver `formatearHoras`). */
   horasContratadas: number;
-  reservas: { estado: string; duracion_min: number; solicitada_hasta?: string | null }[];
+  reservas: { estado: string; duracion_min: number; solicitada_hasta?: string | null; es_cortesia?: boolean }[];
   ahora: Date;
 };
 
@@ -306,12 +317,15 @@ export type SaldoMembresia = {
  */
 export function saldoMembresia(e: SaldoEntrada): SaldoMembresia {
   const contratadasMin = Math.round(e.horasContratadas * 60);
+  // Una reserva de cortesía (H5) ocupa sala y profesor pero no toca el saldo
+  // de horas de nadie: no descuenta.
+  const propias = e.reservas.filter((r) => !r.es_cortesia);
   const sumaEstados = (estados: readonly string[]) =>
-    e.reservas.filter((r) => estados.includes(r.estado)).reduce((acc, r) => acc + r.duracion_min, 0);
+    propias.filter((r) => estados.includes(r.estado)).reduce((acc, r) => acc + r.duracion_min, 0);
   const reservadasMin = sumaEstados(["confirmada", "reprogramada"]);
   const realizadasMin = sumaEstados(["realizada", "ausente"]);
   const consumidasMin = reservadasMin + realizadasMin;
-  const solicitadasVigentesMin = e.reservas
+  const solicitadasVigentesMin = propias
     .filter((r) => r.estado === "solicitada" && solicitudVigente(r.solicitada_hasta ?? null, e.ahora))
     .reduce((acc, r) => acc + r.duracion_min, 0);
   const sinAgendarMin = Math.max(0, contratadasMin - consumidasMin);

@@ -24,7 +24,7 @@ export default async function PaginaLiquidaciones() {
     <Pagina ancho="5xl">
       <EncabezadoPagina
         titulo="Liquidaciones"
-        descripcion="Comisiones devengadas por membresías cobradas y completadas (criterio 1). Generá la liquidación del profesor, pagá y descargá el comprobante."
+        descripcion="Comisiones devengadas por membresías cobradas, según el criterio de liquidación de cada una (1, 2 o 3). Generá la liquidación del profesor, pagá y descargá el comprobante."
       />
       <ClienteLiquidaciones
         profesores={profesores}

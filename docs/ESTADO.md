@@ -4554,3 +4554,104 @@ Aguilar · Inamsai De Dazan · 📍 Salón Los Tajibos (boda)" con botón
 "Gestionar" que abre el panel completo (Reprogramar, Cancelar, Suspender,
 Marcar Ausente/Realizada, "Ver ficha completa de la membresía →",
 historial) — igual que desde una tarjeta de sala propia.
+
+## C3 — H5: liquidación de particulares · 2026-09-27 → 2026-09-30 (dev, sin cerrar)
+
+Rama `h5-liquidacion-particulares` (local, sin pushear). Migración **0058**
+aplicada solo en **dev**; producción sin tocar. Decisiones de diseño en
+`docs/DECISIONES.md`, fila "H5", más la **corrección de alcance del
+2026-09-30**: las formas de pago son **solo de particulares**; en regulares no
+cambia lo ya implementado, y los criterios 2 y 3 se agregan después sobre la
+misma base (etapa aparte, con su OK).
+
+### Construido
+- **0058** (aditiva): parámetro `particular_vencida_modo`; en `membresias`,
+  `costo_sala_aplicado`/`costo_sala_ruta`/`criterio_liquidacion`/`es_cortesia`;
+  `planes.permite_cortesia`; `reservas_sala.es_cortesia`/`cortesia_motivo`;
+  `comisiones_devengadas.tipo='avance'` y `detalle_particular`.
+- `src/lib/liquidacion/particulares.ts` (+ 12 pruebas): el cálculo puro —
+  criterios 1/2/3, fee/hora, % margen, monto fijo, vencida proporcional o
+  completa, cortesía, ajuste firmado, avance del criterio 2.
+- `cobro.ts` y `periodo.ts`: extraídos de `motor.ts` / `liquidaciones/acciones.ts`.
+  `rangoLiquidable` ya no ignora `periodicidad_liquidacion` (error explícito
+  si no es `mes`).
+- Venta: costo de sala guardado al vender (bloquea si falta la tarifa),
+  criterio guardado, membresía entera de cortesía (precio 0, cuota pagada).
+- Reservas: `marcarCortesiaReserva` + control en `GestionReserva`;
+  `saldoMembresia` excluye cortesías.
+- `generarLiquidacion` y `cargarLiquidaciones` suman las particulares;
+  `membresias.recalcularMembresia` cierra el paquete de horas (agotada y
+  cobrada ⇒ `completada`, regla 1) y se llama al cambiar el estado de una reserva.
+- Toggle "Permite otorgar cortesías" en Planes.
+
+### Verificado (2026-09-30 / 10-01, dev)
+`tsc` y `eslint` limpios; `npm test` 156/156 (3 nuevas en `motor.conteo.test.ts`).
+Controles 39–41 (nuevos en `control_migracion.sql`) en 0 = OK.
+**Recorrido en el navegador contra dev:**
+- Planes → "Permite otorgar cortesías": se guarda (plan 15).
+- Reserva → "Marcar como cortesía": el botón queda deshabilitado hasta escribir el motivo; al guardar, el saldo libera la hora (disponible 1→2 h); "Quitar cortesía" la revierte.
+- Nueva reserva: las validaciones de choque (sala, horario de sala, profesor) responden con su motivo.
+- Liquidación criterio 3 (#56, 1 h, cobrada): devenga Bs 40 (50% de 80) en el **mes de la completada**, no en el vencido.
+- Liquidación criterio 2 (#62, 1 de 4 h, cobrada): avance Bs 37,50 (25% × 50% × 300), en el período vencido, como complemento de la liquidación existente.
+- Particular bloqueada (plan que descuenta sala y venta sin foto de costo): ahora **se ve** en Por liquidar con su motivo.
+**Dos bugs encontrados y corregidos:** (1) generar con criterio 3 dejaba una liquidación del período vencido **vacía** (se borra si esta corrida la creó y quedó sin ítems); (2) la pantalla escondía las particulares bloqueadas (calidad 5).
+Datos de prueba en dev tocados por SQL con autorización de Javier (criterios de #56/#62, reservas 11/17/55 realizadas y 17/55 movidas a agosto).
+**No se probó en el navegador:** vender una membresía entera de cortesía (flujo de Inscribir) y las formas fee/hora y monto fijo (cubiertas solo por las 12 pruebas de `particulares.ts`).
+
+### Pendiente
+- Probar a mano: venta de membresía entera de cortesía, y particulares con fee/hora y monto fijo.
+- **Criterios 2 y 3 en cursos regulares**, sobre la base actual del criterio 1
+  (etapa aparte, después de resolver el conteo de clases en ilimitadas). Las
+  formas de pago NO se llevan a regulares. Alquiler: solo cierre por horas.
+- Control nuevo en `scripts/control_migracion.sql` (particulares completadas
+  sin comisión / comisión sin membresía completa).
+- Permisos: no hay pantalla nueva en este hito (regla de proceso 11 no aplica).
+- Pase a producción: requiere OK explícito de Javier (migración 0058 antes del código).
+
+## C3 — H5, Paso 4: criterios 2 y 3 en cursos regulares · 2026-10-01 (dev, sin pase)
+
+Rama `h5-paso4-criterios-regulares` (sale de `h5-liquidacion-particulares`),
+commits `39027f1`, `4020252`, `e39a418`, `88df13b`, `a3a7c8f`. Sin push.
+Migración **0059** aplicada solo en dev (producción sigue en 0057; 0058 y 0059
+pasan juntas).
+
+### Construido
+- **Criterios 2 y 3 en regulares, sobre la misma base** (base %, asignación,
+  prorrata, medida en clases; las formas de pago siguen solo en particulares).
+  Criterio 3 = al completarse, sin esperar el período vencido; criterio 2 =
+  proporcional al avance, siempre en el período actual (excepción a la regla 16).
+- **Snapshot del criterio** (`membresias.criterio_liquidacion`, 0059): la venta
+  lo copia del plan (regla 12). Una membresía con comisiones devengadas nunca se
+  reescribe al cambiar el criterio del plan.
+- **Ilimitadas cuentan solo las clases asistidas** (`presente`), regla 10
+  (decidido 2026-10-01). Las de N clases siguen por calendario menos suspendidas.
+- **Diálogo al cambiar el criterio de un plan**: ofrece aplicar a las membresías
+  aún sin devengar, o solo a las ventas nuevas. Si no alcanza a nadie porque ya
+  están devengadas, lo dice en el mensaje de guardado (calidad 5).
+- **El criterio 2 no se permite en planes ilimitados** (Javier, 2026-10-01): sin
+  total de clases no hay avance que medir. Lo valida `validarDatosPlan`
+  (`src/lib/planes.ts`, compartida por cliente y servidor) y el selector muestra
+  la opción deshabilitada con el motivo. Medido: ningún plan ilimitado tiene hoy
+  criterio 2 en dev ni en producción.
+- Chip de asistencia "incompleta" con el mismo criterio de agotado que el padrón;
+  Liquidaciones cuenta membresías distintas.
+
+### Verificado
+`tsc` y `eslint` limpios; `npm test` **172/172** (9 en `motor.criterios.test.ts`,
+3 en `planes.test.ts`). Javier verificó en el navegador: chip de asistencia del
+28/09, opción 2 deshabilitada en ilimitados, aviso de membresías ya devengadas
+(plan "C2 - MULTICURSO SALSA", cuya única membresía #82 ya tenía devengo).
+La #37 (liquidación #5) queda con su ajuste firmado: sale al próximo "Generar
+liquidación" del profesor.
+
+### Pendiente (después de este paso, con el PR)
+- Migración de datos de inicio: avanzar `asignaciones.desde` (#22, #12–#14) y
+  pasar las membresías #17–#19 al plan "Plan Regular - Zumba". Respaldo, antes/
+  después, ensayo en seco y OK explícito para producción.
+- Informe imprimible de pre-liquidación en Liquidaciones (membresías que entran
+  + excepciones a corregir).
+- Al final del plan: filtros profesor/período y proyección de liquidez
+  (pantalla nueva: mockup + permisos), `/refrescar-dev`, y activar a mano
+  "Permite sala externa" en los dos planes de boda de producción.
+- Pase a producción de H5 + Paso 4: 0058 y 0059 antes del código, ensayo en seco,
+  controles, un solo push, con OK de Javier.

@@ -86,6 +86,19 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
    cobrado —lo que se cobre después abre otra liquidación—; **(5)** taller:
    monto fijo al completarse. El 4 y el 5 **solo** en planes de taller. Los
    criterios 1 a 3 miran cada membresía sola, aunque tenga varios alumnos.
+   **Alcance por tipo de membresía** *(Javier, 2026-09-30, corrigiendo una
+   lectura que había generalizado de más)*. Las **formas de pago** (fee por
+   hora, % sobre el margen, monto fijo por membresía) fijan lo que una
+   **particular** le reporta al profesor al completarse, y miden en **horas**
+   (`realizada` + `ausente`, sin cortesías). En **cursos regulares** (y la
+   prueba, que es un plan regular) no cambia nada de lo ya implementado: base
+   %, asignación, prorrata, criterio 1, medida en **clases**. Los criterios
+   **2 y 3** también existirán para regulares, **sobre esa misma base** —sin
+   cambiarla— y se construyen en una etapa aparte, con su propio OK.
+   **El criterio 2 es la única excepción a la regla 16**: como mira el
+   avance acumulado a la fecha, si una reserva de un período ya liquidado
+   se corrige después, la diferencia entra en el **período actual** (no
+   reabre el período original) — ver regla 16.
    **Período vencido** = la liquidación del período siguiente, donde el
    período lo fija el parámetro `periodicidad_liquidacion` (hoy `mes`).
    **Cuánto** gana el profesor lo fija la **forma de pago** que elige el plan:
@@ -123,6 +136,13 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
     un trámite pendiente y no algo que haya pasado en la sala. Su contrapeso es
     la regla 17. *(Javier, 2026-09-11: "Vamos por el criterio calendario menos
     suspendidas".)*
+    **Excepción decidida el 2026-10-01, construida en el Paso 4:** en planes
+    **ilimitados** se cuentan solo las clases **asistidas por el alumno** (no
+    hay compromiso previo de asistir); los planes con N clases siguen por
+    calendario menos suspendidas. Una clase sin registrar sigue trabando el
+    prorrateo multi-curso (regla 17). **El criterio 2 (avance) no se permite en
+    planes ilimitados** (Javier, 2026-10-01): sin total de clases no hay
+    avance que medir; lo valida el plan (`validarDatosPlan`).
     **El "precio de su curso" es el valor de UNA clase del curso —su tarifa de
     clase suelta—, no el valor por tramo.** El tramo es para *proponer* un
     precio (regla 9): ahí la pregunta es cuánto costaría comprar eso por
@@ -195,6 +215,14 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
     retroactiva que no podía sumar su alumno a una asistencia ya cargada— y lo
     corrigió Javier: la premisa era falsa, y por eso la respuesta (prohibir) lo
     era también. El mecanismo de ajuste es la migración 0044.*
+    **Excepción, desde H5 (2026-09-27):** el **criterio 2** (proporcional al
+    avance) no genera `ajuste` que reabra el período original. Como cada
+    liquidación paga "el avance a la fecha menos lo ya devengado", la
+    diferencia por una reserva corregida tarde entra directo como
+    `avance` **en el período que se está liquidando ahora**. No hay nada
+    que reabrir: el cálculo siempre mira el estado actual, no un corte
+    congelado. Ver regla 8 y `docs/DECISIONES.md`, fila "H5 — liquidación
+    de particulares".
 17. **Registrar las sesiones es imperativo para liquidar — pero solo donde hay
     prorrateo.** Una membresía de **dos o más cursos** no se liquida mientras
     alguna clase de su ciclo no tenga ni asistencia ni suspensión: ahí el conteo

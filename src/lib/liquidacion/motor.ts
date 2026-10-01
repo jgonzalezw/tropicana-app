@@ -26,6 +26,7 @@ import { enVigencia } from "../vigencia.ts";
 import { diaIso, isoFecha } from "../inscripcion.ts";
 import type { TarifasDeCurso } from "../precios.ts";
 import type { Curso } from "../tipos.ts";
+import { cobroPorMembresia } from "./cobro.ts";
 
 // ── Lo que devuelve ──────────────────────────────────────────────────────
 
@@ -69,12 +70,15 @@ export type DevengoPendiente = {
    * cosa. Un ajuste viaja **firmado**: positivo si hay que pagarle más,
    * negativo si hay que descontarle.
    */
-  tipo: "comision" | "ajuste";
+  tipo: "comision" | "ajuste" | "avance";
+  /** Criterio con que se liquidó (1, 2 o 3). */
+  criterio: 1 | 2 | 3;
   /**
    * Solo en los ajustes: el período de la comisión original. El ajuste entra
    * ahí como complemento —reabriendo esa liquidación— en vez de caer en el
    * mes vencido. Lo pagado no se reescribe; se le suma el delta.
-   * *(Javier, 2026-09-18.)*
+   * *(Javier, 2026-09-18.)* También lo lleva una comisión de criterio 3: el mes
+   * en que terminó el ciclo, no el mes vencido. Sin período, cae en el vencido.
    */
   periodo?: string;
   /** Solo en los ajustes: la comisión que corrige (traza para el comprobante). */
@@ -123,6 +127,12 @@ export type MembresiaLiq = {
   acompanantes: number | null;
   fecha_inicio: string;
   fecha_fin: string | null;
+  /** `activa` o `completada`. Ausente = `completada` (el motor del criterio 1). */
+  estado?: string;
+  /** Clases del plan (N). Nulo (explícito) con plan = ilimitada; ausente = sin dato, por calendario (cuenta solo lo asistido, regla 10). */
+  clases_plan?: number | null;
+  /** Foto del criterio del plan (0059). Ausente/nulo = 1. */
+  criterio_liquidacion?: number | null;
 };
 
 export type CursoDeMembresia = {
@@ -161,6 +171,9 @@ export type SesionLiq = {
   reemplazo_motivo: string | null;
 };
 
+/** Una asistencia **presente** del alumno, con el curso y la fecha de su clase. */
+export type AsistenciaLiq = { membresia_id: number; curso_id: number; fecha: string };
+
 export type TarifaLiq = { curso_id: number; modalidad: string; precio: number };
 
 export type PersonaLiq = { id: number; nombre: string; apellido: string };
@@ -173,6 +186,11 @@ export type DatosMotor = {
   cuotas: CuotaLiq[];
   pagos: PagoLiq[];
   sesiones: SesionLiq[];
+  /**
+   * Presentes de las membresías **ilimitadas** (solo esas hacen falta). Sin
+   * este dato el motor cuenta por calendario para todas, como antes.
+   */
+  asistencias?: AsistenciaLiq[];
   cursos: Curso[];
   tarifas: TarifaLiq[];
   asignaciones: AsignacionVigencia[];
@@ -335,21 +353,8 @@ export function calcularDevengos(
 
   // Cuotas y pagos → saldo y plata efectivamente cobrada por membresía.
   // La comisión se calcula sobre lo COBRADO: el descuento no suma (regla 8).
-  const pagadoPorCuota: Record<number, number> = {};
-  const plataPorCuota: Record<number, number> = {};
-  for (const p of datos.pagos) {
-    if (p.cuota_id == null) continue;
-    plataPorCuota[p.cuota_id] = (plataPorCuota[p.cuota_id] ?? 0) + Number(p.monto);
-    pagadoPorCuota[p.cuota_id] = (pagadoPorCuota[p.cuota_id] ?? 0) + Number(p.monto) + Number(p.descuento);
-  }
-  const saldoPorInsc: Record<number, number> = {};
-  const cobradoPorInsc: Record<number, number> = {};
-  for (const c of datos.cuotas) {
-    const efectivo = Math.max(0, Number(c.monto_devengado) - Number(c.descuento_adelanto));
-    saldoPorInsc[c.membresia_id] =
-      (saldoPorInsc[c.membresia_id] ?? 0) + Math.max(0, efectivo - (pagadoPorCuota[c.id] ?? 0));
-    cobradoPorInsc[c.membresia_id] = (cobradoPorInsc[c.membresia_id] ?? 0) + (plataPorCuota[c.id] ?? 0);
-  }
+  // Extraído a `cobro.ts` (H5): lo comparten este motor y el de particulares.
+  const { saldo: saldoPorInsc, cobrado: cobradoPorInsc } = cobroPorMembresia(datos.cuotas, datos.pagos);
 
   // Las clases del ciclo, por curso: **calendario menos suspendidas** (Javier,
   // 2026-09-11). Una clase suspendida no la dio nadie y no pesa (regla 4); una
@@ -400,11 +405,30 @@ export function calcularDevengos(
   // el comprobante tiene que poder decir quién se llevó qué parte.
   const profNombre = new Map(datos.profesores.map((p) => [p.id, `${p.apellido}, ${p.nombre}`]));
 
+  // Presentes por (membresía, curso): el conteo de las ilimitadas.
+  const presentes = new Map<string, string[]>();
+  for (const a of datos.asistencias ?? []) {
+    const k = `${a.membresia_id}|${a.curso_id}`;
+    const ya = presentes.get(k);
+    if (ya) ya.push(a.fecha);
+    else presentes.set(k, [a.fecha]);
+  }
+
   // Repartir.
   const out: DevengoPendiente[] = [];
   const bloqueadas: MembresiaBloqueada[] = [];
   for (const m of insc) {
-    if (m.fecha_fin != null && m.fecha_fin > hastaISO) continue; // aún no corresponde a este período
+    // **Criterios (Paso 4).** Los tres miran la misma base —lo cobrado, repartido
+    // a prorrata entre cursos y profesores— y cambian solo CUÁNDO se paga:
+    //  1: completada, a período vencido (fin de ciclo hasta el último día vencido);
+    //  2: proporcional al avance, aun con la membresía en curso (cobrada al 100%);
+    //  3: completada, sin esperar al cierre — en el mes en que terminó el ciclo.
+    const criterio = m.criterio_liquidacion ?? 1;
+    const estado = m.estado ?? "completada";
+    if (criterio !== 1 && criterio !== 2 && criterio !== 3) continue; // 4 y 5 son de taller
+    if (criterio === 2 ? estado !== "activa" && estado !== "completada" : estado !== "completada") continue;
+    if (criterio === 1 && m.fecha_fin != null && m.fecha_fin > hastaISO) continue; // aún no corresponde a este período
+    if (criterio !== 1 && m.fecha_fin == null) continue;
     if (devengadoEntero.has(m.id)) continue;
     if ((saldoPorInsc[m.id] ?? 0) > 0) continue; // vendida pero no cobrada
     const cobrado = cobradoPorInsc[m.id] ?? 0;
@@ -414,9 +438,24 @@ export function calcularDevengos(
     const propios = cursosDe.get(m.id) ?? [];
 
     // Peso de cada curso = precio de una clase × clases del ciclo × personas.
+    // **Ilimitadas (regla 10, decidido el 2026-10-01):** no hay compromiso previo
+    // de asistir, así que cuentan solo las clases que el alumno asistió en el
+    // ciclo. Los planes con N siguen por calendario menos suspendidas. Con
+    // criterio 2 (avance) se mantiene el calendario: el avance necesita un total
+    // previsto, y las asistidas hasta hoy siempre serían el 100% de sí mismas.
+    const soloAsistidas =
+      m.plan_id != null && m.clases_plan === null && m.es_prueba !== true && criterio !== 2;
     const pesos = propios.map((ic) => {
       const curso = cursoPorId.get(ic.curso_id);
-      const { fechas, faltan } = clasesDelCiclo(ic, m, curso, suspendidas, registradas);
+      const cal = clasesDelCiclo(ic, m, curso, suspendidas, registradas);
+      // Las clases sin registrar siguen trabando el prorrateo (regla 17): una
+      // asistencia sin cargar sería una clase que no se contó.
+      const faltan = cal.faltan;
+      const fechas = soloAsistidas
+        ? (presentes.get(`${m.id}|${ic.curso_id}`) ?? [])
+            .filter((f) => f >= m.fecha_inicio && (!m.fecha_fin || f <= m.fecha_fin))
+            .sort()
+        : cal.fechas;
       const precio = precioDeUnaClase(curso, tarifaDe.get(ic.curso_id) ?? {}, m.es_prueba === true);
       const clases = fechas.length;
       return { ic, curso, clases, fechas, faltan, peso: clases > 0 ? precio * clases * personas : 0 };
@@ -435,7 +474,11 @@ export function calcularDevengos(
     // membresía espera. El bloqueo es de la membresía, no del profesor ni del
     // período: las demás se liquidan, y esta entra después como complemento
     // —agregar una membresía no toca el reparto de ninguna otra—.
-    const faltantes = propios.length > 1 ? pesos.filter((x) => x.faltan.length > 0) : [];
+    // Con criterio 2 la membresía está en curso: las clases futuras todavía no
+    // pueden estar registradas, así que solo bloquean las que ya pasaron (≤ corte).
+    const faltanHastaCorte = (x: (typeof pesos)[number]) =>
+      criterio === 2 ? x.faltan.filter((f) => f <= hastaISO) : x.faltan;
+    const faltantes = propios.length > 1 ? pesos.filter((x) => faltanHastaCorte(x).length > 0) : [];
     if (faltantes.length > 0) {
       bloqueadas.push({
         membresiaId: m.id,
@@ -443,7 +486,7 @@ export function calcularDevengos(
         cursos: faltantes.map((x) => ({
           cursoId: x.ic.curso_id,
           curso: x.curso?.nombre ?? `#${x.ic.curso_id}`,
-          fechas: x.faltan,
+          fechas: faltanHastaCorte(x),
         })),
         profesorIds: [
           ...new Set(
@@ -481,15 +524,16 @@ export function calcularDevengos(
     // tarifa y no entra en el prorrateo. La clase **cuenta igual** para el peso
     // del curso —se dictó—, y lo que le toca **queda para Tropicana**.
     const repartoProf = porCurso.map((x) => {
-      const conteo = new Map<number, { pct: Map<number, number>; clases: number }>();
+      const conteo = new Map<number, { pct: Map<number, number>; clases: number; hastaCorte: number }>();
       for (const f of x.fechas) {
         // Reemplazo administrativo: la parte de esa clase no es de nadie más
         // que de Tropicana, aunque el curso tuviera titular ese día.
         if (reemplazoAdmin.has(`${x.ic.curso_id}|${f}`)) continue;
         const a = asignacionEn(x.ic.curso_id, f);
         if (!a) continue;
-        const ya = conteo.get(a.profesor_id) ?? { pct: new Map<number, number>(), clases: 0 };
+        const ya = conteo.get(a.profesor_id) ?? { pct: new Map<number, number>(), clases: 0, hastaCorte: 0 };
         ya.clases++;
+        if (f <= hastaISO) ya.hastaCorte++;
         const p = Number(a.pct_ingresos);
         ya.pct.set(p, (ya.pct.get(p) ?? 0) + 1);
         conteo.set(a.profesor_id, ya);
@@ -500,6 +544,7 @@ export function calcularDevengos(
       const lineas = [...conteo.entries()].map(([profesorId, v]) => ({
         profesorId,
         clases: v.clases,
+        hastaCorte: v.hastaCorte,
         pct: [...v.pct.entries()].sort((a, b) => b[1] - a[1] || b[0] - a[0])[0][0],
         cent: x.clases > 0 ? Math.floor((x.cent * v.clases) / x.clases) : 0,
       }));
@@ -555,8 +600,20 @@ export function calcularDevengos(
     for (const { x, lineas } of repartoProf) {
       const objetivo = new Map<number, { base: number; pct: number; clases: number }>();
       if (x.peso > 0)
-        for (const l of lineas)
-          objetivo.set(l.profesorId, { base: l.cent / 100, pct: l.pct, clases: l.clases });
+        for (const l of lineas) {
+          // Criterio 2: lo que le corresponde HOY es la fracción de su parte que
+          // ya se dictó (clases suyas hasta el corte ÷ clases del curso). Con todas
+          // dictadas es su parte entera, igual que el criterio 1.
+          const cent =
+            criterio === 2 && l.hastaCorte < l.clases
+              ? Math.floor((x.cent * l.hastaCorte) / x.clases)
+              : l.cent;
+          objetivo.set(l.profesorId, {
+            base: cent / 100,
+            pct: l.pct,
+            clases: criterio === 2 ? l.hastaCorte : l.clases,
+          });
+        }
 
       // Los que hoy tienen parte, más los que ya tenían algo devengado: a esos
       // últimos puede corresponderles un ajuste hacia abajo.
@@ -575,7 +632,10 @@ export function calcularDevengos(
         const monto = Math.round((montoObjetivo - (ya?.monto ?? 0)) * 100) / 100;
         if (base === 0 && monto === 0) continue; // ya está al día
 
-        const esAjuste = ya != null;
+        // Criterio 2: el delta es siempre un `avance` del período que se liquida
+        // (excepción a la regla 16, decidida el 2026-09-27); nunca reabre nada.
+        const esAvance = criterio === 2;
+        const esAjuste = !esAvance && ya != null;
         const original = comisionOriginal.get(k);
         out.push({
           membresiaId: m.id,
@@ -583,8 +643,14 @@ export function calcularDevengos(
           cursoId: x.ic.curso_id,
           alumno: alNombre.get(m.alumno_id) ?? `#${m.alumno_id}`,
           curso: x.curso?.nombre ?? `#${x.ic.curso_id}`,
-          tipo: esAjuste ? "ajuste" : "comision",
-          periodo: esAjuste ? original?.periodo ?? undefined : undefined,
+          tipo: esAvance ? "avance" : esAjuste ? "ajuste" : "comision",
+          criterio,
+          // Criterio 3: el mes en que terminó el ciclo. Ajuste: el de su original.
+          periodo: esAjuste
+            ? original?.periodo ?? undefined
+            : criterio === 3
+              ? `${(m.fecha_fin as string).slice(0, 7)}-01`
+              : undefined,
           ajustaComisionId: esAjuste ? original?.id : undefined,
           base,
           pct: obj?.pct ?? 0,

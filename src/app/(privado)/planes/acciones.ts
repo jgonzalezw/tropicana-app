@@ -109,6 +109,7 @@ function camposParticular(d: DatosPlan) {
       extension_recargo_pct: null,
       registra_acompanantes: false,
       permite_sala_externa: false,
+      permite_cortesia: false,
     };
   }
   return {
@@ -124,6 +125,7 @@ function camposParticular(d: DatosPlan) {
     extension_recargo_pct: d.extension_modo === "recargo" ? d.extension_recargo_pct : null,
     registra_acompanantes: d.registra_acompanantes,
     permite_sala_externa: d.permite_sala_externa,
+    permite_cortesia: d.permite_cortesia,
   };
 }
 
@@ -170,7 +172,55 @@ export async function crearPlan(d: DatosPlan): Promise<Resultado> {
   return { ok: true };
 }
 
-export async function actualizarPlan(id: number, d: DatosPlan): Promise<Resultado> {
+/**
+ * Membresías del plan **sin nada devengado** cuyo criterio de liquidación (foto
+ * de la venta, regla 12) difiere del nuevo. Son las únicas a las que se puede
+ * ofrecer el cambio: una con comisión ya devengada no se reescribe.
+ */
+async function membresiasSinDevengarConOtroCriterio(
+  a: ReturnType<typeof admin>,
+  planId: number,
+  nuevo: number
+): Promise<{ libres: number[]; conDevengo: number }> {
+  const { data: ms, error } = await a
+    .from("membresias")
+    .select("id, criterio_liquidacion")
+    .eq("plan_id", planId)
+    .in("estado", ["activa", "completada"]);
+  if (error) throw new Error("No se pudieron leer las membresías del plan: " + error.message);
+  const candidatas = ((ms as { id: number; criterio_liquidacion: number | null }[]) ?? [])
+    .filter((m) => m.criterio_liquidacion !== nuevo)
+    .map((m) => m.id);
+  if (!candidatas.length) return { libres: [], conDevengo: 0 };
+  const { data: dev, error: e2 } = await a
+    .from("comisiones_devengadas")
+    .select("membresia_id")
+    .in("membresia_id", candidatas);
+  if (e2) throw new Error("No se pudieron leer las comisiones devengadas: " + e2.message);
+  const conDevengo = new Set(((dev as { membresia_id: number }[]) ?? []).map((r) => r.membresia_id));
+  const libres = candidatas.filter((id) => !conDevengo.has(id));
+  return { libres, conDevengo: candidatas.length - libres.length };
+}
+
+/** Cuántas membresías ya vendidas podrían tomar el nuevo criterio (para preguntar antes de guardar). */
+export async function contarMembresiasParaNuevoCriterio(
+  planId: number,
+  nuevo: number
+): Promise<{ n?: number; conDevengo?: number; error?: string }> {
+  if (!(await tienePermiso("planes", "editar"))) return { error: "Sin permiso." };
+  try {
+    const r = await membresiasSinDevengarConOtroCriterio(admin(), planId, nuevo);
+    return { n: r.libres.length, conDevengo: r.conDevengo };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+}
+
+export async function actualizarPlan(
+  id: number,
+  d: DatosPlan,
+  aplicarCriterioAMembresias = false
+): Promise<Resultado> {
   if (!(await tienePermiso("planes", "editar"))) return { error: "Sin permiso." };
   const err = validar(d);
   if (err) return { error: err };
@@ -206,6 +256,23 @@ export async function actualizarPlan(id: number, d: DatosPlan): Promise<Resultad
 
   const errS = await guardarSalas(a, id, salasParaGuardar(d));
   if (errS) return { error: errS };
+
+  // Editar el plan no mueve lo ya vendido (regla 12). Solo si la persona lo
+  // pidió, las membresías sin nada devengado toman el criterio nuevo.
+  if (aplicarCriterioAMembresias) {
+    try {
+      const { libres: ids } = await membresiasSinDevengarConOtroCriterio(a, id, d.criterio_liquidacion);
+      if (ids.length) {
+        const { error: errM } = await a
+          .from("membresias")
+          .update({ criterio_liquidacion: d.criterio_liquidacion })
+          .in("id", ids);
+        if (errM) return { error: "El plan se guardó, pero falló aplicar el criterio a las membresías: " + errM.message };
+      }
+    } catch (e) {
+      return { error: "El plan se guardó, pero " + (e as Error).message };
+    }
+  }
 
   revalidatePath("/planes");
   return { ok: true };

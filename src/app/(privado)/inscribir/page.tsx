@@ -314,7 +314,7 @@ export default async function PaginaInscribir() {
     ] = await Promise.all([
       supabase
         .from("planes")
-        .select("id, nombre, estilo, reserva_modalidad, salas_modo, registra_acompanantes, permite_sala_externa, forma_pago_profesor")
+        .select("id, nombre, estilo, reserva_modalidad, salas_modo, registra_acompanantes, permite_sala_externa, permite_cortesia, forma_pago_profesor")
         .eq("tipo_servicio", "particular")
         .eq("activo", true)
         .order("nombre"),
@@ -337,6 +337,7 @@ export default async function PaginaInscribir() {
       salas_modo: "todas" | "solo";
       registra_acompanantes: boolean;
       permite_sala_externa: boolean;
+      permite_cortesia: boolean;
       forma_pago_profesor: "fee_hora" | "pct_margen" | "monto_fijo" | null;
     }[]) ?? [])
       .filter((p) => !!p.estilo)
@@ -348,6 +349,7 @@ export default async function PaginaInscribir() {
         salasModo: p.salas_modo,
         registraAcompanantes: p.registra_acompanantes,
         permiteSalaExterna: p.permite_sala_externa,
+        permiteCortesia: p.permite_cortesia,
         formaPagoProfesor: p.forma_pago_profesor,
       }));
 

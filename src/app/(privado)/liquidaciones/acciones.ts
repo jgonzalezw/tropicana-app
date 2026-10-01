@@ -8,6 +8,15 @@ import { exigir } from "@/lib/datos";
 import type { Curso } from "@/lib/tipos";
 import { COLUMNAS_ASIGNACION, type AsignacionVigencia } from "@/lib/asignaciones";
 import { imputarPago } from "@/lib/liquidacion/cuenta";
+import { primerDiaMesVencidoISO, finMesVencidoISO, rangoLiquidable, isoHoy } from "@/lib/liquidacion/periodo";
+import { cobroPorMembresia } from "@/lib/liquidacion/cobro";
+import {
+  calcularDevengosParticulares,
+  type DatosParticulares,
+  type DevengoParticular,
+  type ParticularBloqueada,
+  type ModoVencida,
+} from "@/lib/liquidacion/particulares";
 import {
   calcularDevengos,
   type DatosMotor,
@@ -27,18 +36,8 @@ function admin() {
 }
 type Admin = ReturnType<typeof admin>;
 
-/** Primer día del MES VENCIDO (mes anterior): el período que se liquida. */
-function primerDiaMesVencidoISO(hoy = new Date()): string {
-  const d = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
-}
-
-/** Último día del MES VENCIDO (mes anterior): tope de elegibilidad para liquidar.
- *  Solo entran membresías completadas (fecha_fin) hasta esta fecha inclusive. */
-function finMesVencidoISO(hoy = new Date()): string {
-  const d = new Date(hoy.getFullYear(), hoy.getMonth(), 0); // día 0 del mes actual = último día del anterior
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
+// `primerDiaMesVencidoISO`/`finMesVencidoISO`/`rangoLiquidable` viven ahora en
+// `@/lib/liquidacion/periodo` (H5): las comparte el motor de particulares.
 
 // ── Cálculo de devengos criterio 1 (membresías cobradas + completadas) ────
 //
@@ -196,18 +195,29 @@ async function leerDatosMotor(
   sb: Awaited<ReturnType<typeof createClient>>,
   hastaISO: string
 ): Promise<DatosMotor | null> {
-  // 1. Membresías completadas cuyo ciclo terminó a más tardar en `hastaISO`.
-  //    Una que se completó después no corresponde a este período.
-  const membresias = exigir(
+  // 1. Membresías regulares candidatas. El motor decide cuáles entran según el
+  //    criterio de cada una (Paso 4): el 1 pide completada con el ciclo
+  //    terminado a más tardar en `hastaISO`; el 3, completada sin tope de
+  //    fecha; el 2, también las que siguen activas (cobradas al 100%).
+  const membresiasRaw = exigir(
     await sb
       .from("membresias")
-      .select("id, alumno_id, curso_id, plan_id, es_prueba, acompanantes, fecha_inicio, fecha_fin")
-      .eq("estado", "completada")
+      .select("id, alumno_id, curso_id, plan_id, es_prueba, acompanantes, fecha_inicio, fecha_fin, estado, clases_plan, criterio_liquidacion, plan:planes!inner(tipo_servicio, criterio_liquidacion)")
+      .in("estado", ["activa", "completada"])
       .not("plan_id", "is", null)
       .not("fecha_fin", "is", null)
-      .lte("fecha_fin", hastaISO),
+      // Solo cursos regulares (la prueba es un plan regular): cuentan CLASES.
+      // Las particulares cuentan HORAS y tienen su propio cálculo (`particulares.ts`).
+      // Se filtra por el tipo del plan, no por `membresias.curso_id`, que es un
+      // resabio que solo significa algo en un plan mono-curso (REGLAS, glosario).
+      .eq("plan.tipo_servicio", "curso_regular"),
     "las membresías a liquidar"
-  ) as MembresiaLiq[];
+  ) as unknown as (MembresiaLiq & { plan: { criterio_liquidacion: number | null } })[];
+  // Lo que manda es la foto de la venta (0059); sin foto, el criterio del plan.
+  const membresias: MembresiaLiq[] = membresiasRaw.map(({ plan, ...m }) => ({
+    ...m,
+    criterio_liquidacion: m.criterio_liquidacion ?? plan.criterio_liquidacion,
+  }));
   if (membresias.length === 0) return null;
   const inscIds = membresias.map((m) => m.id);
 
@@ -269,6 +279,22 @@ async function leerDatosMotor(
     "las clases del período"
   ) as DatosMotor["sesiones"];
 
+  // 5b. Presentes de las ilimitadas: su conteo es lo asistido (regla 10).
+  const ilimitadas = membresias.filter((m) => m.clases_plan == null && m.es_prueba !== true).map((m) => m.id);
+  const asistRaw = ilimitadas.length
+    ? (exigir(
+        await sb
+          .from("asistencias")
+          .select("membresia_id, sesion:sesiones!inner(curso_id, fecha, estado)")
+          .eq("estado", "presente")
+          .in("membresia_id", ilimitadas),
+        "las asistencias de las ilimitadas"
+      ) as unknown as { membresia_id: number; sesion: { curso_id: number; fecha: string; estado: string } }[])
+    : [];
+  const asistencias = asistRaw
+    .filter((r) => r.sesion.estado === "dictada")
+    .map((r) => ({ membresia_id: r.membresia_id, curso_id: r.sesion.curso_id, fecha: r.sesion.fecha }));
+
   // 6. Cursos y tarifas → precio de una clase (regla 9 / regla 10).
   const cursos = exigir(
     await sb.from("cursos").select("*").in("id", cursoIds),
@@ -321,12 +347,91 @@ async function leerDatosMotor(
     cuotas,
     pagos,
     sesiones,
+    asistencias,
     cursos,
     tarifas,
     asignaciones,
     alumnos,
     profesores,
   };
+}
+
+/**
+ * Las clases particulares (H5): su propio cálculo, en
+ * `@/lib/liquidacion/particulares`. Acá solo las lecturas. Devuelve vacío
+ * cuando no hay ninguna particular que mirar.
+ */
+async function calcularPendientesParticulares(
+  sb: Awaited<ReturnType<typeof createClient>>,
+  hastaISO: string,
+  periodoVencido: string
+): Promise<{ pendientes: DevengoParticular[]; bloqueadas: ParticularBloqueada[] }> {
+  const filas = exigir(
+    await sb
+      .from("membresias")
+      .select(
+        "id, alumno_id, profesor_id, plan_id, criterio_liquidacion, forma_pago_profesor, fee_hora_aplicado, pago_pct_margen, pago_monto_fijo, pago_descuenta_sala, costo_sala_aplicado, horas_contratadas, fecha_fin, es_cortesia, plan:planes!inner(tipo_servicio)"
+      )
+      .is("curso_id", null)
+      .not("plan_id", "is", null)
+      .not("profesor_id", "is", null)
+      .not("horas_contratadas", "is", null)
+      .in("estado", ["activa", "completada"])
+      .eq("plan.tipo_servicio", "particular"),
+    "las membresías de clases particulares"
+  ) as unknown as (Omit<DatosParticulares["membresias"][number], "alumno"> & { alumno_id: number })[];
+  if (filas.length === 0) return { pendientes: [], bloqueadas: [] };
+  const ids = filas.map((f) => f.id);
+
+  const alumnosRaw = exigir(
+    await sb
+      .from("alumnos")
+      .select("id, contacto:contactos(nombre, apellido)")
+      .in("id", [...new Set(filas.map((f) => f.alumno_id))]),
+    "los alumnos"
+  ) as unknown as { id: number; contacto: { nombre: string | null; apellido: string | null } | null }[];
+  const nombre = new Map(
+    alumnosRaw.map((a) => [a.id, `${a.contacto?.apellido ?? ""}, ${a.contacto?.nombre ?? ""}`])
+  );
+
+  const reservas = exigir(
+    await sb
+      .from("reservas_sala")
+      .select("membresia_id, fecha, estado, duracion_min, es_cortesia")
+      .eq("tipo", "particular")
+      .in("membresia_id", ids),
+    "las reservas de las particulares"
+  ) as DatosParticulares["reservas"];
+
+  const cuotas = exigir(
+    await sb.from("cuotas").select("id, membresia_id, monto_devengado, descuento_adelanto").in("membresia_id", ids),
+    "las cuotas de las particulares"
+  ) as { id: number; membresia_id: number; monto_devengado: number; descuento_adelanto: number }[];
+  const pagos = cuotas.length
+    ? (exigir(
+        await sb.from("pagos").select("cuota_id, monto, descuento").eq("tipo", "cobro").in("cuota_id", cuotas.map((c) => c.id)),
+        "los pagos de las particulares"
+      ) as { cuota_id: number | null; monto: number; descuento: number }[])
+    : [];
+  const { saldo, cobrado } = cobroPorMembresia(cuotas, pagos);
+
+  const previas = exigir(
+    await sb.from("comisiones_devengadas").select("id, membresia_id, monto, tipo, periodo").in("membresia_id", ids),
+    "las comisiones ya devengadas de las particulares"
+  ) as DatosParticulares["previas"];
+
+  const modo = ((await obtenerParametro("particular_vencida_modo")) || "proporcional") as ModoVencida;
+  return calcularDevengosParticulares(
+    {
+      membresias: filas.map((f) => ({ ...f, alumno: nombre.get(f.alumno_id) ?? `#${f.alumno_id}` })),
+      reservas,
+      cobrado,
+      saldo,
+      previas,
+      modoVencida: modo === "completo" ? "completo" : "proporcional",
+    },
+    { hastaISO, periodoVencido, hoyISO: isoHoy() }
+  );
 }
 
 export type FilaProfesor = {
@@ -343,6 +448,8 @@ export type FilaProfesor = {
   sinRegistrar: CursoSinRegistrar[];
   /** Cuántas ventas suyas están esperando por eso. */
   ventasEsperando: number;
+  /** Particulares que no se pueden liquidar, con su motivo (calidad 5: se dice, no se esconde). */
+  particularesBloqueadas: { alumno: string; motivo: string }[];
 };
 
 export type FilaLiquidacion = {
@@ -392,11 +499,19 @@ export async function cargarLiquidaciones(): Promise<{
 
   const periodoVencido = primerDiaMesVencidoISO();
   const { pendientes, bloqueadas } = await calcularPendientes(sb, finMesVencidoISO());
+  const particulares = await calcularPendientesParticulares(sb, finMesVencidoISO(), periodoVencido);
+  // `count` son MEMBRESÍAS distintas, no líneas: un curso por profesor y un
+  // avance dejan varias líneas de una misma membresía y la columna decía
+  // "2 membresías" para una sola.
   const porProf = new Map<number, { monto: number; count: number }>();
-  for (const p of pendientes) {
+  const membresiasPorProf = new Map<number, Set<number>>();
+  for (const p of [...pendientes, ...particulares.pendientes]) {
     const cur = porProf.get(p.profesorId) ?? { monto: 0, count: 0 };
     cur.monto += p.monto;
-    cur.count += 1;
+    const ms = membresiasPorProf.get(p.profesorId) ?? new Set<number>();
+    ms.add(p.membresiaId);
+    membresiasPorProf.set(p.profesorId, ms);
+    cur.count = ms.size;
     porProf.set(p.profesorId, cur);
   }
   const trabadasPorProf = new Map<number, MembresiaBloqueada[]>();
@@ -418,8 +533,11 @@ export async function cargarLiquidaciones(): Promise<{
       pendienteCount: porProf.get(p.id)?.count ?? 0,
       sinRegistrar: porCurso(trabadasPorProf.get(p.id) ?? []),
       ventasEsperando: (trabadasPorProf.get(p.id) ?? []).length,
+      particularesBloqueadas: particulares.bloqueadas
+        .filter((b) => b.profesorId === p.id)
+        .map((b) => ({ alumno: b.alumno, motivo: b.motivo })),
     }))
-    .filter((p) => p.pendienteCount > 0 || p.ventasEsperando > 0)
+    .filter((p) => p.pendienteCount > 0 || p.ventasEsperando > 0 || p.particularesBloqueadas.length > 0)
     .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 
   const { data: liqs } = await sb
@@ -533,11 +651,14 @@ export async function generarLiquidacion(profesorId: number): Promise<{ ok?: tru
   const a = admin();
   const sb = await createClient();
 
-  const periodicidad = (await obtenerParametro("periodicidad_liquidacion")) || "mes";
-  const periodo = primerDiaMesVencidoISO();
+  const rango = rangoLiquidable((await obtenerParametro("periodicidad_liquidacion")) || "mes");
+  if (!rango.ok) return { error: rango.error };
+  const { periodicidad, periodoVencido: periodo, hastaISO } = rango;
 
-  const calculo = await calcularPendientes(sb, finMesVencidoISO());
+  const calculo = await calcularPendientes(sb, hastaISO);
   const pendientes = calculo.pendientes.filter((p) => p.profesorId === profesorId);
+  const calculoP = await calcularPendientesParticulares(sb, hastaISO, periodo);
+  const pendientesP = calculoP.pendientes.filter((p) => p.profesorId === profesorId);
 
   // Regla 17 revisada: las membresías con prorrateo y clases sin registrar ya
   // quedaron afuera de `pendientes`. El profesor **sí** liquida el resto: no
@@ -545,7 +666,15 @@ export async function generarLiquidacion(profesorId: number): Promise<{ ok?: tru
   // trámite. La que espera entra después como complemento, y no se pierde
   // porque la clase que le falta sigue siendo editable (regla 16 revisada:
   // solo se congela una clase de la que depende un prorrateo YA pagado).
-  if (pendientes.length === 0) {
+  if (pendientes.length === 0 && pendientesP.length === 0) {
+    // Una particular que no se puede liquidar se dice con su motivo (calidad 5).
+    const sinFoto = calculoP.bloqueadas.filter((b) => b.profesorId === profesorId);
+    if (sinFoto.length > 0)
+      return {
+        error:
+          "Hay clases particulares de este profesor que no se pueden liquidar: " +
+          sinFoto.map((b) => `${b.alumno} — ${b.motivo}`).join(" | "),
+      };
     const trabadas = calculo.bloqueadas.filter((b) => b.profesorIds.includes(profesorId));
     if (trabadas.length > 0)
       return {
@@ -566,6 +695,7 @@ export async function generarLiquidacion(profesorId: number): Promise<{ ok?: tru
    * de lo ya pagado — se suma el delta. *(Javier, 2026-09-18.)*
    */
   const cache = new Map<string, number>();
+  const creadasAhora = new Set<number>();
   async function liquidacionDe(periodoDestino: string): Promise<number | { error: string }> {
     const ya = cache.get(periodoDestino);
     if (ya != null) return ya;
@@ -586,6 +716,7 @@ export async function generarLiquidacion(profesorId: number): Promise<{ ok?: tru
         .single();
       if (error) return { error: error.message };
       id = nueva.id as number;
+      creadasAhora.add(id);
     }
     cache.set(periodoDestino, id);
     return id;
@@ -603,18 +734,19 @@ export async function generarLiquidacion(profesorId: number): Promise<{ ok?: tru
     const destino = await liquidacionDe(p.periodo ?? periodo);
     if (typeof destino !== "number") return destino;
     const esAjuste = p.tipo === "ajuste";
+    const esAvance = p.tipo === "avance";
 
     // La glosa tiene que dejar auditar el reparto sin abrir el código: de
     // cuánto se partió, qué parte le tocó a este curso y por qué.
     const detalleReparto =
-      (p.base !== p.cobradoTotal && !esAjuste
+      (p.base !== p.cobradoTotal && !esAjuste && !esAvance
         ? ` — parte de ${p.cobradoTotal} cobrado, a prorrata por ${p.clases} ${
             p.clases === 1 ? "clase" : "clases"
           }${p.personas > 1 ? ` x ${p.personas} personas` : ""}`
         : "") +
       // El curso lo dictó más de uno: sin esto, la base parece mal calculada
       // contra la parte del curso que muestra el reparto.
-      (p.clases !== p.clasesDelCurso && !esAjuste
+      (p.clases !== p.clasesDelCurso && !esAjuste && !esAvance
         ? ` — ${p.clases} de las ${p.clasesDelCurso} clases del curso (cambio de titular en el ciclo)`
         : "");
 
@@ -624,9 +756,9 @@ export async function generarLiquidacion(profesorId: number): Promise<{ ok?: tru
         profesor_id: p.profesorId,
         membresia_id: p.membresiaId,
         curso_id: p.cursoId,
-        criterio: 1,
+        criterio: p.criterio,
         periodo: p.periodo ?? periodo,
-        tipo: esAjuste ? "ajuste" : "comision",
+        tipo: p.tipo,
         ajusta_comision_id: p.ajustaComisionId ?? null,
         base: p.base,
         monto: p.monto,
@@ -638,7 +770,10 @@ export async function generarLiquidacion(profesorId: number): Promise<{ ok?: tru
             `${p.base >= 0 ? "faltaba" : "sobraba"} ${Math.abs(p.base)} de base, ` +
             `${p.base >= 0 ? "se le suma" : "se le descuenta"} ${Math.abs(p.monto)}. ` +
             `Lo ya liquidado no se reescribe: entra como complemento del período.`
-          : `Criterio 1: ${p.pct}% de ${p.base} (${p.curso} / ${p.alumno})` + detalleReparto,
+          : esAvance
+            ? `Criterio 2, avance a la fecha (${p.curso} / ${p.alumno}): ${p.pct}% de ${p.base} (${p.clases} de ${p.clasesDelCurso} clases dictadas). ` +
+              `Se paga lo dictado menos lo ya devengado, en el período que se liquida.`
+            : `Criterio ${p.criterio}: ${p.pct}% de ${p.base} (${p.curso} / ${p.alumno})` + detalleReparto,
         liquidacion_id: destino,
       })
       .select("id")
@@ -650,9 +785,65 @@ export async function generarLiquidacion(profesorId: number): Promise<{ ok?: tru
       membresia_id: p.membresiaId,
       descripcion: esAjuste
         ? `Ajuste · ${p.alumno} — ${p.curso} (recálculo de la membresía)`
-        : `${p.alumno} — ${p.curso} (${p.pct}% de ${p.base})` +
+        : esAvance
+          ? `Avance · ${p.alumno} — ${p.curso} (${p.clases}/${p.clasesDelCurso} clases · ${p.pct}% de ${p.base})`
+          : `${p.alumno} — ${p.curso} (${p.pct}% de ${p.base})` +
           (p.base !== p.cobradoTotal ? ` · parte de ${p.cobradoTotal}` : "") +
           (p.clases !== p.clasesDelCurso ? ` · ${p.clases}/${p.clasesDelCurso} clases` : ""),
+      monto: p.monto,
+    });
+  }
+
+  // Clases particulares (H5). Mismo mecanismo: comisión la primera vez, ajuste
+  // firmado al período original cuando el recálculo cambia (criterios 1 y 3), o
+  // `avance` en el período que se liquida (criterio 2, excepción a la regla 16).
+  for (const p of pendientesP) {
+    const destino = await liquidacionDe(p.periodo);
+    if (typeof destino !== "number") return destino;
+    const d = p.detalle;
+    const cuanto =
+      d.forma === "fee_hora"
+        ? `${d.horasDadas} h × ${d.fee}`
+        : d.forma === "monto_fijo"
+          ? `monto fijo ${d.montoFijo}${d.factor < 1 ? ` × ${d.factor}` : ""}`
+          : `${d.pct}% de ${p.base} (cobrado ${d.cobrado}${d.costoSala != null ? ` − sala ${d.costoSala}` : ""})${d.factor < 1 ? ` × ${d.factor}` : ""}`;
+    const origen =
+      p.tipo === "ajuste"
+        ? `Ajuste por recálculo de la particular (${p.alumno}): objetivo ${d.objetivo}, ya devengado ${d.yaDevengado}. Lo ya liquidado no se reescribe: entra como complemento del período.`
+        : p.tipo === "avance"
+          ? `Criterio 2, avance a la fecha (${p.alumno}): objetivo ${d.objetivo}, ya devengado ${d.yaDevengado} — ${d.horasDadas} de ${d.horasContratadas} h.`
+          : `Criterio ${p.criterio} (${p.alumno}): ${cuanto}` +
+            (d.completadaPor === "vencimiento" ? ` — venció con horas sin usar (${d.modoVencida})` : "");
+    const { data: com, error: errCom } = await a
+      .from("comisiones_devengadas")
+      .insert({
+        profesor_id: p.profesorId,
+        membresia_id: p.membresiaId,
+        plan_id: p.planId,
+        curso_id: null,
+        criterio: p.criterio,
+        periodo: p.periodo,
+        tipo: p.tipo,
+        ajusta_comision_id: p.ajustaComisionId ?? null,
+        base: p.base,
+        monto: p.monto,
+        detalle_particular: p.detalle,
+        origen,
+        liquidacion_id: destino,
+      })
+      .select("id")
+      .single();
+    if (errCom) return { error: "Falló devengar una comisión de particular: " + errCom.message };
+    await a.from("liquidacion_items").insert({
+      liquidacion_id: destino,
+      comision_id: com.id,
+      membresia_id: p.membresiaId,
+      descripcion:
+        (p.tipo === "ajuste" ? "Ajuste · " : p.tipo === "avance" ? "Avance · " : "") +
+        `${p.alumno} — Clase particular · ${d.horasDadas} de ${d.horasContratadas} h dadas · ` +
+        (p.tipo === "avance" ? "membresía en curso" : "membresía completada") +
+        ` · criterio ${p.criterio}` +
+        (p.tipo === "comision" ? ` · ${cuanto}` : ""),
       monto: p.monto,
     });
   }
@@ -660,7 +851,7 @@ export async function generarLiquidacion(profesorId: number): Promise<{ ok?: tru
   // Los descuentos del profesor (regla 20a). Van en la misma corrida: si se
   // generaran aparte, una liquidación podría pagarse antes de que el descuento
   // entre, y esa plata ya no se recupera.
-  for (const d of (await calcularDescuentos(sb, finMesVencidoISO())).filter(
+  for (const d of (await calcularDescuentos(sb, hastaISO)).filter(
     (d) => d.profesorId === profesorId && d.periodo === periodo
   )) {
     const { error: errDesc } = await a.from("descuentos_liquidacion").insert({
@@ -681,8 +872,23 @@ export async function generarLiquidacion(profesorId: number): Promise<{ ok?: tru
   // un ajuste pudo haber caído en un período anterior, y esa liquidación
   // también cambió de total y de estado.
   for (const id of new Set(cache.values())) await recomputarTotales(a, id);
+  // El período vencido se abre siempre arriba; si esta corrida lo creó y todo
+  // lo devengado cayó en otro período (criterio 3 paga en el mes de la
+  // completada), quedaría una liquidación vacía. Solo se borra una que ESTA
+  // corrida creó y que sigue sin ítems ni pagos.
+  for (const id of creadasAhora) {
+    const { count } = await a
+      .from("liquidacion_items")
+      .select("id", { count: "exact", head: true })
+      .eq("liquidacion_id", id);
+    if (count === 0) {
+      await a.from("liquidaciones").delete().eq("id", id);
+      cache.forEach((v, k) => v === id && cache.delete(k));
+    }
+  }
   revalidatePath("/liquidaciones");
-  return { ok: true, liquidacionId };
+  // Si la del período vencido se borró, se devuelve donde sí quedó lo devengado.
+  return { ok: true, liquidacionId: cache.get(periodo) ?? [...cache.values()][0] ?? liquidacionId };
 }
 
 /**

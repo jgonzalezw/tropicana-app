@@ -1,4 +1,4 @@
-import type { DatosPlan } from "./tipos";
+import type { DatosPlan } from "./tipos.ts";
 
 /**
  * Vigencia efectiva del paquete, en días: la propia del plan si la tiene, o

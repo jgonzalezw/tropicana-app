@@ -152,6 +152,46 @@ export function costoDeSala(
   return { precio: Number(fila.precio), ruta };
 }
 
+/**
+ * El costo de sala de una venta de particulares, para la forma de pago
+ * `pct_margen` con `pago_descuenta_sala` (H5). Se calcula **una sola vez al
+ * vender** y queda de snapshot en la membresía (regla 12): `costo_sala_aplicado`
+ * y `costo_sala_ruta`.
+ *
+ * Tres resultados posibles, y son tres cosas distintas (calidad 1 y 5):
+ * - `"no_aplica"`: el plan no descuenta sala. `costo_sala_aplicado` queda
+ *   `null` — no es que valga 0, es que la pregunta no corresponde.
+ * - `"ok"`: hay un costo real, sea 0 (sala externa, "no se valida su
+ *   ocupación" ni su costo) o el valor de la matriz.
+ * - `"falta"`: el plan descuenta sala pero la matriz no tiene ese paquete —
+ *   **bloquea la venta**, no se completa con 0 en silencio.
+ */
+export type CostoSalaVenta =
+  | { estado: "no_aplica" }
+  | { estado: "ok"; precio: number; ruta: string | null }
+  | { estado: "falta"; motivo: string };
+
+export function costoSalaDeVenta(e: {
+  descuentaSala: boolean;
+  esExterna: boolean;
+  categoria: CategoriaSala;
+  tamano: TamanoSala | null;
+  horas: number;
+  tarifas: TarifaSala[];
+  salaId?: number | null;
+}): CostoSalaVenta {
+  if (!e.descuentaSala) return { estado: "no_aplica" };
+  if (e.esExterna) return { estado: "ok", precio: 0, ruta: "Sala externa (sin costo de alquiler)" };
+  if (!e.tamano)
+    return {
+      estado: "falta",
+      motivo: "No hay un tamaño de sala que cubra la cantidad de personas de esta venta.",
+    };
+  const r = costoDeSala(e.tarifas, e.categoria, e.tamano, e.horas, e.salaId ?? null);
+  if (r.precio == null) return { estado: "falta", motivo: r.motivo };
+  return { estado: "ok", precio: r.precio, ruta: r.ruta };
+}
+
 // ── Ocupación ────────────────────────────────────────────────────────────
 
 export type TipoOcupacion = "curso" | "particular" | "alquiler" | "bloqueo";

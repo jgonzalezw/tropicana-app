@@ -1,5 +1,5 @@
-import type { DatosPlan } from "./tipos";
-import { validarPlanParticular } from "./planesParticular";
+import type { DatosPlan } from "./tipos.ts";
+import { validarPlanParticular } from "./planesParticular.ts";
 
 /**
  * Valida un plan completo (lo común a todo tipo de servicio, más lo propio
@@ -22,6 +22,10 @@ export function validarDatosPlan(d: DatosPlan): string | null {
 
   if (d.tipo_servicio === "particular") return validarPlanParticular(d);
 
+  // El criterio 2 paga según el avance sobre el total de clases del curso: un
+  // plan ilimitado no tiene ese total, así que no hay contra qué medir.
+  if (d.clases_ilimitadas && d.criterio_liquidacion === 2)
+    return "El criterio 2 (proporcional al avance) no se puede usar en un plan ilimitado: no tiene un total de clases contra el cual medir el avance.";
   if (d.acceso_modo === "solo" && (!d.cursoIds || d.cursoIds.length === 0))
     return "Elegí al menos un curso (o cambiá el acceso a Todas).";
   if (!d.clases_ilimitadas && (d.cantidad_clases == null || !(d.cantidad_clases > 0)))
