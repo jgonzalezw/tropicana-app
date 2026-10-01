@@ -483,11 +483,18 @@ export async function cargarLiquidaciones(): Promise<{
   const periodoVencido = primerDiaMesVencidoISO();
   const { pendientes, bloqueadas } = await calcularPendientes(sb, finMesVencidoISO());
   const particulares = await calcularPendientesParticulares(sb, finMesVencidoISO(), periodoVencido);
+  // `count` son MEMBRESÍAS distintas, no líneas: un curso por profesor y un
+  // avance dejan varias líneas de una misma membresía y la columna decía
+  // "2 membresías" para una sola.
   const porProf = new Map<number, { monto: number; count: number }>();
+  const membresiasPorProf = new Map<number, Set<number>>();
   for (const p of [...pendientes, ...particulares.pendientes]) {
     const cur = porProf.get(p.profesorId) ?? { monto: 0, count: 0 };
     cur.monto += p.monto;
-    cur.count += 1;
+    const ms = membresiasPorProf.get(p.profesorId) ?? new Set<number>();
+    ms.add(p.membresiaId);
+    membresiasPorProf.set(p.profesorId, ms);
+    cur.count = ms.size;
     porProf.set(p.profesorId, cur);
   }
   const trabadasPorProf = new Map<number, MembresiaBloqueada[]>();

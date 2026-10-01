@@ -467,7 +467,11 @@ export async function cargarPadron(
     // Al día `f`, no con el saldo de hoy: un paquete agotado en septiembre
     // igual cubría sus clases de agosto, y si no, el chip de esa fecha diría
     // "completa" con gente del padrón sin marcar.
-    (r.modalidad === "mensual" || !cicloAgotadoAl(r, f));
+    // Misma pregunta que le hace el padrón (`filas`): si el ciclo ya estaba
+    // agotado ese día, la membresía no figura en la lista y no se la puede
+    // marcar, así que tampoco puede dejar la clase "incompleta" (antes las
+    // mensuales con N clases quedaban exentas y el chip pedía marcar a 0 alumnos).
+    !cicloAgotadoAl(r, f);
 
   // Estado de cada fecha para el selector. "incompleta" = la asistencia ya se
   // tomó pero quedan alumnos del padrón de ESA fecha sin marcar: es lo que pasa
