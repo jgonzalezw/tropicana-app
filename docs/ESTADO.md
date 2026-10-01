@@ -4650,13 +4650,14 @@ liquidación" del profesor.
   después, ensayo en seco y OK explícito para producción.
 - Informe imprimible de pre-liquidación en Liquidaciones (membresías que entran
   + excepciones a corregir).
-- Al final del plan: filtros profesor/período y proyección de liquidez
-  (pantalla nueva: mockup + permisos), `/refrescar-dev`, y activar a mano
-  "Permite sala externa" en los dos planes de boda de producción.
+- Al final del plan: filtros profesor/período (después de C3, sin urgencia) y
+  `/refrescar-dev`. *(2026-10-01: la proyección de liquidez se quitó de los
+  pendientes y "Permite sala externa" ya está activo en el plan de boda de
+  producción.)*
 - Pase a producción de H5 + Paso 4: 0058 y 0059 antes del código, ensayo en seco,
   controles, un solo push, con OK de Javier.
 
-## Informe de pre-liquidación · 2026-10-01 (dev, sin pase)
+## Informe de pre-liquidación · 2026-10-01 (en producción, chip `#9a9ff64`)
 
 **Qué es.** Un informe de **solo lectura e imprimible** (A4) de lo que se devengaría si se liquidara hoy el período vencido: por profesor, qué membresías entran y con cuánto; qué quedó afuera y por qué (seis motivos); y qué clases siguen sin registrar. Se abre desde el botón **Pre-liquidación** de Liquidaciones, en `/liquidaciones/pre-liquidacion`. Salió del mockup de Design (`docs/design/Pre-liquidación.dc.html`, pantalla 10 del README, reglas N54–N58), sincronizado el mismo día. **Sin migración.**
 
@@ -4685,8 +4686,8 @@ liquidación" del profesor.
 
 ### Fuera de v1, a propósito
 - **Simulación anticipada del mes en curso** → D29 en `docs/DECISIONES.md` (decidido el 2026-10-01).
-- Filtros por profesor/período y proyección de liquidez (pendiente aparte, sin urgencia).
-- Rol Profesor sin acceso: lo garantiza la página (`alcanceDe`), pero **no se probó con una cuenta real de Profesor** en el navegador.
+- Filtros por profesor/período: después de C3, sin urgencia. **La proyección de liquidez se quitó de los pendientes** (Javier, 2026-10-01).
+- Rol Profesor sin acceso: lo garantiza la página (`alcanceDe`), y **se probó con una cuenta real de Profesor** (2026-10-01): sin botón y "Sin acceso" por URL directa.
 - **Riesgo conocido**: "Página n de N" depende de `counter(pages)` en `@page` (Chrome reciente). Si en la impresora real no sale, cae a solo "Página n".
 
 ### Corrección posterior (2026-10-01): las particulares que el cálculo descarta

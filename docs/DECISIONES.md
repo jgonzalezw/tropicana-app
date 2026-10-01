@@ -186,13 +186,20 @@ lee **antes** de mirar ramas.
 - **Rama activa:** `main`. **H5 y Paso 4 en producción** (0058 y 0059 aplicadas
   el 2026-10-01; producción en 0001–0059).
 - **Último hito cerrado:** informe de pre-liquidación (2026-10-01, **en producción**,
-  chip `#9a9ff64`; ver `docs/ESTADO.md`, "Informe de pre-liquidación"). Antes: depuración de
-  los datos de inicio (en producción, §4) y H5 + Paso 4.
-- **Qué sigue (orden decidido el 2026-10-01):** (1) ~~refrescar dev~~ hecho;
-  (2) ~~depurar datos de inicio~~ hecho en dev y producción; (3) ~~informe de
-  pre-liquidación~~ **en producción** (2026-10-01, ver §4); (4) ~~asignación de Zumba~~ adelantada al 18/08 en dev y **en producción** (2026-10-01, ver §4); (5) sin urgencia: filtros profesor/período y
-  proyección de liquidez (pantalla nueva); D29 simulación anticipada (postergada);
-  (6) volver a C3: H6 extensión, H7 alquiler, H8 talleres (Design), H9 horario hábil.
+  chip `#9a9ff64`; ver `docs/ESTADO.md`, "Informe de pre-liquidación"). Probado
+  también con una cuenta de Profesor: sin botón y "Sin acceso" por URL directa.
+  Antes: depuración de los datos de inicio (en producción, §4) y H5 + Paso 4.
+- **Qué sigue (actualizado el 2026-10-01):**
+  1. **C3, con prioridad en alquileres** (Javier: *"la prioridad ahora son los
+     alquileres"*): **H7 alquiler primero**, luego H6 extensión de membresía, H8
+     talleres (pasa por Design) y H9 horario hábil. Al abrir H7 se arma su plan
+     propio, con el backlog que toque (D5, lado alquiler) y la consulta de si la
+     pantalla tiene mockup (regla de proceso 3).
+  2. **Después de C3, sin urgencia:** filtros por profesor y período en
+     Liquidaciones (pantalla existente: se avisa antes de construir).
+  3. **Postergada:** D29, simulación anticipada de la pre-liquidación (§1, con su
+     disparador).
+  - La **proyección de liquidez se quitó** de los pendientes (Javier, 2026-10-01).
 - **Sin registrar al 2026-10-01 (medido en dev, copia de producción):** cinco
   clases de septiembre con alumnos (28/09 Tropicoreografico; 29/09 Contemporaneo
   y Zumba; 30/09 Danza Comercial y Tropicoreografico). Ninguna traba la
@@ -201,7 +208,10 @@ lee **antes** de mirar ramas.
 - ~~Activar "Permite sala externa" en los planes de boda de producción~~: **hecho**
   por Javier (verificado el 2026-10-01: el único plan de boda, "WEDING DANCE
   ESCENCIA", lo tiene activo).
-- **Para arrancar la sesión siguiente** (local, la rama no está en GitHub):
+- **Respaldos en producción:** las tablas `*_previo_*` (`asignaciones/membresias/
+  membresia_cursos_previo_datos_inicio`, `asignaciones_previo_zumba`) se pueden
+  borrar cuando se confirme la primera liquidación (septiembre).
+- **Para arrancar la sesión siguiente** (local; la rama es `main`, ya en GitHub):
   ```
   git checkout main && git pull origin main
   npm run dev:limpio
