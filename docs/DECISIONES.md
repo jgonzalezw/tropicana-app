@@ -184,6 +184,7 @@ hito ni gastar tokens reconstruyéndolo (pedido de Javier, 2026-09-26): esto
 se actualiza en el mismo commit que cierra cada hito, y una sesión nueva lo
 lee **antes** de mirar ramas.
 
+- **Pendiente de pase (2026-10-01):** rama `cierre-cuentas` (desasignar con fecha + cierre de cuentas + fecha de inicio al asignar; migración **0062**, solo en dev). **Independiente de H7**: parte de `origin/main`, sin las migraciones 0060/0061. Falta el OK de Javier.
 - **Rama activa:** `main`. **H5 y Paso 4 en producción** (0058 y 0059 aplicadas
   el 2026-10-01; producción en 0001–0059).
 - **Último hito cerrado:** informe de pre-liquidación (2026-10-01, **en producción**,
