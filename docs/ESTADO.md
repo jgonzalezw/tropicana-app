@@ -4709,4 +4709,4 @@ Javier preguntó dónde estaban las particulares y las membresías de varios cur
 - **Servidor:** `cierreDeCuentas` (`liquidaciones/acciones.ts`, permiso `liquidaciones.crear` además de `profesores.editar`); `revertirDevengosAbiertos` no toca los `cierre`; migración **0062** (check de `tipo`); control **43**.
 - **Asignar:** `crearAsignacion` recibe `desde` (hoy por defecto); cierra la abierta el día anterior y rechaza solapes (`validarAsignacionNueva`).
 - **Medido en dev (Isabel, corte 10/09):** Bs 63,75 por cada membresía (23 y 24) + 4 pruebas Zumba ya completadas a Bs 15 = **Bs 187,50**, visible en Caja "Por pagar".
-- **Pendiente:** pase a producción (0062 → código en un solo push; luego desasignar a Isabel con corte 10/09 y pagar en Caja) con OK explícito de Javier; los commits de H7 sin pasar no se mezclan sin avisar. Particulares: etapa 2.
+- **En producción desde el 2026-10-01** (0062 + PR #6); Isabel desasignada, avance liquidado y pagado, verificado por Javier. Pendiente: particulares (etapa 2). H7 (0060/0061) sigue solo en dev, aparte.
