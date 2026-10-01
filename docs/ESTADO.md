@@ -4681,6 +4681,8 @@ liquidación" del profesor.
 ### Hallazgo de datos (para Javier)
 **Zumba tiene dos clases (20/08 y 25/08) sin titular**: su asignación empieza el 31/08 y el curso dio clase desde el 18/08. Afecta a las membresías de Charo Salek y Vania Escalante (ciclo hasta el 01/10, entran en octubre). La depuración del 01/10 adelantó solo Bachata Conexión, Heels y Ladies, tal como se decidió; **Zumba (y Domingo Salsa y Bachata) no estaban en esa decisión**. Si se quiere que esas clases se paguen, hay que adelantar la asignación de Zumba antes de liquidar octubre. El informe lo muestra como excepción "Curso sin titular en esa fecha".
 
+**Resuelto el mismo día (Javier: "se debe corregir igual que las otras correcciones adelantando la fecha de asignación"):** la asignación de Zumba se adelantó del 31/08 al 18/08 con `scripts/corregir_asignacion_zumba.sql` (respaldo `asignaciones_previo_zumba`). **Aplicada en dev** y verificada en el informe: la excepción "Curso sin titular" quedó en ninguna y las cifras de septiembre no cambiaron. **Falta producción** (ensayo en seco + OK explícito de Javier). "Domingo Salsa y Bachata" (asignación desde 31/08, primera clase 30/08) no marca ninguna excepción hoy y no se tocó.
+
 ### Fuera de v1, a propósito
 - **Simulación anticipada del mes en curso** → D29 en `docs/DECISIONES.md` (decidido el 2026-10-01).
 - Filtros por profesor/período y proyección de liquidez (pendiente aparte, sin urgencia).

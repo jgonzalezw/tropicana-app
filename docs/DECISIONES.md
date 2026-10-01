@@ -191,10 +191,7 @@ lee **antes** de mirar ramas.
 - **Qué sigue (orden decidido el 2026-10-01):** (1) ~~refrescar dev~~ hecho;
   (2) ~~depurar datos de inicio~~ hecho en dev y producción; (3) ~~informe de
   pre-liquidación~~ **construido en dev**: falta que Javier lo pruebe en su local y dé el
-  OK de pase (solo código, sin migración); (4) **decidir Zumba**: su asignación empieza
-  el 31/08 pero el curso dio clase desde el 18/08, así que 2 clases (20/08 y 25/08)
-  quedan sin titular y el informe las marca; adelantar esa asignación antes de
-  liquidar octubre si se quieren pagar; (5) sin urgencia: filtros profesor/período y
+  OK de pase (solo código, sin migración); (4) **asignación de Zumba**: decidido el 2026-10-01 (Javier) corregirla igual que las otras, adelantando `desde` al 18/08 (`scripts/corregir_asignacion_zumba.sql`); **aplicada en dev, falta producción** (ensayo en seco y su OK); (5) sin urgencia: filtros profesor/período y
   proyección de liquidez (pantalla nueva); D29 simulación anticipada (postergada);
   (6) volver a C3: H6 extensión, H7 alquiler, H8 talleres (Design), H9 horario hábil.
 - **Sin registrar al 2026-10-01 (medido en dev, copia de producción):** cinco
