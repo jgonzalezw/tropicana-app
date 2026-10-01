@@ -839,6 +839,20 @@ select '41. particular completada hace >1 mes sin comision devengada' as control
    and not exists (select 1 from public.comisiones_devengadas c where c.membresia_id = m.id and c.tipo = 'comision');
 
 -- ---------------------------------------------------------------------
+-- 42. MEMBRESIA CON PLAN REGULAR SIN CRITERIO DE LIQUIDACION
+--     La venta copia el criterio del plan (regla 12, migracion 0059). Una
+--     membresia con plan regular y sin criterio no sabria cuando liquidarse.
+--     Las pruebas tambien cuelgan de un plan regular, asi que entran.
+-- ---------------------------------------------------------------------
+select '42. membresia de plan regular sin criterio_liquidacion' as control,
+       count(*) as n,
+       case when count(*) = 0 then 'OK' else 'REVISAR' end as estado
+  from public.membresias m
+  join public.planes p on p.id = m.plan_id
+ where p.tipo_servicio = 'curso_regular'
+   and m.criterio_liquidacion is null;
+
+-- ---------------------------------------------------------------------
 -- Detalle, por si algun control da REVISAR:
 -- ---------------------------------------------------------------------
 -- select id, alumno_id, curso_id, estado, fecha_inicio, fecha_fin,
