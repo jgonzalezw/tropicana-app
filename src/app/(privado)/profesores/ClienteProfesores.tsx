@@ -646,11 +646,11 @@ function TabAsignacion({
                           {(desRevision.pendientes?.length ?? 0) > 0 && (
                             <div className="p-3 rounded-[var(--radio-panel)] border border-[var(--borde)] text-sm">
                               <div className="font-medium mb-1">
-                                {desRevision.pendientes!.length} membresía(s) activa(s) de este curso con clases sin dar:
+                                {desRevision.pendientes!.length} membresía(s) activa(s) de este curso que todavía no terminan su ciclo. Entre paréntesis, a cuántas clases asistió cada alumno (su contador de asistencia, no las clases que dio el profesor):
                               </div>
                               <ul className="list-disc pl-5">
                                 {desRevision.pendientes!.map((m) => (
-                                  <li key={m.id}>{m.alumno} — {m.hechas} de {m.plan} clases</li>
+                                  <li key={m.id}>{m.alumno} — asistió a {m.hechas} de {m.plan} clases</li>
                                 ))}
                               </ul>
                               <p className="text-[var(--texto-tenue)] mt-1">
@@ -681,7 +681,7 @@ function TabAsignacion({
                                 <>
                                   <ul className="list-disc pl-5">
                                     {desCierre.lineas.map((l) => (
-                                      <li key={`${l.membresiaId}-${l.curso}`}>{l.alumno} — {l.curso}: {l.clases}/{l.clasesDelCurso} clases sobre {l.base} cobrado → <b>Bs {l.monto}</b></li>
+                                      <li key={`${l.membresiaId}-${l.curso}`}>{l.alumno} — {l.curso}: {l.clases} de {l.clasesDelCurso} clases del ciclo ya transcurridas al corte, sobre Bs {l.base} cobrado → <b>Bs {l.monto}</b></li>
                                     ))}
                                   </ul>
                                   <p className="font-medium">Total a dejar por pagar: Bs {desCierre.total}</p>
@@ -690,7 +690,7 @@ function TabAsignacion({
                               {(desCierre.sinRegistrar?.length ?? 0) > 0 && (
                                 <p className="text-[var(--peligro-texto)]">Quedan afuera por clases sin registrar (regla 17): {desCierre.sinRegistrar!.map((x) => x.alumno).join(", ")}.</p>
                               )}
-                              <p className="text-[var(--texto-tenue)]">Es un pago a cuenta: lo que se cobre después o al completarse cada membresía se compensa en la liquidación final. El pago se hace en Caja → Por pagar.</p>
+                              <p className="text-[var(--texto-tenue)]">Las clases se cuentan por calendario (las del ciclo hasta el corte, sin las suspendidas), vaya o no el alumno: el profesor cobra por las clases que dictó, no por la asistencia de cada alumno. Es un pago a cuenta: lo que se cobre después o al completarse cada membresía se compensa en la liquidación final. El pago se hace en Caja → Por pagar.</p>
                             </div>
                           )}
                         </div>
