@@ -182,20 +182,27 @@ hito ni gastar tokens reconstruyéndolo (pedido de Javier, 2026-09-26): esto
 se actualiza en el mismo commit que cierra cada hito, y una sesión nueva lo
 lee **antes** de mirar ramas.
 
-- **Rama activa:** `h5-paso4-criterios-regulares` (sube a GitHub y se mergea a
-  `main` por PR el 2026-10-01). **H5 y Paso 4 en producción** (0058 y 0059 aplicadas
+- **Rama activa:** `main`. **H5 y Paso 4 en producción** (0058 y 0059 aplicadas
   el 2026-10-01; producción en 0001–0059).
-- **Último hito cerrado:** H5 liquidación de particulares + Paso 4 criterios 2 y 3
-  en regulares (ver §4 y `docs/ESTADO.md`, secciones "C3 — H5" y "Paso 4").
-- **Qué sigue (orden decidido el 2026-10-01):** (1) `/refrescar-dev` — dev pasa a
-  tener los datos reales de septiembre; (2) **depurar los datos de inicio** —
-  asignaciones #22/#12–#14 y membresías #17–#19 al plan "Plan Regular - Zumba",
-  script con respaldo, antes/después y ensayo en seco, dev primero y producción con
-  OK — **antes de generar la primera liquidación de producción**; (3) informe
-  imprimible de pre-liquidación en Liquidaciones (mockup o código v1, permisos por
-  rol); (4) sin urgencia: filtros profesor/período y proyección de liquidez
+- **Último hito cerrado:** depuración de los datos de inicio (2026-10-01, ver §4),
+  después de H5 liquidación de particulares + Paso 4 criterios 2 y 3 en regulares
+  (ver `docs/ESTADO.md`, secciones "C3 — H5" y "Paso 4").
+- **Qué sigue (orden decidido el 2026-10-01):** (1) ~~`/refrescar-dev`~~ hecho;
+  (2) ~~depurar los datos de inicio~~ hecho en dev y producción — producción ya
+  puede generar su primera liquidación (septiembre); (3) **informe imprimible de
+  pre-liquidación** en Liquidaciones — **va por mockup de Design** (decidido
+  el 2026-10-01): el prompt ya está dado; cuando Javier deje el export en el buzón,
+  `npm run sync-design` y construir, con permisos por rol. Debe incluir la
+  sección **"Clases sin registrar"** (por curso y fecha, tres bloques: vencidas con
+  alumnos, de hoy o futuras, sin alumnos; indicando si traban una membresía de
+  varios cursos); (4) sin urgencia: filtros profesor/período y proyección de liquidez
   (pantalla nueva); (5) volver a C3: H6 extensión, H7 alquiler, H8 talleres (Design),
   H9 horario hábil.
+- **Sin registrar al 2026-10-01 (medido en dev, copia de producción):** cinco
+  clases de septiembre con alumnos (28/09 Tropicoreografico; 29/09 Contemporaneo
+  y Zumba; 30/09 Danza Comercial y Tropicoreografico). Ninguna traba la
+  liquidación de septiembre (todas de membresías de un solo curso, regla 17);
+  conviene registrarlas igual.
 - **Pendiente, no automatizado a propósito:** activar a mano "Permite sala
   externa" en los dos planes de boda de producción, desde Planes.
 - **Para arrancar la sesión siguiente** (local, la rama no está en GitHub):
@@ -210,6 +217,26 @@ lee **antes** de mirar ramas.
 producción, con migraciones 0001–0059 en las dos bases. Cuando algo quede
 **solo en dev** esperando el OK explícito de Javier (regla de proceso 1), se
 anota arriba de esta línea. Abajo, en orden, cada pase ya hecho.
+
+- **Depuración de los datos de inicio (sin migración) — PASADA A PRODUCCIÓN el
+  2026-10-01**, con el OK explícito de Javier (*"avanza a prod"*), después de
+  validarla en dev (refrescado con los datos de producción). Script
+  `scripts/corregir_datos_inicio.sql`, que busca por nombre y no por id, aborta si
+  no encuentra exactamente lo esperado y deja respaldo en
+  `asignaciones_previo_datos_inicio`, `membresias_previo_datos_inicio` y
+  `membresia_cursos_previo_datos_inicio`. **Qué cambió:** (1) `desde` de las
+  asignaciones vigentes de Bachata Conexión (31/08 → 11/08), Heels (31/08 → 29/08) y
+  Ladies (01/09 → 29/08), la primera sesión real de cada curso; (2) tres membresías
+  de Zumba del 08/09 (Bs 30, las tres asistieron) que eran clases de prueba del
+  "Plan Regular - Zumba" y estaban cargadas sin plan: pasan a prueba de 1 clase, con
+  criterio 1, fecha de fin el 08/09 y su fila en `membresia_cursos` (días tomados de
+  otra prueba de Zumba). Cobro, estado y asistencia no se tocaron. **Orden seguido:**
+  ensayo en seco en producción (transacción terminada en `rollback`, idéntico a dev),
+  luego aplicado. **Medido después:** 0 membresías sin plan, control 42 en 0, 0 pruebas
+  sin curso; contra el respaldo cambiaron exactamente 3 asignaciones, 3 membresías y
+  se agregaron 3 filas de curso (42 → 45); 45 membresías, 46 pagos, 0 liquidaciones y
+  0 comisiones, sin cambio. Las tablas `*_previo_datos_inicio` quedan en producción
+  como respaldo; se pueden borrar cuando se confirme la primera liquidación.
 
 - **C3 H5 (liquidación de particulares) + Paso 4 (criterios 2 y 3 en regulares)
   — migraciones 0058 y 0059 — PASADO A PRODUCCIÓN el 2026-10-01**, con el OK
