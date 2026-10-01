@@ -198,8 +198,9 @@ lee **antes** de mirar ramas.
   y Zumba; 30/09 Danza Comercial y Tropicoreografico). Ninguna traba la
   liquidación de septiembre (todas de membresías de un solo curso, regla 17);
   conviene registrarlas igual.
-- **Pendiente, no automatizado a propósito:** activar a mano "Permite sala
-  externa" en los dos planes de boda de producción, desde Planes.
+- ~~Activar "Permite sala externa" en los planes de boda de producción~~: **hecho**
+  por Javier (verificado el 2026-10-01: el único plan de boda, "WEDING DANCE
+  ESCENCIA", lo tiene activo).
 - **Para arrancar la sesión siguiente** (local, la rama no está en GitHub):
   ```
   git checkout main && git pull origin main
