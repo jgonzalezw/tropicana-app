@@ -25,7 +25,13 @@ import type {
   MembresiaLiq,
   PersonaLiq,
 } from "./motor.ts";
-import type { DevengoParticular, ParticularBloqueada } from "./particulares.ts";
+import {
+  horasDadas,
+  situacionParticular,
+  type DatosParticulares,
+  type DevengoParticular,
+  type ParticularBloqueada,
+} from "./particulares.ts";
 
 // ── Lo que recibe ────────────────────────────────────────────────────────
 
@@ -65,6 +71,12 @@ export type EntradaPre = {
   pendientes: DevengoPendiente[];
   bloqueadas: MembresiaBloqueada[];
   particulares: { pendientes: DevengoParticular[]; bloqueadas: ParticularBloqueada[] };
+  /**
+   * Las filas con que se calcularon las particulares. Hacen falta aparte porque
+   * `calcularDevengosParticulares` descarta en silencio (`continue`) las que no
+   * están cobradas o no se completaron, y el informe tiene que decirlo.
+   */
+  datosParticulares?: DatosParticulares | null;
   descuentos: DescuentoPre[];
   /** Todos los profesores: el nombre de quien cobra puede no estar en `datos`. */
   profesores: PersonaLiq[];
@@ -350,6 +362,67 @@ export function clasesSinRegistrar(e: EntradaPre): InformePre["clases"] {
   return out;
 }
 
+const EPS = 0.005;
+
+/**
+ * Las clases particulares que **no entran** y por qué. Espeja los `continue` de
+ * `calcularDevengosParticulares` (mismo orden), sin recalcular plata:
+ *  - cobrada < 100%: no entra con ningún criterio (regla 1) → **saldo pendiente**;
+ *  - criterio 1 o 3 sin completar (horas por dar y vigencia sin vencer) o criterio 1
+ *    que se completa después del corte → **ciclo posterior**;
+ *  - cortesía entera: no devenga por decisión (no es excepción);
+ *  - ya devengada y sin diferencia: nada que mostrar.
+ * Las que no se pueden calcular (falta un dato de la venta) ya vienen en `bloqueadas`.
+ */
+export function excepcionesParticulares(e: EntradaPre): { motivo: MotivoClave; caso: CasoExcepcion }[] {
+  const datos = e.datosParticulares;
+  if (!datos) return [];
+  const bloqueadas = new Set(e.particulares.bloqueadas.map((b) => b.membresiaId));
+  const entran = new Set(e.particulares.pendientes.map((p) => p.membresiaId));
+  const out: { motivo: MotivoClave; caso: CasoExcepcion }[] = [];
+  for (const m of datos.membresias) {
+    if (m.es_cortesia || bloqueadas.has(m.id) || entran.has(m.id)) continue;
+    const criterio = m.criterio_liquidacion;
+    if (criterio !== 1 && criterio !== 2 && criterio !== 3) continue; // ya figura en `bloqueadas`
+    const reservas = datos.reservas.filter((r) => r.membresia_id === m.id);
+    const saldo = datos.saldo[m.id] ?? 0;
+    const sit = situacionParticular(m, reservas, saldo, e.hoyISO);
+    const yaDevengo = datos.previas.some((p) => p.membresia_id === m.id);
+    const base = { persona: m.alumno, curso: "Clase particular", membresiaId: m.id };
+    if (saldo > EPS) {
+      out.push({
+        motivo: "saldo",
+        caso: {
+          ...base, href: HREF.caja, accion: "Resolver",
+          detalle: `Vendida pero no cobrada: faltan Bs. ${r2(saldo).toFixed(2)}. No entra hasta cobrarla al 100%.`,
+        },
+      });
+      continue;
+    }
+    if (yaDevengo) continue; // sin diferencia que mostrar
+    const fin = m.fecha_fin ? diaMes(m.fecha_fin) : null;
+    if (criterio === 2) continue; // cobrada y sin avance nuevo: nada que decir
+    if (!sit.completa || !sit.fechaCompletada) {
+      out.push({
+        motivo: "ciclo_posterior",
+        caso: {
+          ...base, href: "/particulares", accion: "Ver membresía",
+          detalle: `Aún en curso (${horasDadas(reservas, e.hastaISO)} de ${m.horas_contratadas} h dadas${fin ? `, vigente hasta el ${fin}` : ""}): entra cuando se consuman sus horas o venza.`,
+        },
+      });
+    } else if (criterio === 1 && sit.fechaCompletada > e.hastaISO) {
+      out.push({
+        motivo: "ciclo_posterior",
+        caso: {
+          ...base, href: "/particulares", accion: "Ver membresía",
+          detalle: `Se completa el ${diaMes(sit.fechaCompletada)}: entra en la pre-liquidación del período siguiente.`,
+        },
+      });
+    }
+  }
+  return out;
+}
+
 /** Los seis motivos, siempre presentes (un motivo sin casos sigue ahí, vacío). */
 export function armarExcepciones(e: EntradaPre): MotivoExcepcion[] {
   const { datos } = e;
@@ -434,6 +507,9 @@ export function armarExcepciones(e: EntradaPre): MotivoExcepcion[] {
       });
   }
 
+  // 1b. Las particulares que el cálculo descartó sin decir nada.
+  for (const c of excepcionesParticulares(e)) casos[c.motivo].push(c.caso);
+
   // 2. Curso sin titular ese día (la clase no se le paga a nadie, regla 10).
   const sinTitular = new Map<string, { curso: string; fecha: string; cursoId: number; alumnos: string[] }>();
   for (const f of calendarioDeClases(e)) {
@@ -490,7 +566,12 @@ export function armarProfesores(e: EntradaPre): ProfesorPre[] {
       continue;
     }
     const m = membresiaPor.get(p.membresiaId);
-    const reparto = p.reparto.length > 1 ? `${p.curso} · ${Math.round((100 * p.base) / (p.cobradoTotal || 1))}%` : null;
+    // Membresía de varios cursos: lo cobrado se reparte a prorrata (regla 10) y
+    // la línea dice qué parte le tocó a este curso y de cuántos cursos es la venta.
+    const reparto =
+      p.reparto.length > 1
+        ? `${p.curso} · ${Math.round((100 * p.base) / (p.cobradoTotal || 1))}% · membresía de ${p.reparto.length} cursos`
+        : null;
     b.lineas.push({
       membresiaId: p.membresiaId,
       alumno: p.alumno,

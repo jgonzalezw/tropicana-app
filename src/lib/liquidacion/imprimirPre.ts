@@ -21,6 +21,7 @@ export function pantallaDe(c: CasoExcepcion): string {
   if (c.href === "/profesores") return "Profesores y asignaciones";
   if (c.href === "/asistencia") return "Asistencia";
   if (c.href === "/caja") return "Caja";
+  if (c.href === "/particulares") return "Particulares";
   if (c.href.startsWith("/alumnos/")) return "la cuenta del alumno";
   return c.href;
 }

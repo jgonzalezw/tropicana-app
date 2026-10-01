@@ -273,7 +273,7 @@ test("una línea de varios cursos dice qué parte de lo cobrado le tocó al curs
       ] })],
     },
   });
-  assert.equal(armarProfesores(e)[0].lineas[0].notaBase, "Salsa · 60%");
+  assert.equal(armarProfesores(e)[0].lineas[0].notaBase, "Salsa · 60% · membresía de 2 cursos");
 });
 
 test("los profesores salen ordenados por apellido", () => {
@@ -287,4 +287,88 @@ test("los profesores salen ordenados por apellido", () => {
     },
   });
   assert.deepEqual(armarProfesores(e).map((p) => p.nombre), ["Álvarez, Ana", "Zapata, Pedro"]);
+});
+
+// ── Particulares que el cálculo descarta sin decir nada ─────────────────
+
+import type { DatosParticulares, MembresiaParticular } from "./particulares.ts";
+
+const part = (over: Partial<MembresiaParticular> = {}): MembresiaParticular => ({
+  id: 50, profesor_id: 1, plan_id: 1, alumno: "Rojas, Eva", criterio_liquidacion: 2,
+  forma_pago_profesor: "fee_hora", fee_hora_aplicado: 40, pago_pct_margen: null, pago_monto_fijo: null,
+  pago_descuenta_sala: false, costo_sala_aplicado: null, horas_contratadas: 6, fecha_fin: "2026-11-21",
+  es_cortesia: false, ...over,
+});
+const datosPart = (m: MembresiaParticular, saldo: number, extra: Partial<DatosParticulares> = {}): DatosParticulares => ({
+  membresias: [m],
+  reservas: [{ membresia_id: m.id, fecha: "2026-08-20", estado: "realizada", duracion_min: 60, es_cortesia: false }],
+  cobrado: { [m.id]: 480 - saldo },
+  saldo: { [m.id]: saldo },
+  previas: [],
+  modoVencida: "proporcional",
+  ...extra,
+});
+
+test("una particular con saldo no desaparece: va a 'Saldo pendiente' con lo que falta", () => {
+  const e = entrada({ pre: { datosParticulares: datosPart(part(), 480) } });
+  const c = motivo(e, "saldo").casos;
+  assert.equal(c.length, 1);
+  assert.equal(c[0].persona, "Rojas, Eva");
+  assert.equal(c[0].curso, "Clase particular");
+  assert.match(c[0].detalle, /480\.00/);
+});
+
+test("una particular cobrada y ya devengada no es excepción", () => {
+  const e = entrada({
+    pre: { datosParticulares: datosPart(part(), 0, { previas: [{ id: 1, membresia_id: 50, monto: 40, tipo: "avance", periodo: "2026-09-01" }] }) },
+  });
+  assert.equal(motivo(e, "saldo").casos.length, 0);
+  assert.equal(motivo(e, "ciclo_posterior").casos.length, 0);
+});
+
+test("criterio 1 sin completar: 'aún en curso', con las horas dadas", () => {
+  const e = entrada({ pre: { datosParticulares: datosPart(part({ criterio_liquidacion: 1 }), 0) } });
+  const c = motivo(e, "ciclo_posterior").casos;
+  assert.equal(c.length, 1);
+  assert.match(c[0].detalle, /Aún en curso \(1 de 6 h dadas/);
+});
+
+test("una membresía de cortesía entera no es excepción: no devenga por decisión", () => {
+  const e = entrada({ pre: { datosParticulares: datosPart(part({ es_cortesia: true }), 480) } });
+  assert.equal(motivo(e, "saldo").casos.length, 0);
+});
+
+test("una particular bloqueada por un dato no se duplica en saldo", () => {
+  const e = entrada({
+    pre: {
+      datosParticulares: datosPart(part(), 480),
+      particulares: { pendientes: [], bloqueadas: [{ membresiaId: 50, profesorId: 1, alumno: "Rojas, Eva", motivo: "falta el fee" }] },
+    },
+  });
+  assert.equal(motivo(e, "saldo").casos.length, 0);
+  assert.equal(motivo(e, "particular_bloqueada").casos.length, 1);
+});
+
+test("una membresía de varios cursos: una línea por curso y profesor, con su parte y cuántos cursos tiene", () => {
+  const reparto = [
+    { cursoId: 1, curso: "Salsa", clases: 4, precioClase: 30, peso: 120, parte: 120 },
+    { cursoId: 2, curso: "Bachata", clases: 4, precioClase: 20, peso: 80, parte: 80 },
+  ];
+  const e = entrada({
+    pre: {
+      profesores: [{ id: 1, nombre: "Pedro", apellido: "Álvarez" }, { id: 2, nombre: "Ana", apellido: "Zapata" }],
+      pendientes: [
+        pendiente({ profesorId: 1, cursoId: 1, curso: "Salsa", base: 120, monto: 60, cobradoTotal: 200, reparto }),
+        pendiente({ profesorId: 2, cursoId: 2, curso: "Bachata", base: 80, monto: 40, cobradoTotal: 200, reparto }),
+      ],
+    },
+  });
+  const ps = armarProfesores(e);
+  assert.equal(ps.length, 2);
+  assert.equal(ps[0].lineas[0].notaBase, "Salsa · 60% · membresía de 2 cursos");
+  assert.equal(ps[1].lineas[0].notaBase, "Bachata · 40% · membresía de 2 cursos");
+  // La membresía se cuenta UNA vez en el resumen, aunque dé dos líneas.
+  assert.equal(armarInforme(e).resumen.membresiasQueEntran, 1);
+  // Lo repartido suma lo cobrado.
+  assert.equal(ps.reduce((a, p) => a + p.lineas[0].base, 0), 200);
 });

@@ -312,11 +312,9 @@ export async function leerDatosMotor(
  * `@/lib/liquidacion/particulares`. Acá solo las lecturas. Devuelve vacío
  * cuando no hay ninguna particular que mirar.
  */
-export async function calcularPendientesParticulares(
-  sb: Awaited<ReturnType<typeof createClient>>,
-  hastaISO: string,
-  periodoVencido: string
-): Promise<{ pendientes: DevengoParticular[]; bloqueadas: ParticularBloqueada[] }> {
+export async function leerDatosParticulares(
+  sb: Awaited<ReturnType<typeof createClient>>
+): Promise<DatosParticulares | null> {
   const filas = exigir(
     await sb
       .from("membresias")
@@ -331,7 +329,7 @@ export async function calcularPendientesParticulares(
       .eq("plan.tipo_servicio", "particular"),
     "las membresías de clases particulares"
   ) as unknown as (Omit<DatosParticulares["membresias"][number], "alumno"> & { alumno_id: number })[];
-  if (filas.length === 0) return { pendientes: [], bloqueadas: [] };
+  if (filas.length === 0) return null;
   const ids = filas.map((f) => f.id);
 
   const alumnosRaw = exigir(
@@ -372,15 +370,23 @@ export async function calcularPendientesParticulares(
   ) as DatosParticulares["previas"];
 
   const modo = ((await obtenerParametro("particular_vencida_modo")) || "proporcional") as ModoVencida;
-  return calcularDevengosParticulares(
-    {
-      membresias: filas.map((f) => ({ ...f, alumno: nombre.get(f.alumno_id) ?? `#${f.alumno_id}` })),
-      reservas,
-      cobrado,
-      saldo,
-      previas,
-      modoVencida: modo === "completo" ? "completo" : "proporcional",
-    },
-    { hastaISO, periodoVencido, hoyISO: isoHoy() }
-  );
+  return {
+    membresias: filas.map((f) => ({ ...f, alumno: nombre.get(f.alumno_id) ?? `#${f.alumno_id}` })),
+    reservas,
+    cobrado,
+    saldo,
+    previas,
+    modoVencida: modo === "completo" ? "completo" : "proporcional",
+  };
+}
+
+/** El cálculo de las particulares: las lecturas de arriba + `calcularDevengosParticulares`. */
+export async function calcularPendientesParticulares(
+  sb: Awaited<ReturnType<typeof createClient>>,
+  hastaISO: string,
+  periodoVencido: string
+): Promise<{ pendientes: DevengoParticular[]; bloqueadas: ParticularBloqueada[] }> {
+  const datos = await leerDatosParticulares(sb);
+  if (!datos) return { pendientes: [], bloqueadas: [] };
+  return calcularDevengosParticulares(datos, { hastaISO, periodoVencido, hoyISO: isoHoy() });
 }

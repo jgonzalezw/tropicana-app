@@ -18,9 +18,10 @@ import { isoHoy, rangoLiquidable } from "@/lib/liquidacion/periodo";
 import { calcularDevengos, type DatosMotor } from "@/lib/liquidacion/motor";
 import {
   calcularDescuentos,
-  calcularPendientesParticulares,
   leerDatosMotor,
+  leerDatosParticulares,
 } from "@/lib/liquidacion/lecturas";
+import { calcularDevengosParticulares } from "@/lib/liquidacion/particulares";
 import {
   armarInforme,
   type InformePre,
@@ -97,9 +98,17 @@ export async function prepararPreliquidacion(): Promise<ResultadoPre> {
   });
 
   // 2. Particulares.
-  const particulares = await paso(2, () =>
-    calcularPendientesParticulares(sb, rango.hastaISO, rango.periodoVencido)
-  );
+  const particulares = await paso(2, async () => {
+    const datos = await leerDatosParticulares(sb);
+    const calculo = datos
+      ? calcularDevengosParticulares(datos, {
+          hastaISO: rango.hastaISO,
+          periodoVencido: rango.periodoVencido,
+          hoyISO,
+        })
+      : { pendientes: [], bloqueadas: [] };
+    return { datos, ...calculo };
+  });
 
   // 3. Reemplazos que descuentan (regla 20a).
   const descuentos = await paso(3, () => calcularDescuentos(sb, rango.hastaISO));
@@ -209,7 +218,8 @@ export async function prepararPreliquidacion(): Promise<ResultadoPre> {
     hoyISO,
     pendientes: regular.pendientes,
     bloqueadas: regular.bloqueadas,
-    particulares,
+    particulares: { pendientes: particulares.pendientes, bloqueadas: particulares.bloqueadas },
+    datosParticulares: particulares.datos,
     descuentos,
     profesores: maestros.profesores,
     planes: maestros.planes,
