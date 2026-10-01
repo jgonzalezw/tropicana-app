@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/organic-186d334f-848b-405d-95ba-b805f2b70bf6/styles.css">
+<script src="_ds/organic-186d334f-848b-405d-95ba-b805f2b70bf6/_ds_bundle.js"></script>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&display=swap">
+<style>
+:root {
+  --color-bg: #1c1815;
+  --color-surface: #272220;
+  --color-text: #f4ebdd;
+  --color-divider: color-mix(in srgb, #f4ebdd 16%, transparent);
+  --color-accent: #e08b4f;
+  --color-accent-2: #9bad78;
+  --color-neutral-100: #302a25;
+  --color-neutral-200: #3a332d;
+  --color-neutral-300: #463e37;
+  --color-neutral-400: #6d6359;
+  --color-neutral-500: #8f8578;
+  --color-neutral-600: #ab9f91;
+  --color-neutral-700: #c8bbaa;
+  --color-neutral-800: #e2d7c6;
+  --color-neutral-900: #f4ebdd;
+  --color-accent-100: #37200f;
+  --color-accent-200: #6b3714;
+  --color-accent-300: #8c491a;
+  --color-accent-400: #b2622d;
+  --color-accent-500: #d67f48;
+  --color-accent-600: #f6a06b;
+  --color-accent-700: #ffc0a0;
+  --color-accent-800: #ffd3b5;
+  --color-accent-900: #fff2eb;
+  --color-accent-2-100: #232a18;
+  --color-accent-2-200: #3a4726;
+  --color-accent-2-300: #56633f;
+  --color-accent-2-400: #728157;
+  --color-accent-2-500: #8fa073;
+  --color-accent-2-600: #a8bb88;
+  --color-accent-2-700: #ccdbb2;
+  --color-accent-2-800: #dcebc4;
+  --color-accent-2-900: #f0fae1;
+  --tropi-chip: #f4ebdd;
+  --font-heading: "Montserrat", system-ui, sans-serif;
+  --font-heading-weight: 800;
+}
+h1, h2, h3, h4 { letter-spacing: -0.025em; }
+.btn { font-weight: 700; letter-spacing: 0.01em; }
+.nw { white-space: nowrap; }
+body { margin: 0; background: var(--color-neutral-300); }
+a { color: var(--color-accent-700); }
+a:hover { color: var(--color-accent-800); }
+.ses-btn-big { font-size: 19px !important; min-height: 60px !important; }
+.ses-seg { display: flex; width: 100%; }
+.ses-seg .seg-opt { flex: 1; justify-content: center; font-size: 16px; padding: 13px 4px; text-align: center; }
+@keyframes sesIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+</style>
+</helmet>
+<div style="min-height:100dvh;display:flex;justify-content:center;background:var(--color-neutral-300)">
+<div style="width:100%;max-width:520px;min-height:100dvh;display:flex;flex-direction:column;background:var(--color-bg);font-family:var(--font-body);color:var(--color-text)">
+
+  <div style="padding:18px 18px 4px;display:flex;align-items:center;gap:10px">
+    <div style="background:var(--tropi-chip);border-radius:999px;padding:5px 13px;display:flex;flex:none"><img src="assets/tropicana-logo.png" alt="Tropicana" style="height:22px;width:auto"></img></div>
+    <div class="nw" style="margin-left:auto;font-size:13px;color:var(--color-neutral-700)">{{ usuarioTexto }}</div>
+  </div>
+
+  <div style="padding:8px 16px 12px">
+    <button onClick="{{ toggleSelector }}" style="width:100%;display:flex;align-items:center;gap:12px;text-align:left;background:var(--color-surface);border:none;border-radius:26px;padding:14px 16px;cursor:pointer;font-family:var(--font-body);color:var(--color-text)">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;color:var(--color-neutral-700)">Clase particular</div>
+        <div style="font-family:var(--font-heading);font-size:clamp(23px,3vw,28px);line-height:1.15;margin-top:2px">{{ pkgTitulo }}</div>
+        <div style="font-size:16px;margin-top:4px;color:var(--color-neutral-700)">{{ pkgSub }}</div>
+      </div>
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="m6 9 6 6 6-6"></path></svg>
+    </button>
+
+    <sc-if value="{{ selectorAbierto }}" hint-placeholder-val="{{ false }}">
+      <div style="background:var(--color-neutral-100);border-radius:22px;padding:8px;margin-top:8px;animation:sesIn .2s ease-out">
+        <sc-for list="{{ paquetes }}" as="p" hint-placeholder-count="3">
+          <button onClick="{{ p.elegir }}" style="width:100%;display:flex;align-items:center;gap:10px;text-align:left;background:transparent;border:none;border-radius:18px;padding:12px;cursor:pointer;font-family:var(--font-body);color:var(--color-text)">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:17px;font-weight:600">{{ p.titulo }}</div>
+              <div style="font-size:15px;color:var(--color-neutral-700)">{{ p.sub }}</div>
+            </div>
+            <sc-if value="{{ p.sel }}" hint-placeholder-val="{{ false }}">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M20 6 9 17l-5-5"></path></svg>
+            </sc-if>
+          </button>
+        </sc-for>
+      </div>
+    </sc-if>
+  </div>
+
+  <div style="flex:1;padding:0 16px 20px">
+
+    <sc-if value="{{ aviso }}" hint-placeholder-val="{{ false }}">
+      <div style="background:var(--color-accent-2-200);border-radius:22px;padding:16px;margin-bottom:12px;animation:sesIn .25s ease-out">
+        <div style="display:flex;align-items:flex-start;gap:10px">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-2-800)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:1px"><path d="M20 6 9 17l-5-5"></path></svg>
+          <div style="font-size:17px;font-weight:700;line-height:1.35;color:var(--color-accent-2-900);min-width:0">{{ aviso }}</div>
+          <button class="btn btn-ghost" onClick="{{ cerrarAviso }}" style="margin-left:auto;flex:none;color:var(--color-accent-2-800);font-size:13px">Cerrar</button>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;margin-top:12px;padding-top:12px;border-top:1px solid var(--color-accent-2-400)">
+          <sc-for list="{{ efectos }}" as="e" hint-placeholder-count="3">
+            <div style="display:flex;align-items:baseline;gap:10px;font-size:15px;color:var(--color-accent-2-900)">
+              <span style="min-width:0">{{ e.label }}</span>
+              <span class="nw" style="margin-left:auto;font-weight:700">{{ e.valor }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </sc-if>
+
+    <div style="background:var(--color-surface);border-radius:26px;padding:18px;margin-bottom:12px">
+      <div style="display:flex;align-items:flex-start;gap:14px">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;color:var(--color-neutral-700)">{{ quienLabel }}</div>
+          <div style="font-size:22px;font-weight:700;line-height:1.2;margin-top:2px">{{ alumnoNombre }}</div>
+          <sc-if value="{{ hayAcomp }}" hint-placeholder-val="{{ false }}">
+            <div style="font-size:19px;font-weight:600;line-height:1.25;margin-top:2px;color:var(--color-neutral-800)">{{ acompNombre }}</div>
+          </sc-if>
+          <div style="font-size:15px;color:var(--color-neutral-700);margin-top:6px">{{ profesorTexto }}</div>
+        </div>
+        <span class="tag tag-accent-2" style="font-size:13px;white-space:nowrap;flex:none">{{ tamTag }}</span>
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:16px">
+        <div style="flex:1;background:var(--color-neutral-100);border-radius:20px;padding:12px 14px">
+          <div style="font-size:13px;color:var(--color-neutral-700)">Horas restantes</div>
+          <div style="display:flex;align-items:baseline;gap:5px;margin-top:2px">
+            <div style="font-family:var(--font-heading);font-size:30px;line-height:1">{{ restantes }}</div>
+            <div class="nw" style="font-size:15px;color:var(--color-neutral-700)">de {{ totalHoras }}</div>
+          </div>
+        </div>
+        <div style="flex:1;background:var(--color-neutral-100);border-radius:20px;padding:12px 14px">
+          <div style="font-size:13px;color:var(--color-neutral-700)">Sesiones dictadas</div>
+          <div style="font-family:var(--font-heading);font-size:30px;line-height:1;margin-top:2px">{{ sesiones }}</div>
+        </div>
+      </div>
+    </div>
+
+    <sc-if value="{{ hayHoras }}" hint-placeholder-val="{{ true }}">
+      <div style="background:var(--color-surface);border-radius:26px;padding:18px">
+        <div style="font-size:15px;color:var(--color-neutral-700);margin-bottom:8px">Duración de esta sesión</div>
+        <div class="seg ses-seg">
+          <sc-for list="{{ duraciones }}" as="d" hint-placeholder-count="3">
+            <label class="seg-opt">
+              <input type="radio" name="sesdur" checked="{{ d.sel }}" onChange="{{ d.elegir }}"></input>
+              <span>{{ d.label }}</span>
+            </label>
+          </sc-for>
+        </div>
+        <div style="font-size:15px;color:var(--color-neutral-700);margin-top:10px;line-height:1.5">{{ duracionNota }}</div>
+
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid var(--color-divider)">
+          <sc-for list="{{ previa }}" as="p" hint-placeholder-count="3">
+            <div style="display:flex;align-items:baseline;gap:10px;font-size:15px">
+              <span style="color:var(--color-neutral-700);min-width:0">{{ p.label }}</span>
+              <span class="nw" style="margin-left:auto;font-weight:700">{{ p.valor }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ agotado }}" hint-placeholder-val="{{ false }}">
+      <div style="background:var(--color-accent-100);border-radius:26px;padding:18px">
+        <div style="font-size:17px;font-weight:700;color:var(--color-accent-900);line-height:1.35">Paquete agotado</div>
+        <div style="font-size:15px;color:var(--color-accent-800);margin-top:6px;line-height:1.5">No quedan horas para dictar. Para seguir, vendé un paquete nuevo desde Vender servicio.</div>
+      </div>
+    </sc-if>
+  </div>
+
+  <div style="padding:12px 16px 16px;background:var(--color-surface);border-top:1px solid var(--color-divider);position:sticky;bottom:0">
+    <button class="btn btn-primary btn-block ses-btn-big" onClick="{{ confirmar }}" disabled="{{ noPuede }}">Sesión dictada</button>
+    <div style="font-size:14px;color:var(--color-neutral-700);margin-top:8px;text-align:center;line-height:1.45">{{ pieNota }}</div>
+  </div>
+</div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:450,&quot;height&quot;:940},&quot;usuario&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Natalia · admin&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+// Paquetes de particular vendidos desde Vender servicio. salaHora es el precio de sala por
+// hora que la venta resolvió contra la tabla E: queda guardado en el paquete, para que un
+// cambio de tarifa posterior no altere lo ya vendido.
+const VENDIDOS = [
+  {
+    id: 'PP014', alumno: 'Virginia Martínez', acomp: 'Rolando Salvatierra',
+    profesor: 'Oscar Nuñez', profesorCat: 'Profesor Activo', estilo: 'Salsa',
+    paquete: 'Paquete 4 horas', total: 4, usadas: 1, sesiones: 1, precio: 440, salaHora: 35, comisionPct: 60
+  },
+  {
+    id: 'PP015', alumno: 'Gabriela Rayza', acomp: null,
+    profesor: 'Natalia Salek', profesorCat: 'Profesor Activo', estilo: 'Bachata',
+    paquete: '1 hora', total: 1, usadas: 0, sesiones: 0, precio: 120, salaHora: 30, comisionPct: 60
+  },
+  {
+    id: 'PP012', alumno: 'Manuel Aguilar', acomp: 'Laida Salinas',
+    profesor: 'Mariela Ávila', profesorCat: 'Profesor Externo', estilo: 'Bachata',
+    paquete: 'Paquete 8 horas', total: 8, usadas: 7.5, sesiones: 6, precio: 840, salaHora: 55, comisionPct: 55
+  }
+];
+
+const gs = (n) => 'Bs. ' + Number(n || 0).toLocaleString('es-BO');
+const hs = (n) => (Math.round(n * 2) / 2).toString().replace('.5', ',5') + (n === 1 ? ' hora' : ' horas');
+const resta = (n) => hs(n) + (n === 1 ? ' restante' : ' restantes');
+const queda = (n) => (n === 1 ? 'Queda ' : 'Quedan ') + hs(n);
+const quedan = (n) => (n === 1 ? 'queda ' : 'quedan ') + hs(n);
+
+class Component extends DCLogic {
+  state = { idx: 0, selectorAbierto: false, dur: null, usadas: {}, cuenta: {}, aviso: null, efectos: [] };
+
+  pkg() {
+    const p = VENDIDOS[this.state.idx];
+    const usadas = this.state.usadas[p.id] == null ? p.usadas : this.state.usadas[p.id];
+    const ses = this.state.cuenta[p.id] == null ? p.sesiones : this.state.cuenta[p.id];
+    return Object.assign({}, p, { usadas: usadas, sesiones: ses, restantes: Math.max(0, p.total - usadas) });
+  }
+
+  // Duraciones posibles: media hora, una hora y dos, recortadas a lo que queda en el paquete.
+  opciones(restantes) {
+    return [0.5, 1, 2].filter((h) => h <= restantes);
+  }
+
+  duracion() {
+    const p = this.pkg();
+    const opts = this.opciones(p.restantes);
+    if (!opts.length) return 0;
+    const d = this.state.dur;
+    return d != null && opts.indexOf(d) >= 0 ? d : (opts.indexOf(1) >= 0 ? 1 : opts[0]);
+  }
+
+  // La comisión de la sesión: la parte del precio del paquete que corresponde a estas horas.
+  comision(p, horas) {
+    return Math.round((p.precio / p.total) * horas * (p.comisionPct / 100));
+  }
+
+  confirmar = () => {
+    const p = this.pkg();
+    const h = this.duracion();
+    if (h <= 0) return;
+    const usadas = Object.assign({}, this.state.usadas);
+    usadas[p.id] = p.usadas + h;
+    const cuenta = Object.assign({}, this.state.cuenta);
+    cuenta[p.id] = p.sesiones + 1;
+    const restantes = Math.max(0, p.total - usadas[p.id]);
+    const sala = Math.round(p.salaHora * h);
+    const com = this.comision(p, h);
+    this.setState({
+      usadas: usadas, cuenta: cuenta, dur: null,
+      aviso: 'Sesión de ' + hs(h) + ' registrada. ' + queda(restantes) + ' en el paquete.',
+      efectos: [
+        { label: 'Paquete del alumno', valor: '− ' + hs(h) + ' · ' + quedan(restantes) },
+        { label: 'Paquete de sala de ' + p.profesor, valor: '− ' + hs(h) + ' · ' + gs(sala) },
+        { label: 'Comisión acreditada a ' + p.profesor, valor: gs(com) }
+      ]
+    });
+  };
+
+  renderVals() {
+    const s = this.state;
+    const p = this.pkg();
+    const h = this.duracion();
+    const opts = this.opciones(p.restantes);
+    const sala = Math.round(p.salaHora * h);
+    const com = this.comision(p, h);
+
+    return {
+      usuarioTexto: this.props.usuario ?? 'Natalia · admin',
+      pkgTitulo: p.paquete + ' · ' + p.estilo,
+      pkgSub: p.alumno + (p.acomp ? ' y ' + p.acomp : '') + ' · ' + resta(p.restantes),
+      selectorAbierto: s.selectorAbierto,
+      toggleSelector: () => this.setState({ selectorAbierto: !s.selectorAbierto }),
+      paquetes: VENDIDOS.map((v, i) => {
+        const usadas = s.usadas[v.id] == null ? v.usadas : s.usadas[v.id];
+        return {
+          titulo: v.alumno + (v.acomp ? ' y ' + v.acomp : ''),
+          sub: v.paquete + ' · ' + v.profesor + ' · ' + resta(Math.max(0, v.total - usadas)),
+          sel: i === s.idx,
+          elegir: () => this.setState({ idx: i, selectorAbierto: false, dur: null, aviso: null, efectos: [] })
+        };
+      }),
+
+      quienLabel: p.acomp ? 'Alumnos' : 'Alumno',
+      alumnoNombre: p.alumno,
+      hayAcomp: !!p.acomp,
+      acompNombre: p.acomp || '',
+      profesorTexto: p.profesor + ' · ' + p.profesorCat,
+      tamTag: p.acomp ? 'Pareja' : 'Individual',
+
+      restantes: hs(p.restantes).replace(' horas', '').replace(' hora', ''),
+      totalHoras: hs(p.total),
+      sesiones: String(p.sesiones),
+
+      hayHoras: p.restantes > 0,
+      agotado: p.restantes <= 0,
+      duraciones: opts.map((o) => ({
+        label: hs(o), sel: o === h, elegir: () => this.setState({ dur: o, aviso: null })
+      })),
+      duracionNota: 'Un solo botón para la pareja: la sesión se dicta o no se dicta, no se marca presente a cada uno.',
+
+      previa: [
+        { label: 'Descuenta del paquete del alumno', valor: hs(h) },
+        { label: 'Descuenta del paquete de sala de ' + p.profesor, valor: hs(h) + ' · ' + gs(sala) },
+        { label: 'Acredita comisión a ' + p.profesor, valor: gs(com) }
+      ],
+
+      noPuede: p.restantes <= 0,
+      confirmar: this.confirmar,
+      pieNota: p.restantes > 0
+        ? 'Al confirmar ' + quedan(Math.max(0, p.restantes - h)) + ' en el paquete.'
+        : 'Sin horas disponibles.',
+
+      aviso: s.aviso,
+      efectos: s.efectos,
+      cerrarAviso: () => this.setState({ aviso: null, efectos: [] })
+    };
+  }
+}
+
+</script>
+</body>
+</html>
