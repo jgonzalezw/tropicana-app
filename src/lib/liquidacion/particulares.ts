@@ -283,7 +283,10 @@ export function calcularDevengosParticulares(
     if (!sit.completa || !sit.fechaCompletada) continue;
     // El 1 espera al cierre del período vencido; el 3 paga al completarse.
     if (criterio === 1 && sit.fechaCompletada > rango.hastaISO) continue;
-    const periodo = criterio === 1 ? rango.periodoVencido : primerDiaMesDe(rango.hoyISO);
+    // El período es el MES EN QUE SE COMPLETÓ la membresía (criterio 3), no el
+    // mes en curso: así la liquidación de septiembre lleva lo completado en
+    // septiembre aunque se genere en octubre (Javier, 2026-10-01).
+    const periodo = criterio === 1 ? rango.periodoVencido : primerDiaMesDe(sit.fechaCompletada);
     const dadas = sit.horasDadas;
     const factor =
       sit.completadaPor === "horas" || datos.modoVencida === "completo"

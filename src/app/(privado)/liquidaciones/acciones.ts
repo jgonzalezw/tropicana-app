@@ -803,11 +803,11 @@ export async function generarLiquidacion(profesorId: number): Promise<{ ok?: tru
       comision_id: com.id,
       membresia_id: p.membresiaId,
       descripcion:
-        p.tipo === "ajuste"
-          ? `Ajuste · ${p.alumno} — clases particulares (recálculo)`
-          : p.tipo === "avance"
-            ? `Avance · ${p.alumno} — clases particulares (${d.horasDadas}/${d.horasContratadas} h)`
-            : `${p.alumno} — clases particulares (${cuanto})`,
+        (p.tipo === "ajuste" ? "Ajuste · " : p.tipo === "avance" ? "Avance · " : "") +
+        `${p.alumno} — Clase particular · ${d.horasDadas} de ${d.horasContratadas} h dadas · ` +
+        (p.tipo === "avance" ? "membresía en curso" : "membresía completada") +
+        ` · criterio ${p.criterio}` +
+        (p.tipo === "comision" ? ` · ${cuanto}` : ""),
       monto: p.monto,
     });
   }

@@ -49,6 +49,13 @@ test("criterio 1 espera al cierre del período; criterio 3 paga al completarse",
   assert.equal(c3.pendientes[0].periodo, "2026-09-01");
 });
 
+test("criterio 3: el período es el mes en que se completó, aunque se genere después", () => {
+  const r = res(4).map((x) => ({ ...x, fecha: x.fecha.replace("-08-", "-09-") }));
+  const octubre = { hastaISO: "2026-09-30", periodoVencido: "2026-09-01", hoyISO: "2026-10-01" };
+  const c3 = calcularDevengosParticulares(datos(mem({ criterio_liquidacion: 3 }), r), octubre);
+  assert.equal(c3.pendientes[0].periodo, "2026-09-01", "septiembre, no octubre");
+});
+
 test("pct_margen descuenta el costo de sala guardado; cobrado 0 da 0 sin error", () => {
   const m = mem({ forma_pago_profesor: "pct_margen", pago_pct_margen: 50, pago_descuenta_sala: true, costo_sala_aplicado: 100, fee_hora_aplicado: null });
   const ok = calcularDevengosParticulares(datos(m, res(4)), RANGO);

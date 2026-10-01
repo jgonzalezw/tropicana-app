@@ -5,7 +5,31 @@ import Link from "next/link";
 import { gs } from "@/lib/inscripcion";
 import Pagina from "@/components/Pagina";
 
+/** Lo que el comprobante necesita para explicar una comisión de clase particular (H5). */
+export type ParticularItem = {
+  /** Estado de la membresía hoy: `completada` o `activa` (el criterio 2 paga el avance en curso). */
+  estado: string;
+  vigenciaFin: string | null;
+  horasContratadas: number;
+  horasDadas: number;
+  factor: number;
+  forma: "fee_hora" | "pct_margen" | "monto_fijo";
+  criterio: number;
+  completadaPor: string | null;
+  cobrado: number;
+  costoSala: number | null;
+  pct: number | null;
+  fee: number | null;
+  montoFijo: number | null;
+  objetivo: number;
+  yaDevengado: number;
+};
+
 export type ItemComprobante = {
+  /** Presente solo en clases particulares: cambia cómo se explica la línea. */
+  particular?: ParticularItem;
+  /** Criterio de liquidación con que se devengó (1, 2 o 3). Se muestra en toda línea. */
+  criterio?: number | null;
   alumno: string;
   curso: string;
   plan: string;
@@ -321,6 +345,41 @@ export type DatosComprobante = {
   pagos: { fecha: string; monto: number; medio: string; concepto: string }[];
 };
 
+const horasTxt = (n: number) => String(Math.round(n * 100) / 100).replace(".", ",");
+
+const CRITERIO_TXT: Record<number, string> = {
+  1: "Criterio 1: se paga al completarse la membresía, en el período vencido",
+  2: "Criterio 2: avance proporcional a las horas dadas, con la membresía en curso",
+  3: "Criterio 3: se paga apenas se completa la membresía",
+};
+
+/**
+ * El texto de una clase particular, una sola vez para la pantalla y el papel:
+ * cuántas horas, en qué estado está la membresía, bajo qué criterio y cómo se
+ * llegó al monto. Sin esto el profesor ve un número y no sabe qué se liquidó.
+ */
+function textoParticular(it: ItemComprobante): { horas: string; estado: string; criterio: string; calculo: string } {
+  const p = it.particular!;
+  const horas = `${horasTxt(p.horasDadas)} de ${horasTxt(p.horasContratadas)} h dadas (realizadas y ausencias; las cortesías no cuentan)`;
+  const estado =
+    p.estado === "completada"
+      ? `Membresía completada ${p.completadaPor === "vencimiento" ? "por vencimiento, con horas sin usar" : "(horas agotadas)"}`
+      : `Membresía en curso${p.vigenciaFin ? `, vigente hasta ${fechaCorta(p.vigenciaFin)}` : ""}`;
+  const parte = p.factor < 1 ? ` × ${Math.round(p.factor * 100)}% (horas dadas sobre contratadas)` : "";
+  let calculo: string;
+  if (it.tipo === "avance")
+    calculo = `Avance a la fecha ${gs(p.objetivo)} − ya liquidado ${gs(p.yaDevengado)} = ${gs(it.monto)}`;
+  else if (it.tipo === "ajuste")
+    calculo = `Recalculado ${gs(p.objetivo)} − ya liquidado ${gs(p.yaDevengado)} = ${gs(it.monto)}`;
+  else if (p.forma === "fee_hora") calculo = `${horasTxt(p.horasDadas)} h × ${gs(p.fee ?? 0)} por hora = ${gs(it.monto)}`;
+  else if (p.forma === "monto_fijo") calculo = `Monto fijo por membresía ${gs(p.montoFijo ?? 0)}${parte} = ${gs(it.monto)}`;
+  else
+    calculo = `${p.pct ?? 0}% de ${gs(p.cobrado - (p.costoSala ?? 0))} (cobrado ${gs(p.cobrado)}${
+      p.costoSala != null ? ` − sala ${gs(p.costoSala)}` : ""
+    })${parte} = ${gs(it.monto)}`;
+  return { horas, estado, criterio: CRITERIO_TXT[p.criterio] ?? `Criterio ${p.criterio}`, calculo };
+}
+
 const MESES = [
   "enero", "febrero", "marzo", "abril", "mayo", "junio",
   "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
@@ -498,7 +557,7 @@ export default function Comprobante({ datos }: { datos: DatosComprobante }) {
                       Ajuste por recálculo
                     </div>
                     <div className="text-sm text-[var(--texto-tenue)]">
-                      {it.alumno} · {it.curso}
+                      {it.alumno} · {it.particular ? "Clase particular" : it.curso}
                     </div>
                   </div>
                   <p className="text-xs text-[var(--texto-tenue)] mt-1 leading-relaxed">
@@ -511,6 +570,35 @@ export default function Comprobante({ datos }: { datos: DatosComprobante }) {
                   </div>
                 </div>
               );
+            if (it.particular) {
+              const t = textoParticular(it);
+              return (
+                <div key={i} className="border border-[var(--borde)] rounded-[var(--radio-chico)] p-3">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <div className="font-semibold">{it.alumno}</div>
+                    <div className="text-sm text-[var(--texto-tenue)]">
+                      Clase particular · {it.personas > 1 ? `Grupal, ${it.personas} alumnos` : "Individual"}
+                      {it.tipo === "avance" ? " · Avance" : ""}
+                    </div>
+                  </div>
+                  <div className="text-xs text-[var(--texto-tenue)] mt-0.5">{it.plan}</div>
+                  <div className="text-xs mt-0.5 font-semibold">{t.horas}</div>
+                  <div className="text-xs text-[var(--texto-tenue)] mt-0.5">
+                    {t.estado} · {t.criterio}
+                  </div>
+                  <div className="text-xs text-[var(--texto-tenue)] mt-0.5">{t.calculo}</div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-1 mt-2 text-sm">
+                    <Cifra etiqueta="Valor total" valor={gs(it.valorTotal)} />
+                    <Cifra
+                      etiqueta={`Descuento${it.motivo ? ` (${it.motivo})` : ""}`}
+                      valor={it.descuento > 0 ? `− ${gs(it.descuento)}` : gs(0)}
+                    />
+                    <Cifra etiqueta="Cobrado" valor={gs(it.cobrado)} />
+                    <Cifra etiqueta="Comisión" valor={gs(it.monto)} fuerte />
+                  </div>
+                </div>
+              );
+            }
             return (
               <div key={i} className="border border-[var(--borde)] rounded-[var(--radio-chico)] p-3">
                 <div className="flex items-baseline justify-between gap-2">
@@ -532,6 +620,11 @@ export default function Comprobante({ datos }: { datos: DatosComprobante }) {
                     : ` · ${it.clasesHechas ?? "—"}/${it.clasesPlan ?? "—"} clases`}
                   {faltas ? ` · ${faltas}` : ""}
                 </div>
+                {it.criterio != null && (
+                  <div className="text-xs text-[var(--texto-tenue)] mt-0.5">
+                    {CRITERIO_TXT[it.criterio] ?? `Criterio ${it.criterio}`}
+                  </div>
+                )}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-1 mt-2 text-sm">
                   <Cifra etiqueta="Valor total" valor={gs(it.valorTotal)} />
                   <Cifra
@@ -661,7 +754,7 @@ function construirHTMLImpresion(d: DatosComprobante): string {
         <div class="item">
           <div class="item-top">
             <span class="b">Ajuste por recálculo</span>
-            <span class="muted">${esc(it.alumno)} &middot; ${esc(it.curso)}</span>
+            <span class="muted">${esc(it.alumno)} &middot; ${esc(it.particular ? "Clase particular" : it.curso)}</span>
           </div>
           <div class="small muted">${esc(
             it.origen ??
@@ -672,6 +765,28 @@ function construirHTMLImpresion(d: DatosComprobante): string {
             <div><div class="k">Comisión (${it.pct}%)</div><div class="b">${gs(it.monto)}</div></div>
           </div>
         </div>`;
+      if (it.particular) {
+        const t = textoParticular(it);
+        return `
+        <div class="item">
+          <div class="item-top">
+            <span class="b">${esc(it.alumno)}</span>
+            <span class="muted">Clase particular &middot; ${it.personas > 1 ? `Grupal, ${it.personas} alumnos` : "Individual"}${
+              it.tipo === "avance" ? " &middot; Avance" : ""
+            }</span>
+          </div>
+          <div class="small muted">${esc(it.plan)}</div>
+          <div class="small b">${esc(t.horas)}</div>
+          <div class="small muted">${esc(t.estado)} &middot; ${esc(t.criterio)}</div>
+          <div class="small muted">${esc(t.calculo)}</div>
+          <div class="grid">
+            <div><div class="k">Valor total</div><div>${gs(it.valorTotal)}</div></div>
+            <div><div class="k">${descEtq}</div><div>${desc}</div></div>
+            <div><div class="k">Cobrado</div><div>${gs(it.cobrado)}</div></div>
+            <div><div class="k">Comisión</div><div class="b">${gs(it.monto)}</div></div>
+          </div>
+        </div>`;
+      }
       return `
         <div class="item">
           <div class="item-top">
@@ -689,6 +804,11 @@ function construirHTMLImpresion(d: DatosComprobante): string {
                 : `${it.clasesHechas ?? "—"}/${it.clasesPlan ?? "—"} clases`
             }${faltas ? ` · ${esc(faltas)}` : ""}
           </div>
+          ${
+            it.criterio != null
+              ? `<div class="small muted">${esc(CRITERIO_TXT[it.criterio] ?? `Criterio ${it.criterio}`)}</div>`
+              : ""
+          }
           <div class="grid">
             <div><div class="k">Valor total</div><div>${gs(it.valorTotal)}</div></div>
             <div><div class="k">${descEtq}</div><div>${desc}</div></div>

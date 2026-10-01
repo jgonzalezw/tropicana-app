@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { tienePermiso, obtenerParametro, alcanceDe, obtenerProfesorActual } from "@/lib/sesion";
 import { exigirUno } from "@/lib/datos";
 import SinAcceso from "@/components/SinAcceso";
-import Comprobante, { type DatosComprobante } from "./Comprobante";
+import Comprobante, { type DatosComprobante, type ParticularItem } from "./Comprobante";
 import type { LineaReparto } from "../acciones";
 import Pagina from "@/components/Pagina";
 
@@ -60,7 +60,7 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
 
   const [{ data: prof }, { data: comis }, { data: pagosLiq }, { data: descLiq }] = await Promise.all([
     sb.from("profesores").select("contacto:contactos(nombre, apellido, whatsapp)").eq("id", liq.profesor_id).maybeSingle(),
-    sb.from("comisiones_devengadas").select("id, membresia_id, curso_id, profesor_id, base, monto, reparto, tipo, origen").eq("liquidacion_id", liquidacionId).order("id"),
+    sb.from("comisiones_devengadas").select("id, membresia_id, curso_id, profesor_id, base, monto, reparto, tipo, origen, detalle_particular, criterio").eq("liquidacion_id", liquidacionId).order("id"),
     sb.from("pagos").select("fecha, monto, medio, motivo").eq("tipo", "pago").eq("liquidacion_id", liquidacionId).order("fecha"),
     sb.from("descuentos_liquidacion").select("motivo, monto, origen").eq("liquidacion_id", liquidacionId).order("id"),
   ]);
@@ -76,6 +76,8 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
       reparto: LineaReparto[] | null;
       tipo: string;
       origen: string | null;
+      detalle_particular: Record<string, unknown> | null;
+      criterio: number | null;
     }[]) ?? [];
   const membresiaIds = [...new Set(comisiones.map((c) => c.membresia_id).filter((x): x is number => x != null))];
 
@@ -84,7 +86,7 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
     {
       alumno_id: number; curso_id: number; plan_id: number | null; fecha_inicio: string | null;
       fecha_fin: string | null; clases_plan: number | null; clases_hechas: number | null;
-      es_prueba: boolean | null; acompanantes: number | null;
+      es_prueba: boolean | null; acompanantes: number | null; estado: string;
     }
   >();
   const corrSuspPorInsc: Record<number, number> = {};
@@ -102,7 +104,7 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
 
   if (membresiaIds.length) {
     const [{ data: insc }, { data: corr }, { data: cuotas }, { data: asis }] = await Promise.all([
-      sb.from("membresias").select("id, alumno_id, curso_id, plan_id, fecha_inicio, fecha_fin, clases_plan, clases_hechas, es_prueba, acompanantes").in("id", membresiaIds),
+      sb.from("membresias").select("id, alumno_id, curso_id, plan_id, fecha_inicio, fecha_fin, clases_plan, clases_hechas, es_prueba, acompanantes, estado").in("id", membresiaIds),
       sb.from("corrimientos_ciclo").select("membresia_id, tipo").in("membresia_id", membresiaIds),
       sb.from("cuotas").select("id, membresia_id, monto_devengado, descuento_adelanto").in("membresia_id", membresiaIds),
       sb.from("asistencias").select("membresia_id, sesion_id, estado, con_licencia").in("membresia_id", membresiaIds),
@@ -110,7 +112,7 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
     for (const r of (insc as {
       id: number; alumno_id: number; curso_id: number; plan_id: number | null; fecha_inicio: string | null;
       fecha_fin: string | null; clases_plan: number | null; clases_hechas: number | null;
-      es_prueba: boolean | null; acompanantes: number | null;
+      es_prueba: boolean | null; acompanantes: number | null; estado: string;
     }[]) ?? [])
       inscById.set(r.id, r);
     // Corrimientos: en el comprobante solo cuentan los de SUSPENSION (la falta con
@@ -210,7 +212,29 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
     const cursoId = c.curso_id ?? i?.curso_id ?? null;
     const reparto = c.reparto ?? [];
     const pesoTotal = reparto.reduce((t, r) => t + Number(r.peso), 0);
+    const dp = c.detalle_particular;
+    const particular: ParticularItem | undefined = dp
+      ? {
+          estado: i?.estado ?? "activa",
+          vigenciaFin: i?.fecha_fin ?? null,
+          horasContratadas: Number(dp.horasContratadas),
+          horasDadas: Number(dp.horasDadas),
+          factor: Number(dp.factor ?? 1),
+          forma: dp.forma as ParticularItem["forma"],
+          criterio: Number(dp.criterio),
+          completadaPor: (dp.completadaPor as string | null) ?? null,
+          cobrado: Number(dp.cobrado ?? 0),
+          costoSala: dp.costoSala == null ? null : Number(dp.costoSala),
+          pct: dp.pct == null ? null : Number(dp.pct),
+          fee: dp.fee == null ? null : Number(dp.fee),
+          montoFijo: dp.montoFijo == null ? null : Number(dp.montoFijo),
+          objetivo: Number(dp.objetivo ?? 0),
+          yaDevengado: Number(dp.yaDevengado ?? 0),
+        }
+      : undefined;
     return {
+      particular,
+      criterio: c.criterio,
       alumno: i ? alNombre.get(i.alumno_id) ?? `#${i.alumno_id}` : "—",
       curso: cursoId != null ? cuNombre.get(cursoId) ?? `#${cursoId}` : "—",
       plan: i?.plan_id != null ? planNombre.get(i.plan_id) ?? `#${i.plan_id}` : "—",
@@ -238,7 +262,7 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
       // decía "Comisión (0%)" sobre una línea que sí tiene porcentaje.
       pct: base !== 0 ? Math.round((monto / base) * 100) : 0,
       /** `'ajuste'` = corrige una comisión anterior de esta misma membresía. */
-      tipo: c.tipo === "ajuste" ? "ajuste" : "comision",
+      tipo: c.tipo === "ajuste" ? "ajuste" : c.tipo === "avance" ? "avance" : "comision",
       origen: c.origen,
       monto,
       // Prorrata: `base` es la PARTE de este curso, no lo cobrado entero.
