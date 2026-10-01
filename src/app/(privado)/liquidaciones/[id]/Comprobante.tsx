@@ -371,11 +371,11 @@ const CRITERIO_TXT: Record<number, string> = {
   3: "Criterio 3: al completarse la membresía, inmediato",
 };
 
-const CRITERIO_CORTO: Record<number, string> = {
-  1: "Criterio 1 · al completarse, período vencido",
-  2: "Criterio 2 · proporcional al avance",
-  3: "Criterio 3 · al completarse, inmediato",
-};
+/** El plan con el criterio con que se liquidó, en una sola línea: "Plan X - C1". */
+function planConCriterio(plan: string, criterio: number | null | undefined): string {
+  return criterio != null ? `${plan} - C${criterio}` : plan;
+}
+
 
 /**
  * El texto de una clase particular, una sola vez para la pantalla y el papel:
@@ -585,9 +585,8 @@ export default function Comprobante({ datos }: { datos: DatosComprobante }) {
                       {it.tipo === "avance" ? " · Avance" : ""}
                     </div>
                   </div>
-                  <div className="text-xs text-[var(--texto-tenue)] mt-0.5">{it.plan}</div>
                   <div className="text-xs text-[var(--texto-tenue)] mt-0.5">
-                    {CRITERIO_CORTO[it.particular.criterio] ?? `Criterio ${it.particular.criterio}`}
+                    {planConCriterio(it.plan, it.particular.criterio)}
                   </div>
                   <div className="text-xs mt-0.5 font-semibold">{t.horas}</div>
                   <div className="text-xs text-[var(--texto-tenue)] mt-0.5">{t.calculo}</div>
@@ -607,19 +606,15 @@ export default function Comprobante({ datos }: { datos: DatosComprobante }) {
               <div key={i} className="border border-[var(--borde)] rounded-[var(--radio-chico)] p-3">
                 <div className="flex items-baseline justify-between gap-2">
                   <div className="font-semibold">{it.alumno}</div>
-                  <div className="text-sm text-[var(--texto-tenue)]">
+                  <div className="text-sm text-[var(--texto-tenue)] text-right">
                     {it.tipoServicio} ·{" "}
                     {it.personas > 1 ? `Grupal, ${it.personas} alumnos` : "Individual"}
+                    <div className="text-xs">{it.curso}</div>
                   </div>
                 </div>
                 <div className="text-xs text-[var(--texto-tenue)] mt-0.5">
-                  {it.plan} · {it.curso}
+                  {planConCriterio(it.plan, it.criterio)}
                 </div>
-                {it.criterio != null && (
-                  <div className="text-xs text-[var(--texto-tenue)] mt-0.5">
-                    {CRITERIO_CORTO[it.criterio] ?? `Criterio ${it.criterio}`}
-                  </div>
-                )}
                 <div className="text-xs text-[var(--texto-tenue)] mt-0.5">
                   Ciclo {fechaCorta(it.cicloInicio)} → {fechaCorta(it.cicloFin)}
                   {hayReparto(it)
@@ -800,8 +795,7 @@ function construirHTMLImpresion(d: DatosComprobante): string {
               it.tipo === "avance" ? " &middot; Avance" : ""
             }</span>
           </div>
-          <div class="small muted">${esc(it.plan)}</div>
-          <div class="small muted">${esc(CRITERIO_CORTO[it.particular.criterio] ?? `Criterio ${it.particular.criterio}`)}</div>
+          <div class="small muted">${esc(planConCriterio(it.plan, it.particular.criterio))}</div>
           <div class="small b">${esc(t.horas)}</div>
           <div class="small muted">${esc(t.calculo)}</div>
           <div class="grid">
@@ -816,16 +810,11 @@ function construirHTMLImpresion(d: DatosComprobante): string {
         <div class="item">
           <div class="item-top">
             <span class="b">${esc(it.alumno)}</span>
-            <span class="muted">${esc(it.tipoServicio)} &middot; ${
+            <span class="muted r">${esc(it.tipoServicio)} &middot; ${
               it.personas > 1 ? `Grupal, ${it.personas} alumnos` : "Individual"
-            }</span>
+            }<br><span class="small">${esc(it.curso)}</span></span>
           </div>
-          <div class="small muted">${esc(it.plan)} · ${esc(it.curso)}</div>
-          ${
-            it.criterio != null
-              ? `<div class="small muted">${esc(CRITERIO_CORTO[it.criterio] ?? `Criterio ${it.criterio}`)}</div>`
-              : ""
-          }
+          <div class="small muted">${esc(planConCriterio(it.plan, it.criterio))}</div>
           <div class="small muted">
             Ciclo ${fechaCorta(it.cicloInicio)} &rarr; ${fechaCorta(it.cicloFin)} ·
             ${
