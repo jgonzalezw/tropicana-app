@@ -195,6 +195,14 @@ lee **antes** de mirar ramas.
   corregidos; commit de cierre en la rama): **Javier prueba ahora**. Paso 4 (criterios 2 y 3 en
   regulares, sobre la misma base) solo con su OK. Detalle en `docs/ESTADO.md`,
   sección "C3 — H5".
+- **Paso 4 (2026-10-01, rama `h5-paso4-criterios-regulares`, sale de
+  `h5-liquidacion-particulares`):** criterios 2 y 3 en regulares sobre la misma
+  base (migración 0059 aplicada solo en dev, motor + 9 pruebas en
+  `motor.criterios.test.ts`). **Falta:** conteo de ilimitadas por asistidas
+  (regla 10), diálogo al cambiar el criterio de un plan, recorrido en
+  navegador. **Pendiente posterior** (memoria del proyecto): migración de datos
+  de inicio (asignaciones #22/#12–#14, membresías #17–#19) e informe imprimible
+  de pre-liquidación.
 - **Pendiente, no automatizado a propósito:** activar a mano "Permite sala
   externa" en los dos planes de boda de producción, desde Planes.
 - **Para arrancar la sesión siguiente** (local, la rama no está en GitHub):

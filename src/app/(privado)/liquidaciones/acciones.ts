@@ -195,23 +195,29 @@ async function leerDatosMotor(
   sb: Awaited<ReturnType<typeof createClient>>,
   hastaISO: string
 ): Promise<DatosMotor | null> {
-  // 1. Membresías completadas cuyo ciclo terminó a más tardar en `hastaISO`.
-  //    Una que se completó después no corresponde a este período.
-  const membresias = exigir(
+  // 1. Membresías regulares candidatas. El motor decide cuáles entran según el
+  //    criterio de cada una (Paso 4): el 1 pide completada con el ciclo
+  //    terminado a más tardar en `hastaISO`; el 3, completada sin tope de
+  //    fecha; el 2, también las que siguen activas (cobradas al 100%).
+  const membresiasRaw = exigir(
     await sb
       .from("membresias")
-      .select("id, alumno_id, curso_id, plan_id, es_prueba, acompanantes, fecha_inicio, fecha_fin, plan:planes!inner(tipo_servicio)")
-      .eq("estado", "completada")
+      .select("id, alumno_id, curso_id, plan_id, es_prueba, acompanantes, fecha_inicio, fecha_fin, estado, criterio_liquidacion, plan:planes!inner(tipo_servicio, criterio_liquidacion)")
+      .in("estado", ["activa", "completada"])
       .not("plan_id", "is", null)
       .not("fecha_fin", "is", null)
-      .lte("fecha_fin", hastaISO)
       // Solo cursos regulares (la prueba es un plan regular): cuentan CLASES.
       // Las particulares cuentan HORAS y tienen su propio cálculo (`particulares.ts`).
       // Se filtra por el tipo del plan, no por `membresias.curso_id`, que es un
       // resabio que solo significa algo en un plan mono-curso (REGLAS, glosario).
       .eq("plan.tipo_servicio", "curso_regular"),
     "las membresías a liquidar"
-  ) as MembresiaLiq[];
+  ) as unknown as (MembresiaLiq & { plan: { criterio_liquidacion: number | null } })[];
+  // Lo que manda es la foto de la venta (0059); sin foto, el criterio del plan.
+  const membresias: MembresiaLiq[] = membresiasRaw.map(({ plan, ...m }) => ({
+    ...m,
+    criterio_liquidacion: m.criterio_liquidacion ?? plan.criterio_liquidacion,
+  }));
   if (membresias.length === 0) return null;
   const inscIds = membresias.map((m) => m.id);
 
@@ -704,18 +710,19 @@ export async function generarLiquidacion(profesorId: number): Promise<{ ok?: tru
     const destino = await liquidacionDe(p.periodo ?? periodo);
     if (typeof destino !== "number") return destino;
     const esAjuste = p.tipo === "ajuste";
+    const esAvance = p.tipo === "avance";
 
     // La glosa tiene que dejar auditar el reparto sin abrir el código: de
     // cuánto se partió, qué parte le tocó a este curso y por qué.
     const detalleReparto =
-      (p.base !== p.cobradoTotal && !esAjuste
+      (p.base !== p.cobradoTotal && !esAjuste && !esAvance
         ? ` — parte de ${p.cobradoTotal} cobrado, a prorrata por ${p.clases} ${
             p.clases === 1 ? "clase" : "clases"
           }${p.personas > 1 ? ` x ${p.personas} personas` : ""}`
         : "") +
       // El curso lo dictó más de uno: sin esto, la base parece mal calculada
       // contra la parte del curso que muestra el reparto.
-      (p.clases !== p.clasesDelCurso && !esAjuste
+      (p.clases !== p.clasesDelCurso && !esAjuste && !esAvance
         ? ` — ${p.clases} de las ${p.clasesDelCurso} clases del curso (cambio de titular en el ciclo)`
         : "");
 
@@ -725,9 +732,9 @@ export async function generarLiquidacion(profesorId: number): Promise<{ ok?: tru
         profesor_id: p.profesorId,
         membresia_id: p.membresiaId,
         curso_id: p.cursoId,
-        criterio: 1,
+        criterio: p.criterio,
         periodo: p.periodo ?? periodo,
-        tipo: esAjuste ? "ajuste" : "comision",
+        tipo: p.tipo,
         ajusta_comision_id: p.ajustaComisionId ?? null,
         base: p.base,
         monto: p.monto,
@@ -739,7 +746,10 @@ export async function generarLiquidacion(profesorId: number): Promise<{ ok?: tru
             `${p.base >= 0 ? "faltaba" : "sobraba"} ${Math.abs(p.base)} de base, ` +
             `${p.base >= 0 ? "se le suma" : "se le descuenta"} ${Math.abs(p.monto)}. ` +
             `Lo ya liquidado no se reescribe: entra como complemento del período.`
-          : `Criterio 1: ${p.pct}% de ${p.base} (${p.curso} / ${p.alumno})` + detalleReparto,
+          : esAvance
+            ? `Criterio 2, avance a la fecha (${p.curso} / ${p.alumno}): ${p.pct}% de ${p.base} (${p.clases} de ${p.clasesDelCurso} clases dictadas). ` +
+              `Se paga lo dictado menos lo ya devengado, en el período que se liquida.`
+            : `Criterio ${p.criterio}: ${p.pct}% de ${p.base} (${p.curso} / ${p.alumno})` + detalleReparto,
         liquidacion_id: destino,
       })
       .select("id")
@@ -751,7 +761,9 @@ export async function generarLiquidacion(profesorId: number): Promise<{ ok?: tru
       membresia_id: p.membresiaId,
       descripcion: esAjuste
         ? `Ajuste · ${p.alumno} — ${p.curso} (recálculo de la membresía)`
-        : `${p.alumno} — ${p.curso} (${p.pct}% de ${p.base})` +
+        : esAvance
+          ? `Avance · ${p.alumno} — ${p.curso} (${p.clases}/${p.clasesDelCurso} clases · ${p.pct}% de ${p.base})`
+          : `${p.alumno} — ${p.curso} (${p.pct}% de ${p.base})` +
           (p.base !== p.cobradoTotal ? ` · parte de ${p.cobradoTotal}` : "") +
           (p.clases !== p.clasesDelCurso ? ` · ${p.clases}/${p.clasesDelCurso} clases` : ""),
       monto: p.monto,

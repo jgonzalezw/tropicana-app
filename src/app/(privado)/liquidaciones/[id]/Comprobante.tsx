@@ -609,6 +609,7 @@ export default function Comprobante({ datos }: { datos: DatosComprobante }) {
                   <div className="text-sm text-[var(--texto-tenue)] text-right">
                     {it.tipoServicio} ·{" "}
                     {it.personas > 1 ? `Grupal, ${it.personas} alumnos` : "Individual"}
+                    {it.tipo === "avance" ? " · Avance" : ""}
                     <div className="text-xs">{it.curso}</div>
                   </div>
                 </div>
@@ -812,7 +813,7 @@ function construirHTMLImpresion(d: DatosComprobante): string {
             <span class="b">${esc(it.alumno)}</span>
             <span class="muted r">${esc(it.tipoServicio)} &middot; ${
               it.personas > 1 ? `Grupal, ${it.personas} alumnos` : "Individual"
-            }<br><span class="small">${esc(it.curso)}</span></span>
+            }${it.tipo === "avance" ? " &middot; Avance" : ""}<br><span class="small">${esc(it.curso)}</span></span>
           </div>
           <div class="small muted">${esc(planConCriterio(it.plan, it.criterio))}</div>
           <div class="small muted">

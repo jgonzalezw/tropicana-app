@@ -154,7 +154,7 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
 
   const { data: plan } = await sb
     .from("planes")
-    .select("id, nombre, cantidad_clases, precio, activo, acceso_modo, clases_ilimitadas, ciclo_dias, prueba_acredita, prueba_plazo_dias")
+    .select("id, nombre, cantidad_clases, precio, activo, acceso_modo, clases_ilimitadas, ciclo_dias, prueba_acredita, prueba_plazo_dias, criterio_liquidacion")
     .eq("id", e.planId)
     .maybeSingle();
   if (!plan) return { error: "El plan no existe." };
@@ -315,6 +315,9 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
       fecha_inicio: isoFecha(inicio),
       estado: "activa",
       plan_id: plan.id,
+      // Foto del criterio del plan al vender (regla 12, Paso 4): editar el plan
+      // después no mueve cómo se liquida esta membresía.
+      criterio_liquidacion: plan.criterio_liquidacion ?? 1,
       clases_plan: clasesPlan,
       ciclo_numero: 1,
       fecha_fin: fechaFin,
@@ -588,7 +591,7 @@ export async function venderPrueba(
 
   const { data: plan } = await sb
     .from("planes")
-    .select("id, nombre, acepta_prueba, prueba_cursos_max, acceso_modo")
+    .select("id, nombre, acepta_prueba, prueba_cursos_max, acceso_modo, criterio_liquidacion")
     .eq("id", e.planId)
     .maybeSingle();
   if (!plan) return { error: "El plan no existe." };
@@ -727,6 +730,7 @@ export async function venderPrueba(
       fecha_fin: finPrueba,
       estado: "activa",
       plan_id: plan.id,
+      criterio_liquidacion: plan.criterio_liquidacion ?? 1,
       es_prueba: true,
       acompanantes,
       clases_plan: cursoIds.length,
