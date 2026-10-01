@@ -195,6 +195,15 @@ lee **antes** de mirar ramas.
      talleres (pasa por Design) y H9 horario hábil. Al abrir H7 se arma su plan
      propio, con el backlog que toque (D5, lado alquiler) y la consulta de si la
      pantalla tiene mockup (regla de proceso 3).
+     **H7 arrancó el 2026-10-01 (Javier):** **Design primero** (prompt en
+     `docs/relevamientos/2026-10-01-H7-prompt-design-alquiler.md`; espera el
+     handoff); las horas de alquiler se venden **solo en los paquetes de la tabla**
+     de Precios (sin horas libres); sala externa **si el plan lo permite**. En
+     **dev** se copiaron los 12 precios de Profesor de Tropicana a Alumno,
+     Profesor externo y Tercero (36 celdas); **producción tiene 1 paquete de horas y
+     9 celdas**: se carga a mano (o con OK explícito) antes de vender el primer
+     alquiler. Pendiente de decidir al construir: módulo de permisos
+     (`particulares` o uno nuevo `alquileres`, regla de proceso 11).
   2. **Después de C3, sin urgencia:** filtros por profesor y período en
      Liquidaciones (pantalla existente: se avisa antes de construir).
   3. **Postergada:** D29, simulación anticipada de la pre-liquidación (§1, con su
