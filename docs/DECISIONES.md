@@ -232,6 +232,22 @@ lee **antes** de mirar ramas.
      de sala de una particular con esa misma matriz; se **conserva** (regla de
      proceso 8) y se avisa. El recargo de extensión de **particulares** pasa a
      respetar el mismo tope.
+     **ESTADO H7 al cierre de sesión (2026-10-01):** tandas **1 y 2 construidas y
+     verificadas en dev, sin push** (commits locales `ad7bb2d` y `db8a2c2` sobre
+     `main`; migraciones **0060 y 0061 solo en dev**, producción sigue en 0059).
+     La tanda 2 (venta de alquiler, `/alquileres`, cobro en Caja, controles 43–44)
+     se probó de punta a punta en el navegador; detalle en `docs/ESTADO.md`
+     ("C3 — H7: tanda 2"). **Falta:** *(a)* **tanda 3**, el titular como contacto
+     (alta persona/organización, NIT, redes, consentimiento, persona de contacto
+     `trabaja_en` en varias organizaciones, patrón N70); *(b)* decidir si se
+     enchufa la **gestión de reservas de H3** (confirmar/reprogramar/cancelar) a
+     `/alquileres`, hoy solo lectura; *(c)* probar 375 px, sala externa (el plan
+     de prueba no la permite) y el modo `editable` de categoría; *(d)* **pase a
+     producción solo con OK de Javier**: antes cargar la tabla de precios de
+     alquiler en producción (1 paquete y 9 celdas hoy), ensayo en seco de 0060 y
+     0061, medir antes/después, controles, `get_advisors`, un solo push.
+     **Dato de dev para probar:** se cargó `sala_horario_patron` de la sala 1
+     (09:00–22:00, todos los días); sin horario la sala no es reservable.
   2. **Después de C3, sin urgencia:** filtros por profesor y período en
      Liquidaciones (pantalla existente: se avisa antes de construir).
   3. **Postergada:** D29, simulación anticipada de la pre-liquidación (§1, con su
