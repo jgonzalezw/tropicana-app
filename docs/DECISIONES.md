@@ -185,13 +185,12 @@ lee **antes** de mirar ramas.
 
 - **Rama activa:** `main`. **H5 y Paso 4 en producción** (0058 y 0059 aplicadas
   el 2026-10-01; producción en 0001–0059).
-- **Último hito cerrado:** informe de pre-liquidación (2026-10-01, **en dev, sin
-  pase**; ver `docs/ESTADO.md`, "Informe de pre-liquidación"). Antes: depuración de
+- **Último hito cerrado:** informe de pre-liquidación (2026-10-01, **en producción**,
+  chip `#9a9ff64`; ver `docs/ESTADO.md`, "Informe de pre-liquidación"). Antes: depuración de
   los datos de inicio (en producción, §4) y H5 + Paso 4.
 - **Qué sigue (orden decidido el 2026-10-01):** (1) ~~refrescar dev~~ hecho;
   (2) ~~depurar datos de inicio~~ hecho en dev y producción; (3) ~~informe de
-  pre-liquidación~~ **construido en dev**: falta que Javier lo pruebe en su local y dé el
-  OK de pase (solo código, sin migración); (4) ~~asignación de Zumba~~ adelantada al 18/08 en dev y **en producción** (2026-10-01, ver §4); (5) sin urgencia: filtros profesor/período y
+  pre-liquidación~~ **en producción** (2026-10-01, ver §4); (4) ~~asignación de Zumba~~ adelantada al 18/08 en dev y **en producción** (2026-10-01, ver §4); (5) sin urgencia: filtros profesor/período y
   proyección de liquidez (pantalla nueva); D29 simulación anticipada (postergada);
   (6) volver a C3: H6 extensión, H7 alquiler, H8 talleres (Design), H9 horario hábil.
 - **Sin registrar al 2026-10-01 (medido en dev, copia de producción):** cinco
@@ -209,12 +208,17 @@ lee **antes** de mirar ramas.
 
 ## 4. Registro de pases a producción
 
-**Pendiente de pase (2026-10-01, solo dev):** el **informe de pre-liquidación**
-(`/liquidaciones/pre-liquidacion`). Es solo código —sin migración— y reusa el permiso
-`liquidaciones.ver`; espera la prueba de Javier en su local y su OK explícito. Todo lo
-demás está en producción, con migraciones 0001–0059 en las dos bases. Cuando algo quede
-**solo en dev** esperando el OK explícito de Javier (regla de proceso 1), se
-anota arriba de esta línea. Abajo, en orden, cada pase ya hecho.
+**Pendiente de pase: ninguno.** Todo está en producción, con migraciones 0001–0059 en
+las dos bases. Cuando algo quede **solo en dev** esperando el OK explícito de Javier
+(regla de proceso 1), se anota arriba de esta línea. Abajo, en orden, cada pase ya hecho.
+
+- **Informe de pre-liquidación (`/liquidaciones/pre-liquidacion`) — PASADO A
+  PRODUCCIÓN el 2026-10-01**, con el OK de Javier (push a `main`, chip PROD
+  `#9a9ff64` confirmado por él). Solo código, sin migración; reusa el permiso
+  `liquidaciones.ver`. Probado por Javier en su local: al revisar el PDF vio que la
+  liquidación #1 de dev (Núñez) tapaba las comisiones ya devengadas; se borró en dev
+  (producción no tiene ninguna liquidación) y se agregó la marca de "membresía de N
+  cursos, se prorratea" en "Ciclo que termina después del corte".
 
 - **Depuración de los datos de inicio (sin migración) — PASADA A PRODUCCIÓN el
   2026-10-01**, con el OK explícito de Javier (*"avanza a prod"*), después de
