@@ -182,43 +182,56 @@ hito ni gastar tokens reconstruyéndolo (pedido de Javier, 2026-09-26): esto
 se actualiza en el mismo commit que cierra cada hito, y una sesión nueva lo
 lee **antes** de mirar ramas.
 
-- **Rama activa:** `h5-paso4-criterios-regulares` (local, sin pushear; sale de
-  `h5-liquidacion-particulares`, que sale de `main` en `c708509`). **H5 en construcción, solo en dev**: migración 0058
-  aplicada en dev, código y 153 pruebas en verde, **sin recorrido en el
-  navegador** y **sin pase a producción**. Producción sigue en 0001–0057.
-- **Último hito cerrado:** "Agendamientos externos de hoy" en `/sala`, en
-  producción desde el 2026-09-27 (ver §4).
-- **Qué sigue en H5 (retoma 2026-09-30):** Paso 1 hecho (corrección de docs:
-  formas de pago solo particulares); Paso 2 verificar el conteo de clases en
-  ilimitadas (regla 10) contra la liquidación #5 de dev y decidir con Javier;
-  Paso 3 **hecho** (controles 39–41 + recorrido en navegador + dos bugs
-  corregidos; commit de cierre en la rama): **Javier prueba ahora**. Paso 4 (criterios 2 y 3 en
-  regulares, sobre la misma base) solo con su OK. Detalle en `docs/ESTADO.md`,
-  sección "C3 — H5".
-- **Paso 4 CERRADO en dev (2026-10-01), rama `h5-paso4-criterios-regulares`**
-  (sale de `h5-liquidacion-particulares`; último código `a3a7c8f`, más el commit
-  de cierre de docs; sin push): criterios 2 y 3 en regulares (migración 0059 solo
-  en dev), conteo de ilimitadas por asistidas (regla 10), diálogo al cambiar el
-  criterio de un plan y criterio 2 no permitido en ilimitados. 172 pruebas en
-  verde; Javier verificó en el navegador. **Qué sigue**, con el PR: (1) migración
-  de datos de inicio (asignaciones #22/#12–#14, membresías #17–#19) en dev primero;
-  (2) informe imprimible de pre-liquidación; (3) pase a producción de H5 + Paso 4
-  (0058 y 0059 antes del código, ensayo en seco, un solo push) solo con su OK.
-  Al final del plan: filtros y proyección en Liquidaciones, `/refrescar-dev`.
+- **Rama activa:** `h5-paso4-criterios-regulares` (sube a GitHub y se mergea a
+  `main` por PR el 2026-10-01). **H5 y Paso 4 en producción** (0058 y 0059 aplicadas
+  el 2026-10-01; producción en 0001–0059).
+- **Último hito cerrado:** H5 liquidación de particulares + Paso 4 criterios 2 y 3
+  en regulares (ver §4 y `docs/ESTADO.md`, secciones "C3 — H5" y "Paso 4").
+- **Qué sigue (orden decidido el 2026-10-01):** (1) `/refrescar-dev` — dev pasa a
+  tener los datos reales de septiembre; (2) **depurar los datos de inicio** —
+  asignaciones #22/#12–#14 y membresías #17–#19 al plan "Plan Regular - Zumba",
+  script con respaldo, antes/después y ensayo en seco, dev primero y producción con
+  OK — **antes de generar la primera liquidación de producción**; (3) informe
+  imprimible de pre-liquidación en Liquidaciones (mockup o código v1, permisos por
+  rol); (4) sin urgencia: filtros profesor/período y proyección de liquidez
+  (pantalla nueva); (5) volver a C3: H6 extensión, H7 alquiler, H8 talleres (Design),
+  H9 horario hábil.
 - **Pendiente, no automatizado a propósito:** activar a mano "Permite sala
   externa" en los dos planes de boda de producción, desde Planes.
 - **Para arrancar la sesión siguiente** (local, la rama no está en GitHub):
   ```
-  git checkout h5-paso4-criterios-regulares
+  git checkout main && git pull origin main
   npm run dev:limpio
   ```
 
 ## 4. Registro de pases a producción
 
-**Hoy (2026-09-27) no hay nada pendiente de pase**: todo lo construido está en
-producción, con migraciones 0001–0057 en las dos bases. Cuando algo quede
+**Hoy (2026-10-01) no hay nada pendiente de pase**: todo lo construido está en
+producción, con migraciones 0001–0059 en las dos bases. Cuando algo quede
 **solo en dev** esperando el OK explícito de Javier (regla de proceso 1), se
 anota arriba de esta línea. Abajo, en orden, cada pase ya hecho.
+
+- **C3 H5 (liquidación de particulares) + Paso 4 (criterios 2 y 3 en regulares)
+  — migraciones 0058 y 0059 — PASADO A PRODUCCIÓN el 2026-10-01**, con el OK
+  explícito de Javier (*"ya hice esas pruebas. podes pasar a producción"*), después
+  de que probara a mano todo en dev. Orden de §3: **1)** medido antes: 45
+  membresías (3 sin plan: #17–#19), 45 cuotas, 46 pagos, 176 asistencias, 21
+  planes, 15 reservas, **0** comisiones y **0** liquidaciones (producción nunca
+  liquidó). **2)** ensayo en seco de las dos migraciones en una transacción que
+  termina en un error provocado: las 42 membresías con plan reciben criterio, las
+  3 sin plan quedan nulas, el parámetro nace, ningún plan con cortesía.
+  **3)** **0058 → 0059** aplicadas una por una en `pnvhpbxjbdmbktpwebtx`, antes del
+  código, con `notify pgrst`. Medido después: mismos conteos de membresías,
+  cuotas, pagos, asistencias, planes y reservas; 42 con criterio, 3 sin plan;
+  parámetro `particular_vencida_modo` presente. **4)** control **42** (nuevo,
+  membresía de plan regular sin criterio) en **0**; `get_advisors` sin hallazgos
+  nuevos (los que marca son previos). **5)** recién entonces el PR y el merge,
+  en un solo push. **Pendiente, a mano (Javier):** activar "Permite sala externa"
+  en los dos planes de boda. **Pendiente, a propósito después del pase:** depurar
+  los datos de inicio de producción (asignaciones #22/#12–#14; membresías #17–#19)
+  y el informe imprimible de pre-liquidación — antes de generar la primera
+  liquidación de producción (septiembre). Detalle en `docs/ESTADO.md`,
+  secciones "C3 — H5" y "C3 — H5, Paso 4".
 
 - **"Agendamientos externos de hoy" en `/sala` — PASADO A PRODUCCIÓN el
   2026-09-27**, con el OK explícito de Javier ("ok a prod"). Sin migración:
