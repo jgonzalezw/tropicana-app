@@ -4607,3 +4607,51 @@ Datos de prueba en dev tocados por SQL con autorización de Javier (criterios de
   sin comisión / comisión sin membresía completa).
 - Permisos: no hay pantalla nueva en este hito (regla de proceso 11 no aplica).
 - Pase a producción: requiere OK explícito de Javier (migración 0058 antes del código).
+
+## C3 — H5, Paso 4: criterios 2 y 3 en cursos regulares · 2026-10-01 (dev, sin pase)
+
+Rama `h5-paso4-criterios-regulares` (sale de `h5-liquidacion-particulares`),
+commits `39027f1`, `4020252`, `e39a418`, `88df13b`, `a3a7c8f`. Sin push.
+Migración **0059** aplicada solo en dev (producción sigue en 0057; 0058 y 0059
+pasan juntas).
+
+### Construido
+- **Criterios 2 y 3 en regulares, sobre la misma base** (base %, asignación,
+  prorrata, medida en clases; las formas de pago siguen solo en particulares).
+  Criterio 3 = al completarse, sin esperar el período vencido; criterio 2 =
+  proporcional al avance, siempre en el período actual (excepción a la regla 16).
+- **Snapshot del criterio** (`membresias.criterio_liquidacion`, 0059): la venta
+  lo copia del plan (regla 12). Una membresía con comisiones devengadas nunca se
+  reescribe al cambiar el criterio del plan.
+- **Ilimitadas cuentan solo las clases asistidas** (`presente`), regla 10
+  (decidido 2026-10-01). Las de N clases siguen por calendario menos suspendidas.
+- **Diálogo al cambiar el criterio de un plan**: ofrece aplicar a las membresías
+  aún sin devengar, o solo a las ventas nuevas. Si no alcanza a nadie porque ya
+  están devengadas, lo dice en el mensaje de guardado (calidad 5).
+- **El criterio 2 no se permite en planes ilimitados** (Javier, 2026-10-01): sin
+  total de clases no hay avance que medir. Lo valida `validarDatosPlan`
+  (`src/lib/planes.ts`, compartida por cliente y servidor) y el selector muestra
+  la opción deshabilitada con el motivo. Medido: ningún plan ilimitado tiene hoy
+  criterio 2 en dev ni en producción.
+- Chip de asistencia "incompleta" con el mismo criterio de agotado que el padrón;
+  Liquidaciones cuenta membresías distintas.
+
+### Verificado
+`tsc` y `eslint` limpios; `npm test` **172/172** (9 en `motor.criterios.test.ts`,
+3 en `planes.test.ts`). Javier verificó en el navegador: chip de asistencia del
+28/09, opción 2 deshabilitada en ilimitados, aviso de membresías ya devengadas
+(plan "C2 - MULTICURSO SALSA", cuya única membresía #82 ya tenía devengo).
+La #37 (liquidación #5) queda con su ajuste firmado: sale al próximo "Generar
+liquidación" del profesor.
+
+### Pendiente (después de este paso, con el PR)
+- Migración de datos de inicio: avanzar `asignaciones.desde` (#22, #12–#14) y
+  pasar las membresías #17–#19 al plan "Plan Regular - Zumba". Respaldo, antes/
+  después, ensayo en seco y OK explícito para producción.
+- Informe imprimible de pre-liquidación en Liquidaciones (membresías que entran
+  + excepciones a corregir).
+- Al final del plan: filtros profesor/período y proyección de liquidez
+  (pantalla nueva: mockup + permisos), `/refrescar-dev`, y activar a mano
+  "Permite sala externa" en los dos planes de boda de producción.
+- Pase a producción de H5 + Paso 4: 0058 y 0059 antes del código, ensayo en seco,
+  controles, un solo push, con OK de Javier.

@@ -182,8 +182,8 @@ hito ni gastar tokens reconstruyéndolo (pedido de Javier, 2026-09-26): esto
 se actualiza en el mismo commit que cierra cada hito, y una sesión nueva lo
 lee **antes** de mirar ramas.
 
-- **Rama activa:** `h5-liquidacion-particulares` (local, sin pushear; sale de
-  `main` en `c708509`). **H5 en construcción, solo en dev**: migración 0058
+- **Rama activa:** `h5-paso4-criterios-regulares` (local, sin pushear; sale de
+  `h5-liquidacion-particulares`, que sale de `main` en `c708509`). **H5 en construcción, solo en dev**: migración 0058
   aplicada en dev, código y 153 pruebas en verde, **sin recorrido en el
   navegador** y **sin pase a producción**. Producción sigue en 0001–0057.
 - **Último hito cerrado:** "Agendamientos externos de hoy" en `/sala`, en
@@ -195,21 +195,21 @@ lee **antes** de mirar ramas.
   corregidos; commit de cierre en la rama): **Javier prueba ahora**. Paso 4 (criterios 2 y 3 en
   regulares, sobre la misma base) solo con su OK. Detalle en `docs/ESTADO.md`,
   sección "C3 — H5".
-- **Paso 4 (2026-10-01, rama `h5-paso4-criterios-regulares`, sale de
-  `h5-liquidacion-particulares`):** criterios 2 y 3 en regulares sobre la misma
-  base (migración 0059 aplicada solo en dev, motor + 9 pruebas en
-  `motor.criterios.test.ts`), conteo de ilimitadas por asistidas (regla 10) y
-  diálogo al cambiar el criterio de un plan. **Falta:** que Javier pruebe;
-  decidido el 2026-10-01: el criterio 2 **no se permite en planes
-  ilimitados** (sin total de clases no hay avance), validado en el plan. Liquidada la #37 (liquidación #5) en dev, el
-  próximo generar emite su ajuste firmado. **Pendiente posterior** (memoria del proyecto): migración de datos
-  de inicio (asignaciones #22/#12–#14, membresías #17–#19) e informe imprimible
-  de pre-liquidación.
+- **Paso 4 CERRADO en dev (2026-10-01), rama `h5-paso4-criterios-regulares`**
+  (sale de `h5-liquidacion-particulares`; último código `a3a7c8f`, más el commit
+  de cierre de docs; sin push): criterios 2 y 3 en regulares (migración 0059 solo
+  en dev), conteo de ilimitadas por asistidas (regla 10), diálogo al cambiar el
+  criterio de un plan y criterio 2 no permitido en ilimitados. 172 pruebas en
+  verde; Javier verificó en el navegador. **Qué sigue**, con el PR: (1) migración
+  de datos de inicio (asignaciones #22/#12–#14, membresías #17–#19) en dev primero;
+  (2) informe imprimible de pre-liquidación; (3) pase a producción de H5 + Paso 4
+  (0058 y 0059 antes del código, ensayo en seco, un solo push) solo con su OK.
+  Al final del plan: filtros y proyección en Liquidaciones, `/refrescar-dev`.
 - **Pendiente, no automatizado a propósito:** activar a mano "Permite sala
   externa" en los dos planes de boda de producción, desde Planes.
 - **Para arrancar la sesión siguiente** (local, la rama no está en GitHub):
   ```
-  git checkout h5-liquidacion-particulares
+  git checkout h5-paso4-criterios-regulares
   npm run dev:limpio
   ```
 
