@@ -4,6 +4,14 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { tienePermiso } from "@/lib/sesion";
 import type { DatosProfesor } from "@/lib/tipos";
+import {
+  diaAnterior,
+  diaSiguiente,
+  validarAsignacionNueva,
+  validarDesasignacion,
+  type DatosSustituto,
+} from "@/lib/desasignacion";
+import { cierreDeCuentas, type VistaCierre } from "@/app/(privado)/liquidaciones/acciones";
 import { presenteDesdeExtra } from "@/lib/matrizMinimos";
 import {
   crearOReusarContactoPersona,
@@ -196,7 +204,8 @@ export async function crearAsignacion(
   cursoId: number,
   profesorId: number,
   pctIngresos: number,
-  pctReferido: number
+  pctReferido: number,
+  desde: string
 ): Promise<{ ok?: true; error?: string }> {
   if (!(await tienePermiso("profesores", "editar"))) return { error: "Sin permiso." };
   if (!(pctIngresos >= 1 && pctIngresos <= 100))
@@ -205,12 +214,22 @@ export async function crearAsignacion(
     return { error: "El % por referido tiene que estar entre 0 y 100." };
 
   const a = admin();
-  // Cierra la asignación vigente del curso (si hay) antes de insertar la nueva,
-  // para no violar el índice de un solo titular vigente por curso.
-  const hoy = new Date().toISOString().slice(0, 10);
+  const { data: previas, error: eP } = await a
+    .from("asignaciones")
+    .select("desde, hasta")
+    .eq("curso_id", cursoId);
+  if (eP) return { error: eP.message };
+  const falta = validarAsignacionNueva({
+    desde,
+    asignaciones: (previas ?? []) as { desde: string; hasta: string | null }[],
+  });
+  if (falta) return { error: falta };
+
+  // Cierra la asignación vigente del curso (si hay) el día anterior al inicio de
+  // la nueva, para no violar el índice de un solo titular vigente por curso.
   const { error: errCierre } = await a
     .from("asignaciones")
-    .update({ hasta: hoy })
+    .update({ hasta: diaAnterior(desde) })
     .eq("curso_id", cursoId)
     .is("hasta", null);
   if (errCierre) return { error: errCierre.message };
@@ -220,24 +239,181 @@ export async function crearAsignacion(
     profesor_id: profesorId,
     pct_ingresos: pctIngresos,
     pct_referido: pctReferido,
+    desde,
   });
-  if (error) return { error: error.message };
+  if (error) {
+    // Sin la nueva grabada no se deja el curso sin titular por el cierre.
+    await a.from("asignaciones").update({ hasta: null })
+      .eq("curso_id", cursoId).eq("hasta", diaAnterior(desde));
+    return { error: error.message };
+  }
 
   revalidatePath("/profesores");
   return { ok: true };
 }
 
-export async function cerrarAsignacion(id: number): Promise<{ ok?: true; error?: string }> {
+export type RevisionDesasignacion = {
+  error?: string;
+  /** Clases ya dictadas por el profesor DESPUÉS de la fecha: la fecha las deja afuera. */
+  posteriores?: string[];
+  /** La última clase que dictó en este curso (de contexto para elegir la fecha); null si ninguna. */
+  ultimaClase?: string | null;
+  /** Membresías activas del curso con clases todavía sin dar. */
+  pendientes?: { id: number; alumno: string; hechas: number; plan: number }[];
+};
+
+/** Mira, sin escribir nada, qué toca la fecha de desasignación (clases y membresías). */
+export async function revisarDesasignacion(id: number, fecha: string): Promise<RevisionDesasignacion> {
   if (!(await tienePermiso("profesores", "editar"))) return { error: "Sin permiso." };
-  const hoy = new Date().toISOString().slice(0, 10);
-  const { error } = await admin()
+  const a = admin();
+  const { data: asig, error: eA } = await a
     .from("asignaciones")
-    .update({ hasta: hoy })
+    .select("id, curso_id, profesor_id, desde, hasta")
     .eq("id", id)
-    .is("hasta", null);
+    .maybeSingle();
+  if (eA) return { error: eA.message };
+  if (!asig) return { error: "No se encontró la asignación." };
+  const falta = validarDesasignacion({
+    desde: asig.desde, hasta: asig.hasta, profesorId: asig.profesor_id, fecha, sustituto: null,
+  });
+  if (falta) return { error: falta };
+
+  const { data: ses, error: eS } = await a
+    .from("sesiones")
+    .select("fecha")
+    .eq("curso_id", asig.curso_id)
+    .eq("profesor_id", asig.profesor_id)
+    .eq("estado", "dictada")
+    .gt("fecha", fecha)
+    .order("fecha");
+  if (eS) return { error: eS.message };
+
+  const { data: mcs, error: eM } = await a
+    .from("membresia_cursos")
+    .select(
+      "membresia:membresias(id, estado, es_prueba, clases_plan, clases_hechas, alumno:alumnos(contacto:contactos(nombre, apellido)))"
+    )
+    .eq("curso_id", asig.curso_id);
+  if (eM) return { error: eM.message };
+
+  type Fila = {
+    membresia: {
+      id: number; estado: string; es_prueba: boolean; clases_plan: number | null; clases_hechas: number;
+      alumno: { contacto: { nombre: string | null; apellido: string | null } | null } | null;
+    } | null;
+  };
+  const pendientes = ((mcs ?? []) as unknown as Fila[])
+    .map((r) => r.membresia)
+    .filter((m): m is NonNullable<Fila["membresia"]> =>
+      !!m && m.estado === "activa" && !m.es_prueba && m.clases_plan != null && m.clases_hechas < m.clases_plan)
+    .map((m) => ({
+      id: m.id,
+      alumno: [m.alumno?.contacto?.apellido, m.alumno?.contacto?.nombre].filter(Boolean).join(", ") || "—",
+      hechas: m.clases_hechas,
+      plan: m.clases_plan as number,
+    }));
+
+  const { data: ult, error: eU } = await a
+    .from("sesiones")
+    .select("fecha")
+    .eq("curso_id", asig.curso_id)
+    .eq("profesor_id", asig.profesor_id)
+    .eq("estado", "dictada")
+    .order("fecha", { ascending: false })
+    .limit(1);
+  if (eU) return { error: eU.message };
+
+  return {
+    posteriores: (ses ?? []).map((x) => x.fecha as string),
+    ultimaClase: (ult?.[0]?.fecha as string | undefined) ?? null,
+    pendientes,
+  };
+}
+
+/** Vista previa del cierre de cuentas al desasignar (nada se escribe). */
+export async function vistaCierreDesasignacion(id: number, fecha: string): Promise<VistaCierre> {
+  if (!(await tienePermiso("profesores", "editar"))) return { error: "Sin permiso." };
+  const { data: asig, error } = await admin()
+    .from("asignaciones").select("profesor_id, curso_id").eq("id", id).maybeSingle();
   if (error) return { error: error.message };
+  if (!asig) return { error: "No se encontró la asignación." };
+  return cierreDeCuentas(asig.profesor_id as number, fecha, false, asig.curso_id as number);
+}
+
+/**
+ * Cierra la asignación en `fecha` (último día a cargo) y, si corresponde, deja un
+ * sustituto desde el día siguiente. Lo ya dictado y devengado no se toca: la
+ * comisión es de quien dictó (regla 10) y se lee del historial de asignaciones.
+ */
+export async function desasignar(
+  id: number,
+  fecha: string,
+  sustituto: DatosSustituto | null,
+  liquidarAvance = false
+): Promise<{ ok?: true; error?: string; cierre?: VistaCierre }> {
+  if (!(await tienePermiso("profesores", "editar"))) return { error: "Sin permiso." };
+  if (liquidarAvance && !(await tienePermiso("liquidaciones", "crear")))
+    return { error: "Liquidar el avance requiere el permiso de crear liquidaciones." };
+  const a = admin();
+  const { data: asig, error: eA } = await a
+    .from("asignaciones")
+    .select("id, curso_id, profesor_id, desde, hasta")
+    .eq("id", id)
+    .maybeSingle();
+  if (eA) return { error: eA.message };
+  if (!asig) return { error: "No se encontró la asignación." };
+  const falta = validarDesasignacion({
+    desde: asig.desde, hasta: asig.hasta, profesorId: asig.profesor_id, fecha, sustituto,
+  });
+  if (falta) return { error: falta };
+
+  if (sustituto) {
+    const { data: prof, error: eP } = await a
+      .from("profesores")
+      .select("id, activo, tipo")
+      .eq("id", sustituto.profesorId as number)
+      .maybeSingle();
+    if (eP) return { error: eP.message };
+    if (!prof || !prof.activo || prof.tipo !== "activo")
+      return { error: "El sustituto tiene que ser un profesor Activo." };
+  }
+
+  const { error: eC } = await a.from("asignaciones").update({ hasta: fecha }).eq("id", id).is("hasta", null);
+  if (eC) return { error: eC.message };
+
+  if (sustituto) {
+    const { error: eI } = await a.from("asignaciones").insert({
+      curso_id: asig.curso_id,
+      profesor_id: sustituto.profesorId,
+      pct_ingresos: sustituto.pctIngresos,
+      pct_referido: sustituto.pctReferido,
+      desde: diaSiguiente(fecha),
+    });
+    if (eI) {
+      // Sin sustituto grabado no se deja el cierre a medias: se reabre la asignación.
+      await a.from("asignaciones").update({ hasta: null }).eq("id", id);
+      return { error: eI.message };
+    }
+  }
+
+  // Cierre de cuentas (regla 8, excepción): el avance ganado hasta la fecha
+  // queda devengado como pago a cuenta. Va después de cerrar la asignación para
+  // que el motor ya vea quién dictó cada clase; si falla, se deshace todo.
+  let cierre: VistaCierre | undefined;
+  if (liquidarAvance) {
+    cierre = await cierreDeCuentas(asig.profesor_id as number, fecha, true, asig.curso_id as number);
+    if (cierre.error) {
+      if (sustituto)
+        await a.from("asignaciones").delete()
+          .eq("curso_id", asig.curso_id).eq("profesor_id", sustituto.profesorId as number).eq("desde", diaSiguiente(fecha));
+      await a.from("asignaciones").update({ hasta: null }).eq("id", id);
+      return { error: cierre.error };
+    }
+  }
+
   revalidatePath("/profesores");
-  return { ok: true };
+  revalidatePath("/asistencia");
+  return { ok: true, cierre };
 }
 
 export async function eliminarAsignacion(id: number): Promise<{ ok?: true; error?: string }> {

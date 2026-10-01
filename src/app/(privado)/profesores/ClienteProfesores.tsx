@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { Fragment, useState, useTransition } from "react";
+import { validarAsignacionNueva, validarDesasignacion, type DatosSustituto } from "@/lib/desasignacion";
 import { useRouter } from "next/navigation";
 import type { Profesor, Curso, Asignacion, DepsProfesor, DatosProfesor, Estilo, ListasContacto, MatrizMinimo } from "@/lib/tipos";
 import { nombreCompleto, apellidoNombre, compararContactosPorApellido } from "@/lib/contactos";
@@ -12,8 +13,12 @@ import {
   eliminarODesactivarProfesor,
   activarProfesor,
   crearAsignacion,
-  cerrarAsignacion,
+  desasignar,
+  revisarDesasignacion,
+  vistaCierreDesasignacion,
+  type RevisionDesasignacion,
 } from "./acciones";
+import type { VistaCierre } from "@/app/(privado)/liquidaciones/acciones";
 
 type Cuenta = { id: string; etiqueta: string };
 
@@ -28,6 +33,7 @@ export default function ClienteProfesores({
   listasContacto,
   puedeVerPrivados,
   puedeEditar,
+  puedeLiquidar,
 }: {
   padron: Profesor[];
   cursos: Curso[];
@@ -39,6 +45,7 @@ export default function ClienteProfesores({
   listasContacto: ListasContacto;
   puedeVerPrivados: boolean;
   puedeEditar: boolean;
+  puedeLiquidar: boolean;
 }) {
   const [tab, setTab] = useState<"listado" | "asignacion">("listado");
 
@@ -72,7 +79,7 @@ export default function ClienteProfesores({
           puedeEditar={puedeEditar}
         />
       ) : (
-        <TabAsignacion padron={padron} cursos={cursos} asignaciones={asignaciones} estilos={estilos} />
+        <TabAsignacion padron={padron} cursos={cursos} asignaciones={asignaciones} estilos={estilos} puedeLiquidar={puedeLiquidar} />
       )}
     </div>
   );
@@ -277,17 +284,20 @@ function TabAsignacion({
   cursos,
   asignaciones,
   estilos,
+  puedeLiquidar,
 }: {
   padron: Profesor[];
   cursos: Curso[];
   asignaciones: Asignacion[];
   estilos: Estilo[];
+  puedeLiquidar: boolean;
 }) {
   const router = useRouter();
   const [cursoId, setCursoId] = useState<number | null>(null);
   const [profId, setProfId] = useState<number | null>(null);
   const [pctIng, setPctIng] = useState("");
   const [pctRef, setPctRef] = useState("");
+  const [asigDesde, setAsigDesde] = useState(() => new Date().toISOString().slice(0, 10));
   const [error, setError] = useState<string | null>(null);
   const [pendiente, startTransition] = useTransition();
 
@@ -314,7 +324,7 @@ function TabAsignacion({
     if (!cursoId || !profId) return;
     setError(null);
     startTransition(async () => {
-      const res = await crearAsignacion(cursoId, profId, num(pctIng), num(pctRef));
+      const res = await crearAsignacion(cursoId, profId, num(pctIng), num(pctRef), asigDesde);
       if (res?.error) setError(res.error);
       else {
         setCursoId(null);
@@ -326,10 +336,77 @@ function TabAsignacion({
     });
   }
 
-  function cerrar(id: number) {
+  const faltaAsig = cursoId
+    ? validarAsignacionNueva({
+        desde: asigDesde,
+        asignaciones: asignaciones.filter((x) => x.curso_id === cursoId),
+      })
+    : null;
+  const puedeAsignar = !!cursoId && !!profId && !faltaAsig && num(pctIng) >= 1 && num(pctIng) <= 100;
+
+  // Desasignar: fecha, revisión y sustituto opcional (una asignación a la vez).
+  const [desLiquidar, setDesLiquidar] = useState(false);
+  const [desCierre, setDesCierre] = useState<VistaCierre | null>(null);
+  const [desId, setDesId] = useState<number | null>(null);
+  const [desFecha, setDesFecha] = useState("");
+  const [desRevision, setDesRevision] = useState<(RevisionDesasignacion & { fecha: string }) | null>(null);
+  const [desConSust, setDesConSust] = useState(false);
+  const [desSustId, setDesSustId] = useState<number | null>(null);
+  const [desPctIng, setDesPctIng] = useState("");
+  const [desPctRef, setDesPctRef] = useState("");
+  const [desEntiendo, setDesEntiendo] = useState(false);
+  const [desError, setDesError] = useState<string | null>(null);
+
+  function abrirDesasignar(a: Asignacion) {
+    setDesId(a.id);
+    setDesFecha(new Date().toISOString().slice(0, 10));
+    setDesRevision(null);
+    setDesConSust(false);
+    setDesSustId(null);
+    setDesPctIng(String(a.pct_ingresos));
+    setDesPctRef(String(a.pct_referido));
+    setDesEntiendo(false);
+    setDesLiquidar(false);
+    setDesCierre(null);
+    setDesError(null);
+  }
+
+  function alternarLiquidar(a: Asignacion, v: boolean) {
+    setDesLiquidar(v);
+    setDesCierre(null);
+    if (!v) return;
     startTransition(async () => {
-      await cerrarAsignacion(id);
-      router.refresh();
+      setDesCierre(await vistaCierreDesasignacion(a.id, desFecha));
+    });
+  }
+
+  function revisarFecha(a: Asignacion) {
+    setDesError(null);
+    setDesEntiendo(false);
+    setDesLiquidar(false);
+    setDesCierre(null);
+    startTransition(async () => {
+      const r = await revisarDesasignacion(a.id, desFecha);
+      if (r.error) {
+        setDesRevision(null);
+        setDesError(r.error);
+      } else setDesRevision({ ...r, fecha: desFecha });
+    });
+  }
+
+  const sustitutoDes: DatosSustituto | null = desConSust
+    ? { profesorId: desSustId, pctIngresos: num(desPctIng), pctReferido: num(desPctRef) }
+    : null;
+
+  function confirmarDesasignar(a: Asignacion) {
+    setDesError(null);
+    startTransition(async () => {
+      const r = await desasignar(a.id, desFecha, sustitutoDes, desLiquidar);
+      if (r.error) setDesError(r.error);
+      else {
+        setDesId(null);
+        router.refresh();
+      }
     });
   }
 
@@ -431,6 +508,17 @@ function TabAsignacion({
             </label>
           </div>
 
+          <label className="block max-w-xs">
+            <span className="block text-base font-medium mb-1.5">Fecha de inicio</span>
+            <input type="date" value={asigDesde} onChange={(e) => setAsigDesde(e.target.value)} className="entrada" />
+            <span className="block text-sm text-[var(--texto-tenue)] mt-1">
+              Desde cuándo está a cargo del curso (hoy por defecto). La asignación vigente, si hay, termina el día anterior; las clases de antes siguen siendo de quien las dictó.
+            </span>
+          </label>
+          {faltaAsig && (
+            <p className="text-[var(--peligro)] text-base" role="alert">{faltaAsig}</p>
+          )}
+
           <div className="p-4 rounded-[var(--radio-panel)] border border-[var(--primario)] bg-[var(--accent-100)]">
             <div className="font-semibold text-[var(--peligro-texto)]">
               🔒 Al confirmar, estos dos porcentajes quedan fijos para esta asignación.
@@ -457,7 +545,7 @@ function TabAsignacion({
 
           <button
             onClick={confirmar}
-            disabled={pendiente}
+            disabled={pendiente || !puedeAsignar}
             className="px-5 py-2.5 text-base font-semibold rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)] hover:bg-[var(--primario-hover)] disabled:opacity-40"
           >
             {pendiente ? "Confirmando…" : "Confirmar asignación"}
@@ -481,7 +569,8 @@ function TabAsignacion({
           </thead>
           <tbody>
             {vigentes.map((a) => (
-              <tr key={a.id} className="border-t border-[var(--borde)]">
+              <Fragment key={a.id}>
+              <tr className="border-t border-[var(--borde)]">
                 <td className="py-3 px-4">{nombreCurso(a.curso_id)}</td>
                 <td className="py-3 px-4">{nombreProf(a.profesor_id)}</td>
                 <td className="py-3 px-4 text-right">{a.pct_ingresos}%</td>
@@ -490,13 +579,179 @@ function TabAsignacion({
                 <td className="py-3 px-4 text-right">
                   <button
                     disabled={pendiente}
-                    onClick={() => cerrar(a.id)}
+                    onClick={() => abrirDesasignar(a)}
                     className="px-4 py-1.5 text-sm rounded-[var(--radio-control)] border border-[var(--borde)] hover:border-[var(--primario)] disabled:opacity-40"
                   >
-                    Cerrar
+                    Desasignar
                   </button>
                 </td>
               </tr>
+              {desId === a.id && (() => {
+                const falta = validarDesasignacion({
+                  desde: a.desde, hasta: a.hasta, profesorId: a.profesor_id, fecha: desFecha, sustituto: sustitutoDes,
+                });
+                const revisada = desRevision?.fecha === desFecha;
+                const hayPosteriores = (desRevision?.posteriores?.length ?? 0) > 0;
+                const puede = !falta && revisada && (!hayPosteriores || desEntiendo);
+                const sustElegibles = padron
+                  .filter((p) => p.activo && p.tipo === "activo" && p.id !== a.profesor_id)
+                  .sort((x, y) => compararContactosPorApellido(x.contacto, y.contacto));
+                return (
+                  <tr className="border-t border-[var(--borde)] bg-[var(--fondo-elevado)]">
+                    <td colSpan={6} className="p-4 space-y-4">
+                      <div className="font-medium">
+                        Desasignar a {nombreProf(a.profesor_id)} de {nombreCurso(a.curso_id)}
+                      </div>
+                      <label className="block max-w-xs">
+                        <span className="block text-base font-medium mb-1.5">Último día a su cargo</span>
+                        <input
+                          type="date"
+                          value={desFecha}
+                          min={a.desde}
+                          onChange={(e) => { setDesFecha(e.target.value); setDesEntiendo(false); }}
+                          className="entrada"
+                        />
+                        <span className="block text-sm text-[var(--texto-tenue)] mt-1">
+                          Las clases hasta ese día (inclusive) siguen siendo suyas y se le liquidan. Desde el día siguiente el curso queda sin titular o con el sustituto que elijas.
+                        </span>
+                      </label>
+                      <button
+                        type="button"
+                        disabled={pendiente || !desFecha}
+                        onClick={() => revisarFecha(a)}
+                        className="px-4 py-1.5 text-sm rounded-[var(--radio-control)] border border-[var(--borde)] hover:border-[var(--primario)] disabled:opacity-40"
+                      >
+                        {pendiente ? "Revisando…" : "Revisar fecha"}
+                      </button>
+
+                      {revisada && desRevision && (
+                        <div className="space-y-2">
+                          <p className="text-sm">
+                            {desRevision.ultimaClase
+                              ? `Última clase que dictó en este curso: ${desRevision.ultimaClase}.`
+                              : "Todavía no dictó ninguna clase en este curso."}
+                          </p>
+                          {hayPosteriores ? (
+                            <div className="p-3 rounded-[var(--radio-panel)] border border-[var(--peligro)] bg-[var(--peligro-fill)] text-[var(--peligro-texto)] text-sm">
+                              ⚠ {nombreProf(a.profesor_id)} ya dictó {desRevision.posteriores!.length} clase(s) después de esa fecha ({desRevision.posteriores!.slice(0, 6).join(", ")}
+                              {desRevision.posteriores!.length > 6 ? "…" : ""}). Esas clases quedan registradas a su nombre y se le siguen liquidando, aunque la asignación termine antes.
+                              <label className="flex items-center gap-2 mt-2">
+                                <input type="checkbox" checked={desEntiendo} onChange={(e) => setDesEntiendo(e.target.checked)} />
+                                Entiendo, usar esta fecha igual
+                              </label>
+                            </div>
+                          ) : (
+                            <p className="text-sm text-[var(--exito)]">✓ No hay clases dictadas por este profesor después de esa fecha.</p>
+                          )}
+                          {(desRevision.pendientes?.length ?? 0) > 0 && (
+                            <div className="p-3 rounded-[var(--radio-panel)] border border-[var(--borde)] text-sm">
+                              <div className="font-medium mb-1">
+                                {desRevision.pendientes!.length} membresía(s) activa(s) de este curso que todavía no terminan su ciclo. Entre paréntesis, a cuántas clases asistió cada alumno (su contador de asistencia, no las clases que dio el profesor):
+                              </div>
+                              <ul className="list-disc pl-5">
+                                {desRevision.pendientes!.map((m) => (
+                                  <li key={m.id}>{m.alumno} — asistió a {m.hechas} de {m.plan} clases</li>
+                                ))}
+                              </ul>
+                              <p className="text-[var(--texto-tenue)] mt-1">
+                                Sin alguien que dicte las que faltan no se completan, y la comisión de las ya dictadas no se devenga hasta entonces. Con un sustituto, él completa las que faltan; el profesor que se va cobra solo las que dictó.
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {revisada && (
+                        <div className="space-y-2 p-3 rounded-[var(--radio-panel)] border border-[var(--borde)]">
+                          <label className="flex items-center gap-2">
+                            <input type="checkbox" checked={desLiquidar} disabled={!puedeLiquidar || pendiente} onChange={(e) => alternarLiquidar(a, e.target.checked)} />
+                            Liquidar y dejar a pagar el avance ahora (cierre de cuentas)
+                          </label>
+                          {!puedeLiquidar && (
+                            <p className="text-sm text-[var(--texto-tenue)]">Tu rol no tiene permiso para crear liquidaciones; pedile a quien lo tenga que lo haga.</p>
+                          )}
+                          {desLiquidar && desCierre?.error && (
+                            <p className="text-[var(--peligro)] text-sm" role="alert">{desCierre.error}</p>
+                          )}
+                          {desLiquidar && desCierre?.lineas && (
+                            <div className="text-sm space-y-1">
+                              {desCierre.lineas.length === 0 ? (
+                                <p className="text-[var(--texto-tenue)]">No hay avance que liquidar a esa fecha (nada cobrado o sin clases dictadas).</p>
+                              ) : (
+                                <>
+                                  <ul className="list-disc pl-5">
+                                    {desCierre.lineas.map((l) => (
+                                      <li key={`${l.membresiaId}-${l.curso}`}>{l.alumno} — {l.curso}: {l.clases} de {l.clasesDelCurso} clases del ciclo ya transcurridas al corte, sobre Bs {l.base} cobrado → <b>Bs {l.monto}</b></li>
+                                    ))}
+                                  </ul>
+                                  <p className="font-medium">Total a dejar por pagar: Bs {desCierre.total}</p>
+                                </>
+                              )}
+                              {(desCierre.sinRegistrar?.length ?? 0) > 0 && (
+                                <p className="text-[var(--peligro-texto)]">Quedan afuera por clases sin registrar (regla 17): {desCierre.sinRegistrar!.map((x) => x.alumno).join(", ")}.</p>
+                              )}
+                              <p className="text-[var(--texto-tenue)]">Las clases se cuentan por calendario (las del ciclo hasta el corte, sin las suspendidas), vaya o no el alumno: el profesor cobra por las clases que dictó, no por la asistencia de cada alumno. Es un pago a cuenta: lo que se cobre después o al completarse cada membresía se compensa en la liquidación final. El pago se hace en Caja → Por pagar.</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="space-y-2">
+                        <label className="flex items-center gap-2">
+                          <input type="checkbox" checked={desConSust} onChange={(e) => setDesConSust(e.target.checked)} />
+                          Definir un sustituto desde el día siguiente
+                        </label>
+                        {desConSust ? (
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-2xl">
+                            <select
+                              value={desSustId ?? ""}
+                              onChange={(e) => setDesSustId(e.target.value ? Number(e.target.value) : null)}
+                              className="entrada"
+                            >
+                              <option value="">Elegí el profesor…</option>
+                              {sustElegibles.map((p) => (
+                                <option key={p.id} value={p.id}>{apellidoNombre(p.contacto)}</option>
+                              ))}
+                            </select>
+                            <input value={desPctIng} onChange={(e) => setDesPctIng(e.target.value)} inputMode="numeric" placeholder="% ingresos" className="entrada" />
+                            <input value={desPctRef} onChange={(e) => setDesPctRef(e.target.value)} inputMode="numeric" placeholder="% referido" className="entrada" />
+                          </div>
+                        ) : (
+                          <p className="text-sm text-[var(--texto-tenue)]">
+                            Sin sustituto el curso queda sin titular: al tomar asistencia habrá que registrar quién dictó la clase, o suspenderla.
+                          </p>
+                        )}
+                      </div>
+
+                      {(desError || (revisada && falta)) && (
+                        <p className="text-[var(--peligro)] text-base" role="alert">{desError ?? falta}</p>
+                      )}
+                      {!revisada && !falta && (
+                        <p className="text-sm text-[var(--texto-tenue)]">Revisá la fecha antes de confirmar.</p>
+                      )}
+
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          disabled={pendiente || !puede}
+                          onClick={() => confirmarDesasignar(a)}
+                          className="px-5 py-2 text-base font-semibold rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)] hover:bg-[var(--primario-hover)] disabled:opacity-40"
+                        >
+                          {pendiente ? "Guardando…" : "Confirmar desasignación"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDesId(null)}
+                          className="px-4 py-2 text-base rounded-[var(--radio-control)] border border-[var(--borde)]"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })()}
+              </Fragment>
             ))}
             {vigentes.length === 0 && (
               <tr>
