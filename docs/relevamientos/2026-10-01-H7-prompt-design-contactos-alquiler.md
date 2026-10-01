@@ -46,13 +46,13 @@ mínimos** (Administración → Catálogos), que cada contexto configura como
 | WhatsApp | **Obligatorio** | **Obligatorio** |
 | Red social | opcional | opcional |
 | Consentimiento de contacto | opcional | opcional |
-| Documento | oculto | oculto |
+| Documento | oculto | **Obligatorio** (NIT, para facturar; decidido 2026-10-01) |
 | Email | oculto | oculto |
 | Fecha de nacimiento · sexo · canal de captación | ocultos | ocultos |
 
 **Diseñar todos los campos, también los ocultos**, como bloques que aparecen
-cuando la matriz los activa (hoy no se muestran). El más probable de activar
-para alquiler es el **documento** de la empresa (NIT, para facturar). Por eso
+cuando la matriz los activa (hoy no se muestran). El **documento** es obligatorio
+para la empresa (NIT, para facturar) y puede activarse en otros contextos. Por eso
 tienen que existir en el diseño:
 
 - **Documento**: tipo (lista: *Cédula de identidad*, *CI extranjero*,

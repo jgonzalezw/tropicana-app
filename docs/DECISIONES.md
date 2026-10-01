@@ -206,6 +206,11 @@ lee **antes** de mirar ramas.
      entra a Roles y Permisos con su migración). Segundo prompt, sobre el titular
      como contacto (persona vs. organización, documentos, consentimiento):
      `docs/relevamientos/2026-10-01-H7-prompt-design-contactos-alquiler.md`.
+     **D23, decidida para este caso (Javier, 2026-10-01): el documento (NIT) es
+     obligatorio en el contexto "Tercero · organización"** (matriz de mínimos,
+     celda `tercero_org`/`documento` = `O`). Aplicado en **dev**; la migración de H7
+     lo incluye (idempotente) para que llegue a producción (regla de calidad 7).
+     Para los demás contextos el documento sigue oculto.
   2. **Después de C3, sin urgencia:** filtros por profesor y período en
      Liquidaciones (pantalla existente: se avisa antes de construir).
   3. **Postergada:** D29, simulación anticipada de la pre-liquidación (§1, con su
