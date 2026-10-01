@@ -213,6 +213,25 @@ lee **antes** de mirar ramas.
      celda `tercero_org`/`documento` = `O`). Aplicado en **dev**; la migración de H7
      lo incluye (idempotente) para que llegue a producción (regla de calidad 7).
      Para los demás contextos el documento sigue oculto.
+     **Recibido el handoff de Design (2026-10-01) y plan en tres tandas**, validando
+     en dev entre cada una: **(1)** base — permiso `alquileres`, plan de alquiler y
+     nombres editables en Precios (**construida en dev el 2026-10-01**, migración
+     **0060**); **(2)** la venta (categoría, precio de la tabla, reservas, cobro,
+     `/alquileres`); **(3)** el titular como contacto (persona/organización, NIT,
+     persona de contacto). **Decisiones de Javier del 2026-10-01 al revisar el
+     mockup:** *(a)* la categoría de cliente de un alquiler la gobierna un
+     **parámetro** (`alquiler_categoria_modo`: `automatica` — arranca así — o
+     `editable` con glosa obligatoria) que fija la gerente según su política;
+     corrige la regla 24 y la definición v2, que decían "la persona la puede
+     cambiar" y el mockup dejó fija; *(b)* **una persona de contacto puede trabajar
+     en varias organizaciones** (el prototipo mostraba una sola); *(c)* el **recargo
+     de extensión tiene tope por parámetro** (`extension_recargo_max_pct`, 100 —la
+     base ya limita a 100—). **Desviación consciente del mockup:** Design pide
+     ocultar el simulador "Cómo lo resuelve una particular" de Precios porque
+     "contradice v2", pero H5 (decisión 1 del 2026-09-27, vigente) calcula el costo
+     de sala de una particular con esa misma matriz; se **conserva** (regla de
+     proceso 8) y se avisa. El recargo de extensión de **particulares** pasa a
+     respetar el mismo tope.
   2. **Después de C3, sin urgencia:** filtros por profesor y período en
      Liquidaciones (pantalla existente: se avisa antes de construir).
   3. **Postergada:** D29, simulación anticipada de la pre-liquidación (§1, con su

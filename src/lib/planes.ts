@@ -1,5 +1,6 @@
 import type { DatosPlan } from "./tipos.ts";
 import { validarPlanParticular } from "./planesParticular.ts";
+import { validarPlanAlquiler } from "./planesAlquiler.ts";
 
 /**
  * Valida un plan completo (lo común a todo tipo de servicio, más lo propio
@@ -9,7 +10,7 @@ import { validarPlanParticular } from "./planesParticular.ts";
  * deshabilitar "Crear plan"/"Guardar cambios" hasta que esté completo —
  * calidad: nunca dejar guardar con datos obligatorios a medio cargar).
  */
-export function validarDatosPlan(d: DatosPlan): string | null {
+export function validarDatosPlan(d: DatosPlan, maxRecargoPct: number | null = null): string | null {
   if (!d.nombre.trim()) return "El nombre del plan es obligatorio.";
   if (!(d.precio >= 0)) return "El precio no puede ser negativo.";
   if (!(d.criterio_liquidacion >= 1 && d.criterio_liquidacion <= 5))
@@ -20,7 +21,9 @@ export function validarDatosPlan(d: DatosPlan): string | null {
   if (d.criterio_liquidacion >= 4 && d.tipo_servicio !== "taller")
     return "Los criterios 4 y 5 son solo para planes de taller.";
 
-  if (d.tipo_servicio === "particular") return validarPlanParticular(d);
+  if (d.tipo_servicio === "particular") return validarPlanParticular(d, maxRecargoPct);
+  // Un alquiler no lleva precio: sale de la tabla de Precios y paquetes (H7).
+  if (d.tipo_servicio === "alquiler") return validarPlanAlquiler(d, maxRecargoPct);
 
   // El criterio 2 paga según el avance sobre el total de clases del curso: un
   // plan ilimitado no tiene ese total, así que no hay contra qué medir.

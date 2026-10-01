@@ -82,6 +82,7 @@ export default function ClientePrecios({
   precios,
   estilos,
   salas,
+  categorias,
 }: {
   cursos: Curso[];
   tarifas: TarifasPorCurso;
@@ -96,6 +97,8 @@ export default function ClientePrecios({
   estilos: Estilo[];
   /** Salas activas: la matriz de alquiler dice a cuántas se aplica (0037). */
   salas: { id: number; nombre: string }[];
+  /** Nombres de las categorías de cliente, del catálogo `categoria_comprador`. */
+  categorias: { clave: string; etiqueta: string }[];
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<"a" | "b" | "c" | "d" | "e">("a");
@@ -114,10 +117,11 @@ export default function ClientePrecios({
       tamanos: tamanos.map((t) => ({ ...t })),
       horas: horasPaquete.map((h) => ({ ...h })) as FilaHoras[],
       precios: precios.map((p) => ({ ...p })),
+      categorias: categorias.map((c) => ({ ...c })),
     }),
     // `gen` fuerza el reinicio al descartar.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [gen, tarifas, descuentos, paquetes, tamanos, horasPaquete, precios]
+    [gen, tarifas, descuentos, paquetes, tamanos, horasPaquete, precios, categorias]
   );
 
   const [tarifasEd, setTarifasEd] = useState<TarifasPorCurso>(inicial.tarifas);
@@ -128,6 +132,7 @@ export default function ClientePrecios({
   const [horasEd, setHorasEd] = useState<FilaHoras[]>(inicial.horas);
   const [horasBorradas, setHorasBorradas] = useState<number[]>([]);
   const [preciosEd, setPreciosEd] = useState<CeldaSala[]>(inicial.precios);
+  const [catEd, setCatEd] = useState(inicial.categorias);
   const [cat, setCat] = useState<CategoriaSala>("alumno");
 
   // Tras guardar, `router.refresh()` trae del servidor las filas con su id
@@ -140,7 +145,7 @@ export default function ClientePrecios({
   // (mismo patrón que BarraLateral: comparar con lo anterior, sin setState en
   // un efecto). Solo esta pantalla dispara ese refresh, y lo hace después de
   // guardar TODO, así que no se pisa ningún cambio sin guardar.
-  const fuenteServidor = [tarifas, descuentos, paquetes, tamanos, horasPaquete, precios] as const;
+  const fuenteServidor = [tarifas, descuentos, paquetes, tamanos, horasPaquete, precios, categorias] as const;
   const [fuenteAnterior, setFuenteAnterior] = useState(fuenteServidor);
   if (fuenteServidor.some((x, i) => x !== fuenteAnterior[i])) {
     setFuenteAnterior(fuenteServidor);
@@ -152,6 +157,7 @@ export default function ClientePrecios({
     setHorasEd(horasPaquete.map((h) => ({ ...h })) as FilaHoras[]);
     setHorasBorradas([]);
     setPreciosEd(precios.map((p) => ({ ...p })));
+    setCatEd(categorias.map((c) => ({ ...c })));
   }
 
   const sucio =
@@ -164,6 +170,7 @@ export default function ClientePrecios({
       h: horasEd,
       hb: horasBorradas,
       pr: preciosEd,
+      ca: catEd,
     }) !==
     JSON.stringify({
       t: inicial.tarifas,
@@ -174,6 +181,7 @@ export default function ClientePrecios({
       h: inicial.horas,
       hb: [],
       pr: inicial.precios,
+      ca: inicial.categorias,
     });
 
   function descartar() {
@@ -185,6 +193,7 @@ export default function ClientePrecios({
     setHorasEd(horasPaquete.map((h) => ({ ...h })));
     setHorasBorradas([]);
     setPreciosEd(precios.map((p) => ({ ...p })));
+    setCatEd(categorias.map((c) => ({ ...c })));
     setGen((n) => n + 1);
     setMsg(null);
     setError(null);
@@ -206,7 +215,8 @@ export default function ClientePrecios({
         paquetes: paqEd,
         paquetesEliminados: paqBorrados,
         sala: {
-          tamanos: tamEd.map((t) => ({ clave: t.clave, max_personas: t.max_personas })),
+          tamanos: tamEd.map((t) => ({ clave: t.clave, etiqueta: t.etiqueta, max_personas: t.max_personas })),
+          categorias: catEd,
           horas: horasEd.map((h) => ({ id: h.id, horas: h.horas })),
           precios: preciosEd,
         },
@@ -519,6 +529,8 @@ export default function ClientePrecios({
           preciosEd={preciosEd}
           paquetes={paqEd}
           salas={salas}
+          catEd={catEd}
+          setCatEd={setCatEd}
         />
       )}
 
@@ -688,6 +700,8 @@ function BloqueSala({
   preciosEd,
   paquetes,
   salas,
+  catEd,
+  setCatEd,
 }: {
   cat: CategoriaSala;
   setCat: (c: CategoriaSala) => void;
@@ -706,7 +720,12 @@ function BloqueSala({
   paquetes: Paquete[];
   /** Para decir a cuántas salas se aplican estos precios (0037). */
   salas: { id: number; nombre: string }[];
+  catEd: { clave: string; etiqueta: string }[];
+  setCatEd: React.Dispatch<React.SetStateAction<{ clave: string; etiqueta: string }[]>>;
 }) {
+  /** Nombre vigente de una categoría: el del catálogo, o el de respaldo. */
+  const etiquetaCat = (c: string) =>
+    catEd.find((k) => k.clave === c)?.etiqueta || ETIQUETA_CATEGORIA[c as CategoriaSala] || c;
   // E.3 — el simulador: qué celda usa una particular y cuánto se descuenta.
   const [simPaquete, setSimPaquete] = useState(0);
   const [simCat, setSimCat] = useState<CategoriaSala>("profesor_tropicana");
@@ -728,7 +747,9 @@ function BloqueSala({
           })),
           simCat,
           tamanoSim,
-          paquete.horas
+          paquete.horas,
+          undefined,
+          etiquetaCat
         )
       : null;
 
@@ -767,7 +788,17 @@ function BloqueSala({
               key={t.clave}
               className="border border-[var(--borde)] rounded-[var(--radio-control)] p-3 min-w-[11rem]"
             >
-              <div className="font-medium">{t.etiqueta}</div>
+              <Celda
+                crudo
+                ancho="w-full"
+                valor={t.etiqueta}
+                onChange={(v) =>
+                  setTamEd((p) => p.map((x, j) => (j === i ? { ...x, etiqueta: v } : x)))
+                }
+              />
+              <div className="text-xs text-[var(--texto-tenue)] mt-1">
+                🔒 Clave: {t.clave} (no se edita)
+              </div>
               <label className="text-sm text-[var(--texto-tenue)] flex items-center gap-2 mt-1">
                 Hasta
                 <Celda
@@ -800,11 +831,47 @@ function BloqueSala({
                   : "border-[var(--borde)] hover:border-[var(--primario)]"
               }`}
             >
-              {ETIQUETA_CATEGORIA[c]}
+              {etiquetaCat(c)}
             </button>
           ))}
         </div>
         <p className="text-sm text-[var(--texto-tenue)] mb-4 max-w-[72ch]">{NOTA_CATEGORIA[cat]}</p>
+
+        {/* Nombres de las categorías: se editan; las claves no, porque de
+            ellas depende la regla que propone la categoría (regla 24). */}
+        <details className="mb-4">
+          <summary className="text-sm text-[var(--primario)] cursor-pointer">
+            Renombrar las categorías de cliente
+          </summary>
+          <div className="flex flex-wrap gap-3 mt-3">
+            {CATEGORIAS.map((c) => (
+              <div
+                key={c}
+                className="border border-[var(--borde)] rounded-[var(--radio-control)] p-3 min-w-[11rem]"
+              >
+                <Celda
+                  crudo
+                  ancho="w-full"
+                  valor={etiquetaCat(c)}
+                  onChange={(v) =>
+                    setCatEd((p) =>
+                      p.some((k) => k.clave === c)
+                        ? p.map((k) => (k.clave === c ? { ...k, etiqueta: v } : k))
+                        : [...p, { clave: c, etiqueta: v }]
+                    )
+                  }
+                />
+                <div className="text-xs text-[var(--texto-tenue)] mt-1">
+                  🔒 Clave: {c} (no se edita)
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="text-sm text-[var(--texto-tenue)] mt-2 max-w-[72ch]">
+            Las claves están bloqueadas porque el sistema decide la categoría de cada cliente con
+            ellas; el nombre es solo lo que se lee en pantalla.
+          </p>
+        </details>
 
         <table className="w-full text-left">
           <thead>

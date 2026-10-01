@@ -4710,3 +4710,23 @@ Javier preguntó dónde estaban las particulares y las membresías de varios cur
 - **Asignar:** `crearAsignacion` recibe `desde` (hoy por defecto); cierra la abierta el día anterior y rechaza solapes (`validarAsignacionNueva`).
 - **Medido en dev (Isabel, corte 10/09):** Bs 63,75 por cada membresía (23 y 24) + 4 pruebas Zumba ya completadas a Bs 15 = **Bs 187,50**, visible en Caja "Por pagar".
 - **En producción desde el 2026-10-01** (0062 + PR #6); Isabel desasignada, avance liquidado y pagado, verificado por Javier. Pendiente: particulares (etapa 2). H7 (0060/0061) sigue solo en dev, aparte.
+
+
+## C3 — H7: alquiler de sala, tanda 1 (base) · 2026-10-01 (dev, sin pase)
+
+Primera de tres tandas (plan aprobado por Javier; se valida en dev entre cada una). Diseño recibido de Design el mismo día (`docs/design/`: `Vender alquiler de sala`, `Plan de alquiler`, `Precios y paquetes v2`).
+
+**Migración 0060** (`0060_alquiler_base.sql`, aplicada en dev; idempotente y aditiva, ningún dato de dominio): (1) módulo de permisos `alquileres`, copiado de `particulares` a cada rol **menos** los de alcance `propio` (el Profesor queda sin acceso hasta que Javier se lo dé: un alquiler no tiene profesor dueño) — 12 permisos para administrador, gerente y asistente; (2) matriz de mínimos `tercero_org`/`documento` = `O` (NIT obligatorio para empresas, D23 para este caso; en dev ya estaba aplicado a mano); (3) dos parámetros nuevos: `alquiler_categoria_modo` (`automatica`/`editable`, arranca `automatica`) y `extension_recargo_max_pct` (100).
+
+**Código**
+- `src/lib/tipos.ts`: módulo `alquileres` en `MODULOS`/`ETIQUETA_MODULO` (no entra a `MODULOS_CON_ALCANCE`).
+- `src/lib/planesAlquiler.ts` (+ test, 6 pruebas): `validarPlanAlquiler` y `validarRecargoExtension`, una sola función pura para cliente y servidor (calidad 9). `validarDatosPlan`/`validarPlanParticular` reciben el tope de recargo; el de particulares también lo respeta ahora.
+- `planes/`: pestaña "Alquiler de salas" construida (vigencia en días obligatoria, modalidad fija/flexible, salas todas/algunas, permite sala externa, extensión lista/recargo con tope). `camposParticular` pasó a `camposPorTipo`: un alquiler no guarda estilo, forma de pago, acompañantes ni cortesía. Sin precio ni criterio en la tabla.
+- `precios/`: **nombres editables** de los tramos de personas (`sala_tamanos.etiqueta`) y de las categorías de cliente (`catalogo_valores.etiqueta` del catálogo `categoria_comprador`), con las **claves bloqueadas** y la nota. `costoDeSala` acepta un rotulador de categoría (el nombre del catálogo); `ETIQUETA_CATEGORIA` queda solo de respaldo.
+- Reglas/decisiones: regla 24 reescrita (categoría según el parámetro) y bloque de H7 en `DECISIONES.md`.
+
+**Respuestas de Javier (2026-10-01):** categoría gobernada por parámetro (automática de entrada); una persona puede trabajar en varias organizaciones; recargo de extensión con tope por parámetro. **Desviación del mockup, a propósito:** se conserva el simulador "Cómo lo resuelve una particular" en Precios (H5 usa esa matriz para el costo de sala de `pct_margen`).
+
+**Verificación:** `tsc` y `eslint` limpios; `npm test` 211/211. Falta el recorrido en el navegador y que Javier pruebe en su local antes de pasar a la tanda 2.
+
+**Hallazgo (dev):** el catálogo `categoria_comprador` tiene un 5º valor `clientes_varios` que la matriz no usa; se revisa si existe en producción antes del pase.

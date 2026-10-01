@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import type {
   AccesoModo,
   Curso,
@@ -78,7 +79,7 @@ const CRITERIO_LABEL: Record<number, string> = {
 const PESTANAS: { tipo: TipoServicioPlan; etiqueta: string; construido: boolean }[] = [
   { tipo: "curso_regular", etiqueta: "Cursos regulares", construido: true },
   { tipo: "particular", etiqueta: "Clases particulares", construido: true },
-  { tipo: "alquiler", etiqueta: "Alquiler de salas", construido: false },
+  { tipo: "alquiler", etiqueta: "Alquiler de salas", construido: true },
   { tipo: "taller", etiqueta: "Talleres", construido: false },
 ];
 
@@ -102,6 +103,7 @@ export default function ClientePlanes({
   tarifas,
   factorMedioMes,
   vigenciaMesesAcademia,
+  recargoMaxPct,
 }: {
   planes: Plan[];
   cursos: Curso[];
@@ -117,6 +119,8 @@ export default function ClientePlanes({
   factorMedioMes: number;
   /** Parámetro `vencimiento_paquete_meses`: vigencia default de un paquete de particulares. */
   vigenciaMesesAcademia: number;
+  /** Parámetro `extension_recargo_max_pct`: tope del recargo de extensión. */
+  recargoMaxPct: number;
   deps: Record<number, number>;
 }) {
   const router = useRouter();
@@ -296,7 +300,7 @@ export default function ClientePlanes({
   // Misma validación que corre el servidor (src/lib/planes.ts): el botón
   // queda deshabilitado hasta que no falte nada obligatorio, no alcanza con
   // que el clic muestre el error después (Javier, 26/09/2026).
-  const errorValidacion = validarDatosPlan(form);
+  const errorValidacion = validarDatosPlan(form, recargoMaxPct);
   const puedeGuardar = !errorValidacion && !pendiente;
 
   return (
@@ -321,9 +325,7 @@ export default function ClientePlanes({
       {!PESTANAS.find((p) => p.tipo === tab)?.construido ? (
         <div className="rounded-[var(--radio-panel)] border border-[var(--borde)] bg-[var(--fondo-elevado)] p-4 max-w-2xl">
           <p className="text-base">
-            {tab === "alquiler"
-              ? "Los planes de alquiler de sala se construyen en el hito H7 del plan de C3."
-              : "Los planes de taller se construyen en el hito H8 del plan de C3 (pasa por Design antes: no hay mockup de dónde partir)."}
+            Los planes de taller se construyen en el hito H8 del plan de C3 (pasa por Design antes: no hay mockup de dónde partir).
           </p>
           <p className="text-sm text-[var(--texto-tenue)] mt-1">
             No es que falte cargar algo: esta pestaña todavía no tiene formulario propio.
@@ -335,7 +337,13 @@ export default function ClientePlanes({
           <div className="bg-[var(--fondo-panel)] border border-[var(--borde)] rounded-[var(--radio-tarjeta)] p-6 max-w-2xl">
             <div className="flex items-center justify-between mb-4">
               <div className="text-base font-medium">
-                {editId ? "Editar plan" : tab === "particular" ? "Nuevo plan de particulares" : "Nuevo plan"}
+                {editId
+                  ? "Editar plan"
+                  : tab === "particular"
+                    ? "Nuevo plan de particulares"
+                    : tab === "alquiler"
+                      ? "Nuevo plan de alquiler"
+                      : "Nuevo plan"}
               </div>
               {editId && (
                 <button onClick={nuevo} className="text-sm text-[var(--primario)]">
@@ -350,7 +358,13 @@ export default function ClientePlanes({
                 <input
                   value={form.nombre}
                   onChange={(e) => setForm({ ...form, nombre: e.target.value.toUpperCase() })}
-                  placeholder={tab === "particular" ? "Ej: Pack 5 horas — Salsa" : "Ej: Plan Regular - Salsa"}
+                  placeholder={
+                    tab === "particular"
+                      ? "Ej: Pack 5 horas — Salsa"
+                      : tab === "alquiler"
+                        ? "Ej: Alquiler agenda fija"
+                        : "Ej: Plan Regular - Salsa"
+                  }
                   className="entrada w-full"
                 />
               </div>
@@ -367,6 +381,14 @@ export default function ClientePlanes({
                   cursosDelPlan={cursosDelPlan}
                   muestraCursos={muestraCursos}
                   toggleCurso={toggleCurso}
+                />
+              ) : tab === "alquiler" ? (
+                <FormularioAlquiler
+                  form={form}
+                  setForm={setForm}
+                  salas={salas}
+                  toggleSala={toggleSala}
+                  recargoMaxPct={recargoMaxPct}
                 />
               ) : (
                 <FormularioParticular
@@ -453,6 +475,12 @@ export default function ClientePlanes({
                       <th className="py-3 px-4 font-medium text-right">Clases</th>
                       <th className="py-3 px-4 font-medium text-right">Precio</th>
                     </>
+                  ) : tab === "alquiler" ? (
+                    <>
+                      <th className="py-3 px-4 font-medium">Modalidad</th>
+                      <th className="py-3 px-4 font-medium">Vigencia</th>
+                      <th className="py-3 px-4 font-medium">Salas</th>
+                    </>
                   ) : (
                     <>
                       <th className="py-3 px-4 font-medium">Estilo</th>
@@ -470,10 +498,15 @@ export default function ClientePlanes({
                     <tr key={p.id} className={`border-t border-[var(--borde)] ${p.activo ? "" : "opacity-50"}`}>
                       <td className="py-3 px-4">
                         <div className="font-medium">{p.nombre}</div>
-                        <div className="text-sm text-[var(--texto-tenue)]">criterio {p.criterio_liquidacion}</div>
+                        {/* Un alquiler no liquida a ningún profesor: no tiene criterio. */}
+                        {tab !== "alquiler" && (
+                          <div className="text-sm text-[var(--texto-tenue)]">criterio {p.criterio_liquidacion}</div>
+                        )}
                       </td>
                       {tab === "curso_regular" ? (
                         <FilaCursoRegular p={p} nombreCurso={nombreCurso} cursoConDias={cursoConDias} />
+                      ) : tab === "alquiler" ? (
+                        <FilaAlquiler p={p} salas={salas} />
                       ) : (
                         <FilaParticular p={p} nombreEstilo={nombreEstilo} />
                       )}
@@ -575,6 +608,28 @@ function FilaParticular({ p, nombreEstilo }: { p: Plan; nombreEstilo: Map<string
       </td>
       <td className="py-3 px-4 text-sm text-[var(--texto-tenue)]">
         {p.forma_pago_profesor ? PAGO_LABEL[p.forma_pago_profesor] : "—"}
+      </td>
+    </>
+  );
+}
+
+function FilaAlquiler({ p, salas }: { p: Plan; salas: Sala[] }) {
+  const nombresSalas = new Map(salas.map((s) => [s.id, s.nombre]));
+  const salasTxt =
+    p.salas_modo === "solo"
+      ? (p.salaIds ?? []).map((id) => nombresSalas.get(id) ?? `#${id}`).join(" · ") || "—"
+      : "Todas";
+  return (
+    <>
+      <td className="py-3 px-4 text-sm text-[var(--texto-tenue)]">
+        {p.reserva_modalidad ? MODALIDAD_LABEL[p.reserva_modalidad] : "—"}
+      </td>
+      <td className="py-3 px-4 text-sm text-[var(--texto-tenue)]">
+        {p.vigencia_dias ? `${p.vigencia_dias} días` : "—"}
+      </td>
+      <td className="py-3 px-4 text-sm text-[var(--texto-tenue)]">
+        {salasTxt}
+        {p.permite_sala_externa ? " · o externa" : ""}
       </td>
     </>
   );
@@ -1099,6 +1154,155 @@ function FormularioParticular({
         label="Permite otorgar cortesías"
         descripcion="Si se puede marcar una reserva de cortesía en una membresía pagada de este plan, o vender una membresía entera de cortesía (sin costo). No devenga ni descuenta nada."
       />
+    </>
+  );
+}
+
+/**
+ * Plan de alquiler de sala (H7, mockup `Plan de alquiler.dc.html`). Lleva
+ * vigencia, modalidad de reserva, salas, sala externa y extensión. **No
+ * lleva** estilo, profesor, forma de pago, criterio de liquidación ni
+ * precio: el precio sale de la tabla de alquiler de Precios y paquetes.
+ */
+function FormularioAlquiler({
+  form,
+  setForm,
+  salas,
+  toggleSala,
+  recargoMaxPct,
+}: {
+  form: DatosPlan;
+  setForm: (f: DatosPlan) => void;
+  salas: Sala[];
+  toggleSala: (id: number) => void;
+  recargoMaxPct: number;
+}) {
+  return (
+    <>
+      <p className="text-sm text-[var(--texto-tenue)]">
+        Define cómo se reserva y cuánto dura un alquiler de sala. El precio no va acá: sale de la
+        tabla de alquiler de <Link href="/precios" className="text-[var(--primario)]">Precios y paquetes</Link>.
+      </p>
+
+      <div className="max-w-[260px]">
+        <label className="text-sm text-[var(--texto-tenue)] block mb-1">Vigencia en días</label>
+        <input
+          value={form.vigencia_dias ?? ""}
+          onChange={(e) => setForm({ ...form, vigencia_dias: numOrNull(e.target.value) })}
+          inputMode="numeric"
+          placeholder="30"
+          className="entrada w-full"
+        />
+        <p className="text-sm text-[var(--texto-tenue)] mt-1">
+          Cuenta desde la primera reserva. Al vencer, las horas no usadas se pierden.
+        </p>
+      </div>
+
+      <div>
+        <span className="block text-sm text-[var(--texto-tenue)] mb-1.5">Modalidad de reserva</span>
+        <div className="flex gap-2">
+          {(["fija", "flexible"] as ReservaModalidad[]).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setForm({ ...form, reserva_modalidad: m })}
+              className={`flex-1 px-4 py-2.5 text-sm rounded-[var(--radio-control)] border ${
+                form.reserva_modalidad === m
+                  ? "bg-[var(--primario)] text-[var(--primario-texto)] border-[var(--primario)] font-semibold"
+                  : "border-[var(--borde)] hover:border-[var(--primario)]"
+              }`}
+            >
+              {MODALIDAD_LABEL[m]}
+            </button>
+          ))}
+        </div>
+        <p className="text-sm text-[var(--texto-tenue)] mt-1">
+          {form.reserva_modalidad === "fija"
+            ? "Al vender se programan todos los horarios hasta agotar las horas."
+            : form.reserva_modalidad === "flexible"
+              ? "Al vender se reserva solo el primer horario. El resto se reserva después, dentro de la vigencia."
+              : "Cada horario es una reserva independiente en los dos casos."}
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <Toggle
+          checked={form.salas_modo === "solo"}
+          onChange={(v) => setForm({ ...form, salas_modo: v ? "solo" : "todas" })}
+          label="Restringir a ciertas salas"
+          descripcion="Apagado: puede usar cualquier sala activa de Tropicana."
+        />
+        {form.salas_modo === "solo" && (
+          <div className="flex flex-wrap gap-2">
+            {salas.map((s) => {
+              const on = form.salaIds.includes(s.id);
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => toggleSala(s.id)}
+                  className={`px-3 py-2 text-sm rounded-[var(--radio-control)] border ${
+                    on
+                      ? "bg-[var(--exito-fill)] text-[var(--exito-texto)] border-[var(--exito)] font-medium"
+                      : "bg-[var(--fondo-panel)] text-[var(--texto-tenue)] border-[var(--borde)] hover:border-[var(--primario)]"
+                  }`}
+                >
+                  {on ? "✓ " : ""}
+                  {s.nombre}
+                </button>
+              );
+            })}
+            {salas.length === 0 && (
+              <span className="text-sm text-[var(--texto-tenue)]">
+                No hay salas activas. Cargalas en Administración → Salas.
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
+      <Toggle
+        checked={form.permite_sala_externa}
+        onChange={(v) => setForm({ ...form, permite_sala_externa: v })}
+        label="Permite sala externa"
+        descripcion="Habilita una sala genérica fuera de Tropicana, con nombre descriptivo. No se valida ocupación ni lleva costo."
+      />
+
+      <div className="space-y-2">
+        <label className="text-sm text-[var(--texto-tenue)] block mb-1">Extensión</label>
+        <p className="text-sm text-[var(--texto-tenue)] -mt-1">
+          Cuando el contacto pide más horas sobre un alquiler vigente.
+        </p>
+        <select
+          value={form.extension_modo}
+          onChange={(e) => setForm({ ...form, extension_modo: e.target.value as ExtensionModo })}
+          className="entrada w-full max-w-[280px]"
+        >
+          <option value="lista">A precio de lista</option>
+          <option value="recargo">Con recargo</option>
+        </select>
+        {form.extension_modo === "recargo" && (
+          <div className="max-w-[180px] pl-2 border-l-2 border-[var(--borde)]">
+            <label className="text-sm text-[var(--texto-tenue)] block mb-1">Recargo (%)</label>
+            <input
+              value={form.extension_recargo_pct ?? ""}
+              onChange={(e) => setForm({ ...form, extension_recargo_pct: decOrNull(e.target.value) })}
+              inputMode="decimal"
+              placeholder="10"
+              className="entrada w-full"
+            />
+            <p className="text-sm text-[var(--texto-tenue)] mt-1">Máximo {recargoMaxPct}%.</p>
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-[var(--radio-panel)] border border-[var(--borde)] bg-[var(--fondo-elevado)] p-3">
+        <div className="text-sm font-semibold mb-1">Este tipo de plan no lleva</div>
+        <p className="text-sm text-[var(--texto-tenue)]">
+          Estilo, profesor, forma de pago, criterio de liquidación ni precio: un alquiler no le
+          paga nada a ningún profesor y su precio sale de la tabla de Precios y paquetes.
+        </p>
+      </div>
     </>
   );
 }

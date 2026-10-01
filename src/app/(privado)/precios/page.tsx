@@ -34,6 +34,7 @@ export default async function PaginaPrecios() {
     usoAlquiler,
     salas,
     estilos,
+    categoriasCat,
   ] = await Promise.all([
     sb.from("cursos").select("*").order("nombre").then((r) => exigir(r, "los cursos")),
     sb
@@ -86,6 +87,14 @@ export default async function PaginaPrecios() {
       .order("id")
       .then((r) => exigir(r, "las salas")),
     sb.from("estilos").select("*").eq("activo", true).order("orden").then((r) => exigir(r, "los estilos")),
+    // Los nombres de las categorías de cliente salen del catálogo, no del código
+    // (regla de negocio 13): se pueden renombrar; las claves, no (0060/H7).
+    sb
+      .from("catalogo_valores")
+      .select("valor, etiqueta, orden, catalogo:catalogos!inner(clave)")
+      .eq("catalogo.clave", "categoria_comprador")
+      .order("orden")
+      .then((r) => exigir(r, "las categorías de cliente")),
   ]);
 
   // Tarifas por curso, indexadas para la grilla de los bloques A y C.
@@ -154,6 +163,10 @@ export default async function PaginaPrecios() {
         precios={precios}
         estilos={estilos as Estilo[]}
         salas={salas as { id: number; nombre: string }[]}
+        categorias={(categoriasCat as { valor: string; etiqueta: string }[]).map((c) => ({
+          clave: c.valor,
+          etiqueta: c.etiqueta,
+        }))}
       />
     </Pagina>
   );
