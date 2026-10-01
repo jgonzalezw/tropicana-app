@@ -179,7 +179,9 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
     // comprobante mostraba "#3" en vez de "Zumba".
     const cuIds = [
       ...new Set([
-        ...[...inscById.values()].map((i) => i.curso_id),
+        // Las particulares no tienen curso (`curso_id` nulo): un null en el `in()` rompía
+        // la consulta entera y todos los cursos salían como "#id".
+        ...[...inscById.values()].map((i) => i.curso_id).filter((x): x is number => x != null),
         ...comisiones.map((c) => c.curso_id).filter((x): x is number => x != null),
       ]),
     ];
