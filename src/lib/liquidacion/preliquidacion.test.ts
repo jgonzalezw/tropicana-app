@@ -92,6 +92,26 @@ test("ciclo que termina después del corte: no tiene arreglo, se mira", () => {
   assert.equal(c[0].href, "/alumnos/1/cuenta");
 });
 
+test("ciclo posterior de una membresía de varios cursos: lo dice y avisa del prorrateo", () => {
+  const e = entrada({
+    m: { fecha_fin: "2026-09-14" },
+    datos: {
+      cursosDeMembresia: [
+        { membresia_id: 1, curso_id: 1, dias: [1], fecha: null },
+        { membresia_id: 1, curso_id: 2, dias: [1], fecha: null },
+      ],
+      cursos: [curso(1, "Salsa", [1]), curso(2, "Bachata", [1])],
+    },
+  });
+  const c = motivo(e, "ciclo_posterior").casos;
+  assert.match(c[0].detalle, /Membresía de 2 cursos \(Salsa, Bachata\): se prorratea/);
+});
+
+test("ciclo posterior de un solo curso no lleva la nota de prorrateo", () => {
+  const e = entrada({ m: { fecha_fin: "2026-09-14" } });
+  assert.doesNotMatch(motivo(e, "ciclo_posterior").casos[0].detalle, /prorratea/);
+});
+
 test("una activa cuyo ciclo ya terminó espera clases por registrar, no desaparece", () => {
   const e = entrada({ m: { estado: "activa" } });
   const c = motivo(e, "bloqueada_clases").casos;

@@ -493,7 +493,11 @@ export function armarExcepciones(e: EntradaPre): MotivoExcepcion[] {
     else if (razon === "ciclo_posterior")
       casos.ciclo_posterior.push({
         persona, curso, membresiaId: m.id, href: HREF.cuenta(m.alumno_id), accion: "Ver membresía",
-        detalle: `Su ciclo termina el ${diaMes(m.fecha_fin ?? "")}: entra en la pre-liquidación del período siguiente.`,
+        detalle:
+          `Su ciclo termina el ${diaMes(m.fecha_fin ?? "")}: entra en la pre-liquidación del período siguiente.` +
+          ((cursosDe.get(m.id)?.length ?? 0) >= 2
+            ? ` Membresía de ${cursosDe.get(m.id)!.length} cursos (${curso}): se prorratea entre ellos y exige las clases registradas (regla 17).`
+            : ""),
       });
     else if (razon === "sin_agotar")
       casos.bloqueada_clases.push({
