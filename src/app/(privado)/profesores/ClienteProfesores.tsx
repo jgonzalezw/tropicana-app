@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useState, useTransition } from "react";
-import { validarDesasignacion, type DatosSustituto } from "@/lib/desasignacion";
+import { validarAsignacionNueva, validarDesasignacion, type DatosSustituto } from "@/lib/desasignacion";
 import { useRouter } from "next/navigation";
 import type { Profesor, Curso, Asignacion, DepsProfesor, DatosProfesor, Estilo, ListasContacto, MatrizMinimo } from "@/lib/tipos";
 import { nombreCompleto, apellidoNombre, compararContactosPorApellido } from "@/lib/contactos";
@@ -15,8 +15,10 @@ import {
   crearAsignacion,
   desasignar,
   revisarDesasignacion,
+  vistaCierreDesasignacion,
   type RevisionDesasignacion,
 } from "./acciones";
+import type { VistaCierre } from "@/app/(privado)/liquidaciones/acciones";
 
 type Cuenta = { id: string; etiqueta: string };
 
@@ -31,6 +33,7 @@ export default function ClienteProfesores({
   listasContacto,
   puedeVerPrivados,
   puedeEditar,
+  puedeLiquidar,
 }: {
   padron: Profesor[];
   cursos: Curso[];
@@ -42,6 +45,7 @@ export default function ClienteProfesores({
   listasContacto: ListasContacto;
   puedeVerPrivados: boolean;
   puedeEditar: boolean;
+  puedeLiquidar: boolean;
 }) {
   const [tab, setTab] = useState<"listado" | "asignacion">("listado");
 
@@ -75,7 +79,7 @@ export default function ClienteProfesores({
           puedeEditar={puedeEditar}
         />
       ) : (
-        <TabAsignacion padron={padron} cursos={cursos} asignaciones={asignaciones} estilos={estilos} />
+        <TabAsignacion padron={padron} cursos={cursos} asignaciones={asignaciones} estilos={estilos} puedeLiquidar={puedeLiquidar} />
       )}
     </div>
   );
@@ -280,17 +284,20 @@ function TabAsignacion({
   cursos,
   asignaciones,
   estilos,
+  puedeLiquidar,
 }: {
   padron: Profesor[];
   cursos: Curso[];
   asignaciones: Asignacion[];
   estilos: Estilo[];
+  puedeLiquidar: boolean;
 }) {
   const router = useRouter();
   const [cursoId, setCursoId] = useState<number | null>(null);
   const [profId, setProfId] = useState<number | null>(null);
   const [pctIng, setPctIng] = useState("");
   const [pctRef, setPctRef] = useState("");
+  const [asigDesde, setAsigDesde] = useState(() => new Date().toISOString().slice(0, 10));
   const [error, setError] = useState<string | null>(null);
   const [pendiente, startTransition] = useTransition();
 
@@ -317,7 +324,7 @@ function TabAsignacion({
     if (!cursoId || !profId) return;
     setError(null);
     startTransition(async () => {
-      const res = await crearAsignacion(cursoId, profId, num(pctIng), num(pctRef));
+      const res = await crearAsignacion(cursoId, profId, num(pctIng), num(pctRef), asigDesde);
       if (res?.error) setError(res.error);
       else {
         setCursoId(null);
@@ -329,7 +336,17 @@ function TabAsignacion({
     });
   }
 
+  const faltaAsig = cursoId
+    ? validarAsignacionNueva({
+        desde: asigDesde,
+        asignaciones: asignaciones.filter((x) => x.curso_id === cursoId),
+      })
+    : null;
+  const puedeAsignar = !!cursoId && !!profId && !faltaAsig && num(pctIng) >= 1 && num(pctIng) <= 100;
+
   // Desasignar: fecha, revisión y sustituto opcional (una asignación a la vez).
+  const [desLiquidar, setDesLiquidar] = useState(false);
+  const [desCierre, setDesCierre] = useState<VistaCierre | null>(null);
   const [desId, setDesId] = useState<number | null>(null);
   const [desFecha, setDesFecha] = useState("");
   const [desRevision, setDesRevision] = useState<(RevisionDesasignacion & { fecha: string }) | null>(null);
@@ -349,12 +366,25 @@ function TabAsignacion({
     setDesPctIng(String(a.pct_ingresos));
     setDesPctRef(String(a.pct_referido));
     setDesEntiendo(false);
+    setDesLiquidar(false);
+    setDesCierre(null);
     setDesError(null);
+  }
+
+  function alternarLiquidar(a: Asignacion, v: boolean) {
+    setDesLiquidar(v);
+    setDesCierre(null);
+    if (!v) return;
+    startTransition(async () => {
+      setDesCierre(await vistaCierreDesasignacion(a.id, desFecha));
+    });
   }
 
   function revisarFecha(a: Asignacion) {
     setDesError(null);
     setDesEntiendo(false);
+    setDesLiquidar(false);
+    setDesCierre(null);
     startTransition(async () => {
       const r = await revisarDesasignacion(a.id, desFecha);
       if (r.error) {
@@ -371,7 +401,7 @@ function TabAsignacion({
   function confirmarDesasignar(a: Asignacion) {
     setDesError(null);
     startTransition(async () => {
-      const r = await desasignar(a.id, desFecha, sustitutoDes);
+      const r = await desasignar(a.id, desFecha, sustitutoDes, desLiquidar);
       if (r.error) setDesError(r.error);
       else {
         setDesId(null);
@@ -478,6 +508,17 @@ function TabAsignacion({
             </label>
           </div>
 
+          <label className="block max-w-xs">
+            <span className="block text-base font-medium mb-1.5">Fecha de inicio</span>
+            <input type="date" value={asigDesde} onChange={(e) => setAsigDesde(e.target.value)} className="entrada" />
+            <span className="block text-sm text-[var(--texto-tenue)] mt-1">
+              Desde cuándo está a cargo del curso (hoy por defecto). La asignación vigente, si hay, termina el día anterior; las clases de antes siguen siendo de quien las dictó.
+            </span>
+          </label>
+          {faltaAsig && (
+            <p className="text-[var(--peligro)] text-base" role="alert">{faltaAsig}</p>
+          )}
+
           <div className="p-4 rounded-[var(--radio-panel)] border border-[var(--primario)] bg-[var(--accent-100)]">
             <div className="font-semibold text-[var(--peligro-texto)]">
               🔒 Al confirmar, estos dos porcentajes quedan fijos para esta asignación.
@@ -504,7 +545,7 @@ function TabAsignacion({
 
           <button
             onClick={confirmar}
-            disabled={pendiente}
+            disabled={pendiente || !puedeAsignar}
             className="px-5 py-2.5 text-base font-semibold rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)] hover:bg-[var(--primario-hover)] disabled:opacity-40"
           >
             {pendiente ? "Confirmando…" : "Confirmar asignación"}
@@ -585,6 +626,11 @@ function TabAsignacion({
 
                       {revisada && desRevision && (
                         <div className="space-y-2">
+                          <p className="text-sm">
+                            {desRevision.ultimaClase
+                              ? `Última clase que dictó en este curso: ${desRevision.ultimaClase}.`
+                              : "Todavía no dictó ninguna clase en este curso."}
+                          </p>
                           {hayPosteriores ? (
                             <div className="p-3 rounded-[var(--radio-panel)] border border-[var(--peligro)] bg-[var(--peligro-fill)] text-[var(--peligro-texto)] text-sm">
                               ⚠ {nombreProf(a.profesor_id)} ya dictó {desRevision.posteriores!.length} clase(s) después de esa fecha ({desRevision.posteriores!.slice(0, 6).join(", ")}
@@ -610,6 +656,41 @@ function TabAsignacion({
                               <p className="text-[var(--texto-tenue)] mt-1">
                                 Sin alguien que dicte las que faltan no se completan, y la comisión de las ya dictadas no se devenga hasta entonces. Con un sustituto, él completa las que faltan; el profesor que se va cobra solo las que dictó.
                               </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {revisada && (
+                        <div className="space-y-2 p-3 rounded-[var(--radio-panel)] border border-[var(--borde)]">
+                          <label className="flex items-center gap-2">
+                            <input type="checkbox" checked={desLiquidar} disabled={!puedeLiquidar || pendiente} onChange={(e) => alternarLiquidar(a, e.target.checked)} />
+                            Liquidar y dejar a pagar el avance ahora (cierre de cuentas)
+                          </label>
+                          {!puedeLiquidar && (
+                            <p className="text-sm text-[var(--texto-tenue)]">Tu rol no tiene permiso para crear liquidaciones; pedile a quien lo tenga que lo haga.</p>
+                          )}
+                          {desLiquidar && desCierre?.error && (
+                            <p className="text-[var(--peligro)] text-sm" role="alert">{desCierre.error}</p>
+                          )}
+                          {desLiquidar && desCierre?.lineas && (
+                            <div className="text-sm space-y-1">
+                              {desCierre.lineas.length === 0 ? (
+                                <p className="text-[var(--texto-tenue)]">No hay avance que liquidar a esa fecha (nada cobrado o sin clases dictadas).</p>
+                              ) : (
+                                <>
+                                  <ul className="list-disc pl-5">
+                                    {desCierre.lineas.map((l) => (
+                                      <li key={`${l.membresiaId}-${l.curso}`}>{l.alumno} — {l.curso}: {l.clases}/{l.clasesDelCurso} clases sobre {l.base} cobrado → <b>Bs {l.monto}</b></li>
+                                    ))}
+                                  </ul>
+                                  <p className="font-medium">Total a dejar por pagar: Bs {desCierre.total}</p>
+                                </>
+                              )}
+                              {(desCierre.sinRegistrar?.length ?? 0) > 0 && (
+                                <p className="text-[var(--peligro-texto)]">Quedan afuera por clases sin registrar (regla 17): {desCierre.sinRegistrar!.map((x) => x.alumno).join(", ")}.</p>
+                              )}
+                              <p className="text-[var(--texto-tenue)]">Es un pago a cuenta: lo que se cobre después o al completarse cada membresía se compensa en la liquidación final. El pago se hace en Caja → Por pagar.</p>
                             </div>
                           )}
                         </div>

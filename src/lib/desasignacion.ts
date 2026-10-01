@@ -60,3 +60,31 @@ export function validarDesasignacion(e: EntradaDesasignacion): string | null {
   }
   return null;
 }
+
+/** El día anterior a `fechaISO` (calendario, sin zonas horarias). */
+export function diaAnterior(fechaISO: string): string {
+  const d = new Date(`${fechaISO}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+export type AsignacionDelCurso = { desde: string; hasta: string | null };
+
+/**
+ * Asignar un profesor a un curso desde `desde` (hoy por defecto en pantalla).
+ * La abierta, si hay, se cierra el día anterior; no se admite empezar antes de
+ * que termine una ya cerrada ni antes del inicio de la abierta (se pisarían las
+ * clases de quien dictó, regla 10). Un hueco entre la baja y el inicio es válido:
+ * el curso queda sin titular esos días.
+ */
+export function validarAsignacionNueva(e: { desde: string; asignaciones: AsignacionDelCurso[] }): string | null {
+  if (!e.desde) return "Indicá desde qué fecha empieza a cargo del curso.";
+  if (!esFechaISO(e.desde)) return "La fecha de inicio no es válida.";
+  for (const a of e.asignaciones) {
+    if (a.hasta != null && e.desde <= a.hasta)
+      return `La fecha de inicio tiene que ser posterior al ${a.hasta}, cuando terminó otra asignación del curso.`;
+    if (a.hasta == null && e.desde <= a.desde)
+      return `La fecha de inicio tiene que ser posterior al ${a.desde}, cuando empezó la asignación vigente.`;
+  }
+  return null;
+}

@@ -39,3 +39,20 @@ test("el día siguiente cruza fin de mes y de año", () => {
   assert.equal(diaSiguiente("2026-09-30"), "2026-10-01");
   assert.equal(diaSiguiente("2026-12-31"), "2027-01-01");
 });
+
+import { diaAnterior, validarAsignacionNueva } from "./desasignacion.ts";
+
+test("diaAnterior: cruza mes y año", () => {
+  assert.equal(diaAnterior("2026-03-01"), "2026-02-28");
+  assert.equal(diaAnterior("2026-01-01"), "2025-12-31");
+});
+
+test("validarAsignacionNueva: solapes y hueco", () => {
+  const cerrada = { desde: "2026-01-01", hasta: "2026-09-10" };
+  assert.equal(validarAsignacionNueva({ desde: "", asignaciones: [] }) !== null, true);
+  assert.equal(validarAsignacionNueva({ desde: "2026-09-15", asignaciones: [cerrada] }), null, "hueco permitido");
+  assert.match(validarAsignacionNueva({ desde: "2026-09-10", asignaciones: [cerrada] }) ?? "", /posterior al 2026-09-10/);
+  const abierta = { desde: "2026-02-01", hasta: null };
+  assert.equal(validarAsignacionNueva({ desde: "2026-10-01", asignaciones: [abierta] }), null);
+  assert.notEqual(validarAsignacionNueva({ desde: "2026-02-01", asignaciones: [abierta] }), null);
+});

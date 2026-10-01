@@ -22,6 +22,7 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
 | Concepto | Dónde vive | Qué significa |
 | --- | --- | --- |
 | **Fin de ciclo** | `membresias.fecha_fin` | Fecha de la última clase del ciclo. **Se calcula** desde las clases que realmente ocurren (`finDeCicloReal`): una sesión suspendida no consume ciclo, lo corre. |
+| **Cierre de cuentas** | `comisiones_devengadas.tipo = 'cierre'` | Pago a cuenta del **avance al corte** de un profesor que se retira de un curso (excepción a la regla 8). Se dispara al desasignar, es opcional y es de **un curso**. La liquidación final lo netea solo (todo lo ya devengado cuenta). |
 | **Renovación bonificada** | derivada (`renovacionBonificada`) | Hasta cuándo puede renovar sin perder el bono: la **siguiente clase después del fin de ciclo**. |
 | **Corrimiento** | `corrimientos_ciclo` | La traza de qué suspensión corrió el ciclo de quién, con el antes/después. Idempotente por (inscripción, sesión). **Audita y explica; no es la fuente de verdad** — la fecha se recalcula. |
 | **Plazo de pago** | `cuotas.vencimiento` | Hasta cuándo hay tiempo de pagar. **No es el fin de ciclo** y el corrimiento no lo toca (eso era la etapa 1, antes del motor de planes). |
@@ -99,6 +100,15 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
    avance acumulado a la fecha, si una reserva de un período ya liquidado
    se corrige después, la diferencia entra en el **período actual** (no
    reabre el período original) — ver regla 16.
+   **Excepción: cierre de cuentas de un profesor que se retira** *(Javier,
+   2026-10-01)*. Al desasignarlo de un curso se puede liquidar de inmediato lo
+   que ganó: el **avance al corte** (clases que dictó hasta esa fecha, base =
+   lo cobrado hasta hoy —proporcional si hay saldo— y el criterio 2 como
+   medida; ilimitados por calendario al corte). Es un **pago a cuenta**, solo
+   de ese curso y solo de ese profesor: las membresías siguen pendientes hasta
+   que un profesor las complete, y la liquidación final emite solo la
+   diferencia (lo cobrado después llega como `ajuste`, regla 16). Nunca
+   descuenta. El pago real se hace en Caja. Alcance: cursos regulares.
    **Período vencido** = la liquidación del período siguiente, donde el
    período lo fija el parámetro `periodicidad_liquidacion` (hoy `mes`).
    **Cuánto** gana el profesor lo fija la **forma de pago** que elige el plan:

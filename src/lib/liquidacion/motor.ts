@@ -70,7 +70,7 @@ export type DevengoPendiente = {
    * cosa. Un ajuste viaja **firmado**: positivo si hay que pagarle más,
    * negativo si hay que descontarle.
    */
-  tipo: "comision" | "ajuste" | "avance";
+  tipo: "comision" | "ajuste" | "avance" | "cierre";
   /** Criterio con que se liquidó (1, 2 o 3). */
   criterio: 1 | 2 | 3;
   /**
@@ -293,14 +293,31 @@ export function clasesDelCiclo(
 }
 
 /**
+ * **Cierre de cuentas de un profesor que se retira** (excepción a la regla 8,
+ * Javier 2026-10-01). Se calcula como el criterio 2 —lo que le toca por las
+ * clases que dictó hasta `corte`— pero sin esperar a que la membresía se
+ * complete, ni a que esté cobrada al 100 % (se paga **proporcional a lo
+ * efectivamente cobrado**), ni al período vencido. Es un **pago a cuenta**: lo
+ * que se devenga acá cuenta como "ya devengado", así que la liquidación final
+ * (criterio 1, al completarse la membresía) emite solo la diferencia.
+ *
+ * Solo emite filas **positivas** de ese profesor: un cierre nunca descuenta lo
+ * ya devengado (eso es de los ajustes, regla 16).
+ */
+export type OpcionesCierre = { profesorId: number; corte: string };
+
+/**
  * El reparto completo, a partir de las filas crudas.
  *
  * `hastaISO` es el tope de elegibilidad: solo entran membresías cuyo ciclo
- * terminó a más tardar ese día (el último del mes vencido).
+ * terminó a más tardar ese día (el último del mes vencido). Con `cierre`, el
+ * tope es `cierre.corte` y `hastaISO` solo dice hasta dónde se leyeron las
+ * clases.
  */
 export function calcularDevengos(
   datos: DatosMotor,
-  hastaISO: string
+  hastaISO: string,
+  cierre?: OpcionesCierre
 ): { pendientes: DevengoPendiente[]; bloqueadas: MembresiaBloqueada[] } {
   const insc = datos.membresias;
   if (insc.length === 0) return { pendientes: [], bloqueadas: [] };
@@ -426,11 +443,18 @@ export function calcularDevengos(
     const criterio = m.criterio_liquidacion ?? 1;
     const estado = m.estado ?? "completada";
     if (criterio !== 1 && criterio !== 2 && criterio !== 3) continue; // 4 y 5 son de taller
-    if (criterio === 2 ? estado !== "activa" && estado !== "completada" : estado !== "completada") continue;
-    if (criterio === 1 && m.fecha_fin != null && m.fecha_fin > hastaISO) continue; // aún no corresponde a este período
+    // En el cierre se mide el avance al corte, como el criterio 2, sea cual sea
+    // el criterio de la membresía.
+    const avance = criterio === 2 || cierre != null;
+    const corte = cierre?.corte ?? hastaISO;
+    if (avance ? estado !== "activa" && estado !== "completada" : estado !== "completada") continue;
+    if (!cierre && criterio === 1 && m.fecha_fin != null && m.fecha_fin > hastaISO) continue; // aún no corresponde a este período
     if (criterio !== 1 && m.fecha_fin == null) continue;
+    if (cierre && m.fecha_fin == null) continue;
     if (devengadoEntero.has(m.id)) continue;
-    if ((saldoPorInsc[m.id] ?? 0) > 0) continue; // vendida pero no cobrada
+    // Vendida pero no cobrada: en el cierre se liquida lo cobrado hasta hoy y lo
+    // que se cobre después llega como ajuste (regla 16).
+    if (!cierre && (saldoPorInsc[m.id] ?? 0) > 0) continue;
     const cobrado = cobradoPorInsc[m.id] ?? 0;
     if (cobrado <= 0) continue;
 
@@ -444,7 +468,7 @@ export function calcularDevengos(
     // criterio 2 (avance) se mantiene el calendario: el avance necesita un total
     // previsto, y las asistidas hasta hoy siempre serían el 100% de sí mismas.
     const soloAsistidas =
-      m.plan_id != null && m.clases_plan === null && m.es_prueba !== true && criterio !== 2;
+      m.plan_id != null && m.clases_plan === null && m.es_prueba !== true && !avance;
     const pesos = propios.map((ic) => {
       const curso = cursoPorId.get(ic.curso_id);
       const cal = clasesDelCiclo(ic, m, curso, suspendidas, registradas);
@@ -477,7 +501,7 @@ export function calcularDevengos(
     // Con criterio 2 la membresía está en curso: las clases futuras todavía no
     // pueden estar registradas, así que solo bloquean las que ya pasaron (≤ corte).
     const faltanHastaCorte = (x: (typeof pesos)[number]) =>
-      criterio === 2 ? x.faltan.filter((f) => f <= hastaISO) : x.faltan;
+      avance ? x.faltan.filter((f) => f <= corte) : x.faltan;
     const faltantes = propios.length > 1 ? pesos.filter((x) => faltanHastaCorte(x).length > 0) : [];
     if (faltantes.length > 0) {
       bloqueadas.push({
@@ -533,7 +557,7 @@ export function calcularDevengos(
         if (!a) continue;
         const ya = conteo.get(a.profesor_id) ?? { pct: new Map<number, number>(), clases: 0, hastaCorte: 0 };
         ya.clases++;
-        if (f <= hastaISO) ya.hastaCorte++;
+        if (f <= corte) ya.hastaCorte++;
         const p = Number(a.pct_ingresos);
         ya.pct.set(p, (ya.pct.get(p) ?? 0) + 1);
         conteo.set(a.profesor_id, ya);
@@ -605,13 +629,13 @@ export function calcularDevengos(
           // ya se dictó (clases suyas hasta el corte ÷ clases del curso). Con todas
           // dictadas es su parte entera, igual que el criterio 1.
           const cent =
-            criterio === 2 && l.hastaCorte < l.clases
+            avance && l.hastaCorte < l.clases
               ? Math.floor((x.cent * l.hastaCorte) / x.clases)
               : l.cent;
           objetivo.set(l.profesorId, {
             base: cent / 100,
             pct: l.pct,
-            clases: criterio === 2 ? l.hastaCorte : l.clases,
+            clases: avance ? l.hastaCorte : l.clases,
           });
         }
 
@@ -623,6 +647,7 @@ export function calcularDevengos(
       ]);
 
       for (const profesorId of enJuego) {
+        if (cierre && profesorId !== cierre.profesorId) continue; // el cierre es de UN profesor
         const k = `${m.id}|${x.ic.curso_id}|${profesorId}`;
         const obj = objetivo.get(profesorId);
         const ya = yaDevengado.get(k);
@@ -631,11 +656,13 @@ export function calcularDevengos(
         const base = Math.round((baseObjetivo - (ya?.base ?? 0)) * 100) / 100;
         const monto = Math.round((montoObjetivo - (ya?.monto ?? 0)) * 100) / 100;
         if (base === 0 && monto === 0) continue; // ya está al día
+        if (cierre && monto <= 0) continue; // un cierre nunca descuenta lo ya devengado
 
         // Criterio 2: el delta es siempre un `avance` del período que se liquida
         // (excepción a la regla 16, decidida el 2026-09-27); nunca reabre nada.
-        const esAvance = criterio === 2;
-        const esAjuste = !esAvance && ya != null;
+        const esCierre = cierre != null;
+        const esAvance = !esCierre && criterio === 2;
+        const esAjuste = !esCierre && !esAvance && ya != null;
         const original = comisionOriginal.get(k);
         out.push({
           membresiaId: m.id,
@@ -643,12 +670,12 @@ export function calcularDevengos(
           cursoId: x.ic.curso_id,
           alumno: alNombre.get(m.alumno_id) ?? `#${m.alumno_id}`,
           curso: x.curso?.nombre ?? `#${x.ic.curso_id}`,
-          tipo: esAvance ? "avance" : esAjuste ? "ajuste" : "comision",
+          tipo: esCierre ? "cierre" : esAvance ? "avance" : esAjuste ? "ajuste" : "comision",
           criterio,
           // Criterio 3: el mes en que terminó el ciclo. Ajuste: el de su original.
           periodo: esAjuste
             ? original?.periodo ?? undefined
-            : criterio === 3
+            : criterio === 3 && !esCierre
               ? `${(m.fecha_fin as string).slice(0, 7)}-01`
               : undefined,
           ajustaComisionId: esAjuste ? original?.id : undefined,

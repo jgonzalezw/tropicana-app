@@ -5,13 +5,14 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { tienePermiso, obtenerParametro, obtenerPerfilActual, alcanceDe, obtenerProfesorActual } from "@/lib/sesion";
 import { imputarPago } from "@/lib/liquidacion/cuenta";
-import { primerDiaMesVencidoISO, finMesVencidoISO, rangoLiquidable } from "@/lib/liquidacion/periodo";
+import { primerDiaMesVencidoISO, finMesVencidoISO, rangoLiquidable, primerDiaMesDe } from "@/lib/liquidacion/periodo";
 import {
   calcularDescuentos,
   calcularPendientes,
   calcularPendientesParticulares,
+  leerDatosMotor,
 } from "@/lib/liquidacion/lecturas";
-import type { MembresiaBloqueada } from "@/lib/liquidacion/motor";
+import { calcularDevengos, type MembresiaBloqueada } from "@/lib/liquidacion/motor";
 
 // El cálculo del reparto vive en `@/lib/liquidacion/motor`, sin base de datos,
 // para poder fijarlo con pruebas deterministas. Acá quedan las lecturas.
@@ -262,7 +263,10 @@ export async function revertirDevengosAbiertos(
     .from("comisiones_devengadas")
     .select("id, liquidacion_id, liquidacion:liquidaciones(estado)")
     .in("membresia_id", afectadas)
-    .eq("curso_id", cursoId);
+    .eq("curso_id", cursoId)
+    // El cierre de cuentas de un profesor que se retiró no se recrea solo (el
+    // criterio 1 todavía no corresponde): revertirlo lo perdería en silencio.
+    .neq("tipo", "cierre");
   const revertibles = ((com as unknown as {
     id: number;
     liquidacion_id: number | null;
@@ -521,6 +525,108 @@ export async function generarLiquidacion(profesorId: number): Promise<{ ok?: tru
   revalidatePath("/liquidaciones");
   // Si la del período vencido se borró, se devuelve donde sí quedó lo devengado.
   return { ok: true, liquidacionId: cache.get(periodo) ?? [...cache.values()][0] ?? liquidacionId };
+}
+
+export type VistaCierre = {
+  error?: string;
+  /** Una línea por (membresía, curso) con lo que se le debe al profesor al corte. */
+  lineas?: { membresiaId: number; alumno: string; curso: string; clases: number; clasesDelCurso: number; base: number; monto: number }[];
+  total?: number;
+  /** Membresías multi-curso con clases sin registrar a ese corte: quedan afuera. */
+  sinRegistrar?: { alumno: string }[];
+  liquidacionId?: number;
+};
+
+/**
+ * **Cierre de cuentas** de un profesor que se retira (regla 8, excepción;
+ * Javier 2026-10-01): el avance al `corte`, pagado a cuenta de la liquidación
+ * final. Con `devengar = false` solo calcula (vista previa); con `true` lo
+ * devenga como `tipo='cierre'` en la liquidación del mes del corte. El pago
+ * real se hace en Caja ("Por pagar").
+ */
+export async function cierreDeCuentas(
+  profesorId: number,
+  corte: string,
+  devengar: boolean,
+  cursoId?: number
+): Promise<VistaCierre> {
+  if (!(await tienePermiso("liquidaciones", "crear"))) return { error: "Sin permiso para liquidar." };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(corte)) return { error: "La fecha de corte no es válida." };
+  const a = admin();
+  const sb = await createClient();
+  const periodicidad = "mes";
+
+  const datos = await leerDatosMotor(sb, "9999-12-31");
+  if (!datos) return { lineas: [], total: 0, sinRegistrar: [] };
+  const calculo = calcularDevengos(datos, "9999-12-31", { profesorId, corte });
+  // Si se desasigna de UN curso, el cierre es solo de ese curso.
+  const pendientes = calculo.pendientes.filter((p) => cursoId == null || p.cursoId === cursoId);
+  const bloqueadas = calculo.bloqueadas.filter((b) => cursoId == null || b.cursos.some((c) => c.cursoId === cursoId));
+  const lineas = pendientes.map((p) => ({
+    membresiaId: p.membresiaId, alumno: p.alumno, curso: p.curso, clases: p.clases,
+    clasesDelCurso: p.clasesDelCurso, base: p.base, monto: p.monto,
+  }));
+  const total = Math.round(lineas.reduce((s, l) => s + l.monto, 0) * 100) / 100;
+  const sinRegistrar = bloqueadas
+    .filter((b) => b.profesorIds.includes(profesorId))
+    .map((b) => ({ alumno: b.alumno }));
+  if (!devengar || pendientes.length === 0) return { lineas, total, sinRegistrar };
+
+  const periodo = primerDiaMesDe(corte);
+  const { data: existente } = await a
+    .from("liquidaciones").select("id")
+    .eq("profesor_id", profesorId).eq("periodo", periodo).eq("periodicidad", periodicidad)
+    .maybeSingle();
+  let liquidacionId: number;
+  let creada = false;
+  if (existente) liquidacionId = existente.id as number;
+  else {
+    const { data: nueva, error } = await a
+      .from("liquidaciones")
+      .insert({ profesor_id: profesorId, periodo, periodicidad, estado: "abierta" })
+      .select("id").single();
+    if (error) return { error: error.message };
+    liquidacionId = nueva.id as number;
+    creada = true;
+  }
+
+  const [, mes, dia] = corte.split("-");
+  const rotulo = `Cierre de cuentas · corte ${dia}/${mes}`;
+  const creadas: number[] = [];
+  for (const p of pendientes) {
+    const { data: com, error: errCom } = await a
+      .from("comisiones_devengadas")
+      .insert({
+        profesor_id: p.profesorId, membresia_id: p.membresiaId, curso_id: p.cursoId,
+        criterio: p.criterio, periodo, tipo: "cierre", base: p.base, monto: p.monto,
+        reparto: p.reparto.length > 1 ? p.reparto : null,
+        origen:
+          `${rotulo} (${p.curso} / ${p.alumno}): ${p.pct}% de ${p.base} (${p.clases} de ${p.clasesDelCurso} clases al corte). ` +
+          `Pago a cuenta de la liquidación final: lo ya devengado se resta de lo que corresponda al completarse.`,
+        liquidacion_id: liquidacionId,
+      })
+      .select("id").single();
+    if (errCom) {
+      // No se deja a medias: se deshace lo devengado en esta corrida.
+      if (creadas.length) {
+        await a.from("liquidacion_items").delete().in("comision_id", creadas);
+        await a.from("comisiones_devengadas").delete().in("id", creadas);
+      }
+      if (creada) await a.from("liquidaciones").delete().eq("id", liquidacionId);
+      else await recomputarTotales(a, liquidacionId);
+      return { error: "Falló devengar el cierre: " + errCom.message };
+    }
+    creadas.push(com.id as number);
+    await a.from("liquidacion_items").insert({
+      liquidacion_id: liquidacionId, comision_id: com.id, membresia_id: p.membresiaId,
+      descripcion: `${rotulo} · ${p.alumno} — ${p.curso} (${p.clases}/${p.clasesDelCurso} clases · ${p.pct}% de ${p.base})`,
+      monto: p.monto,
+    });
+  }
+  await recomputarTotales(a, liquidacionId);
+  revalidatePath("/liquidaciones");
+  revalidatePath("/caja");
+  return { lineas, total, sinRegistrar, liquidacionId };
 }
 
 /**

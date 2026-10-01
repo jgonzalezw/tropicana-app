@@ -853,6 +853,19 @@ select '42. membresia de plan regular sin criterio_liquidacion' as control,
    and m.criterio_liquidacion is null;
 
 -- ---------------------------------------------------------------------
+-- 43. CIERRE DE CUENTAS SIN ITEM DE LIQUIDACION
+--     Un devengo tipo 'cierre' (profesor que se retira, regla 8) siempre va en
+--     una liquidacion y con su item; sin eso no aparece en Caja "Por pagar".
+-- ---------------------------------------------------------------------
+select '43. cierres de cuentas sin liquidacion o sin item' as control,
+       count(*) as n,
+       case when count(*) = 0 then 'OK' else 'REVISAR' end as estado
+  from public.comisiones_devengadas c
+ where c.tipo = 'cierre'
+   and (c.liquidacion_id is null
+        or not exists (select 1 from public.liquidacion_items i where i.comision_id = c.id));
+
+-- ---------------------------------------------------------------------
 -- Detalle, por si algun control da REVISAR:
 -- ---------------------------------------------------------------------
 -- select id, alumno_id, curso_id, estado, fecha_inicio, fecha_fin,
