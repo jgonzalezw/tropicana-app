@@ -89,6 +89,7 @@ pierden y se vuelven a discutir, o peor, se contradicen sin que nadie lo note.
 | D26 | **Verificación automática del WhatsApp.** Hoy un WhatsApp se guarda tal cual lo escribe quien carga el contacto (normalizado, pero no verificado). ¿Conviene confirmar que el número existe/responde antes de darlo por bueno — vía un mensaje de verificación, una API de WhatsApp Business? | Pendiente (surgida en C3-0a.1, 2026-09-24) | Requiere una integración externa (WhatsApp Business API o similar) que hoy no existe en el proyecto. | Cuando el volumen de números mal cargados (los que el control 23 señala) se vuelva un problema operativo real, o cuando C3-0b (formulario público) necesite confirmar identidad sin intervención humana. |
 | D27 | **Que un suplente abra la asistencia desde su propia cuenta.** Hoy, si el titular no puede dar la clase, la asistencia la carga el administrador o el asistente (con el padrón completo, sin depender de a quién ve el suplente) — el suplente no entra al sistema a registrar su propia clase. | **Decidida por ahora: no** (Javier, 2026-09-24, al aprobar el plan de C3-0a.1: *"Dejarlo así por ahora"*) | Habilitar esto exigía decidir de antemano cómo el RLS de `contactos` le muestra el padrón a un suplente que no es el titular del curso — la misma pregunta que motivó la corrección de concepción del plan (ver `ESTADO.md`). Javier prefirió no resolverla ahora. | Cuando un suplente necesite cargar la asistencia él mismo, sin pasar por el administrador o el asistente. |
 | D28 | **Corregir o anular una venta ya cobrada entera.** Hoy la única corrección posible después de vender es un descuento en Caja, y solo mientras la cuota tenga saldo (`registrarCobro`, `cuentas.ts`): rechaza si ya está saldada. No existe ningún `anular*`/`editar*` de una membresía, cuota o pago. Surgió con el caso de Manuel Aguilar (membresía particular 44, producción, 26/09): pidió un descuento de Bs 60 sobre un total de Bs 420 — resoluble hoy porque la cuota seguía pendiente sin ningún pago —, pero si hubiera estado saldada no habría forma de corregirla sin tocar la base a mano. | Pendiente (surgida el 2026-09-26/27) | Anular una venta ya cobrada mueve plata real (caja, y eventualmente comisión) — no es un ajuste de datos, es una decisión de negocio: ¿se genera un pago negativo, una nota de crédito, un motivo propio? Merece su propio diseño, no una función suelta. | Cuando aparezca un caso real con la cuota ya saldada (el de Manuel Aguilar no lo fue) o cuando se decida el modelo de "nota de crédito"/reverso para cualquier venta. |
+| D29 | **Simulación anticipada de la pre-liquidación.** Correr el informe antes del fin del período, simulando que ya cerró: tratar como completadas las membresías activas con fin dentro del período y cobradas al 100%, contar como dictadas las clases futuras para que no traben, y rotular "Simulación al <fecha>" (también en el impreso). Límites a declarar: una suspensión futura no se puede prever, las ilimitadas (cuentan solo lo asistido, regla 10) se subestiman, y el saldo es el de hoy. Esfuerzo estimado: +15–20% sobre el informe (capa pura `simularCierre`, rótulo y un botón más; el motor real no se toca). | Pendiente (Javier, 2026-10-01: *"solo el cierre real"*) | La necesidad real es anticipar acciones correctivas dentro del mes, pero el informe del cierre ya cubre lo urgente (septiembre) y el costo no se justifica antes de verlo usado. | Cuando se quiera anticipar correcciones dentro del mes en curso, o la primera vez que la pre-liquidación cerrada llegue tarde para corregir algo. |
 
 ## 1.b Decisiones tomadas, y su estado de construcción
 
@@ -184,20 +185,18 @@ lee **antes** de mirar ramas.
 
 - **Rama activa:** `main`. **H5 y Paso 4 en producción** (0058 y 0059 aplicadas
   el 2026-10-01; producción en 0001–0059).
-- **Último hito cerrado:** depuración de los datos de inicio (2026-10-01, ver §4),
-  después de H5 liquidación de particulares + Paso 4 criterios 2 y 3 en regulares
-  (ver `docs/ESTADO.md`, secciones "C3 — H5" y "Paso 4").
-- **Qué sigue (orden decidido el 2026-10-01):** (1) ~~`/refrescar-dev`~~ hecho;
-  (2) ~~depurar los datos de inicio~~ hecho en dev y producción — producción ya
-  puede generar su primera liquidación (septiembre); (3) **informe imprimible de
-  pre-liquidación** en Liquidaciones — **va por mockup de Design** (decidido
-  el 2026-10-01): el prompt ya está dado; cuando Javier deje el export en el buzón,
-  `npm run sync-design` y construir, con permisos por rol. Debe incluir la
-  sección **"Clases sin registrar"** (por curso y fecha, tres bloques: vencidas con
-  alumnos, de hoy o futuras, sin alumnos; indicando si traban una membresía de
-  varios cursos); (4) sin urgencia: filtros profesor/período y proyección de liquidez
-  (pantalla nueva); (5) volver a C3: H6 extensión, H7 alquiler, H8 talleres (Design),
-  H9 horario hábil.
+- **Último hito cerrado:** informe de pre-liquidación (2026-10-01, **en dev, sin
+  pase**; ver `docs/ESTADO.md`, "Informe de pre-liquidación"). Antes: depuración de
+  los datos de inicio (en producción, §4) y H5 + Paso 4.
+- **Qué sigue (orden decidido el 2026-10-01):** (1) ~~refrescar dev~~ hecho;
+  (2) ~~depurar datos de inicio~~ hecho en dev y producción; (3) ~~informe de
+  pre-liquidación~~ **construido en dev**: falta que Javier lo pruebe en su local y dé el
+  OK de pase (solo código, sin migración); (4) **decidir Zumba**: su asignación empieza
+  el 31/08 pero el curso dio clase desde el 18/08, así que 2 clases (20/08 y 25/08)
+  quedan sin titular y el informe las marca; adelantar esa asignación antes de
+  liquidar octubre si se quieren pagar; (5) sin urgencia: filtros profesor/período y
+  proyección de liquidez (pantalla nueva); D29 simulación anticipada (postergada);
+  (6) volver a C3: H6 extensión, H7 alquiler, H8 talleres (Design), H9 horario hábil.
 - **Sin registrar al 2026-10-01 (medido en dev, copia de producción):** cinco
   clases de septiembre con alumnos (28/09 Tropicoreografico; 29/09 Contemporaneo
   y Zumba; 30/09 Danza Comercial y Tropicoreografico). Ninguna traba la
@@ -213,8 +212,10 @@ lee **antes** de mirar ramas.
 
 ## 4. Registro de pases a producción
 
-**Hoy (2026-10-01) no hay nada pendiente de pase**: todo lo construido está en
-producción, con migraciones 0001–0059 en las dos bases. Cuando algo quede
+**Pendiente de pase (2026-10-01, solo dev):** el **informe de pre-liquidación**
+(`/liquidaciones/pre-liquidacion`). Es solo código —sin migración— y reusa el permiso
+`liquidaciones.ver`; espera la prueba de Javier en su local y su OK explícito. Todo lo
+demás está en producción, con migraciones 0001–0059 en las dos bases. Cuando algo quede
 **solo en dev** esperando el OK explícito de Javier (regla de proceso 1), se
 anota arriba de esta línea. Abajo, en orden, cada pase ya hecho.
 

@@ -4655,3 +4655,34 @@ liquidación" del profesor.
   "Permite sala externa" en los dos planes de boda de producción.
 - Pase a producción de H5 + Paso 4: 0058 y 0059 antes del código, ensayo en seco,
   controles, un solo push, con OK de Javier.
+
+## Informe de pre-liquidación · 2026-10-01 (dev, sin pase)
+
+**Qué es.** Un informe de **solo lectura e imprimible** (A4) de lo que se devengaría si se liquidara hoy el período vencido: por profesor, qué membresías entran y con cuánto; qué quedó afuera y por qué (seis motivos); y qué clases siguen sin registrar. Se abre desde el botón **Pre-liquidación** de Liquidaciones, en `/liquidaciones/pre-liquidacion`. Salió del mockup de Design (`docs/design/Pre-liquidación.dc.html`, pantalla 10 del README, reglas N54–N58), sincronizado el mismo día. **Sin migración.**
+
+### Construido
+- **`src/lib/liquidacion/preliquidacion.ts`** (puro, con pruebas): `armarInforme`, `armarProfesores`, `armarExcepciones`, `clasesSinRegistrar`, `razonDeDescarte`. **No calcula plata nueva**: ordena lo que ya calcularon el motor regular, el de particulares y los descuentos. Lo único que decide solo es lo que el motor **descarta en silencio** (`continue` sin dejar rastro): saldo pendiente, ciclo posterior al corte, membresía sin plan o sin criterio, y curso sin titular en esa fecha. Esos filtros se repiten en `razonDeDescarte`, en el mismo orden que `calcularDevengos`.
+- **`src/lib/liquidacion/lecturas.ts`**: las lecturas del cálculo (`leerDatosMotor`, `calcularPendientes`, `calcularPendientesParticulares`, `calcularDescuentos`) **movidas tal cual** desde `liquidaciones/acciones.ts`, que es `"use server"` y todo lo que exporta queda como endpoint invocable. Las comparten `generarLiquidacion`, `cargarLiquidaciones` y el informe, así que **el informe no puede discrepar de lo que luego se genera**. No cambia ningún resultado.
+- **`src/lib/liquidacion/lecturaPre.ts`**: `prepararPreliquidacion()` devuelve **datos completos o `{ok:false}` con el estado de cada lectura** (Leído / Falló / Sin leer). Nunca una lista vacía por un error (calidad 1, N55). La lectura de las clases del calendario verifica el `count` para que el tope de filas de la API no la trunque en silencio.
+- **`src/lib/liquidacion/imprimirPre.ts` + `formatoPre.ts`**: el HTML impreso (ventana aparte, mismo camino que el comprobante): papel blanco y tinta negra, una hoja por profesor, índice en la 1ª, TRABA / NO TRABA en mayúsculas, "Página n de N" con `counter(pages)`.
+- **Pantalla**: `pre-liquidacion/{page,loading,ClientePreliquidacion}.tsx`. Resumen de cuatro cifras, bloques por profesor plegables, tabla de diez columnas que pasa a tarjetas bajo 960 px, seis excepciones siempre presentes, tres bloques de clases sin registrar (cerrados por defecto), aviso si ya hay una liquidación del período, estados cargando y error.
+- **Permisos (regla de proceso 11)**: reusa **`liquidaciones.ver`** —es una vista del mismo módulo, como pide el spec—, **sin módulo nuevo ni migración**. Un rol con visibilidad `propio` (Profesor) **no la ve** (ni el botón ni la página): el informe muestra a todos los profesores a la vez.
+- Pruebas nuevas: 25 (`preliquidacion.test.ts`, `imprimirPre.test.ts`). Suite completa: **197/197**; `tsc` y `eslint` limpios.
+
+### Verificado en dev (contra datos reales, copia de producción refrescada el 2026-10-01)
+- **Cuadra con Liquidaciones**: el informe da 60,00 (Gongora), 142,50 (Salek) y 170,00 (Tini), idéntico a la tabla "Por liquidar" de la pantalla de Liquidaciones.
+- **Las tres membresías de Zumba del 08/09** (pruebas) entran, con 15,00 cada una.
+- **Clases sin registrar**: las 5 de septiembre que se habían medido en SQL (28/09 Tropicoreografico; 29/09 Contemporaneo y Zumba; 30/09 Danza Comercial y Tropicoreografico), todas "No traba"; 3 de hoy (01/10); 3 días sin alumnos.
+- **No escribe nada**: los conteos de `liquidaciones`, `comisiones_devengadas`, `liquidacion_items`, `descuentos_liquidacion`, `sesiones` y `pagos` no cambiaron antes y después.
+- **Estado de error, forzado de verdad**: con `periodicidad_liquidacion = "semana"` (el parámetro se restauró a `mes` enseguida) no se muestra ninguna cifra y dice qué lectura falló y cuáles quedaron sin leer.
+- **Celular** (375 px): sin scroll horizontal; la tabla pasa a tarjetas. **Impreso**: se capturó el HTML real y se revisó en un marco A4.
+- **Aviso de liquidación existente**, con la liquidación N° 1 de Nuñez que había en dev.
+
+### Hallazgo de datos (para Javier)
+**Zumba tiene dos clases (20/08 y 25/08) sin titular**: su asignación empieza el 31/08 y el curso dio clase desde el 18/08. Afecta a las membresías de Charo Salek y Vania Escalante (ciclo hasta el 01/10, entran en octubre). La depuración del 01/10 adelantó solo Bachata Conexión, Heels y Ladies, tal como se decidió; **Zumba (y Domingo Salsa y Bachata) no estaban en esa decisión**. Si se quiere que esas clases se paguen, hay que adelantar la asignación de Zumba antes de liquidar octubre. El informe lo muestra como excepción "Curso sin titular en esa fecha".
+
+### Fuera de v1, a propósito
+- **Simulación anticipada del mes en curso** → D29 en `docs/DECISIONES.md` (decidido el 2026-10-01).
+- Filtros por profesor/período y proyección de liquidez (pendiente aparte, sin urgencia).
+- Rol Profesor sin acceso: lo garantiza la página (`alcanceDe`), pero **no se probó con una cuenta real de Profesor** en el navegador.
+- **Riesgo conocido**: "Página n de N" depende de `counter(pages)` en `@page` (Chrome reciente). Si en la impresora real no sale, cae a solo "Página n".
