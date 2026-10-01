@@ -191,8 +191,8 @@ lee **antes** de mirar ramas.
 - **Qué sigue en H5 (retoma 2026-09-30):** Paso 1 hecho (corrección de docs:
   formas de pago solo particulares); Paso 2 verificar el conteo de clases en
   ilimitadas (regla 10) contra la liquidación #5 de dev y decidir con Javier;
-  Paso 3 control nuevo en `control_migracion.sql` + recorrido en el navegador +
-  cierre de H5 (**ahí se detiene, Javier prueba**). Paso 4 (criterios 2 y 3 en
+  Paso 3 **hecho** (controles 39–41 + recorrido en navegador + dos bugs
+  corregidos; commit de cierre en la rama): **Javier prueba ahora**. Paso 4 (criterios 2 y 3 en
   regulares, sobre la misma base) solo con su OK. Detalle en `docs/ESTADO.md`,
   sección "C3 — H5".
 - **Pendiente, no automatizado a propósito:** activar a mano "Permite sala

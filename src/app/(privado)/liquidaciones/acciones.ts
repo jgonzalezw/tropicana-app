@@ -425,6 +425,8 @@ export type FilaProfesor = {
   sinRegistrar: CursoSinRegistrar[];
   /** Cuántas ventas suyas están esperando por eso. */
   ventasEsperando: number;
+  /** Particulares que no se pueden liquidar, con su motivo (calidad 5: se dice, no se esconde). */
+  particularesBloqueadas: { alumno: string; motivo: string }[];
 };
 
 export type FilaLiquidacion = {
@@ -501,8 +503,11 @@ export async function cargarLiquidaciones(): Promise<{
       pendienteCount: porProf.get(p.id)?.count ?? 0,
       sinRegistrar: porCurso(trabadasPorProf.get(p.id) ?? []),
       ventasEsperando: (trabadasPorProf.get(p.id) ?? []).length,
+      particularesBloqueadas: particulares.bloqueadas
+        .filter((b) => b.profesorId === p.id)
+        .map((b) => ({ alumno: b.alumno, motivo: b.motivo })),
     }))
-    .filter((p) => p.pendienteCount > 0 || p.ventasEsperando > 0)
+    .filter((p) => p.pendienteCount > 0 || p.ventasEsperando > 0 || p.particularesBloqueadas.length > 0)
     .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 
   const { data: liqs } = await sb
@@ -660,6 +665,7 @@ export async function generarLiquidacion(profesorId: number): Promise<{ ok?: tru
    * de lo ya pagado — se suma el delta. *(Javier, 2026-09-18.)*
    */
   const cache = new Map<string, number>();
+  const creadasAhora = new Set<number>();
   async function liquidacionDe(periodoDestino: string): Promise<number | { error: string }> {
     const ya = cache.get(periodoDestino);
     if (ya != null) return ya;
@@ -680,6 +686,7 @@ export async function generarLiquidacion(profesorId: number): Promise<{ ok?: tru
         .single();
       if (error) return { error: error.message };
       id = nueva.id as number;
+      creadasAhora.add(id);
     }
     cache.set(periodoDestino, id);
     return id;
@@ -829,8 +836,23 @@ export async function generarLiquidacion(profesorId: number): Promise<{ ok?: tru
   // un ajuste pudo haber caído en un período anterior, y esa liquidación
   // también cambió de total y de estado.
   for (const id of new Set(cache.values())) await recomputarTotales(a, id);
+  // El período vencido se abre siempre arriba; si esta corrida lo creó y todo
+  // lo devengado cayó en otro período (criterio 3 paga en el mes de la
+  // completada), quedaría una liquidación vacía. Solo se borra una que ESTA
+  // corrida creó y que sigue sin ítems ni pagos.
+  for (const id of creadasAhora) {
+    const { count } = await a
+      .from("liquidacion_items")
+      .select("id", { count: "exact", head: true })
+      .eq("liquidacion_id", id);
+    if (count === 0) {
+      await a.from("liquidaciones").delete().eq("id", id);
+      cache.forEach((v, k) => v === id && cache.delete(k));
+    }
+  }
   revalidatePath("/liquidaciones");
-  return { ok: true, liquidacionId };
+  // Si la del período vencido se borró, se devuelve donde sí quedó lo devengado.
+  return { ok: true, liquidacionId: cache.get(periodo) ?? [...cache.values()][0] ?? liquidacionId };
 }
 
 /**

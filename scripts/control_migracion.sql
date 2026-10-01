@@ -782,6 +782,63 @@ select '38. reserva que revierte a otra que no esta suspendida' as control,
  where anterior.estado <> 'suspendida';
 
 -- ---------------------------------------------------------------------
+-- 39. UNA PARTICULAR SIN CRITERIO DE LIQUIDACION
+--     0058 (C3 H5): `membresias.criterio_liquidacion` es el snapshot del
+--     criterio del plan al vender. Una particular de plan (sin curso) sin
+--     criterio no se puede liquidar: el liquidador la marca bloqueada, pero
+--     eso no deberia pasar con una venta nueva. (Cortesia: no devenga, se
+--     excluye.)
+-- ---------------------------------------------------------------------
+select '39. particular sin criterio de liquidacion' as control,
+       count(*) as n,
+       case when count(*) = 0 then 'OK' else 'REVISAR' end as estado
+  from public.membresias m
+  join public.planes p on p.id = m.plan_id
+ where p.tipo_servicio = 'particular'
+   and m.curso_id is null
+   and m.horas_contratadas is not null
+   and not coalesce(m.es_cortesia, false)
+   and m.criterio_liquidacion is null;
+
+-- ---------------------------------------------------------------------
+-- 40. COMISION DE PARTICULAR (CRITERIO 1 O 3) SOBRE MEMBRESIA NO COMPLETADA
+--     Regla 1 + criterios 1 y 3: se devenga al completarse (agotada Y
+--     cobrada). El criterio 2 (`avance`) es la excepcion: paga el avance a
+--     la fecha, asi que no entra aca. Los `ajuste` tampoco: corrigen una
+--     comision que ya existia.
+-- ---------------------------------------------------------------------
+select '40. comision de particular (criterio 1/3) sobre membresia no completada' as control,
+       count(*) as n,
+       case when count(*) = 0 then 'OK' else 'REVISAR' end as estado
+  from public.comisiones_devengadas c
+  join public.membresias m on m.id = c.membresia_id
+ where c.detalle_particular is not null
+   and c.tipo = 'comision'
+   and c.criterio in (1, 3)
+   and m.estado <> 'completada';
+
+-- ---------------------------------------------------------------------
+-- 41. PARTICULAR COMPLETADA (CRITERIO 1 O 3) SIN COMISION NI MOTIVO
+--     Una particular `completada` con criterio 1 o 3, que no es cortesia y
+--     tiene algo cobrado, deberia tener su comision devengada -- salvo que
+--     todavia no se haya generado la liquidacion del periodo. Por eso esto
+--     es informativo: da REVISAR solo si la completo hace mas de un mes
+--     (el periodo vencido ya paso y nadie la liquido).
+-- ---------------------------------------------------------------------
+select '41. particular completada hace >1 mes sin comision devengada' as control,
+       count(*) as n,
+       case when count(*) = 0 then 'OK' else 'REVISAR' end as estado
+  from public.membresias m
+  join public.planes p on p.id = m.plan_id
+ where p.tipo_servicio = 'particular'
+   and m.curso_id is null
+   and m.estado = 'completada'
+   and not coalesce(m.es_cortesia, false)
+   and m.criterio_liquidacion in (1, 3)
+   and m.actualizado_en < date_trunc('month', now()) - interval '1 month'
+   and not exists (select 1 from public.comisiones_devengadas c where c.membresia_id = m.id and c.tipo = 'comision');
+
+-- ---------------------------------------------------------------------
 -- Detalle, por si algun control da REVISAR:
 -- ---------------------------------------------------------------------
 -- select id, alumno_id, curso_id, estado, fecha_inicio, fecha_fin,

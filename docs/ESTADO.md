@@ -4584,15 +4584,22 @@ misma base (etapa aparte, con su OK).
   cobrada ⇒ `completada`, regla 1) y se llama al cambiar el estado de una reserva.
 - Toggle "Permite otorgar cortesías" en Planes.
 
-### Verificado
-`tsc` y `eslint` limpios; `npm test` 153/153. Datos de dev leídos: 14
-particulares activas, todas `pct_margen`, ninguna con foto de costo (filas de
-prueba anteriores al hito) — la restricción `NOT VALID` las deja pasar y el
-liquidador las marca bloqueadas con su motivo, sin inventar un costo.
+### Verificado (2026-09-30 / 10-01, dev)
+`tsc` y `eslint` limpios; `npm test` 156/156 (3 nuevas en `motor.conteo.test.ts`).
+Controles 39–41 (nuevos en `control_migracion.sql`) en 0 = OK.
+**Recorrido en el navegador contra dev:**
+- Planes → "Permite otorgar cortesías": se guarda (plan 15).
+- Reserva → "Marcar como cortesía": el botón queda deshabilitado hasta escribir el motivo; al guardar, el saldo libera la hora (disponible 1→2 h); "Quitar cortesía" la revierte.
+- Nueva reserva: las validaciones de choque (sala, horario de sala, profesor) responden con su motivo.
+- Liquidación criterio 3 (#56, 1 h, cobrada): devenga Bs 40 (50% de 80) en el **mes de la completada**, no en el vencido.
+- Liquidación criterio 2 (#62, 1 de 4 h, cobrada): avance Bs 37,50 (25% × 50% × 300), en el período vencido, como complemento de la liquidación existente.
+- Particular bloqueada (plan que descuenta sala y venta sin foto de costo): ahora **se ve** en Por liquidar con su motivo.
+**Dos bugs encontrados y corregidos:** (1) generar con criterio 3 dejaba una liquidación del período vencido **vacía** (se borra si esta corrida la creó y quedó sin ítems); (2) la pantalla escondía las particulares bloqueadas (calidad 5).
+Datos de prueba en dev tocados por SQL con autorización de Javier (criterios de #56/#62, reservas 11/17/55 realizadas y 17/55 movidas a agosto).
+**No se probó en el navegador:** vender una membresía entera de cortesía (flujo de Inscribir) y las formas fee/hora y monto fijo (cubiertas solo por las 12 pruebas de `particulares.ts`).
 
 ### Pendiente
-- **Recorrido en el navegador** de punta a punta (vender con cortesía, marcar
-  una reserva, generar una liquidación) — no se hizo.
+- Probar a mano: venta de membresía entera de cortesía, y particulares con fee/hora y monto fijo.
 - **Criterios 2 y 3 en cursos regulares**, sobre la base actual del criterio 1
   (etapa aparte, después de resolver el conteo de clases en ilimitadas). Las
   formas de pago NO se llevan a regulares. Alquiler: solo cierre por horas.
