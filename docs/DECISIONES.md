@@ -184,7 +184,7 @@ hito ni gastar tokens reconstruyéndolo (pedido de Javier, 2026-09-26): esto
 se actualiza en el mismo commit que cierra cada hito, y una sesión nueva lo
 lee **antes** de mirar ramas.
 
-- **Pendiente de pase (2026-10-01):** rama `cierre-cuentas` (desasignar con fecha + cierre de cuentas + fecha de inicio al asignar; migración **0062**, solo en dev). **Independiente de H7**: parte de `origin/main`, sin las migraciones 0060/0061. Falta el OK de Javier.
+- **Cierre de cuentas: EN PRODUCCIÓN desde el 2026-10-01** (PR #6, `main` `95a0edb`, migración 0062; ver §4). Isabel Góngora desasignada con corte 10/09, avance liquidado y pagado en Caja, verificado por Javier.
 - **Rama activa:** `main`. **H5 y Paso 4 en producción** (0058 y 0059 aplicadas
   el 2026-10-01; producción en 0001–0059).
 - **Último hito cerrado:** informe de pre-liquidación (2026-10-01, **en producción**,
@@ -237,8 +237,22 @@ lee **antes** de mirar ramas.
 
 ## 4. Registro de pases a producción
 
-**Pendiente de pase: ninguno.** Todo está en producción, con migraciones 0001–0059 en
-las dos bases. Cuando algo quede **solo en dev** esperando el OK explícito de Javier
+- **Cierre de cuentas al desasignar + fecha de inicio al asignar (migración 0062;
+  D30) — PASADO A PRODUCCIÓN el 2026-10-01**, con el OK explícito de Javier
+  (*"sube cierre de cuentas a producción. OK"*). **Independiente de H7**: rama
+  `cierre-cuentas` desde `origin/main`, sin las migraciones 0060/0061 (por eso
+  producción queda en 0001–0059 + 0062). Orden de §3: medido antes (6
+  comisiones, 2 liquidaciones, 47 membresías, check de `tipo` sin `cierre`);
+  ensayo en seco; **0062** aplicada en `pnvhpbxjbdmbktpwebtx` antes del código,
+  con los mismos conteos después; control 43 en 0; PR #6 con CI en verde,
+  `main` `95a0edb`, un solo push. Javier confirmó el chip PROD, desasignó a
+  Isabel Góngora (Zumba, corte 10/09) con liquidación del avance y pagó desde
+  Caja, todo OK. Pasa con él: `crearAsignacion` exige fecha de inicio, y
+  `revertirDevengosAbiertos` no toca los devengos `cierre`. Detalle en
+  `docs/ESTADO.md`, "Cierre de cuentas al desasignar".
+
+**Pendiente de pase: ninguno.** Todo está en producción, con migraciones 0001–0059 y 0062 en
+producción (0060 y 0061, de H7, solo en dev). Cuando algo quede **solo en dev** esperando el OK explícito de Javier
 (regla de proceso 1), se anota arriba de esta línea. Abajo, en orden, cada pase ya hecho.
 
 - **Informe de pre-liquidación (`/liquidaciones/pre-liquidacion`) — PASADO A
