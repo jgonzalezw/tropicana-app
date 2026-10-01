@@ -86,12 +86,15 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
    cobrado —lo que se cobre después abre otra liquidación—; **(5)** taller:
    monto fijo al completarse. El 4 y el 5 **solo** en planes de taller. Los
    criterios 1 a 3 miran cada membresía sola, aunque tenga varios alumnos.
-   **Los criterios 1 a 3 y las tres formas de pago valen para TODOS los tipos
-   de membresía** (curso regular, prueba, particular, alquiler, taller), no
-   solo para el tipo donde se construyeron primero *(Javier, 2026-09-30:
-   "todos los métodos de liquidación deben funcionar para todos los tipos de
-   membresía")*. El cálculo es uno solo y cada tipo aporta su medida de
-   avance (horas en particular/alquiler, clases en curso regular).
+   **Alcance por tipo de membresía** *(Javier, 2026-09-30, corrigiendo una
+   lectura que había generalizado de más)*. Las **formas de pago** (fee por
+   hora, % sobre el margen, monto fijo por membresía) fijan lo que una
+   **particular** le reporta al profesor al completarse, y miden en **horas**
+   (`realizada` + `ausente`, sin cortesías). En **cursos regulares** (y la
+   prueba, que es un plan regular) no cambia nada de lo ya implementado: base
+   %, asignación, prorrata, criterio 1, medida en **clases**. Los criterios
+   **2 y 3** también existirán para regulares, **sobre esa misma base** —sin
+   cambiarla— y se construyen en una etapa aparte, con su propio OK.
    **El criterio 2 es la única excepción a la regla 16**: como mira el
    avance acumulado a la fecha, si una reserva de un período ya liquidado
    se corrige después, la diferencia entra en el **período actual** (no

@@ -4559,9 +4559,10 @@ historial) — igual que desde una tarjeta de sala propia.
 
 Rama `h5-liquidacion-particulares` (local, sin pushear). Migración **0058**
 aplicada solo en **dev**; producción sin tocar. Decisiones de diseño en
-`docs/DECISIONES.md`, fila "H5", más la **ampliación del 2026-09-30**:
-los criterios 1–3 y las tres formas de pago deben funcionar para **todos**
-los tipos de membresía (los 4 y 5 siguen siendo de taller).
+`docs/DECISIONES.md`, fila "H5", más la **corrección de alcance del
+2026-09-30**: las formas de pago son **solo de particulares**; en regulares no
+cambia lo ya implementado, y los criterios 2 y 3 se agregan después sobre la
+misma base (etapa aparte, con su OK).
 
 ### Construido
 - **0058** (aditiva): parámetro `particular_vencida_modo`; en `membresias`,
@@ -4592,8 +4593,9 @@ liquidador las marca bloqueadas con su motivo, sin inventar un costo.
 ### Pendiente
 - **Recorrido en el navegador** de punta a punta (vender con cortesía, marcar
   una reserva, generar una liquidación) — no se hizo.
-- Enchufar el motor de **cursos regulares** (hoy solo criterio 1 a prorrata) y
-  alquiler a los mismos criterios/formas: es la ampliación del 30/09.
+- **Criterios 2 y 3 en cursos regulares**, sobre la base actual del criterio 1
+  (etapa aparte, después de resolver el conteo de clases en ilimitadas). Las
+  formas de pago NO se llevan a regulares. Alquiler: solo cierre por horas.
 - Control nuevo en `scripts/control_migracion.sql` (particulares completadas
   sin comisión / comisión sin membresía completa).
 - Permisos: no hay pantalla nueva en este hito (regla de proceso 11 no aplica).
