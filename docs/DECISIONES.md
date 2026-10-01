@@ -202,8 +202,10 @@ lee **antes** de mirar ramas.
      **dev** se copiaron los 12 precios de Profesor de Tropicana a Alumno,
      Profesor externo y Tercero (36 celdas); **producción tiene 1 paquete de horas y
      9 celdas**: se carga a mano (o con OK explícito) antes de vender el primer
-     alquiler. Pendiente de decidir al construir: módulo de permisos
-     (`particulares` o uno nuevo `alquileres`, regla de proceso 11).
+     alquiler. **Permiso: módulo nuevo `alquileres`** (Javier, 2026-10-01; regla de proceso 11:
+     entra a Roles y Permisos con su migración). Segundo prompt, sobre el titular
+     como contacto (persona vs. organización, documentos, consentimiento):
+     `docs/relevamientos/2026-10-01-H7-prompt-design-contactos-alquiler.md`.
   2. **Después de C3, sin urgencia:** filtros por profesor y período en
      Liquidaciones (pantalla existente: se avisa antes de construir).
   3. **Postergada:** D29, simulación anticipada de la pre-liquidación (§1, con su
