@@ -1,5 +1,5 @@
-import type { DatosPlan } from "./tipos";
-import { validarPlanParticular } from "./planesParticular";
+import type { DatosPlan } from "./tipos.ts";
+import { validarPlanParticular } from "./planesParticular.ts";
 
 /**
  * Valida un plan completo (lo común a todo tipo de servicio, más lo propio
