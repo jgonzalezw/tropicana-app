@@ -3,7 +3,7 @@
 Bitácora de decisiones de diseño y de reglas de negocio. **El chat no es memoria: este archivo sí.**
 Cada vez que se define, cambia o se descarta algo, se anota acá con fecha, antes de seguir.
 
-- **Última actualización:** 29 ago 2026 (App Shell + correcciones de inscripción)
+- **Última actualización:** 01 oct 2026 (Pre-liquidación)
 - **Estado:** reconstruido a partir del README de handoff y del código de los prototipos. No hay historial de conversación anterior a esta fecha; lo que sigue es el estado **vigente**, no un diff.
 - **Fuente de verdad detallada:** `design_handoff_tropicana/README.md` (501 líneas, especificación completa). Este archivo es el índice de decisiones, no su reemplazo.
 
@@ -71,6 +71,16 @@ Un bloque bloqueado muestra una instrucción corta ("Elegí primero el alumno.")
 **N52 — El congelamiento de los porcentajes se muestra antes del botón, con candado.** El panel `accent-100` está entre los campos y el confirmar, en orden de lectura, así no se puede pasar sin verlo. Reemplazar un titular agrega el aviso con los porcentajes y la fecha de la asignación que se cierra.
 
 **N53 — La tabla de asignaciones vigentes no usa celdas editables, a propósito.** Es la única tabla del producto que muestra números como texto: son fijos por diseño. Se cierra la asignación y se crea otra.
+
+**N54 — La pre-liquidación es de solo lectura y lo dice en la primera pantalla.** La leyenda "Informe preliminar: no se ha generado ninguna liquidación ni se ha devengado nada" es fija, va antes de cualquier número y sale también en el papel, porque el impreso circula sin la pantalla.
+
+**N55 — Un error de lectura nunca se muestra como "no hay nada".** El estado de error no muestra ninguna cifra y lista qué lectura falló. El vacío legítimo es otro estado, con su explicación.
+
+**N56 — Una sección sin datos se queda, con una línea que dice por qué.** Los seis motivos de excepción están siempre; un motivo sin casos dice "ninguna".
+
+**N57 — Las clases sin registrar se agrupan por curso y fecha, y cada fila dice si traba.** Solo traba una membresía de 2 o más cursos, por el prorrateo. Los tres bloques arrancan cerrados.
+
+**N58 — En papel, una hoja por profesor.** Índice en la página 1, salto limpio entre profesores, todo abierto, TRABA / NO TRABA en mayúsculas para leerse sin color.
 
 **N44 — La copy revisada en pantalla baja al paquete, no al revés.** Los `.dc.html` de `docs/design/` son la fuente de verdad del texto: lo que se corrige mirando la pantalla se sincroniza al paquete, y Code lo toma al construir en vez de reescribirlo del lado del código.
 
@@ -221,6 +231,10 @@ Una sola animación de entrada: `opacity: 0; translateY(6px)` → `opacity: 1`, 
 ---
 
 ## 9. Historial de cambios
+
+### 01 oct 2026 — se agrega Pre-liquidación
+Pantalla nueva `Pre-liquidación.dc.html` (escritorio, celular 375, impreso A4) con estados vacío, error y cargando. Reglas N54–N58. **Desviación:** la versión impresa es papel blanco y tinta negra, fuera de los tokens oscuros, para que funcione en una impresora en blanco y negro. **A revisar:** el link de "Ciclo que termina después del corte" dice *Ver membresía* en lugar de *Resolver*, porque ahí no hay nada que corregir.
+
 
 Todavía no hay entradas. De acá en adelante, cada ronda de revisión se anota abajo con fecha, pantalla y qué cambió — y si algo obliga a apartarse de Organic, se agrega también a la sección 1.
 

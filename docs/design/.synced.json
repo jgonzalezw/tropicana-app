@@ -1,6 +1,6 @@
 {
-  "sincronizado_en": "2026-08-31T15:21:52.158Z",
-  "origen": "Inscripción y pago Tropicana (4).zip",
+  "sincronizado_en": "2026-10-01T10:06:12.989Z",
+  "origen": "Inscripción y pago Tropicana (5).zip",
   "buzon": "C:\\Users\\Javier\\OneDrive\\Natalia\\tropicana-Claude.Design-Handoff",
   "archivos": [
     "App Shell.dc.html",
@@ -10,6 +10,7 @@
     "DECISIONES.md",
     "Inscribir y cobrar.dc.html",
     "Login.dc.html",
+    "Pre-liquidación.dc.html",
     "Precios y paquetes.dc.html",
     "Profesor.dc.html",
     "Profesores.dc.html",
@@ -77,6 +78,8 @@
     "support.js"
   ],
   "cambios": {
-    "nota": "incorporación manual del handoff v4 (11 pantallas/componentes)"
+    "agregados": 1,
+    "cambiados": 19,
+    "borrados": 0
   }
 }

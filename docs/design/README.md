@@ -4,6 +4,15 @@
 
 ## Changelog
 
+### 01 oct 2026 — Pre-liquidación
+| Pantalla | Qué cambió |
+| --- | --- |
+| **Pre-liquidación** (nueva) | Informe de solo lectura e imprimible sobre el período elegido en *Liquidaciones* (botón **Pre-liquidación** junto a *Generar liquidación*). Encabezado con la leyenda fija "Informe preliminar: no se ha generado ninguna liquidación ni se ha devengado nada", cuatro cifras, un bloque plegable por profesor (por apellido) con la tabla de membresías que entran y el criterio 1/2/3 en cada línea, reemplazos y ajustes firmados y el neto; excepciones agrupadas por los seis motivos con link *Resolver*; y las clases sin registrar en tres bloques comprimidos (vencidas, de hoy o futuras, sin alumnos) con **Traba / No traba** por fila. Estados vacío, error y cargando diseñados. Versión impresa A4 vertical en blanco y negro. Ver sección *Screen 10 — Pre-liquidación*. |
+| Liquidaciones (repo) | Suma el botón **Pre-liquidación** y un aviso si ya existe una liquidación del período. Sin otros cambios. |
+| El resto | Sin cambios. |
+
+**Desviaciones del sistema de diseño:** una, solo en papel: la versión impresa no usa los tokens oscuros. Es **papel blanco, tinta negra** (`#fff`, `#111`, grises `#444`/`#bbb` para texto secundario y reglas), con los bordes y el subrayado haciendo el trabajo del color, para que se lea igual en una impresora en blanco y negro. Pantalla: sin desviaciones.
+
 ### 30 ago 2026 (4) — Profesores, y dos patrones que suben al sistema
 | Pantalla | Qué cambió |
 | --- | --- |
@@ -1319,3 +1328,58 @@ Note: what the captures show is the **content**; the phone bezel around screens 
 | `_ds/organic-186d334f-848b-405d-95ba-b805f2b70bf6/` | The Organic design system: `styles.css` (light token sheet + component classes the prototypes build on), its component bundle, and its own `readme.md`. Each screen overrides the color and font tokens — **the dark values and Montserrat headings in this README win.** |
 
 Resize any of them: the layouts are real, not mockups at a fixed width. To view a prototype, open its `.dc.html` in a browser (keep the folder structure so `support.js`, `_ds/…/styles.css` and `assets/` resolve).
+
+
+---
+
+# Screen 10 — Pre-liquidación (`Pre-liquidación.dc.html`)
+
+## Qué es
+Antes de generar la liquidación de un mes, el administrador o gerente ve **sin guardar nada** cuánto se le va a devengar a cada profesor, qué membresías entran, qué quedó afuera y por qué, con el link para arreglarlo. Solo lectura, imprimible A4 vertical. Vive dentro de *Liquidaciones*: botón **Pre-liquidación** (secundario) junto a **Generar liquidación**, sobre el período elegido. Solo lo ven los roles con permiso del módulo Liquidaciones.
+
+## Reglas que el informe aplica (backend)
+- Período vencido: la liquidación de octubre cubre septiembre; período = mes calendario.
+- Entra una membresía solo si está **completada** (ciclo agotado) **y cobrada al 100%**. Con saldo pendiente no entra: va a Excepciones.
+- Comisión = **base × %** de la asignación del profesor. La base sale de lo **efectivamente cobrado** (el descuento no suma). Multi-curso: prorrata entre cursos y entre profesores que dictaron (el mismo reparto de `Comprobante.tsx`).
+- Criterio 1/2/3 del plan en cada línea. 1 = al completarse, a período vencido; 2 = proporcional al avance; 3 = al completarse, sin esperar al cierre.
+- Reemplazos (descuento) y ajustes firmados de períodos anteriores van **aparte** del subtotal, como en el comprobante (regla 20a / 0044).
+- Una clase sin registrar **traba** solo si la membresía afectada tiene 2 o más cursos. En un solo curso no cambia el número: "No traba".
+
+## Layout de pantalla
+- Contenedor: `<Pagina ancho="5xl">` (max 1024px, `p-6 sm:p-8`, borde izquierdo de todas las pantallas, **nunca centrado**). En el prototipo: `max-width:1024px; padding:32px` (24px bajo 640px).
+- Columna única, `gap: 28px` entre bloques de cabecera y `36px` entre secciones.
+- Fila de acciones: **Volver a Liquidaciones** (`.btn-secondary`, ícono `arrow-left`) a la izquierda, **Imprimir** (`.btn-primary`, ícono `printer`) empujado a la derecha; `min-height:44px`, 15px. Imprimir deshabilitado en *cargando* y *error*.
+- Encabezado: kicker "Liquidaciones" 14px `neutral-600`; h1 "Pre-liquidación · Septiembre 2026" Montserrat 800 38px (28px en celular); meta 15px `neutral-700` "Generado el 01/10/2026 a las 09:41 · Período 01/09/2026 – 30/09/2026, se liquida en octubre a período vencido"; leyenda fija en panel `neutral-100` radio 22px con ícono `eye`, 15px 700.
+- **Liquidación existente**: panel `accent-100` + borde 1px `accent-400`, ícono `triangle-alert`, radio 22px. "Ya hay una liquidación generada para septiembre 2026." + "Nuñez, Oscar · N° 1 · Abierta · Bs. 475,00. Este informe no la incluye ni la modifica: muestra solo lo que todavía no se liquidó." + link *Ver comprobante*. Una línea por liquidación existente.
+- **Resumen**: grilla `repeat(auto-fit,minmax(200px,1fr))` gap 12px de cuatro tarjetas `neutral-100` radio 22px, padding 16/18: etiqueta 14px `neutral-700`, cifra Montserrat 800 28px tabular, nota 13px `neutral-600`. Cifras: *Total a devengar* (neto, con "Comisiones Bs. X · reemplazos y ajustes ± Bs. Y"), *Profesores con devengo*, *Membresías que entran* (únicas: una multi-curso con dos profesores cuenta una vez), *Membresías con excepción*.
+- **Por profesor**: h2 24px + leyenda de criterios; botón ghost *Abrir todos / Cerrar todos*. Cada profesor es una tarjeta `surface` radio 26px; la cabecera es un botón (`aria-expanded`, min 72px) con chevron que rota −90° cerrado, nombre "Apellido, Nombre" Montserrat 800 20px, meta "N membresías · cursos", y **Neto** a la derecha (22px). Abierta: tabla 14px, encabezados 12px uppercase `neutral-600` tracking .06em, filas con borde superior `divider`, numéricos alineados a la derecha y tabulares. Columnas: Alumno · Curso(s) · Plan · Crit. (pill `accent-2-200`/`accent-2-900` "C1", `title` con el texto del criterio) · Ciclo (inicio y fin en dos líneas, 13px) · Clases ("8/8", o "2 de 4 h" en particular) · Cobrado · Base (con nota 12px: "Heels · 60%", "descuento Bs. 10,00 no suma", "avance 50% − sala") · % · Comisión (700). Debajo, regla `divider` y: "Comisiones · N membresías" + subtotal; una fila por reemplazo/ajuste (título + detalle 13px, monto firmado en `accent-700` si resta, `accent-2-700` si suma); si no hay: "Sin descuentos por reemplazo ni ajustes de períodos anteriores."; y **Neto a devengar** Montserrat 800.
+- Sin profesores: la sección queda con "Ningún profesor tiene devengo: no hay membresías completadas y cobradas al 100% con el ciclo cerrado dentro de septiembre 2026."
+- **Excepciones**: h2 + bajada. Los **seis motivos siempre presentes**, en este orden: sin plan o sin criterio · curso sin titular en esa fecha · varios cursos bloqueada por clases sin registrar · particular bloqueada por tarifa de sala · saldo pendiente · ciclo termina después del corte. Cada motivo: tarjeta `surface` radio 22px, h3 Montserrat 700 17px y tag de cuenta (`accent-200` si hay casos, `neutral-200` "ninguna"). Cada caso: fila `neutral-100` radio 18px con persona (700) · curso, detalle 14px, y link **Resolver ›** (44px, `accent-700`) a la pantalla donde se arregla: Precios y paquetes (plan/criterio, tarifa de sala), Profesores y asignaciones (titular), Asistencia (clases), Caja (saldo). *Ciclo después del corte* no tiene arreglo: el link dice **Ver membresía** y el detalle "entra en la pre-liquidación de octubre". Motivo vacío: "Ninguna en este período."
+- **Clases sin registrar**: h2 + bajada que explica cuándo traba. Tres bloques plegables, **cerrados por defecto**: (a) *Vencidas con alumnos esperados*, (b) *De hoy o futuras*, (c) *Días de calendario sin alumnos*. Cabecera: título 16px 700, resumen "N clases · M cursos", tag a la derecha ("2 traban" `accent-200` / "No traba" `neutral-200`). Abierto: bajada + una fila por **curso y fecha** (nunca por plan ni alumno): fecha dd/mm/aaaa 700 · curso · "N alumnos esperados" · tag **Traba** / **No traba** · por qué ("Medina, Carla · membresía de 2 cursos", "solo membresías de un curso", "aún no vencida", "no existe para nadie") · en (a) link **Registrar en Asistencia ›**. Bloque vacío: una línea con el porqué.
+
+## Celular (375px)
+Mismo orden. La tabla de cada profesor pasa a tarjetas `neutral-100` radio 20px: alumno + comisión en la primera línea, "cursos · plan", pill de criterio + ciclo + clases, y una grilla 3 columnas Cobrado/Base/%. Filas de excepciones y de clases hacen `flex-wrap`. Corte de tabla a tarjetas: < 960px de ventana; padding y h1 bajan a 24px / 28px bajo 640px. Celdas con padding horizontal 6px y la nota de Base envolviendo (max 110px), así las diez columnas entran sin scroll horizontal; si quedara un residuo, el scroll usa `scrollbar-color: neutral-400 transparent`.
+
+## Estados
+- **Cargando**: "Calculando septiembre 2026: leyendo membresías, cobros, asistencia y asignaciones…" con `role="status"`, siluetas de las cuatro cifras y de tres bloques. Imprimir deshabilitado, con la línea que lo dice.
+- **Error**: panel `accent-100` con `role="alert"`: "No se pudo armar la pre-liquidación" + "Falló la lectura de la asistencia del período. No se muestra ningún número: con una lectura incompleta, un profesor sin devengo o una sección vacía no significarían nada." y la lista de lecturas con su estado (**Leído** `accent-2-700` / **Falló** `accent-700` / **Sin leer** `neutral-600`) + detalle. Botones *Reintentar* y *Volver a Liquidaciones*. **Nunca** se muestra un informe vacío ante un error.
+- **Vacío legítimo**: panel `accent-2-200` "No hay nada que liquidar en septiembre 2026." + por qué, y "No es un error: membresías, cobros, asistencia y asignaciones se leyeron completas." Todas las secciones siguen ahí, cada una con su línea de vacío. Imprimir sigue habilitado.
+
+## Versión impresa (A4 vertical)
+- Sin shell, sin botones, papel blanco y tinta `#111`; funciona en blanco y negro. `@page { size: A4 portrait }`. Mismo camino que el comprobante: documento aparte en ventana nueva (`construirHTMLImpresion`) o `@media print`; en el prototipo, `@media print` oculta la pantalla y muestra las hojas.
+- Hojas de 210 × 297 mm, margen 14 mm aprox., Figtree 12px, títulos Montserrat 800.
+- **Página 1**: título, período, generado, leyenda en caja de borde 2px, aviso de liquidación existente (borde punteado), las cuatro cifras en cajas, índice *Profesores en este informe* (Profesor · Membresías · Comisiones · Reemplazos y ajustes · Neto · Página) con total, y dónde están Excepciones y Clases.
+- **Una página por profesor** (`break-after: page`): todo abierto, tabla 10.5px con las diez columnas, totales a la derecha.
+- **Excepciones**: los seis motivos; el link se reemplaza por "Se resuelve en: <pantalla>".
+- **Clases sin registrar**: los tres bloques abiertos, con **TRABA / NO TRABA** en mayúsculas para que se distinga sin color.
+- Pie de cada hoja: "Tropicana · Pre-liquidación septiembre 2026 · Informe preliminar, no es una liquidación" y **Página n de N**; encabezado corrido desde la página 2.
+- Si un profesor no entra en una hoja, continúa en la siguiente con su nombre y "(continúa)"; nunca comparte hoja con otro profesor.
+
+## Formato
+Montos con `gs()` de `src/lib/inscripcion.ts`: "Bs. 1.234,50". Firmados con menos tipográfico U+2212: "+ Bs. 12,50" / "− Bs. 40,00". Fechas dd/mm/aaaa (`fechaCorta`).
+
+## Lo que el backend tiene que devolver
+Una sola lectura del período que devuelva o **datos completos** o **error con qué lectura falló** — nunca listas vacías por un error. Por profesor: líneas (alumno, cursos, plan, criterio, ciclo inicio/fin, clases contadas, cobrado, base, nota de base, %, comisión), reemplazos y ajustes firmados con detalle. Excepciones con motivo, persona, curso, detalle y destino. Clases sin registrar con curso, fecha, alumnos esperados, si traba y qué membresía traba. Liquidaciones ya existentes del período. Reusar el motor de `generarLiquidacion` en modo simulación (sin escribir).
+
+## Configurable (prototipo)
+`vista` (escritorio/celular/impreso), `estado` (datos/vacio/error/cargando), `liquidacionExistente` — andamiaje de revisión, también en la barra "Revisión" de arriba.

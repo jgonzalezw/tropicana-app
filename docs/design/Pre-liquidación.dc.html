@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/organic-186d334f-848b-405d-95ba-b805f2b70bf6/styles.css">
+<script src="_ds/organic-186d334f-848b-405d-95ba-b805f2b70bf6/_ds_bundle.js"></script>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+:root {
+  --color-bg: #1c1815;
+  --color-surface: #272220;
+  --color-text: #f4ebdd;
+  --color-divider: color-mix(in srgb, #f4ebdd 16%, transparent);
+  --color-accent: #e08b4f;
+  --color-accent-2: #9bad78;
+  --color-neutral-100: #302a25;
+  --color-neutral-200: #3a332d;
+  --color-neutral-300: #463e37;
+  --color-neutral-400: #6d6359;
+  --color-neutral-500: #8f8578;
+  --color-neutral-600: #ab9f91;
+  --color-neutral-700: #c8bbaa;
+  --color-neutral-800: #e2d7c6;
+  --color-neutral-900: #f4ebdd;
+  --color-accent-100: #37200f;
+  --color-accent-200: #6b3714;
+  --color-accent-300: #8c491a;
+  --color-accent-400: #b2622d;
+  --color-accent-500: #d67f48;
+  --color-accent-600: #f6a06b;
+  --color-accent-700: #ffc0a0;
+  --color-accent-800: #ffd3b5;
+  --color-accent-900: #fff2eb;
+  --color-accent-2-100: #232a18;
+  --color-accent-2-200: #3a4726;
+  --color-accent-2-300: #56633f;
+  --color-accent-2-400: #728157;
+  --color-accent-2-500: #8fa073;
+  --color-accent-2-600: #a8bb88;
+  --color-accent-2-700: #ccdbb2;
+  --color-accent-2-800: #dcebc4;
+  --color-accent-2-900: #f0fae1;
+  --tropi-chip: #f4ebdd;
+  --font-heading: "Montserrat", system-ui, sans-serif;
+  --font-heading-weight: 800;
+}
+h1, h2, h3, h4 { letter-spacing: -0.025em; }
+.btn { font-weight: 700; letter-spacing: 0.01em; }
+body { margin: 0; background: var(--color-neutral-300); }
+a { color: var(--color-accent-700); }
+a:hover { color: var(--color-accent-800); }
+@keyframes plIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media print {
+  @page { size: A4 portrait; margin: 0; }
+  html, body { background: #fff !important; }
+  .pl-noprint { display: none !important; }
+  .pl-print { display: block !important; padding: 0 !important; background: #fff !important; }
+  .pl-page { margin: 0 !important; border-radius: 0 !important; break-after: page; page-break-after: always; }
+  .pl-page:last-child { break-after: auto; page-break-after: auto; }
+}
+</style>
+</helmet>
+<div style="min-height:100vh;background:var(--color-neutral-300);color:var(--color-text);font-family:var(--font-body)">
+
+  <div class="pl-noprint" style="display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;padding:12px 20px;background:var(--color-neutral-200);font-size:14px;color:var(--color-neutral-700)">
+    <span style="font-weight:700;color:var(--color-neutral-800)">Revisión</span>
+    <div style="display:flex;align-items:center;gap:8px">
+      <span>Vista</span>
+      <div class="seg">
+        <label class="seg-opt"><input type="radio" name="plvista" checked="{{ vEsc }}" onChange="{{ aEsc }}"></input><span>Escritorio</span></label>
+        <label class="seg-opt"><input type="radio" name="plvista" checked="{{ vCel }}" onChange="{{ aCel }}"></input><span>Celular 375</span></label>
+        <label class="seg-opt"><input type="radio" name="plvista" checked="{{ vImp }}" onChange="{{ aImp }}"></input><span>Impreso A4</span></label>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <span>Estado</span>
+      <div class="seg">
+        <label class="seg-opt"><input type="radio" name="plestado" checked="{{ eDat }}" onChange="{{ aDat }}"></input><span>Con datos</span></label>
+        <label class="seg-opt"><input type="radio" name="plestado" checked="{{ eVac }}" onChange="{{ aVac }}"></input><span>Vacío</span></label>
+        <label class="seg-opt"><input type="radio" name="plestado" checked="{{ eErr }}" onChange="{{ aErr }}"></input><span>Error</span></label>
+        <label class="seg-opt"><input type="radio" name="plestado" checked="{{ eCar }}" onChange="{{ aCar }}"></input><span>Cargando</span></label>
+      </div>
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;min-height:44px">
+      <input type="checkbox" checked="{{ yaLiq }}" onChange="{{ toggleYaLiq }}" style="width:18px;height:18px;accent-color:var(--color-accent)"></input>
+      <span>Ya existe una liquidación del período</span>
+    </label>
+  </div>
+
+  <sc-if value="{{ verPantalla }}" hint-placeholder-val="{{ true }}">
+    <div class="pl-noprint" style="padding:{{ marcoPad }}">
+      <div style="width:{{ marcoAncho }};max-width:100%;background:var(--color-bg);border-radius:{{ marcoRadio }};border:{{ marcoBorde }};overflow:hidden;min-height:100vh">
+        <div style="max-width:1024px;padding:{{ pad }};box-sizing:border-box;display:flex;flex-direction:column;gap:28px">
+
+          <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px">
+            <a href="#" onClick="{{ volver }}" class="btn btn-secondary" style="display:inline-flex;align-items:center;gap:8px;min-height:44px;text-decoration:none;font-size:15px">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"></path><path d="M19 12H5"></path></svg>
+              Volver a Liquidaciones
+            </a>
+            <button class="btn btn-primary" onClick="{{ imprimir }}" disabled="{{ noImprime }}" style="display:inline-flex;align-items:center;gap:8px;min-height:44px;font-size:15px;margin-left:auto">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"></path><rect x="6" y="14" width="12" height="8" rx="1"></rect></svg>
+              Imprimir
+            </button>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="font-size:14px;color:var(--color-neutral-600)">Liquidaciones</div>
+            <h1 style="font-family:var(--font-heading);font-weight:800;font-size:{{ h1Size }};line-height:1.1;margin:0;text-wrap:balance">Pre-liquidación · Septiembre 2026</h1>
+            <div style="font-size:15px;color:var(--color-neutral-700);line-height:1.5">Generado el 01/10/2026 a las 09:41 · Período 01/09/2026 – 30/09/2026, se liquida en octubre a período vencido</div>
+            <div style="display:flex;align-items:flex-start;gap:10px;background:var(--color-neutral-100);border-radius:22px;padding:13px 16px;margin-top:6px">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--color-neutral-800)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:1px"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"></path><circle cx="12" cy="12" r="3"></circle></svg>
+              <div style="font-size:15px;font-weight:700;line-height:1.45;color:var(--color-neutral-900)">Informe preliminar: no se ha generado ninguna liquidación ni se ha devengado nada</div>
+            </div>
+          </div>
+
+          <sc-if value="{{ verYaLiq }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;align-items:flex-start;gap:10px;background:var(--color-accent-100);border:1px solid var(--color-accent-400);border-radius:22px;padding:14px 16px;animation:plIn .22s ease-out">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-700)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:2px"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg>
+              <div style="font-size:15px;line-height:1.5;color:var(--color-accent-900);min-width:0">
+                <div style="font-weight:700">Ya hay una liquidación generada para septiembre 2026.</div>
+                <div>Nuñez, Oscar · N° 1 · Abierta · Bs. 475,00. Este informe no la incluye ni la modifica: muestra solo lo que todavía no se liquidó. <a href="#">Ver comprobante</a></div>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ esCargando }}" hint-placeholder-val="{{ false }}">
+            <div role="status" style="display:flex;flex-direction:column;gap:16px">
+              <div style="display:flex;align-items:center;gap:10px;font-size:16px;color:var(--color-neutral-800)">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>
+                Calculando septiembre 2026: leyendo membresías, cobros, asistencia y asignaciones…
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">
+                <div style="height:104px;border-radius:22px;background:var(--color-neutral-100)"></div>
+                <div style="height:104px;border-radius:22px;background:var(--color-neutral-100)"></div>
+                <div style="height:104px;border-radius:22px;background:var(--color-neutral-100)"></div>
+                <div style="height:104px;border-radius:22px;background:var(--color-neutral-100)"></div>
+              </div>
+              <div style="height:76px;border-radius:26px;background:var(--color-surface)"></div>
+              <div style="height:76px;border-radius:26px;background:var(--color-surface)"></div>
+              <div style="height:76px;border-radius:26px;background:var(--color-surface)"></div>
+              <div style="font-size:14px;color:var(--color-neutral-600)">Imprimir se habilita cuando termine el cálculo.</div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ esError }}" hint-placeholder-val="{{ false }}">
+            <div role="alert" style="background:var(--color-accent-100);border:1px solid var(--color-accent-400);border-radius:26px;padding:20px 22px;display:flex;flex-direction:column;gap:14px;animation:plIn .22s ease-out">
+              <div style="display:flex;align-items:flex-start;gap:12px">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-700)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:2px"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v4"></path><path d="M12 16h.01"></path></svg>
+                <div style="min-width:0">
+                  <h2 style="font-family:var(--font-heading);font-weight:800;font-size:22px;margin:0 0 6px;color:var(--color-accent-900)">No se pudo armar la pre-liquidación</h2>
+                  <div style="font-size:15px;line-height:1.55;color:var(--color-accent-800);max-width:68ch">Falló la lectura de la asistencia del período. No se muestra ningún número: con una lectura incompleta, un profesor sin devengo o una sección vacía no significarían nada.</div>
+                </div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:6px;background:var(--color-bg);border-radius:20px;padding:14px 16px">
+                <sc-for list="{{ lecturas }}" as="l" hint-placeholder-count="4">
+                  <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;font-size:15px;min-height:28px">
+                    <span style="font-weight:700;color:{{ l.color }};min-width:92px">{{ l.estado }}</span>
+                    <span style="color:var(--color-neutral-900)">{{ l.t }}</span>
+                    <span style="color:var(--color-neutral-600);font-size:14px">{{ l.detalle }}</span>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="display:flex;flex-wrap:wrap;gap:10px">
+                <button class="btn btn-primary" onClick="{{ reintentar }}" style="min-height:44px;font-size:15px">Reintentar</button>
+                <a href="#" onClick="{{ volver }}" class="btn btn-ghost" style="min-height:44px;font-size:15px;text-decoration:none">Volver a Liquidaciones</a>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ conContenido }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;flex-direction:column;gap:36px">
+
+              <sc-if value="{{ esVacio }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;align-items:flex-start;gap:12px;background:var(--color-accent-2-200);border-radius:22px;padding:16px 18px;animation:plIn .22s ease-out">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-2-800)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:1px"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                  <div style="font-size:15px;line-height:1.55;color:var(--color-accent-2-900);max-width:72ch">
+                    <div style="font-weight:700">No hay nada que liquidar en septiembre 2026.</div>
+                    <div>Ninguna membresía terminó su ciclo dentro del período con el cobro completo, y ninguna quedó afuera por una excepción. No es un error: membresías, cobros, asistencia y asignaciones se leyeron completas.</div>
+                  </div>
+                </div>
+              </sc-if>
+
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">
+                <sc-for list="{{ cifras }}" as="c" hint-placeholder-count="4">
+                  <div style="background:var(--color-neutral-100);border-radius:22px;padding:16px 18px;display:flex;flex-direction:column;gap:4px;min-width:0">
+                    <div style="font-size:14px;color:var(--color-neutral-700)">{{ c.k }}</div>
+                    <div style="font-family:var(--font-heading);font-weight:800;font-size:28px;line-height:1.15;font-variant-numeric:tabular-nums">{{ c.v }}</div>
+                    <div style="font-size:13px;color:var(--color-neutral-600);line-height:1.4">{{ c.n }}</div>
+                  </div>
+                </sc-for>
+              </div>
+
+              <section style="display:flex;flex-direction:column;gap:14px">
+                <div style="display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px 16px">
+                  <div style="min-width:0;flex:1 1 320px">
+                    <h2 style="font-family:var(--font-heading);font-weight:800;font-size:24px;margin:0 0 4px">Por profesor</h2>
+                    <div style="font-size:14px;color:var(--color-neutral-700);line-height:1.5">Ordenados por apellido. Criterio: <strong>1</strong> al completarse, a período vencido · <strong>2</strong> proporcional al avance · <strong>3</strong> al completarse, sin esperar al cierre.</div>
+                  </div>
+                  <sc-if value="{{ hayProfes }}" hint-placeholder-val="{{ true }}">
+                    <button class="btn btn-ghost" onClick="{{ toggleTodos }}" style="min-height:44px;font-size:15px">{{ todosTxt }}</button>
+                  </sc-if>
+                </div>
+
+                <sc-if value="{{ sinProfes }}" hint-placeholder-val="{{ false }}">
+                  <div style="background:var(--color-surface);border-radius:22px;padding:16px 18px;font-size:15px;color:var(--color-neutral-700);line-height:1.5">Ningún profesor tiene devengo: no hay membresías completadas y cobradas al 100% con el ciclo cerrado dentro de septiembre 2026.</div>
+                </sc-if>
+
+                <sc-for list="{{ profes }}" as="p" hint-placeholder-count="3">
+                  <div style="background:var(--color-surface);border-radius:26px;overflow:hidden">
+                    <button onClick="{{ p.toggle }}" aria-expanded="{{ p.abierto }}" style="display:flex;width:100%;align-items:center;gap:12px;padding:16px 20px;background:transparent;border:0;color:inherit;cursor:pointer;text-align:left;min-height:72px;font:inherit;border-radius:26px">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--color-neutral-700)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none;transition:transform .2s ease-out;transform:{{ p.rot }}"><path d="m6 9 6 6 6-6"></path></svg>
+                      <div style="min-width:0;flex:1">
+                        <div style="font-family:var(--font-heading);font-weight:800;font-size:20px;line-height:1.2">{{ p.nombre }}</div>
+                        <div style="font-size:14px;color:var(--color-neutral-700);margin-top:2px">{{ p.meta }}</div>
+                      </div>
+                      <div style="text-align:right;flex:none">
+                        <div style="font-size:13px;color:var(--color-neutral-600)">Neto</div>
+                        <div style="font-family:var(--font-heading);font-weight:800;font-size:22px;font-variant-numeric:tabular-nums;white-space:nowrap">{{ p.neto }}</div>
+                      </div>
+                    </button>
+                    <sc-if value="{{ p.abierto }}" hint-placeholder-val="{{ true }}">
+                      <div style="padding:0 20px 20px;display:flex;flex-direction:column;gap:14px;animation:plIn .2s ease-out">
+
+                        <sc-if value="{{ p.tabla }}" hint-placeholder-val="{{ true }}">
+                          <div style="overflow-x:auto;scrollbar-color:var(--color-neutral-400) transparent">
+                            <table style="width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums">
+                              <thead>
+                                <tr style="font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--color-neutral-600);text-align:left">
+                                  <th style="padding:10px 8px 10px 0;font-weight:600">Alumno</th>
+                                  <th style="padding:10px 6px;font-weight:600">Curso(s)</th>
+                                  <th style="padding:10px 6px;font-weight:600">Plan</th>
+                                  <th style="padding:10px 6px;font-weight:600;text-align:center">Crit.</th>
+                                  <th style="padding:10px 6px;font-weight:600">Ciclo</th>
+                                  <th style="padding:10px 6px;font-weight:600;text-align:right">Clases</th>
+                                  <th style="padding:10px 6px;font-weight:600;text-align:right">Cobrado</th>
+                                  <th style="padding:10px 6px;font-weight:600;text-align:right">Base</th>
+                                  <th style="padding:10px 6px;font-weight:600;text-align:right">%</th>
+                                  <th style="padding:10px 0 10px 8px;font-weight:600;text-align:right">Comisión</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                <sc-for list="{{ p.filas }}" as="f" hint-placeholder-count="4">
+                                  <tr style="border-top:1px solid var(--color-divider);vertical-align:top">
+                                    <td style="padding:11px 8px 11px 0;font-weight:600;white-space:nowrap">{{ f.alumno }}</td>
+                                    <td style="padding:11px 6px;color:var(--color-neutral-800);min-width:84px">{{ f.cursos }}</td>
+                                    <td style="padding:11px 6px;color:var(--color-neutral-700);min-width:90px">{{ f.plan }}</td>
+                                    <td style="padding:11px 6px;text-align:center"><span title="{{ f.critTxt }}" style="display:inline-block;min-width:24px;padding:2px 8px;border-radius:999px;background:var(--color-accent-2-200);color:var(--color-accent-2-900);font-weight:700;font-size:13px">{{ f.crit }}</span></td>
+                                    <td style="padding:11px 6px;color:var(--color-neutral-700);white-space:nowrap;font-size:13px;line-height:1.45">{{ f.ini }}<br>{{ f.fin }}</td>
+                                    <td style="padding:11px 6px;text-align:right;white-space:nowrap">{{ f.clases }}</td>
+                                    <td style="padding:11px 6px;text-align:right;white-space:nowrap">{{ f.cobrado }}</td>
+                                    <td style="padding:11px 6px;text-align:right"><span style="white-space:nowrap">{{ f.base }}</span><div style="font-size:12px;color:var(--color-neutral-600);white-space:normal;max-width:110px;margin-left:auto;line-height:1.35">{{ f.baseNota }}</div></td>
+                                    <td style="padding:11px 6px;text-align:right">{{ f.pct }}</td>
+                                    <td style="padding:11px 0 11px 8px;text-align:right;font-weight:700;white-space:nowrap">{{ f.com }}</td>
+                                  </tr>
+                                </sc-for>
+                              </tbody>
+                            </table>
+                          </div>
+                        </sc-if>
+
+                        <sc-if value="{{ p.tarjetas }}" hint-placeholder-val="{{ false }}">
+                          <div style="display:flex;flex-direction:column;gap:10px">
+                            <sc-for list="{{ p.filas }}" as="f" hint-placeholder-count="3">
+                              <div style="background:var(--color-neutral-100);border-radius:20px;padding:14px 16px;display:flex;flex-direction:column;gap:6px;font-variant-numeric:tabular-nums">
+                                <div style="display:flex;align-items:baseline;gap:10px">
+                                  <span style="font-weight:700;font-size:16px;min-width:0">{{ f.alumno }}</span>
+                                  <span style="margin-left:auto;font-weight:800;font-size:16px;white-space:nowrap">{{ f.com }}</span>
+                                </div>
+                                <div style="font-size:14px;color:var(--color-neutral-800);line-height:1.4">{{ f.cursos }} · {{ f.plan }}</div>
+                                <div style="display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;font-size:14px;color:var(--color-neutral-700)">
+                                  <span style="padding:1px 8px;border-radius:999px;background:var(--color-accent-2-200);color:var(--color-accent-2-900);font-weight:700;font-size:13px">{{ f.crit }}</span>
+                                  <span>{{ f.ciclo }}</span>
+                                  <span>· {{ f.clases }}</span>
+                                </div>
+                                <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:4px;font-size:14px">
+                                  <div><div style="font-size:12px;color:var(--color-neutral-600)">Cobrado</div>{{ f.cobrado }}</div>
+                                  <div><div style="font-size:12px;color:var(--color-neutral-600)">Base</div>{{ f.base }}</div>
+                                  <div><div style="font-size:12px;color:var(--color-neutral-600)">%</div>{{ f.pct }}</div>
+                                </div>
+                                <div style="font-size:12px;color:var(--color-neutral-600)">{{ f.baseNota }}</div>
+                              </div>
+                            </sc-for>
+                          </div>
+                        </sc-if>
+
+                        <div style="display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--color-divider);padding-top:12px;font-size:15px;font-variant-numeric:tabular-nums">
+                          <div style="display:flex;gap:12px;align-items:baseline">
+                            <span style="color:var(--color-neutral-700)">{{ p.subLabel }}</span>
+                            <span style="margin-left:auto;white-space:nowrap">{{ p.subtotal }}</span>
+                          </div>
+                          <sc-for list="{{ p.ajustes }}" as="a" hint-placeholder-count="1">
+                            <div style="display:flex;gap:12px;align-items:baseline">
+                              <div style="min-width:0">
+                                <div style="color:var(--color-neutral-900)">{{ a.titulo }}</div>
+                                <div style="font-size:13px;color:var(--color-neutral-600);line-height:1.4">{{ a.detalle }}</div>
+                              </div>
+                              <span style="margin-left:auto;white-space:nowrap;color:{{ a.color }}">{{ a.monto }}</span>
+                            </div>
+                          </sc-for>
+                          <sc-if value="{{ p.sinAjustes }}" hint-placeholder-val="{{ false }}">
+                            <div style="font-size:14px;color:var(--color-neutral-600)">Sin descuentos por reemplazo ni ajustes de períodos anteriores.</div>
+                          </sc-if>
+                          <div style="display:flex;gap:12px;align-items:baseline;padding-top:6px">
+                            <span style="font-family:var(--font-heading);font-weight:800;font-size:17px">Neto a devengar</span>
+                            <span style="margin-left:auto;font-family:var(--font-heading);font-weight:800;font-size:20px;white-space:nowrap">{{ p.neto }}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </sc-if>
+                  </div>
+                </sc-for>
+              </section>
+
+              <section style="display:flex;flex-direction:column;gap:14px">
+                <div>
+                  <h2 style="font-family:var(--font-heading);font-weight:800;font-size:24px;margin:0 0 4px">Excepciones</h2>
+                  <div style="font-size:14px;color:var(--color-neutral-700);line-height:1.5;max-width:72ch">{{ excBajada }}</div>
+                </div>
+                <sc-for list="{{ excepciones }}" as="g" hint-placeholder-count="6">
+                  <div style="background:var(--color-surface);border-radius:22px;padding:16px 18px;display:flex;flex-direction:column;gap:10px">
+                    <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 10px">
+                      <h3 style="font-family:var(--font-heading);font-weight:700;font-size:17px;margin:0;min-width:0;flex:1 1 260px;line-height:1.3">{{ g.motivo }}</h3>
+                      <span style="padding:2px 10px;border-radius:999px;font-size:13px;font-weight:700;background:{{ g.tagBg }};color:{{ g.tagFg }}">{{ g.cuenta }}</span>
+                    </div>
+                    <sc-for list="{{ g.items }}" as="it" hint-placeholder-count="1">
+                      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;background:var(--color-neutral-100);border-radius:18px;padding:10px 14px">
+                        <div style="min-width:0;flex:1 1 240px">
+                          <div style="font-size:15px;font-weight:700">{{ it.quien }} <span style="font-weight:400;color:var(--color-neutral-700)">· {{ it.curso }}</span></div>
+                          <div style="font-size:14px;color:var(--color-neutral-700);line-height:1.45">{{ it.detalle }}</div>
+                        </div>
+                        <a href="{{ it.href }}" style="display:inline-flex;align-items:center;gap:6px;min-height:44px;font-size:15px;font-weight:700;text-decoration:none;color:var(--color-accent-700)">{{ it.link }}<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg></a>
+                      </div>
+                    </sc-for>
+                    <sc-if value="{{ g.vacio }}" hint-placeholder-val="{{ false }}">
+                      <div style="font-size:14px;color:var(--color-neutral-600)">{{ g.vacioTxt }}</div>
+                    </sc-if>
+                  </div>
+                </sc-for>
+              </section>
+
+              <section style="display:flex;flex-direction:column;gap:14px">
+                <div>
+                  <h2 style="font-family:var(--font-heading);font-weight:800;font-size:24px;margin:0 0 4px">Clases sin registrar</h2>
+                  <div style="font-size:14px;color:var(--color-neutral-700);line-height:1.5;max-width:72ch">Por curso y fecha. Una clase sin registrar solo traba la liquidación de una membresía de 2 o más cursos, porque sin ella no se puede repartir lo cobrado. En una membresía de un solo curso no cambia el número.</div>
+                </div>
+                <sc-for list="{{ bloques }}" as="b" hint-placeholder-count="3">
+                  <div style="background:var(--color-surface);border-radius:22px;overflow:hidden">
+                    <button onClick="{{ b.toggle }}" aria-expanded="{{ b.abierto }}" style="display:flex;width:100%;align-items:center;gap:12px;padding:14px 18px;background:transparent;border:0;color:inherit;cursor:pointer;text-align:left;min-height:64px;font:inherit;border-radius:22px">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--color-neutral-700)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none;transition:transform .2s ease-out;transform:{{ b.rot }}"><path d="m6 9 6 6 6-6"></path></svg>
+                      <div style="min-width:0;flex:1">
+                        <div style="font-size:16px;font-weight:700">{{ b.titulo }}</div>
+                        <div style="font-size:14px;color:var(--color-neutral-700);margin-top:2px">{{ b.resumen }}</div>
+                      </div>
+                      <span style="flex:none;padding:2px 10px;border-radius:999px;font-size:13px;font-weight:700;background:{{ b.tagBg }};color:{{ b.tagFg }}">{{ b.tag }}</span>
+                    </button>
+                    <sc-if value="{{ b.abierto }}" hint-placeholder-val="{{ false }}">
+                      <div style="padding:0 18px 16px;display:flex;flex-direction:column;gap:8px;animation:plIn .2s ease-out">
+                        <div style="font-size:14px;color:var(--color-neutral-700);line-height:1.5">{{ b.bajada }}</div>
+                        <sc-for list="{{ b.filas }}" as="r" hint-placeholder-count="3">
+                          <div style="display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px;background:var(--color-neutral-100);border-radius:18px;padding:10px 14px;min-height:44px">
+                            <span style="font-weight:700;font-variant-numeric:tabular-nums;min-width:96px">{{ r.fecha }}</span>
+                            <span style="min-width:0;flex:1 1 150px">{{ r.curso }} <span style="color:var(--color-neutral-700)">· {{ r.alumnos }}</span></span>
+                            <span style="padding:2px 10px;border-radius:999px;font-size:13px;font-weight:700;background:{{ r.tagBg }};color:{{ r.tagFg }}">{{ r.traba }}</span>
+                            <span style="font-size:13px;color:var(--color-neutral-600);flex:1 1 180px">{{ r.porque }}</span>
+                            <sc-if value="{{ r.verLink }}" hint-placeholder-val="{{ false }}">
+                              <a href="Tomar asistencia.dc.html" style="display:inline-flex;align-items:center;gap:6px;min-height:44px;font-size:15px;font-weight:700;text-decoration:none;color:var(--color-accent-700)">Registrar en Asistencia<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg></a>
+                            </sc-if>
+                          </div>
+                        </sc-for>
+                        <sc-if value="{{ b.vacio }}" hint-placeholder-val="{{ false }}">
+                          <div style="font-size:14px;color:var(--color-neutral-600)">{{ b.vacioTxt }}</div>
+                        </sc-if>
+                      </div>
+                    </sc-if>
+                  </div>
+                </sc-for>
+              </section>
+
+            </div>
+          </sc-if>
+
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <div class="pl-print" style="display:{{ printDisplay }};padding:32px;background:var(--color-neutral-300)">
+
+    <div class="pl-page" style="width:794px;height:1123px;box-sizing:border-box;padding:46px 52px 70px;background:#fff;color:#111;position:relative;overflow:hidden;margin:0 0 28px;border-radius:6px;font-family:var(--font-body);font-size:12px;line-height:1.45">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:20px">
+        <div>
+          <div style="font-family:var(--font-heading);font-weight:800;font-size:24px;letter-spacing:-.02em">Pre-liquidación · Septiembre 2026</div>
+          <div style="color:#444;margin-top:2px">Tropicana · Período 01/09/2026 – 30/09/2026 · se liquida en octubre, a período vencido</div>
+        </div>
+        <div style="text-align:right;color:#444;white-space:nowrap"><div>Generado</div><div style="color:#111;font-weight:700">01/10/2026 09:41</div></div>
+      </div>
+      <div style="margin-top:16px;border:2px solid #111;border-radius:10px;padding:9px 12px;font-weight:700;font-size:13px">Informe preliminar: no se ha generado ninguna liquidación ni se ha devengado nada</div>
+      <sc-if value="{{ verYaLiq }}" hint-placeholder-val="{{ true }}">
+        <div style="margin-top:10px;border:1px dashed #111;border-radius:10px;padding:8px 12px">Ya hay una liquidación generada para septiembre 2026: <strong>Nuñez, Oscar · N° 1 · Abierta · Bs. 475,00</strong>. Este informe no la incluye ni la modifica.</div>
+      </sc-if>
+      <sc-if value="{{ esVacio }}" hint-placeholder-val="{{ false }}">
+        <div style="margin-top:10px;border:1px solid #111;border-radius:10px;padding:8px 12px"><strong>No hay nada que liquidar en septiembre 2026.</strong> Ninguna membresía terminó su ciclo dentro del período con el cobro completo, y ninguna quedó afuera por una excepción.</div>
+      </sc-if>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:18px">
+        <sc-for list="{{ cifras }}" as="c" hint-placeholder-count="4">
+          <div style="border:1px solid #111;border-radius:10px;padding:10px 12px">
+            <div style="color:#444;font-size:11px">{{ c.k }}</div>
+            <div style="font-family:var(--font-heading);font-weight:800;font-size:19px;margin-top:2px;font-variant-numeric:tabular-nums">{{ c.v }}</div>
+            <div style="color:#444;font-size:10px;line-height:1.35;margin-top:2px">{{ c.n }}</div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="font-family:var(--font-heading);font-weight:800;font-size:15px;margin:24px 0 6px">Profesores en este informe</div>
+      <table style="width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums">
+        <thead><tr style="text-align:left;color:#444;font-size:11px"><th style="padding:5px 0;border-bottom:1.5px solid #111;font-weight:600">Profesor</th><th style="padding:5px 6px;border-bottom:1.5px solid #111;font-weight:600;text-align:right">Membresías</th><th style="padding:5px 6px;border-bottom:1.5px solid #111;font-weight:600;text-align:right">Comisiones</th><th style="padding:5px 6px;border-bottom:1.5px solid #111;font-weight:600;text-align:right">Reemplazos y ajustes</th><th style="padding:5px 6px;border-bottom:1.5px solid #111;font-weight:600;text-align:right">Neto</th><th style="padding:5px 0;border-bottom:1.5px solid #111;font-weight:600;text-align:right">Página</th></tr></thead>
+        <tbody>
+          <sc-for list="{{ profes }}" as="p" hint-placeholder-count="3">
+            <tr><td style="padding:6px 0;border-bottom:1px solid #bbb;font-weight:700">{{ p.nombre }}</td><td style="padding:6px;border-bottom:1px solid #bbb;text-align:right">{{ p.n }}</td><td style="padding:6px;border-bottom:1px solid #bbb;text-align:right">{{ p.subtotal }}</td><td style="padding:6px;border-bottom:1px solid #bbb;text-align:right">{{ p.ajTotal }}</td><td style="padding:6px;border-bottom:1px solid #bbb;text-align:right;font-weight:700">{{ p.neto }}</td><td style="padding:6px 0;border-bottom:1px solid #bbb;text-align:right">{{ p.pagina }}</td></tr>
+          </sc-for>
+          <sc-if value="{{ sinProfes }}" hint-placeholder-val="{{ false }}">
+            <tr><td colspan="6" style="padding:8px 0;border-bottom:1px solid #bbb;color:#444">Ningún profesor tiene devengo en el período.</td></tr>
+          </sc-if>
+          <tr><td style="padding:7px 0;font-weight:700">Total</td><td style="padding:7px 6px;text-align:right;font-weight:700">{{ totMemb }}</td><td style="padding:7px 6px;text-align:right;font-weight:700">{{ totCom }}</td><td style="padding:7px 6px;text-align:right;font-weight:700">{{ totAj }}</td><td style="padding:7px 6px;text-align:right;font-weight:800;font-size:13px">{{ totNeto }}</td><td></td></tr>
+        </tbody>
+      </table>
+      <div style="color:#444;margin-top:8px;font-size:11px">Una membresía de dos cursos con profesores distintos aparece en los dos bloques y se cuenta una sola vez. Criterio: 1 al completarse, a período vencido · 2 proporcional al avance · 3 al completarse, sin esperar al cierre.</div>
+      <div style="font-family:var(--font-heading);font-weight:800;font-size:15px;margin:22px 0 6px">También en este informe</div>
+      <div style="display:flex;flex-direction:column;gap:3px">
+        <div style="display:flex"><span>Excepciones: membresías que no entran, por motivo</span><span style="margin-left:auto">página {{ pagExc }}</span></div>
+        <div style="display:flex"><span>Clases sin registrar, por curso y fecha</span><span style="margin-left:auto">página {{ pagCla }}</span></div>
+      </div>
+      <div style="position:absolute;left:52px;right:52px;bottom:28px;display:flex;gap:16px;border-top:1px solid #111;padding-top:7px;font-size:10px;color:#444"><span>Tropicana · Pre-liquidación septiembre 2026 · Informe preliminar, no es una liquidación</span><span style="margin-left:auto;color:#111;font-weight:700;white-space:nowrap">Página 1 de {{ totPag }}</span></div>
+    </div>
+
+    <sc-for list="{{ profes }}" as="p" hint-placeholder-count="3">
+      <div class="pl-page" style="width:794px;height:1123px;box-sizing:border-box;padding:46px 52px 70px;background:#fff;color:#111;position:relative;overflow:hidden;margin:0 0 28px;border-radius:6px;font-family:var(--font-body);font-size:12px;line-height:1.45">
+        <div style="display:flex;gap:16px;font-size:10px;color:#444;border-bottom:1px solid #111;padding-bottom:6px"><span>Pre-liquidación · Septiembre 2026</span><span style="margin-left:auto">Generado 01/10/2026 09:41</span></div>
+        <div style="display:flex;align-items:flex-end;gap:16px;margin-top:18px">
+          <div style="min-width:0">
+            <div style="font-family:var(--font-heading);font-weight:800;font-size:22px;letter-spacing:-.02em">{{ p.nombre }}</div>
+            <div style="color:#444">{{ p.meta }}</div>
+          </div>
+          <div style="margin-left:auto;text-align:right"><div style="color:#444;font-size:11px">Neto a devengar</div><div style="font-family:var(--font-heading);font-weight:800;font-size:20px">{{ p.neto }}</div></div>
+        </div>
+        <table style="width:100%;border-collapse:collapse;margin-top:16px;font-size:10.5px;font-variant-numeric:tabular-nums">
+          <thead><tr style="text-align:left;color:#444;font-size:9.5px;text-transform:uppercase;letter-spacing:.04em">
+            <th style="padding:5px 4px 5px 0;border-bottom:1.5px solid #111;font-weight:600">Alumno</th><th style="padding:5px 4px;border-bottom:1.5px solid #111;font-weight:600">Curso(s)</th><th style="padding:5px 4px;border-bottom:1.5px solid #111;font-weight:600">Plan</th><th style="padding:5px 4px;border-bottom:1.5px solid #111;font-weight:600;text-align:center">Crit.</th><th style="padding:5px 4px;border-bottom:1.5px solid #111;font-weight:600">Ciclo</th><th style="padding:5px 4px;border-bottom:1.5px solid #111;font-weight:600;text-align:right">Clases</th><th style="padding:5px 4px;border-bottom:1.5px solid #111;font-weight:600;text-align:right">Cobrado</th><th style="padding:5px 4px;border-bottom:1.5px solid #111;font-weight:600;text-align:right">Base</th><th style="padding:5px 4px;border-bottom:1.5px solid #111;font-weight:600;text-align:right">%</th><th style="padding:5px 0 5px 4px;border-bottom:1.5px solid #111;font-weight:600;text-align:right">Comisión</th>
+          </tr></thead>
+          <tbody>
+            <sc-for list="{{ p.filas }}" as="f" hint-placeholder-count="4">
+              <tr style="vertical-align:top">
+                <td style="padding:6px 4px 6px 0;border-bottom:1px solid #bbb;font-weight:700;white-space:nowrap">{{ f.alumno }}</td>
+                <td style="padding:6px 4px;border-bottom:1px solid #bbb">{{ f.cursos }}</td>
+                <td style="padding:6px 4px;border-bottom:1px solid #bbb">{{ f.plan }}</td>
+                <td style="padding:6px 4px;border-bottom:1px solid #bbb;text-align:center;font-weight:700">{{ f.critN }}</td>
+                <td style="padding:6px 4px;border-bottom:1px solid #bbb;white-space:nowrap">{{ f.ini }}<br>{{ f.fin }}</td>
+                <td style="padding:6px 4px;border-bottom:1px solid #bbb;text-align:right;white-space:nowrap">{{ f.clases }}</td>
+                <td style="padding:6px 4px;border-bottom:1px solid #bbb;text-align:right;white-space:nowrap">{{ f.cobrado }}</td>
+                <td style="padding:6px 4px;border-bottom:1px solid #bbb;text-align:right"><span style="white-space:nowrap">{{ f.base }}</span><div style="color:#444;font-size:9px;white-space:normal;max-width:84px;margin-left:auto;line-height:1.3">{{ f.baseNota }}</div></td>
+                <td style="padding:6px 4px;border-bottom:1px solid #bbb;text-align:right">{{ f.pct }}</td>
+                <td style="padding:6px 0 6px 4px;border-bottom:1px solid #bbb;text-align:right;font-weight:700;white-space:nowrap">{{ f.com }}</td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+        <div style="margin-left:auto;width:62%;margin-top:14px;display:flex;flex-direction:column;gap:5px;font-variant-numeric:tabular-nums">
+          <div style="display:flex;gap:10px"><span style="color:#444">{{ p.subLabel }}</span><span style="margin-left:auto">{{ p.subtotal }}</span></div>
+          <sc-for list="{{ p.ajustes }}" as="a" hint-placeholder-count="1">
+            <div style="display:flex;gap:10px"><span style="min-width:0">{{ a.titulo }}<span style="color:#444"> · {{ a.detalle }}</span></span><span style="margin-left:auto;white-space:nowrap">{{ a.monto }}</span></div>
+          </sc-for>
+          <sc-if value="{{ p.sinAjustes }}" hint-placeholder-val="{{ false }}">
+            <div style="color:#444">Sin descuentos por reemplazo ni ajustes de períodos anteriores.</div>
+          </sc-if>
+          <div style="display:flex;gap:10px;border-top:1.5px solid #111;padding-top:6px;margin-top:2px"><span style="font-weight:800;font-size:13px">Neto a devengar</span><span style="margin-left:auto;font-family:var(--font-heading);font-weight:800;font-size:16px">{{ p.neto }}</span></div>
+        </div>
+        <div style="position:absolute;left:52px;right:52px;bottom:28px;display:flex;gap:16px;border-top:1px solid #111;padding-top:7px;font-size:10px;color:#444"><span>Tropicana · Pre-liquidación septiembre 2026 · Informe preliminar, no es una liquidación</span><span style="margin-left:auto;color:#111;font-weight:700;white-space:nowrap">Página {{ p.pagina }} de {{ p.totPag }}</span></div>
+      </div>
+    </sc-for>
+
+    <div class="pl-page" style="width:794px;height:1123px;box-sizing:border-box;padding:46px 52px 70px;background:#fff;color:#111;position:relative;overflow:hidden;margin:0 0 28px;border-radius:6px;font-family:var(--font-body);font-size:12px;line-height:1.45">
+      <div style="display:flex;gap:16px;font-size:10px;color:#444;border-bottom:1px solid #111;padding-bottom:6px"><span>Pre-liquidación · Septiembre 2026</span><span style="margin-left:auto">Generado 01/10/2026 09:41</span></div>
+      <div style="font-family:var(--font-heading);font-weight:800;font-size:22px;letter-spacing:-.02em;margin-top:18px">Excepciones</div>
+      <div style="color:#444;margin-top:2px">{{ excBajada }}</div>
+      <div style="display:flex;flex-direction:column;gap:14px;margin-top:14px">
+        <sc-for list="{{ excepciones }}" as="g" hint-placeholder-count="6">
+          <div>
+            <div style="display:flex;gap:10px;border-bottom:1.5px solid #111;padding-bottom:3px"><span style="font-weight:800;font-size:12.5px">{{ g.motivo }}</span><span style="margin-left:auto;white-space:nowrap">{{ g.cuenta }}</span></div>
+            <sc-for list="{{ g.items }}" as="it" hint-placeholder-count="1">
+              <div style="display:flex;gap:12px;padding:5px 0;border-bottom:1px solid #bbb">
+                <div style="min-width:0;flex:1"><strong>{{ it.quien }}</strong> · {{ it.curso }}<div style="color:#444">{{ it.detalle }}</div></div>
+                <div style="flex:none;width:170px;text-align:right;color:#444">Se resuelve en<div style="color:#111;font-weight:700">{{ it.destino }}</div></div>
+              </div>
+            </sc-for>
+            <sc-if value="{{ g.vacio }}" hint-placeholder-val="{{ false }}">
+              <div style="padding:5px 0;color:#444">{{ g.vacioTxt }}</div>
+            </sc-if>
+          </div>
+        </sc-for>
+      </div>
+      <div style="position:absolute;left:52px;right:52px;bottom:28px;display:flex;gap:16px;border-top:1px solid #111;padding-top:7px;font-size:10px;color:#444"><span>Tropicana · Pre-liquidación septiembre 2026 · Informe preliminar, no es una liquidación</span><span style="margin-left:auto;color:#111;font-weight:700;white-space:nowrap">Página {{ pagExc }} de {{ totPag }}</span></div>
+    </div>
+
+    <div class="pl-page" style="width:794px;height:1123px;box-sizing:border-box;padding:46px 52px 70px;background:#fff;color:#111;position:relative;overflow:hidden;margin:0 0 28px;border-radius:6px;font-family:var(--font-body);font-size:12px;line-height:1.45">
+      <div style="display:flex;gap:16px;font-size:10px;color:#444;border-bottom:1px solid #111;padding-bottom:6px"><span>Pre-liquidación · Septiembre 2026</span><span style="margin-left:auto">Generado 01/10/2026 09:41</span></div>
+      <div style="font-family:var(--font-heading);font-weight:800;font-size:22px;letter-spacing:-.02em;margin-top:18px">Clases sin registrar</div>
+      <div style="color:#444;margin-top:2px">Por curso y fecha. Solo traba la liquidación de una membresía de 2 o más cursos; en un solo curso no cambia el número.</div>
+      <div style="display:flex;flex-direction:column;gap:16px;margin-top:14px">
+        <sc-for list="{{ bloques }}" as="b" hint-placeholder-count="3">
+          <div>
+            <div style="display:flex;gap:10px;border-bottom:1.5px solid #111;padding-bottom:3px"><span style="font-weight:800;font-size:12.5px">{{ b.titulo }}</span><span style="margin-left:auto;white-space:nowrap;color:#444">{{ b.resumen }}</span></div>
+            <div style="color:#444;padding:4px 0">{{ b.bajada }}</div>
+            <sc-for list="{{ b.filas }}" as="r" hint-placeholder-count="3">
+              <div style="display:flex;gap:12px;padding:4px 0;border-bottom:1px solid #bbb;font-variant-numeric:tabular-nums">
+                <span style="width:76px;flex:none;font-weight:700">{{ r.fecha }}</span>
+                <span style="width:190px;flex:none">{{ r.curso }} · {{ r.alumnos }}</span>
+                <span style="width:72px;flex:none;font-weight:800">{{ r.trabaPapel }}</span>
+                <span style="min-width:0;flex:1;color:#444">{{ r.porque }}</span>
+              </div>
+            </sc-for>
+            <sc-if value="{{ b.vacio }}" hint-placeholder-val="{{ false }}">
+              <div style="padding:4px 0;color:#444">{{ b.vacioTxt }}</div>
+            </sc-if>
+          </div>
+        </sc-for>
+      </div>
+      <div style="position:absolute;left:52px;right:52px;bottom:28px;display:flex;gap:16px;border-top:1px solid #111;padding-top:7px;font-size:10px;color:#444"><span>Tropicana · Pre-liquidación septiembre 2026 · Informe preliminar, no es una liquidación</span><span style="margin-left:auto;color:#111;font-weight:700;white-space:nowrap">Página {{ pagCla }} de {{ totPag }}</span></div>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;vista&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;escritorio&quot;,&quot;celular&quot;,&quot;impreso&quot;],&quot;default&quot;:&quot;escritorio&quot;,&quot;tsType&quot;:&quot;'escritorio'|'celular'|'impreso'&quot;},&quot;estado&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;datos&quot;,&quot;vacio&quot;,&quot;error&quot;,&quot;cargando&quot;],&quot;default&quot;:&quot;datos&quot;,&quot;tsType&quot;:&quot;'datos'|'vacio'|'error'|'cargando'&quot;},&quot;liquidacionExistente&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}">
+const bs = (n) => {
+  const [e, d] = Math.abs(n).toFixed(2).split('.');
+  return 'Bs. ' + e.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ',' + d;
+};
+// Menos tipográfico U+2212; el cero no lleva signo.
+const firmado = (n) => (n > 0 ? '+ ' + bs(n) : n < 0 ? '\u2212 ' + bs(-n) : bs(0));
+const plural = (n, s, p) => n + ' ' + (n === 1 ? s : p);
+
+const CRIT = {
+  1: 'Al completarse la membresía, a período vencido',
+  2: 'Proporcional al avance',
+  3: 'Al completarse, sin esperar al cierre'
+};
+
+// Datos de muestra coherentes con el período: septiembre 2026, generado el jueves 01/10/2026.
+const PROFES = [
+  { id: 'PR005', ape: 'Gongora', nom: 'Isabel', cursos: ['Contemporaneo', 'Danza Comercial'], lineas: [
+    { alumno: 'Choque, Daniela', cursos: 'Contemporaneo', plan: 'Plan Regular 8 clases', crit: 1, ini: '01/09/2026', fin: '26/09/2026', clases: '8/8', cobrado: 100, base: 100, pct: 15, com: 15 },
+    { alumno: 'Mamani, Lucía', cursos: 'Contemporaneo', plan: 'Plan Regular 8 clases', crit: 3, ini: '02/09/2026', fin: '28/09/2026', clases: '8/8', cobrado: 100, base: 100, pct: 15, com: 15 },
+    { alumno: 'Rojas, Camila', cursos: 'Contemporaneo + Danza Comercial', plan: 'Combo 2 cursos', crit: 1, ini: '01/09/2026', fin: '24/09/2026', clases: '16/16', cobrado: 180, base: 180, baseNota: 'dictó los 2 cursos', pct: 15, com: 27 },
+    { alumno: 'Vargas, Paola', cursos: 'Danza Comercial', plan: 'Plan Regular 8 clases', crit: 1, ini: '03/09/2026', fin: '23/09/2026', clases: '8/8', cobrado: 90, base: 90, baseNota: 'descuento Bs. 10,00 no suma', pct: 15, com: 13.5 }
+  ], ajustes: [] },
+  { id: 'PR001', ape: 'Salek', nom: 'Natalia', cursos: ['Salsa Caleña', 'Bachata Conexión'], lineas: [
+    { alumno: 'Aguilar, Manuel', cursos: 'Bachata Conexión', plan: 'Plan Regular 8 clases', crit: 1, ini: '01/09/2026', fin: '29/09/2026', clases: '8/8', cobrado: 200, base: 200, pct: 25, com: 50 },
+    { alumno: 'Flores, Ana', cursos: 'Salsa Caleña', plan: 'Plan Regular 8 clases', crit: 1, ini: '05/09/2026', fin: '30/09/2026', clases: '8/8', cobrado: 150, base: 150, pct: 25, com: 37.5 },
+    { alumno: 'Quispe, Rodrigo', cursos: 'Salsa Caleña + Heels', plan: 'Combo 2 cursos', crit: 1, ini: '01/09/2026', fin: '25/09/2026', clases: '16/16', cobrado: 300, base: 120, baseNota: 'Salsa Caleña · 40%', pct: 25, com: 30 },
+    { alumno: 'Torrez, Mariela', cursos: 'Clase particular', plan: 'Paquete 4 h', crit: 2, ini: '08/09/2026', fin: 'en curso', clases: '2 de 4 h', cobrado: 400, base: 100, baseNota: 'avance 50% − sala', pct: 25, com: 25 }
+  ], ajustes: [
+    { titulo: 'Descuento por reemplazo', detalle: 'Salsa Caleña · 16/09/2026 · dictó un suplente', monto: -40 },
+    { titulo: 'Ajuste de agosto 2026', detalle: 'Flores, Ana · recálculo por clase corrida', monto: 12.5 }
+  ] },
+  { id: 'PR004', ape: 'Tini', nom: 'Sebastián', cursos: ['Heels'], lineas: [
+    { alumno: 'Arce, Valeria', cursos: 'Heels', plan: 'Plan Regular 8 clases', crit: 1, ini: '01/09/2026', fin: '29/09/2026', clases: '8/8', cobrado: 200, base: 200, pct: 40, com: 80 },
+    { alumno: 'Quispe, Rodrigo', cursos: 'Salsa Caleña + Heels', plan: 'Combo 2 cursos', crit: 1, ini: '01/09/2026', fin: '25/09/2026', clases: '16/16', cobrado: 300, base: 180, baseNota: 'Heels · 60%', pct: 40, com: 72 }
+  ], ajustes: [
+    { titulo: 'Ajuste de agosto 2026', detalle: 'Arce, Valeria · la clase del 19/08/2026 pasó a suspendida', monto: -15 }
+  ] }
+].sort((a, b) => a.ape.localeCompare(b.ape, 'es'));
+
+const PREC = 'Precios y paquetes.dc.html';
+const EXC = [
+  { motivo: 'Membresía sin plan o sin criterio de liquidación', items: [
+    { quien: 'Pereira, Joaquín', curso: 'Zumba', detalle: 'El plan "Promo Primavera" no tiene criterio de liquidación.', href: PREC, destino: 'Precios y paquetes' }
+  ] },
+  { motivo: 'Curso sin titular asignado en esa fecha', items: [
+    { quien: 'Ortiz, Kevin', curso: 'Tropicoreografico', detalle: 'El curso no tuvo titular del 01/09/2026 al 14/09/2026.', href: 'Profesores.dc.html', destino: 'Profesores y asignaciones' },
+    { quien: 'Saavedra, Nicole', curso: 'Tropicoreografico', detalle: 'El curso no tuvo titular del 01/09/2026 al 14/09/2026.', href: 'Profesores.dc.html', destino: 'Profesores y asignaciones' }
+  ] },
+  { motivo: 'Membresía de varios cursos bloqueada por clases sin registrar', items: [
+    { quien: 'Medina, Carla', curso: 'Danza Comercial + Tropicoreografico', detalle: 'Faltan 28/09/2026 y 30/09/2026 de Tropicoreografico y 30/09/2026 de Danza Comercial.', href: 'Tomar asistencia.dc.html', destino: 'Tomar asistencia' }
+  ] },
+  { motivo: 'Clase particular bloqueada: falta la tarifa de sala', items: [
+    { quien: 'Martínez, Virginia', curso: 'Paquete 4 h con Nuñez, Oscar', detalle: 'Alquiler de sala → Profesor Activo × Pareja × 4 h no tiene tarifa.', href: PREC, destino: 'Precios y paquetes · Sala' }
+  ] },
+  { motivo: 'Membresía con saldo pendiente', items: [
+    { quien: 'Céspedes, Andrea', curso: 'Bachata Conexión', detalle: 'Saldo Bs. 80,00 de Bs. 200,00.', href: 'Caja y resumen.dc.html', destino: 'Caja · cobrar saldo' },
+    { quien: 'Lima, Tomás', curso: 'Zumba', detalle: 'Vendida sin cobro: saldo Bs. 150,00 de Bs. 150,00.', href: 'Caja y resumen.dc.html', destino: 'Caja · cobrar saldo' }
+  ] },
+  { motivo: 'Ciclo que termina después del corte', link: 'Ver membresía', items: [
+    { quien: 'Ríos, Fernanda', curso: 'Contemporaneo', detalle: 'Ciclo 15/09/2026 – 10/10/2026: entra en la pre-liquidación de octubre. No hay nada que corregir.', href: '#', destino: 'Nada que corregir' }
+  ] }
+];
+
+const TRABA = 'Medina, Carla · membresía de 2 cursos';
+const CLASES = {
+  a: [
+    { fecha: '28/09/2026', curso: 'Tropicoreografico', n: 2, traba: true },
+    { fecha: '29/09/2026', curso: 'Contemporaneo', n: 3, traba: false },
+    { fecha: '29/09/2026', curso: 'Zumba', n: 2, traba: false },
+    { fecha: '30/09/2026', curso: 'Danza Comercial', n: 3, traba: true },
+    { fecha: '30/09/2026', curso: 'Tropicoreografico', n: 2, traba: true }
+  ],
+  b: [
+    { fecha: '01/10/2026', curso: 'Bachata Conexión', n: 6, traba: false },
+    { fecha: '01/10/2026', curso: 'Contemporaneo', n: 3, traba: false },
+    { fecha: '01/10/2026', curso: 'Zumba', n: 2, traba: false }
+  ],
+  c: [
+    { fecha: '31/08/2026', curso: 'Danza Comercial', n: 0, traba: false },
+    { fecha: '02/09/2026', curso: 'Danza Comercial', n: 0, traba: false },
+    { fecha: '02/09/2026', curso: 'Tropicoreografico', n: 0, traba: false }
+  ]
+};
+
+const LECTURAS = [
+  { t: 'Membresías del período', ok: true, detalle: '58 leídas' },
+  { t: 'Cobros y saldos', ok: true, detalle: '64 leídos' },
+  { t: 'Asistencia y calendario de clases', ok: false, detalle: 'tiempo de espera agotado a las 09:41:22' },
+  { t: 'Asignaciones de profesores', ok: null, detalle: 'no se llegó a leer' }
+];
+
+const TAG = {
+  traba: ['var(--color-accent-200)', 'var(--color-accent-900)'],
+  ok: ['var(--color-accent-2-200)', 'var(--color-accent-2-900)'],
+  neutro: ['var(--color-neutral-200)', 'var(--color-neutral-800)']
+};
+
+class Component extends DCLogic {
+  state = {
+    vista: this.props.vista ?? 'escritorio',
+    estado: this.props.estado ?? 'datos',
+    yaLiq: this.props.liquidacionExistente ?? true,
+    abiertos: {},
+    bloq: { a: false, b: false, c: false },
+    w: typeof window !== 'undefined' ? window.innerWidth : 1280
+  };
+
+  componentDidMount() {
+    this.onResize = () => this.setState({ w: window.innerWidth });
+    window.addEventListener('resize', this.onResize);
+  }
+  componentWillUnmount() { window.removeEventListener('resize', this.onResize); }
+  componentDidUpdate(prev) {
+    const p = this.props, up = {};
+    if (p.vista !== prev.vista && p.vista) up.vista = p.vista;
+    if (p.estado !== prev.estado && p.estado) up.estado = p.estado;
+    if (p.liquidacionExistente !== prev.liquidacionExistente && p.liquidacionExistente != null) up.yaLiq = p.liquidacionExistente;
+    if (Object.keys(up).length) this.setState(up);
+  }
+
+  renderVals() {
+    const s = this.state;
+    const conDatos = s.estado === 'datos';
+    const esVacio = s.estado === 'vacio';
+    const angosto = s.vista === 'celular' || s.w < 640;
+    const movil = s.vista === 'celular' || s.w < 960;
+    const src = conDatos ? PROFES : [];
+    const totPag = 1 + src.length + 2;
+
+    let totCom = 0, totAj = 0;
+    const membSet = new Set();
+    const profes = src.map((p, i) => {
+      const sub = p.lineas.reduce((t, l) => t + l.com, 0);
+      const aj = p.ajustes.reduce((t, a) => t + a.monto, 0);
+      totCom += sub; totAj += aj;
+      p.lineas.forEach((l) => membSet.add(l.alumno + '|' + l.ini));
+      const abierto = s.abiertos[p.id] !== false;
+      const n = p.lineas.length;
+      return {
+        nombre: p.ape + ', ' + p.nom,
+        meta: plural(n, 'membresía', 'membresías') + ' · ' + p.cursos.join(', '),
+        n,
+        subLabel: 'Comisiones · ' + plural(n, 'membresía', 'membresías'),
+        subtotal: bs(sub),
+        ajTotal: p.ajustes.length ? firmado(aj) : '—',
+        neto: bs(sub + aj),
+        abierto,
+        rot: abierto ? 'rotate(0deg)' : 'rotate(-90deg)',
+        toggle: () => this.setState((st) => ({ abiertos: { ...st.abiertos, [p.id]: !abierto } })),
+        tabla: !movil,
+        tarjetas: movil,
+        filas: p.lineas.map((l) => ({
+          alumno: l.alumno, cursos: l.cursos, plan: l.plan,
+          crit: 'C' + l.crit, critN: String(l.crit), critTxt: 'Criterio ' + l.crit + ': ' + CRIT[l.crit],
+          ini: l.ini, fin: l.fin, ciclo: l.ini + ' – ' + l.fin, clases: l.clases,
+          cobrado: bs(l.cobrado), base: bs(l.base), baseNota: l.baseNota || '',
+          pct: l.pct + '%', com: bs(l.com)
+        })),
+        ajustes: p.ajustes.map((a) => ({
+          titulo: a.titulo, detalle: a.detalle, monto: firmado(a.monto),
+          color: a.monto < 0 ? 'var(--color-accent-700)' : 'var(--color-accent-2-700)'
+        })),
+        sinAjustes: p.ajustes.length === 0,
+        pagina: String(i + 2),
+        totPag: String(totPag)
+      };
+    });
+
+    const excSrc = conDatos ? EXC : EXC.map((g) => ({ ...g, items: [] }));
+    const nExc = excSrc.reduce((t, g) => t + g.items.length, 0);
+    const excepciones = excSrc.map((g) => {
+      const k = g.items.length;
+      const c = k ? TAG.traba : TAG.neutro;
+      return {
+        motivo: g.motivo,
+        cuenta: k ? plural(k, 'membresía', 'membresías') : 'ninguna',
+        tagBg: c[0], tagFg: c[1],
+        items: g.items.map((it) => ({ ...it, link: g.link || 'Resolver' })),
+        vacio: k === 0,
+        vacioTxt: 'Ninguna en este período.'
+      };
+    });
+
+    const mkFila = (r, bloque) => {
+      const sinAlumnos = bloque === 'c';
+      const c = r.traba ? TAG.traba : TAG.neutro;
+      return {
+        fecha: r.fecha, curso: r.curso,
+        alumnos: sinAlumnos ? 'sin alumnos' : plural(r.n, 'alumno esperado', 'alumnos esperados'),
+        traba: r.traba ? 'Traba' : 'No traba',
+        trabaPapel: r.traba ? 'TRABA' : 'NO TRABA',
+        tagBg: c[0], tagFg: c[1],
+        porque: r.traba ? TRABA : sinAlumnos ? 'no existe para nadie' : bloque === 'b' ? 'aún no vencida' : 'solo membresías de un curso',
+        verLink: bloque === 'a'
+      };
+    };
+    const defs = [
+      { id: 'a', titulo: 'Vencidas con alumnos esperados', bajada: 'Deben registrarse. Cargá la asistencia, o marcá la clase como suspendida, en Asistencia.', vacioTxt: 'Ninguna: todas las clases vencidas del período tienen asistencia registrada.' },
+      { id: 'b', titulo: 'De hoy o futuras', bajada: 'Todavía no vencieron. Se listan para que no sorprendan en la próxima pre-liquidación.', vacioTxt: 'Ninguna para hoy ni para los próximos días.' },
+      { id: 'c', titulo: 'Días de calendario sin alumnos', bajada: 'Solo informativo: la clase no existe para nadie y no bloquea ninguna liquidación.', vacioTxt: 'Ninguno en este período.' }
+    ];
+    const bloques = defs.map((d) => {
+      const filas = conDatos ? CLASES[d.id].map((r) => mkFila(r, d.id)) : [];
+      const nTraba = conDatos ? CLASES[d.id].filter((r) => r.traba).length : 0;
+      const cursos = conDatos ? new Set(CLASES[d.id].map((r) => r.curso)).size : 0;
+      const abierto = !!s.bloq[d.id];
+      const c = nTraba ? TAG.traba : filas.length ? TAG.neutro : TAG.ok;
+      return {
+        ...d,
+        filas,
+        vacio: filas.length === 0,
+        abierto,
+        rot: abierto ? 'rotate(0deg)' : 'rotate(-90deg)',
+        toggle: () => this.setState((st) => ({ bloq: { ...st.bloq, [d.id]: !abierto } })),
+        resumen: filas.length ? plural(filas.length, 'clase', 'clases') + ' · ' + plural(cursos, 'curso', 'cursos') : 'Ninguna',
+        tag: nTraba ? plural(nTraba, 'traba', 'traban') : 'No traba',
+        tagBg: c[0], tagFg: c[1]
+      };
+    });
+
+    const membTot = membSet.size;
+    const neto = totCom + totAj;
+    const cifras = [
+      { k: 'Total a devengar', v: bs(neto), n: conDatos ? 'Comisiones ' + bs(totCom) + ' · reemplazos y ajustes ' + firmado(totAj) : 'Sin comisiones en el período' },
+      { k: 'Profesores con devengo', v: String(profes.length), n: conDatos ? 'Un bloque por profesor, abajo' : 'Ninguno' },
+      { k: 'Membresías que entran', v: String(membTot), n: 'Completadas y cobradas al 100%' },
+      { k: 'Membresías con excepción', v: String(nExc), n: nExc ? 'Quedan afuera; cada una con su arreglo' : 'Ninguna quedó afuera' }
+    ];
+
+    const setV = (v) => () => this.setState({ vista: v });
+    const setE = (v) => () => this.setState({ estado: v });
+    const todosAbiertos = profes.every((p) => p.abierto);
+    const vEsc = s.vista === 'escritorio', vCel = s.vista === 'celular', vImp = s.vista === 'impreso';
+
+    return {
+      vEsc, vCel, vImp,
+      aEsc: setV('escritorio'), aCel: setV('celular'), aImp: setV('impreso'),
+      eDat: conDatos, eVac: esVacio, eErr: s.estado === 'error', eCar: s.estado === 'cargando',
+      aDat: setE('datos'), aVac: setE('vacio'), aErr: setE('error'), aCar: setE('cargando'),
+      yaLiq: s.yaLiq,
+      toggleYaLiq: () => this.setState({ yaLiq: !s.yaLiq }),
+
+      verPantalla: !vImp,
+      printDisplay: vImp ? 'block' : 'none',
+      marcoPad: vCel ? '24px' : '0',
+      marcoAncho: vCel ? '375px' : '100%',
+      marcoRadio: vCel ? '32px' : '0',
+      marcoBorde: vCel ? '1px solid var(--color-neutral-400)' : '0',
+      pad: angosto ? '24px' : '32px',
+      h1Size: angosto ? '28px' : '38px',
+
+      volver: (e) => { e && e.preventDefault(); },
+      imprimir: () => window.print(),
+      noImprime: s.estado === 'error' || s.estado === 'cargando',
+      reintentar: () => { this.setState({ estado: 'cargando' }); setTimeout(() => this.setState({ estado: 'datos' }), 1200); },
+
+      verYaLiq: s.yaLiq && s.estado !== 'cargando',
+      esCargando: s.estado === 'cargando',
+      esError: s.estado === 'error',
+      lecturas: LECTURAS.map((l) => ({
+        t: l.t, detalle: l.detalle,
+        estado: l.ok === true ? 'Leído' : l.ok === false ? 'Falló' : 'Sin leer',
+        color: l.ok === true ? 'var(--color-accent-2-700)' : l.ok === false ? 'var(--color-accent-700)' : 'var(--color-neutral-600)'
+      })),
+      conContenido: conDatos || esVacio,
+      esVacio,
+
+      cifras,
+      profes,
+      hayProfes: profes.length > 0,
+      sinProfes: profes.length === 0,
+      todosTxt: todosAbiertos ? 'Cerrar todos' : 'Abrir todos',
+      toggleTodos: () => {
+        const ab = {};
+        src.forEach((p) => { ab[p.id] = !todosAbiertos; });
+        this.setState({ abiertos: ab });
+      },
+
+      excBajada: 'Membresías que no entran a esta liquidación, agrupadas por motivo. Un motivo sin casos queda a la vista con "ninguna".',
+      excepciones,
+      bloques,
+
+      totMemb: String(membTot), totCom: bs(totCom), totAj: firmado(totAj), totNeto: bs(neto),
+      totPag: String(totPag), pagExc: String(totPag - 1), pagCla: String(totPag)
+    };
+  }
+}
+</script>
+</body>
+</html>
