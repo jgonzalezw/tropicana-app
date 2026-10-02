@@ -4845,3 +4845,10 @@ cada uno, **sin migración ni cambio de reglas de negocio**:
 Probado en local: `/sala` carga, cambiar de fecha (1 acción de agenda), Gestionar
 abre el panel; `tsc`, `eslint` y `npm test` (261) en verde. En dev se ven 2
 cargas iniciales por el doble efecto de React en modo desarrollo.
+
+**Reverificación (2026-10-02, misma sesión de cierre):** el prefetch del menú ya
+estaba desactivado (único `Link` de `BarraLateral.tsx`, `prefetch={false}`); la
+memoria de `sesion.ts` es `cache` de React, de alcance de petición (no variable
+de módulo). Recorrido en el navegador contra dev: `/sala` carga, Gestionar abre
+con sus acciones e historial, y cambiar la fecha a 03/10 recarga la agenda. `npm test`
+261/261 y `tsc` en verde.
