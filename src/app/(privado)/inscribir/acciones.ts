@@ -1087,21 +1087,12 @@ async function calcularAgendaParticular(
     contacto: { nombre: contactoData.nombre, apellido: contactoData.apellido, whatsapp: contactoData.whatsapp },
   };
 
-  let destinatarioAviso = {
+  const destinatario = await destinatarioAviso(sb, {
+    contactoId: alumnoData.contacto_id,
+    esMenor: alumnoData.es_menor,
     nombre: `${alumnoData.contacto?.nombre ?? ""} ${alumnoData.contacto?.apellido ?? ""}`.trim(),
     whatsapp: alumnoData.contacto?.whatsapp ?? null,
-  };
-  if (alumnoData.es_menor) {
-    const { data: rel } = await sb
-      .from("contacto_relaciones")
-      .select("tutor:contactos!contacto_relaciones_desde_id_fkey(nombre, apellido, whatsapp)")
-      .eq("tipo", "tutor_de")
-      .eq("hacia_id", alumnoData.contacto_id)
-      .maybeSingle();
-    const tutor = (rel as unknown as { tutor: { nombre: string | null; apellido: string | null; whatsapp: string | null } } | null)
-      ?.tutor;
-    if (tutor) destinatarioAviso = { nombre: `${tutor.nombre ?? ""} ${tutor.apellido ?? ""}`.trim(), whatsapp: tutor.whatsapp };
-  }
+  });
 
   const { data: planRow } = await sb
     .from("planes")
@@ -1257,7 +1248,7 @@ async function calcularAgendaParticular(
   }`.trim();
 
   return {
-    alumno: { id: alumnoData.id, contacto_id: alumnoData.contacto_id, nombre: destinatarioAviso.nombre, whatsapp: destinatarioAviso.whatsapp },
+    alumno: { id: alumnoData.id, contacto_id: alumnoData.contacto_id, nombre: destinatario.nombre, whatsapp: destinatario.whatsapp },
     planNombre: planRow.nombre,
     nombreProfesor,
     whatsappProfesor: (profesorRow.contacto as unknown as { whatsapp: string | null } | null)?.whatsapp ?? null,

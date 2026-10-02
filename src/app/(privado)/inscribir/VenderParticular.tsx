@@ -493,7 +493,7 @@ export default function VenderParticular({
               direccion="cobro"
               medios={medios}
               permitirSinCobro
-              cuentaId={`particular:${plan.id}:${tarifa.id}:${agenda.fechaInicio}`}
+              cuentaId={`particular:${plan.id}:${tarifa.id}`}
               onChange={setCobro}
             />
             {faltaSaldo && <FechaCompromiso valor={fechaCompromiso} diasCompromiso={diasCompromiso} onChange={setFechaCompromiso} />}

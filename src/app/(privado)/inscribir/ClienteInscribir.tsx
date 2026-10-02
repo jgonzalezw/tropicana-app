@@ -503,7 +503,7 @@ export default function ClienteInscribir({
               politica="descuento"
               direccion="cobro"
               medios={medios}
-              cuentaId={`${titularId ?? 0}·${plan.id}·${fechaIdx}·${plan.cursos.map((c) => (diasPorCurso[c.id] ?? []).join("")).join("-")}`}
+              cuentaId={`${titularId ?? 0}·${plan.id}`}
               onChange={(p) => {
                 setCobro(p);
                 setError(null);

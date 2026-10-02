@@ -478,7 +478,7 @@ export default function VenderAlquiler({
               direccion="cobro"
               medios={medios}
               permitirSinCobro
-              cuentaId={`alquiler:${plan.id}:${paquete.id}:${agenda.fechaInicio}`}
+              cuentaId={`alquiler:${plan.id}:${paquete.id}`}
               onChange={setCobro}
             />
             {faltaSaldo && <FechaCompromiso valor={fechaCompromiso} diasCompromiso={diasCompromiso} onChange={setFechaCompromiso} />}

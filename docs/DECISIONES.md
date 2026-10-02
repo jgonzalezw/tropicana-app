@@ -257,6 +257,12 @@ lee **antes** de mirar ramas.
      **E1** piezas comunes + alquiler completo (**construida y probada en dev el 2026-10-02**: sin migración 0063, el módulo `contactos` ya existía);
      **E2** particulares; **E3** inscripción regular + prueba; **E4** altas en
      Alumnos y Profesores (agregar rol a un contacto existente).
+     **E1 a E4 construidas y probadas en dev el 2026-10-02** (rama `h7-alquiler`,
+     detalle en `docs/ESTADO.md`, "Cierre de la tanda de ventas"). **Falta antes
+     del pase:** validación de Javier en su local, 375 px, cortesía y agenda fija
+     de particulares, sala externa y categoría `editable` de alquiler, pruebas de
+     `buscarDuplicado`/`asegurarRol`, "Ver ficha ↗", y decidir si la gestión de
+     reservas de H3 se enchufa a `/alquileres`.
   2. **Después de C3, sin urgencia:** filtros por profesor y período en
      Liquidaciones (pantalla existente: se avisa antes de construir).
   3. **Postergada:** D29, simulación anticipada de la pre-liquidación (§1, con su

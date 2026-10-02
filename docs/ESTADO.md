@@ -4795,4 +4795,14 @@ Cargar un alumno o un profesor cuyo WhatsApp ya es de otro contacto (que todaví
 
 **Verificado en dev:** alumno nuevo con el WhatsApp de un profesor (Inamsai De Dazan) → ahora es profesor y alumno, sin contacto duplicado; profesor nuevo con el WhatsApp de una alumna (Mariana Claure) → igual. Bug encontrado y corregido en la prueba: con `contacto_id` UNIQUE, PostgREST devuelve un objeto y no un arreglo al anidar `alumnos`/`profesores`, y el rol salía mal.
 
-**E3 verificado en el navegador:** inscripción completa (membresía con cobro, aviso al tutor de una menor), menor nuevo con tutor en prueba (sin WhatsApp propio, `alumno_menor`, aviso a la tutora). Observación: cambiar la fecha de inicio reinicia el medio de pago (la clave de la cuenta del cobro incluye la fecha).
+**E3 verificado en el navegador:** inscripción completa (membresía con cobro, aviso al tutor de una menor), menor nuevo con tutor en prueba (sin WhatsApp propio, `alumno_menor`, aviso a la tutora). Observación (corregida el 2026-10-02, ver abajo): cambiar la fecha de inicio reiniciaba el medio de pago.
+
+
+## Cierre de la tanda de ventas — vigencia, cobro y avisos (2026-10-02, dev)
+
+- **Fechas de inicio dentro de la vigencia del curso** (decisión del 2026-10-02, §1.b de DECISIONES): inscripción y prueba no ofrecen fechas fuera de activación → baja (`enVigencia`, mismo criterio que el servidor) y explican por qué no hay fechas. Solo los cursos tienen vigencia; los planes de particular y alquiler no.
+- **Prueba multicurso en dev:** plan de 4 cursos, membresía 57 (retroactiva, 8 clases, Bs 250 pagada, 4 filas en `membresia_cursos`). El plan BACHAHEELS ofrece solo el 16/10. El filtro retroactivo por vigencia no se vio en acción: no hay datos que lo discriminen.
+- **Tarjeta de confirmación de la inscripción:** ya no repite "Plan" (el servidor lo devuelve; la pantalla solo agrega "Alumno").
+- **Medio de pago al cambiar la fecha:** el paso Cobro ya se reinicia solo cuando cambia el monto; se quitó la fecha y los días de la clave de la cuenta (inscripción, particular y alquiler), así que cambiar la fecha ya no borra el medio.
+- **Aviso de la particular:** usa `destinatarioAviso` (titular o su tutor) como las demás ventas; se borró la copia propia. Alquiler no aplica: su aviso va a la persona de contacto.
+- **Pendiente:** 375 px, cortesía y agenda fija de particulares, sala externa y categoría `editable` de alquiler, pruebas de `buscarDuplicado`/`asegurarRol`, control de rol duplicado, "Ver ficha ↗", pase a producción (0060/0061 + precios de alquiler) con OK de Javier.
