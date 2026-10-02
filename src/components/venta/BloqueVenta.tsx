@@ -38,7 +38,7 @@ export default function BloqueVenta({
 
   return (
     <section
-      className={`rounded-[var(--radio-tarjeta)] bg-[var(--fondo-panel)] border border-[var(--borde)] p-5 ${
+      className={`rounded-[var(--radio-tarjeta)] bg-[var(--fondo-panel)] border border-[var(--borde)] p-3 sm:p-5 ${
         estado === "bloqueado" ? "opacity-60" : ""
       }`}
       aria-label={`${numero}. ${titulo}`}

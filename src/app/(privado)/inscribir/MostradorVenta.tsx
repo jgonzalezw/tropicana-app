@@ -85,7 +85,7 @@ export default function MostradorVenta(props: {
 
   return (
     <Pagina ancho="3xl">
-      <div className="flex gap-2 max-w-2xl mb-6">
+      <div className="flex gap-2 max-w-2xl mb-6 overflow-x-auto pb-1">
         {(
           [
             ["inscripcion", "Inscripción"],
@@ -98,7 +98,7 @@ export default function MostradorVenta(props: {
             key={m}
             type="button"
             onClick={() => setModo(m)}
-            className={`flex-1 px-4 py-2.5 text-base rounded-[var(--radio-control)] border ${
+            className={`flex-1 shrink-0 whitespace-nowrap px-4 py-2.5 text-base rounded-[var(--radio-control)] border ${
               modo === m
                 ? "bg-[var(--primario)] text-[var(--primario-texto)] border-[var(--primario)] font-semibold"
                 : "border-[var(--borde)] hover:border-[var(--primario)]"

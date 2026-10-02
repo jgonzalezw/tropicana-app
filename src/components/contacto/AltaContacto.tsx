@@ -115,7 +115,7 @@ export default function AltaContacto({
   }
 
   return (
-    <div className="space-y-4 p-4 rounded-[var(--radio-panel)] border border-[var(--borde)]">
+    <div className="space-y-4 p-3 sm:p-4 rounded-[var(--radio-panel)] border border-[var(--borde)]">
       <div className="font-semibold">{edicion ? "Editar datos del contacto" : esOrg ? "Nueva organización" : "Nuevo contacto"}</div>
 
       {!edicion && permiteOrganizacion && (

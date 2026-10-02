@@ -27,7 +27,7 @@ export default function BarraVenta({
   return (
     <>
       {/* Reserva el alto de la barra para que no tape el último bloque. */}
-      <div className="h-20" aria-hidden />
+      <div className="h-40 min-[640px]:h-20" aria-hidden />
       <div className="fixed left-0 right-0 bottom-0 min-[900px]:left-64 bg-[var(--fondo-panel)] border-t border-[var(--borde)] py-3 z-10">
         <div className="px-6 sm:px-8 flex items-center gap-4 flex-wrap">
           <div className="flex-1 min-w-[12rem] text-base" aria-live="polite">
