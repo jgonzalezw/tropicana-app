@@ -257,7 +257,7 @@ lee **antes** de mirar ramas.
      **E1** piezas comunes + alquiler completo (**construida y probada en dev el 2026-10-02**: sin migración 0063, el módulo `contactos` ya existía);
      **E2** particulares; **E3** inscripción regular + prueba; **E4** altas en
      Alumnos y Profesores (agregar rol a un contacto existente).
-     **E1 a E4 construidas y probadas en dev el 2026-10-02** (rama `h7-alquiler`,
+     **EN PRODUCCIÓN desde el 2026-10-02** (0060 y 0061, ver §4). **E1 a E4 construidas y probadas en dev el 2026-10-02** (rama `h7-alquiler`,
      detalle en `docs/ESTADO.md`, "Cierre de la tanda de ventas"). **Falta antes
      del pase:** validación de Javier en su local, 375 px, cortesía y agenda fija
      de particulares, sala externa y categoría `editable` de alquiler, pruebas de
@@ -301,8 +301,25 @@ lee **antes** de mirar ramas.
   `revertirDevengosAbiertos` no toca los devengos `cierre`. Detalle en
   `docs/ESTADO.md`, "Cierre de cuentas al desasignar".
 
-**Pendiente de pase: ninguno.** Todo está en producción, con migraciones 0001–0059 y 0062 en
-producción (0060 y 0061, de H7, solo en dev). Cuando algo quede **solo en dev** esperando el OK explícito de Javier
+- **H7 alquiler + ventas y contactos unificados (migraciones 0060 y 0061) —
+  PASADO A PRODUCCIÓN el 2026-10-02**, con el OK explícito de Javier (*"ok los
+  cambios. avanza a prod"*, y después la orden de aplicar cada migración con el
+  contenido exacto del archivo). Orden de §3: medido antes (47 membresías, 47
+  cuotas, 50 pagos, 15 reservas, 21 planes; `alquileres_sala` con 0 filas y
+  `reservas_sala.alquiler_id` sin ninguna fila con valor); ensayo en seco en una
+  transacción terminada en error provocado; **0060 → 0061** aplicadas en
+  `pnvhpbxjbdmbktpwebtx` antes del código. Medido después: mismos conteos,
+  16 permisos `alquileres`, 2 parámetros, NIT `O` en `tercero_org`,
+  `alquileres_sala` borrada, `alumno_id` nullable y `alquiler_id` fuera.
+  Controles 1, 5, 6, 42, 43, 44 y 45 en 0; `get_advisors` sin hallazgos nuevos
+  (los que marca son previos). Un solo push de `h7-alquiler` a `main`.
+  **Pendiente, a mano (Javier):** cargar la tabla de precios de alquiler en
+  producción (1 paquete y 9 celdas hoy, contra 12 y 36 en dev) antes de vender
+  el primer alquiler; el rol Profesor no tiene `alquileres` hasta que se lo dé en
+  Roles y Permisos. Detalle en `docs/ESTADO.md`, "Cierre de la tanda de ventas".
+
+**Pendiente de pase: ninguno.** Todo está en producción, con migraciones 0001–0062 en
+producción (0060 y 0061, de H7, desde el 2026-10-02). Cuando algo quede **solo en dev** esperando el OK explícito de Javier
 (regla de proceso 1), se anota arriba de esta línea. Abajo, en orden, cada pase ya hecho.
 
 - **Informe de pre-liquidación (`/liquidaciones/pre-liquidacion`) — PASADO A
