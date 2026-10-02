@@ -319,6 +319,7 @@ export default function ClienteDisponibilidadSala({
                           <GestionReserva
                             reserva={detalleGestion.reserva}
                             membresiaId={detalleGestion.membresiaId}
+                            tipo={detalleGestion.tipo}
                             disponibleMin={detalleGestion.disponibleMin}
                             fechaInicioMembresia={detalleGestion.fechaInicioMembresia}
                             fechaFinMembresia={detalleGestion.fechaFinMembresia}

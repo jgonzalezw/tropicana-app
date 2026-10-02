@@ -1,7 +1,14 @@
 "use client";
 
 /**
- * "Reservas de la membresía" (C3, hito H3).
+ * "Reservas de la membresía" (C3, hito H3; neutro por tipo desde el Hito B).
+ *
+ * Lo montan `/particulares/[id]` y `/alquileres/[id]`: el saldo, el lugar
+ * externo, las reservas y "+ Nueva reserva" son los mismos; solo cambian los
+ * rótulos (`detalle.tipo`). Cuando llegue el calendario de C4, abrir un slot
+ * vacío para vender o reservar reusa `crearReserva` (que ya recibe membresía,
+ * fecha, hora y sala y sirve a cualquier tipo), y gestionar uno ocupado reusa
+ * `GestionReserva`.
  *
  * El bloque por-reserva (estado, transiciones, formularios de suspender y
  * reprogramar, avisos, historial) vive en `GestionReserva`
@@ -17,7 +24,7 @@ import { formatearHoras, opcionesDuracionReserva } from "@/lib/horarios";
 import { validarTiempoReserva } from "@/lib/reservas";
 import AvisoWhatsapp from "@/components/AvisoWhatsapp";
 import GestionReserva from "@/components/GestionReserva";
-import { crearReserva, guardarLugarExterno, type MembresiaParticularDetalle } from "../acciones";
+import { crearReserva, guardarLugarExterno, type MembresiaParticularDetalle } from "@/app/(privado)/particulares/acciones";
 
 const control =
   "px-3 py-2 rounded-[var(--radio-control)] border border-[var(--borde)] bg-[var(--fondo)] text-base w-full";
@@ -52,7 +59,7 @@ function hoyISO(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-export default function ClienteMembresiaParticular({
+export default function ReservasDeMembresia({
   detalle,
   salas,
   tieneExterna,
@@ -139,7 +146,7 @@ export default function ClienteMembresiaParticular({
   return (
     <div className="space-y-6">
       <section className="rounded-[var(--radio-panel)] border border-[var(--borde)] p-4">
-        <h2 className="font-medium mb-3">Saldo del paquete</h2>
+        <h2 className="font-medium mb-3">{detalle.tipo === "alquiler" ? "Saldo del alquiler" : "Saldo del paquete"}</h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm mb-3">
           <div>
             <div className="text-[var(--texto-tenue)]">Contratadas</div>
@@ -224,6 +231,7 @@ export default function ClienteMembresiaParticular({
             <GestionReserva
               reserva={r}
               membresiaId={detalle.id}
+              tipo={detalle.tipo}
               disponibleMin={disponibleMin}
               fechaInicioMembresia={detalle.fechaInicio}
               fechaFinMembresia={detalle.fechaFin}

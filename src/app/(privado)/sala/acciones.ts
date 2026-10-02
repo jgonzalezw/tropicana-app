@@ -194,10 +194,17 @@ export async function consultarDisponibilidad(salaId: number, fechaISO: string):
   // Gestionable desde acá (H4): particulares.editar, y si el alcance es
   // Propio, solo las de este profesor — mismo criterio que ya aplican las
   // acciones de `particulares/acciones.ts` al escribir.
-  const [puedeEditarParticulares, { propio: alcancePropio, profesorId: profesorPropioId }] = await Promise.all([
-    tienePermiso("particulares", "editar"),
-    alcancePropioDe("particulares"),
-  ]);
+  const [puedeEditarParticulares, { propio: alcancePropio, profesorId: profesorPropioId }, puedeEditarAlquileres, alcanceAlquiler] =
+    await Promise.all([
+      tienePermiso("particulares", "editar"),
+      alcancePropioDe("particulares"),
+      tienePermiso("alquileres", "editar"),
+      alcancePropioDe("alquileres"),
+    ]);
+  // Un alquiler se gestiona con el permiso de Alquileres (no el de
+  // Particulares). El alcance "propio" de alquileres llega con el Hito C:
+  // mientras tanto, un rol que lo tenga no los gestiona desde acá.
+  const gestionaAlquiler = puedeEditarAlquileres && !alcanceAlquiler.propio;
 
   const reservas: (ReservaSalaOcupa & { notas: string | null; membresiaId: number | null; gestionable: boolean })[] = resRaw.map(
     (r) => {
@@ -219,9 +226,9 @@ export async function consultarDisponibilidad(salaId: number, fechaISO: string):
         estilo: claveEstilo ? nombreEstilo(claveEstilo) : null,
         membresiaId: r.membresia_id,
         gestionable:
-          (r.tipo === "particular" || r.tipo === "alquiler") &&
-          puedeEditarParticulares &&
-          (!alcancePropio || r.profesor_id === profesorPropioId),
+          r.tipo === "alquiler"
+            ? gestionaAlquiler
+            : r.tipo === "particular" && puedeEditarParticulares && (!alcancePropio || r.profesor_id === profesorPropioId),
       };
     }
   );
@@ -365,10 +372,14 @@ export async function consultarAgendamientosExternos(
     ])
   );
 
-  const [puedeEditarParticulares, { propio: alcancePropio, profesorId: profesorPropioId }] = await Promise.all([
-    tienePermiso("particulares", "editar"),
-    alcancePropioDe("particulares"),
-  ]);
+  const [puedeEditarParticulares, { propio: alcancePropio, profesorId: profesorPropioId }, puedeEditarAlquileres, alcanceAlquiler] =
+    await Promise.all([
+      tienePermiso("particulares", "editar"),
+      alcancePropioDe("particulares"),
+      tienePermiso("alquileres", "editar"),
+      alcancePropioDe("alquileres"),
+    ]);
+  const gestionaAlquiler = puedeEditarAlquileres && !alcanceAlquiler.propio;
 
   const reservas: AgendamientoExterno[] = vivas.map((r) => {
     const contactoAlumno = r.membresia?.alumno?.contacto;
@@ -383,7 +394,8 @@ export async function consultarAgendamientosExternos(
       profesorNombre: contactoProfesor
         ? `${contactoProfesor.nombre ?? ""} ${contactoProfesor.apellido ?? ""}`.trim() || null
         : null,
-      gestionable: puedeEditarParticulares && (!alcancePropio || r.profesor_id === profesorPropioId),
+      gestionable:
+        r.tipo === "alquiler" ? gestionaAlquiler : puedeEditarParticulares && (!alcancePropio || r.profesor_id === profesorPropioId),
     };
   });
 

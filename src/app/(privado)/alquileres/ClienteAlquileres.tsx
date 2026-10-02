@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { formatearHoras } from "@/lib/horarios";
 import { gs } from "@/lib/inscripcion";
 import { ETIQUETA_ESTADO_RESERVA, type EstadoReserva } from "@/lib/reservas";
@@ -68,6 +69,9 @@ export default function ClienteAlquileres({ items }: { items: FilaAlquiler[] }) 
                 {m.categoriaMotivo && <p className="text-[var(--texto-tenue)]">{m.categoriaMotivo}</p>}
                 {m.categoriaGlosa && <p className="text-[var(--texto-tenue)]">Glosa del cambio: {m.categoriaGlosa}</p>}
                 {m.ruta && <p className="text-[var(--texto-tenue)]">Precio: {m.ruta}</p>}
+                <Link href={`/alquileres/${m.id}`} className="inline-block text-[var(--primario)] underline hover:no-underline">
+                  Gestionar reservas →
+                </Link>
                 <ul className="space-y-1 pt-1">
                   {m.reservas.map((r) => (
                     <li key={r.id} className="flex justify-between gap-3">

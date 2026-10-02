@@ -22,6 +22,7 @@ import { tienePermiso, obtenerParametro, obtenerPerfilActual } from "@/lib/sesio
 import { nombreCompleto, compararContactosPorApellido } from "@/lib/contactos";
 import { gs, isoFecha, primerDiaDelMes, sumarMeses } from "@/lib/inscripcion";
 import { proponerCategoria } from "@/lib/categoriaAlquiler";
+import { destinatarioDeTitular } from "@/lib/destinatarioTitular";
 import { costoDeSala, tamanoPorPersonas, type CategoriaSala, type ClaveTamano, type TamanoSala, type TarifaSala } from "@/lib/sala";
 import { faltaParaAlquiler } from "@/lib/venta/faltantes";
 import { vigenciaDiasEfectiva } from "@/lib/planesParticular";
@@ -512,28 +513,7 @@ export async function venderAlquiler(e: EntradaAlquiler): Promise<ResultadoVenta
   const resto = leftoverMin ? " El resto de las horas se coordina después." : "";
   // El aviso de una organización va a quien la atiende (persona de contacto
   // con WhatsApp); si no tiene, al de la propia organización.
-  let destino = { nombre: contacto.nombre, whatsapp: contacto.whatsapp };
-  const { data: orgRow } = await a.from("contactos").select("tipo").eq("id", contacto.id).maybeSingle();
-  if ((orgRow as { tipo?: string } | null)?.tipo === "organizacion") {
-    const { data: rel } = await a
-      .from("contacto_relaciones")
-      .select("desde_id")
-      .eq("hacia_id", contacto.id)
-      .eq("tipo", "trabaja_en");
-    const ids = ((rel ?? []) as { desde_id: number }[]).map((r) => r.desde_id);
-    if (ids.length) {
-      const { data: pers } = await a
-        .from("contactos")
-        .select("id, nombre, apellido, whatsapp, activo")
-        .in("id", ids)
-        .eq("activo", true)
-        .not("whatsapp", "is", null)
-        .order("id")
-        .limit(1);
-      const p = ((pers ?? []) as { nombre: string | null; apellido: string | null; whatsapp: string | null }[])[0];
-      if (p?.whatsapp) destino = { nombre: [p.nombre, p.apellido].filter(Boolean).join(" "), whatsapp: p.whatsapp };
-    }
-  }
+  const destino = await destinatarioDeTitular(a, contacto);
   return {
     ok: true,
     resumen: `Alquiler de ${contacto.nombre} — ${planNombre}, ${horas} h en ${dondeTexto}. Reservado: ${agendaTexto}.${resto} ${mueve > 0 ? `Cobrado ${gs(mueve)}.` : "Sin cobro por ahora."}`,

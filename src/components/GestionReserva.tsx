@@ -4,7 +4,7 @@
  * Panel de gestión de UNA reserva de particular (H4, 2026-09-26).
  *
  * Extraído del bloque por-reserva que vivía inline en
- * `particulares/[id]/ClienteMembresiaParticular.tsx` (regla de proceso 4:
+ * `src/components/ReservasDeMembresia.tsx` (regla de proceso 4:
  * una pieza por entidad, montada igual en todos lados — acá la entidad es
  * "una reserva"). Se monta en dos lugares:
  *   - `/particulares/[id]`: una tarjeta por cada reserva de la membresía,
@@ -75,7 +75,7 @@ function fechaHoraCorta(fecha: string, hora: string): string {
 }
 
 /** "26/09/2026 01:22", siempre en hora de Bolivia — ver la nota de
- *  `ClienteMembresiaParticular.tsx` sobre por qué hace falta `timeZone`
+ *  `ReservasDeMembresia.tsx` sobre por qué hace falta `timeZone`
  *  explícito y 24 h para no romper la hidratación entre server y cliente. */
 const FORMATO_FECHA_HORA = new Intl.DateTimeFormat("es-BO", {
   timeZone: "America/La_Paz",
@@ -110,6 +110,7 @@ function PanelResultado({ r }: { r: Resultado }) {
 export default function GestionReserva({
   reserva,
   membresiaId,
+  tipo = "particular",
   disponibleMin,
   fechaInicioMembresia,
   fechaFinMembresia,
@@ -124,6 +125,8 @@ export default function GestionReserva({
 }: {
   reserva: ReservaConHistorial;
   membresiaId: number;
+  /** Decide a qué ficha lleva el link: `/particulares/[id]` o `/alquileres/[id]`. */
+  tipo?: "particular" | "alquiler";
   /** Saldo actual del paquete — gobierna cuánto se puede alargar al reprogramar. */
   disponibleMin: number;
   fechaInicioMembresia: string;
@@ -390,7 +393,7 @@ export default function GestionReserva({
 
       {mostrarLinkFicha && (
         <div className="mt-3">
-          <Link href={`/particulares/${membresiaId}`} className="text-sm text-[var(--primario)] underline hover:no-underline">
+          <Link href={`/${tipo === "alquiler" ? "alquileres" : "particulares"}/${membresiaId}`} className="text-sm text-[var(--primario)] underline hover:no-underline">
             Ver ficha completa de la membresía →
           </Link>
         </div>
