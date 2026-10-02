@@ -341,10 +341,20 @@ export default function VenderAlquiler({
           paquete &&
           categoria &&
           precio != null && (
-            <p className="text-base">
-              <span className="font-medium">{formatearHoras(paquete.horas)} h</span> · {etiquetasCategoria[categoria]} · {personasN} personas ·{" "}
-              <span className="tabular-nums">{gs(precio)}</span>
-            </p>
+            <div className="space-y-2">
+              <p className="text-base">
+                <span className="font-medium">{formatearHoras(paquete.horas)} h</span> · {etiquetasCategoria[categoria]} · {personasN} personas ·{" "}
+                <span className="tabular-nums">{gs(precio)}</span>
+              </p>
+              {propuesta && categoria !== propuesta.categoria && (
+                <label className="block">
+                  <span className="block text-sm text-[var(--texto-tenue)] mb-1">
+                    Glosa del cambio de categoría (quién lo autoriza, por qué) — propuesta original: {etiquetasCategoria[propuesta.categoria]}
+                  </span>
+                  <input value={glosaCategoria} onChange={(e) => setGlosaCategoria(e.target.value)} className={control} />
+                </label>
+              )}
+            </div>
           )
         }
         onCambiar={() => {
