@@ -36,10 +36,31 @@ export type ContactoResumen = {
   id: number;
   tipo: TipoContacto;
   nombre: string;
+  /** "Apellido, Nombre" para las listas, que van ordenadas por apellido (regla 15). */
+  nombreLista?: string;
   whatsapp: string | null;
   rol: RolContacto;
   noContactar: boolean;
+  /** Alumno menor de edad: no se identifica por su WhatsApp, sino por el de su tutor. */
+  esMenor?: boolean;
+  tutor?: { id: number; nombre: string; whatsapp: string | null } | null;
 };
+
+/** "Menor · tutor Natalia Salek" — lo que se muestra de un menor en listas y etiquetas. */
+export function textoMenor(c: Pick<ContactoResumen, "esMenor" | "tutor">): string | null {
+  if (!c.esMenor) return null;
+  return c.tutor ? `Menor · tutor ${c.tutor.nombre}` : "Menor · sin tutor cargado";
+}
+
+/** A quién se contacta por este contacto: el tutor si es menor, él mismo si no. */
+export function contactoDeAviso(c: Pick<ContactoResumen, "esMenor" | "tutor" | "nombre" | "whatsapp" | "noContactar">): {
+  nombre: string;
+  whatsapp: string | null;
+  deTutor: boolean;
+} {
+  if (c.esMenor && c.tutor) return { nombre: c.tutor.nombre, whatsapp: c.tutor.whatsapp, deTutor: true };
+  return { nombre: c.nombre, whatsapp: c.whatsapp, deTutor: false };
+}
 
 /** El contexto de la matriz de mínimos de un tercero (alquiler, servicio especial). */
 export function contextoTercero(tipo: TipoContacto): ContextoMinimo {

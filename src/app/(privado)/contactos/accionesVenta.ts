@@ -20,6 +20,7 @@ import { tienePermiso } from "@/lib/sesion";
 import {
   compararContactosPorApellido,
   documentoComparable,
+  apellidoNombre,
   nombreCompleto,
   normalizarWhatsapp,
   urlChatWhatsapp,
@@ -79,10 +80,22 @@ async function resumir(a: Admin, filas: FilaContacto[]): Promise<ContactoResumen
   if (!filas.length) return [];
   const ids = filas.map((f) => f.id);
   const [{ data: als }, { data: pros }] = await Promise.all([
-    a.from("alumnos").select("contacto_id").in("contacto_id", ids),
+    a.from("alumnos").select("contacto_id, es_menor").in("contacto_id", ids),
     a.from("profesores").select("contacto_id").in("contacto_id", ids),
   ]);
   const esAlumno = new Set(((als as { contacto_id: number }[]) ?? []).map((x) => x.contacto_id));
+  const idsMenores = ((als as { contacto_id: number; es_menor: boolean }[]) ?? []).filter((x) => x.es_menor).map((x) => x.contacto_id);
+  // El tutor de cada menor: a él se le habla y de él es el WhatsApp.
+  const tutorDe = new Map<number, NonNullable<ContactoResumen["tutor"]>>();
+  if (idsMenores.length) {
+    const { data: rels } = await a
+      .from("contacto_relaciones")
+      .select("hacia_id, tutor:contactos!contacto_relaciones_desde_id_fkey(id, nombre, apellido, razon_social, whatsapp, tipo)")
+      .eq("tipo", "tutor_de")
+      .in("hacia_id", idsMenores);
+    for (const r of (rels as unknown as { hacia_id: number; tutor: FilaContacto | null }[]) ?? [])
+      if (r.tutor) tutorDe.set(r.hacia_id, { id: r.tutor.id, nombre: nombreCompleto(r.tutor), whatsapp: r.tutor.whatsapp });
+  }
   const esProfesor = new Set(((pros as { contacto_id: number }[]) ?? []).map((x) => x.contacto_id));
   return [...filas]
     .sort((x, y) => compararContactosPorApellido(x, y))
@@ -90,9 +103,12 @@ async function resumir(a: Admin, filas: FilaContacto[]): Promise<ContactoResumen
       id: f.id,
       tipo: f.tipo,
       nombre: nombreCompleto(f),
+      nombreLista: apellidoNombre(f),
       whatsapp: f.whatsapp,
       rol: rolDe(esAlumno.has(f.id), esProfesor.has(f.id)),
       noContactar: f.no_contactar,
+      esMenor: idsMenores.includes(f.id),
+      tutor: tutorDe.get(f.id) ?? null,
     }));
 }
 
@@ -430,7 +446,11 @@ export async function detalleContactoVenta(
   }
 
   // A quién le llega el aviso: a la persona de contacto si la organización la tiene.
-  const destino = personaContacto ?? resumen[0];
+  const destino = personaContacto
+    ? personaContacto
+    : resumen[0].esMenor && resumen[0].tutor
+      ? { ...resumen[0], nombre: `${resumen[0].tutor.nombre} (tutor)`, whatsapp: resumen[0].tutor.whatsapp }
+      : resumen[0];
   let avisoWhatsapp: { ok: boolean; motivo: string | null } = { ok: true, motivo: null };
   if (destino.noContactar)
     avisoWhatsapp = { ok: false, motivo: `${destino.nombre} pidió no ser contactado: el WhatsApp no se ofrece y no se le manda ningún aviso de esta operación.` };

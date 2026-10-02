@@ -25,5 +25,7 @@ export async function destinatarioAviso(
     .maybeSingle();
   const tutor = (data as { tutor: { nombre: string | null; apellido: string | null; whatsapp: string | null } | null } | null)?.tutor;
   if (!tutor) return propio;
-  return { nombre: `${tutor.nombre ?? ""} ${tutor.apellido ?? ""}`.trim() || propio.nombre, whatsapp: tutor.whatsapp };
+  const nombreTutor = `${tutor.nombre ?? ""} ${tutor.apellido ?? ""}`.trim();
+  // "Natalia Salek (tutor de Bruna Marquez)": el aviso dice a quién se le habla y por quién.
+  return { nombre: nombreTutor ? `${nombreTutor} (tutor de ${titular.nombre})` : propio.nombre, whatsapp: tutor.whatsapp };
 }

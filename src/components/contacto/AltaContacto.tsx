@@ -7,6 +7,7 @@ import { nivelesDe } from "@/lib/matrizMinimos";
 import {
   contextoAlta,
   contextoTercero,
+  textoMenor,
   faltaTutor,
   faltantesAlta,
   textoFaltaAlta,
@@ -83,9 +84,11 @@ export default function AltaContacto({
   const [dup, setDup] = useState<NonNullable<ResultadoCrearContacto["duplicado"]> | null>(null);
   const [pendiente, empezar] = useTransition();
 
-  const niveles = useMemo(() => nivelesDe(matriz, edicion ? contextoTercero(tipo) : contextoAlta(tipo, rolQueAdquiere, { esMenor, enPrueba })), [matriz, tipo, edicion, rolQueAdquiere, esMenor, enPrueba]);
+  const niveles = useMemo(() => nivelesDe(matriz, edicion ? (edicion.resumen.esMenor ? "alumno_menor" : contextoTercero(tipo)) : contextoAlta(tipo, rolQueAdquiere, { esMenor, enPrueba })), [matriz, tipo, edicion, rolQueAdquiere, esMenor, enPrueba]);
+  // Un menor no tiene WhatsApp propio: se habla con su tutor (se cambia en su ficha).
+  const edicionMenor = !!edicion?.resumen.esMenor;
   const menorActivo = !edicion && permiteMenor && esMenor;
-  const form = { tipo, nombre, apellido, razonSocial, whatsapp: menorActivo ? "" : whatsapp, extra };
+  const form = { tipo, nombre, apellido, razonSocial, whatsapp: menorActivo || edicionMenor ? "" : whatsapp, extra };
   const falta = textoFaltaAlta(faltantesAlta(form, niveles), form) ?? (menorActivo ? faltaTutor(tutor) : null);
   const esOrg = tipo === "organizacion";
 
@@ -176,7 +179,17 @@ export default function AltaContacto({
         </label>
       )}
 
-      {!menorActivo && (
+      {edicionMenor && edicion && (
+        <div className="p-3 rounded-[var(--radio-panel)] border border-[var(--borde)] text-base">
+          <div className="font-medium">{textoMenor(edicion.resumen)}</div>
+          {edicion.resumen.tutor && (
+            <div className="text-sm text-[var(--texto-tenue)]">{edicion.resumen.tutor.whatsapp ?? "el tutor no tiene WhatsApp cargado"}</div>
+          )}
+          <div className="text-sm text-[var(--texto-tenue)] mt-1">Un menor no tiene WhatsApp propio: los avisos van a su tutor.</div>
+        </div>
+      )}
+
+      {!menorActivo && !edicionMenor && (
         <label className="block">
           <span className="block text-base font-medium mb-1.5">WhatsApp</span>
           <input
@@ -296,7 +309,7 @@ function BloqueTutor({ modulo, tutor, onChange }: { modulo: ModuloClave; tutor: 
                     }}
                     className="w-full text-left px-4 py-2 hover:bg-[var(--accent-100)]"
                   >
-                    {c.nombre} <span className="text-sm text-[var(--texto-tenue)]">{c.whatsapp ? `· ${c.whatsapp}` : ""}</span>
+                    {c.nombreLista ?? c.nombre} <span className="text-sm text-[var(--texto-tenue)]">{c.whatsapp ? `· ${c.whatsapp}` : ""}</span>
                   </button>
                 </li>
               ))}

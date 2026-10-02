@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import AltaContacto from "./AltaContacto";
 import TarjetaContacto from "./TarjetaContacto";
-import { ETIQUETA_ROL_CONTACTO, type ContactoResumen } from "@/lib/contactoVenta";
+import { ETIQUETA_ROL_CONTACTO, textoMenor, type ContactoResumen } from "@/lib/contactoVenta";
 import type { ListasContacto, MatrizMinimo, ModuloClave } from "@/lib/tipos";
 import {
   buscarContactos,
@@ -176,10 +176,10 @@ export default function TitularVenta({
           {resultados.map((c) => (
             <li key={c.id}>
               <button type="button" onClick={() => elegir(c)} className="w-full text-left px-4 py-2.5 hover:bg-[var(--accent-100)]">
-                <span className="font-medium">{c.nombre}</span>{" "}
+                <span className="font-medium">{c.nombreLista ?? c.nombre}</span>{" "}
                 <span className="text-sm text-[var(--texto-tenue)]">
                   · {ETIQUETA_ROL_CONTACTO[c.rol]}
-                  {c.whatsapp ? ` · ${c.whatsapp}` : ""}
+                  {c.esMenor ? ` · ${textoMenor(c)}${c.tutor?.whatsapp ? ` ${c.tutor.whatsapp}` : ""}` : c.whatsapp ? ` · ${c.whatsapp}` : ""}
                 </span>
               </button>
             </li>

@@ -37,6 +37,7 @@ export default function TarjetaContacto({
           <div className="font-semibold text-lg">{resumen.nombre}</div>
           <div className="text-sm text-[var(--texto-tenue)]">
             {resumen.tipo === "organizacion" ? "Organización" : "Persona"} · {ETIQUETA_ROL_CONTACTO[resumen.rol]}
+            {resumen.esMenor && " · Menor de edad"}
           </div>
         </div>
         <div className="flex gap-2">
@@ -51,9 +52,23 @@ export default function TarjetaContacto({
         </div>
       </div>
 
-      <div className="text-base">
-        <EnlaceWhatsapp numero={resumen.noContactar ? null : resumen.whatsapp} vacio={resumen.noContactar ? "no contactar" : "sin WhatsApp"} />
-      </div>
+      {resumen.esMenor ? (
+        <div className="text-base">
+          {resumen.tutor ? (
+            <>
+              Tutor: {resumen.tutor.nombre}
+              {" · "}
+              <EnlaceWhatsapp numero={resumen.noContactar ? null : resumen.tutor.whatsapp} vacio={resumen.noContactar ? "no contactar" : "sin WhatsApp"} />
+            </>
+          ) : (
+            <span className="text-[var(--peligro-texto)]">Es menor y no tiene tutor cargado: se corrige en su ficha.</span>
+          )}
+        </div>
+      ) : (
+        <div className="text-base">
+          <EnlaceWhatsapp numero={resumen.noContactar ? null : resumen.whatsapp} vacio={resumen.noContactar ? "no contactar" : "sin WhatsApp"} />
+        </div>
+      )}
 
       {redes.length > 0 && (
         <div className="flex flex-wrap gap-3 text-sm">

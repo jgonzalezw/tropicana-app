@@ -1,6 +1,6 @@
 "use client";
 
-import { ETIQUETA_ROL_CONTACTO, tituloDuplicado, type ContactoResumen } from "@/lib/contactoVenta";
+import { ETIQUETA_ROL_CONTACTO, textoMenor, tituloDuplicado, type ContactoResumen } from "@/lib/contactoVenta";
 
 /**
  * "Ese WhatsApp / documento ya está cargado": ofrece usar el contacto que ya
@@ -27,7 +27,10 @@ export default function PanelDuplicado({
       <div className="font-semibold text-[var(--peligro-texto)]">{tituloDuplicado(por)}</div>
       <div className="mt-1">
         {contacto.nombre}{" "}
-        <span className="text-sm text-[var(--texto-tenue)]">· {ETIQUETA_ROL_CONTACTO[contacto.rol]}</span>
+        <span className="text-sm text-[var(--texto-tenue)]">
+          · {ETIQUETA_ROL_CONTACTO[contacto.rol]}
+          {contacto.esMenor ? ` · ${textoMenor(contacto)}` : ""}
+        </span>
       </div>
       <div className="flex flex-wrap gap-2 mt-3">
         <button
