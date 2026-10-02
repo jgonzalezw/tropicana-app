@@ -19,7 +19,8 @@ import {
   asignacionEnFecha,
   type AsignacionVigencia,
 } from "@/lib/asignaciones";
-import type { EntradaAsistencia, FilaAsistencia } from "@/lib/tipos";
+import type { Curso, EntradaAsistencia, FilaAsistencia } from "@/lib/tipos";
+import { cargarContextoAsistencia } from "@/lib/contextoAsistencia";
 import { recalcularFinDeCiclo, recalcularMembresia } from "@/lib/membresias";
 import { revertirDevengosAbiertos } from "../liquidaciones/acciones";
 import { choquesCon, ocupacionDeReservas, type ReservaSalaOcupa } from "@/lib/sala";
@@ -1401,4 +1402,38 @@ export async function reabrirSesion(args: {
   revalidatePath("/asistencia");
   revalidatePath("/sala");
   return { ok: true, avisos };
+}
+
+/**
+ * Lo que la asistencia embebida en /sala necesita para un curso: el mismo
+ * contexto que arma `/asistencia`, acotado a ese curso. Se pide recién al abrir
+ * "Tomar asistencia" (el detalle no viaja con la agenda). El alcance lo decide
+ * el servidor: un curso ajeno para un rol "propio" se rechaza igual que allá.
+ */
+export async function contextoAsistenciaCurso(
+  cursoId: number
+): Promise<
+  | { error: string }
+  | {
+      cursos: Curso[];
+      alumnosPorCurso: Record<number, number>;
+      mostrarDeuda: boolean;
+      minRetroIso: string;
+      puedeEditar: boolean;
+    }
+> {
+  if (!(await tienePermiso("asistencia", "ver"))) return { error: "Sin permiso para ver la asistencia." };
+  const sinAcceso = await errorAccesoCurso(cursoId);
+  if (sinAcceso) return { error: sinAcceso };
+  const ctx = await cargarContextoAsistencia();
+  if (ctx.tipo === "sin_perfil") return { error: "Tu cuenta no está vinculada a un profesor." };
+  const curso = ctx.cursos.find((c) => c.id === cursoId);
+  if (!curso) return { error: "Ese curso no está disponible para tomar asistencia." };
+  return {
+    cursos: [curso],
+    alumnosPorCurso: { [cursoId]: ctx.alumnosPorCurso[cursoId] ?? 0 },
+    mostrarDeuda: ctx.mostrarDeuda,
+    minRetroIso: ctx.minRetroIso,
+    puedeEditar: ctx.puedeEditar,
+  };
 }

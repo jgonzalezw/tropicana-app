@@ -20,12 +20,14 @@
  * misma vista, con el detalle recargado.
  */
 
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import GestionReserva from "@/components/GestionReserva";
 import AvisosAfectados from "@/components/AvisosAfectados";
 import { obtenerReservaParaGestion, type DetalleGestionReserva } from "@/app/(privado)/particulares/acciones";
 import {
+  contextoAsistenciaCurso,
   obtenerClaseParaGestion,
   suspenderClase,
   reabrirSesion,
@@ -35,6 +37,12 @@ import type { AccionPendiente } from "@/lib/accionPendiente";
 import type { AvisoAlumno } from "@/lib/avisosClase";
 import { finDelSlot, type SlotSala } from "@/lib/slotSala";
 import { ETIQUETA_TIPO_SLOT } from "./SlotFila";
+
+// La asistencia embebida es el MISMO ClienteAsistencia de /asistencia, cargado
+// solo cuando se abre "Tomar asistencia" (la agenda no lo paga).
+const ClienteAsistencia = dynamic(() => import("@/app/(privado)/asistencia/ClienteAsistencia"), {
+  loading: () => <p className="text-base text-[var(--texto-tenue)]">Cargando asistencia…</p>,
+});
 
 const botonTenue =
   "px-4 py-2 text-base rounded-[var(--radio-control)] border border-[var(--borde)] hover:border-[var(--primario)] disabled:opacity-40 inline-block";
@@ -379,6 +387,7 @@ function AccionesCurso({
   slot,
   recarga,
   onAccion,
+  onSinGuardar,
   onCambio,
   onAbrirExterno,
 }: {
@@ -393,6 +402,13 @@ function AccionesCurso({
   const [clase, setClase] = useState<ClaseParaGestion | { error: string } | null>(null);
   const [propia, setPropia] = useState(0);
   const [paso, setPaso] = useState<"suspender" | "reabrir" | null>(null);
+  // Tomar/ver asistencia se resuelve en esta misma vista (ClienteAsistencia embebido).
+  const [verAsistencia, setVerAsistencia] = useState(false);
+  const cerrarAsistencia = useCallback(() => setVerAsistencia(false), []);
+  const alCambiarAsistencia = useCallback(() => {
+    setPropia((n) => n + 1);
+    onCambio();
+  }, [onCambio]);
   const [motivo, setMotivo] = useState("");
   const [resultado, setResultado] = useState<{ ok: boolean; texto: string } | null>(null);
   const [avisos, setAvisos] = useState<AvisoAlumno[]>([]);
@@ -459,7 +475,17 @@ function AccionesCurso({
       </p>
     );
 
-  const hrefAsistencia = `/asistencia?curso=${slot.cursoId}&fecha=${slot.fecha}`;
+  if (verAsistencia)
+    return (
+      <AsistenciaEmbebida
+        slot={slot}
+        onAccion={onAccion}
+        onSinGuardar={onSinGuardar}
+        alTerminar={cerrarAsistencia}
+        alCambiar={alCambiarAsistencia}
+      />
+    );
+
   const plu = (n: number) => `${n} ${n === 1 ? "alumno mensual" : "alumnos mensuales"}`;
 
   return (
@@ -498,9 +524,9 @@ function AccionesCurso({
       {!paso && (
         <div className="flex gap-2 flex-wrap items-center">
           {clase.puedeOperar && !clase.suspendida && (
-            <Link href={hrefAsistencia} className={botonTenue}>
+            <button type="button" className={botonTenue} onClick={() => setVerAsistencia(true)}>
               Tomar asistencia
-            </Link>
+            </button>
           )}
           {clase.puedeOperar && !clase.suspendida && (
             <button type="button" className={botonPeligro} onClick={() => setPaso("suspender")}>
@@ -518,9 +544,9 @@ function AccionesCurso({
             </button>
           )}
           {clase.tomada && (
-            <Link href={hrefAsistencia} className={botonTenue}>
+            <button type="button" className={botonTenue} onClick={() => setVerAsistencia(true)}>
               Ver asistencia
-            </Link>
+            </button>
           )}
         </div>
       )}
@@ -538,6 +564,91 @@ function AccionesCurso({
       <Link href="/cursos" target="_blank" rel="noopener noreferrer" onClick={onAbrirExterno} className={enlace}>
         Ver curso ↗
       </Link>
+    </div>
+  );
+}
+
+/**
+ * La asistencia de ESTA clase dentro de la vista de trabajo: pide el contexto
+ * del curso al abrir (el servidor aplica el mismo alcance que /asistencia) y
+ * monta `ClienteAsistencia` en modo embebido, con el curso y la fecha fijos.
+ */
+function AsistenciaEmbebida({
+  slot,
+  onAccion,
+  onSinGuardar,
+  alTerminar,
+  alCambiar,
+}: {
+  slot: SlotSala;
+  onAccion: (a: AccionPendiente | null) => void;
+  onSinGuardar: (hay: boolean) => void;
+  alTerminar: () => void;
+  alCambiar: () => void;
+}) {
+  type Contexto = Exclude<Awaited<ReturnType<typeof contextoAsistenciaCurso>>, { error: string }>;
+  const [ctx, setCtx] = useState<Contexto | { error: string } | null>(null);
+
+  useEffect(() => {
+    let vigente = true;
+    contextoAsistenciaCurso(slot.cursoId!).then((r) => {
+      if (vigente) setCtx(r);
+    });
+    return () => {
+      vigente = false;
+    };
+  }, [slot.cursoId]);
+
+  // Lo sin guardar también se cuenta acá: volver a las acciones lo descartaría.
+  const [hayMarcas, setHayMarcas] = useState(false);
+  const [confirmandoVolver, setConfirmandoVolver] = useState(false);
+  const alSinGuardar = useCallback(
+    (hay: boolean) => {
+      setHayMarcas(hay);
+      onSinGuardar(hay);
+    },
+    [onSinGuardar]
+  );
+  const embebido = useMemo(
+    () => ({ onAccion, onSinGuardar: alSinGuardar, alTerminar, alCambiar }),
+    [onAccion, alSinGuardar, alTerminar, alCambiar]
+  );
+
+  return (
+    <div className="space-y-4">
+      {confirmandoVolver ? (
+        <div className="flex flex-wrap items-center gap-3" role="alert">
+          <span className="text-base">Hay asistencia sin guardar. Si volvés ahora se pierde.</span>
+          <button type="button" className={botonTenue} onClick={() => setConfirmandoVolver(false)}>
+            Seguir acá
+          </button>
+          <button type="button" className={botonPeligro} onClick={alTerminar}>
+            Salir sin guardar
+          </button>
+        </div>
+      ) : (
+        <button type="button" onClick={() => (hayMarcas ? setConfirmandoVolver(true) : alTerminar())} className={enlace}>
+          ← Volver a las acciones de la clase
+        </button>
+      )}
+      {!ctx ? (
+        <p className="text-base text-[var(--texto-tenue)]">Cargando…</p>
+      ) : "error" in ctx ? (
+        <p className="text-[var(--peligro)]" role="alert">
+          {ctx.error}
+        </p>
+      ) : (
+        <ClienteAsistencia
+          cursos={ctx.cursos}
+          alumnosPorCurso={ctx.alumnosPorCurso}
+          mostrarDeuda={ctx.mostrarDeuda}
+          minRetroIso={ctx.minRetroIso}
+          puedeEditar={ctx.puedeEditar}
+          cursoInicialId={slot.cursoId}
+          fechaInicial={slot.fecha}
+          embebido={embebido}
+        />
+      )}
     </div>
   );
 }
