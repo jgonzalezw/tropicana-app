@@ -22,6 +22,8 @@ import {
 import type { EntradaAsistencia, FilaAsistencia } from "@/lib/tipos";
 import { recalcularFinDeCiclo, recalcularMembresia } from "@/lib/membresias";
 import { revertirDevengosAbiertos } from "../liquidaciones/acciones";
+import { choquesCon, ocupacionDeReservas, type ReservaSalaOcupa } from "@/lib/sala";
+import { FILTRO_ESTADOS_QUE_LIBERAN, ocupaAhora } from "@/lib/reservas";
 
 function admin() {
   const a = createAdminClient();
@@ -1183,6 +1185,52 @@ export async function ejecutarReapertura(
   return { ok: true, huboSesion: true };
 }
 
+/**
+ * Reabrir una clase suspendida vuelve a ocupar su franja: el horario tiene que
+ * seguir libre (decisión de Javier, 2026-10-02). `null` = libre; si no, el
+ * mensaje "Ocupado por [reserva]". **Nunca** toca la otra reserva: quien opera
+ * decide qué hace con ella. Una clase suspendida no ocupaba (regla 19), así que
+ * en el medio otra reserva pudo tomar su lugar. Solo mira salas propias: un curso
+ * sin sala u hora no genera bloque (igual que `ocupacionDeCursos`).
+ */
+async function errorHorarioOcupado(a: Admin, cursoId: number, fecha: string): Promise<string | null> {
+  const { data: curso } = await a
+    .from("cursos")
+    .select("sala_id, hora, duracion_min")
+    .eq("id", cursoId)
+    .maybeSingle();
+  const c = curso as { sala_id: number | null; hora: string | null; duracion_min: number | null } | null;
+  if (!c || c.sala_id == null || !c.hora || !(Number(c.duracion_min) > 0)) return null;
+
+  const { data, error } = await a
+    .from("reservas_sala")
+    .select(
+      "id, tipo, motivo, glosa, hora, duracion_min, estado, solicitada_hasta, " +
+        "membresia:membresias(alumno:alumnos(contacto:contactos(nombre, apellido)))"
+    )
+    .eq("sala_id", c.sala_id)
+    .eq("fecha", fecha)
+    .not("estado", "in", FILTRO_ESTADOS_QUE_LIBERAN);
+  if (error) return `No se pudo comprobar si el horario sigue libre: ${error.message}`;
+
+  type Fila = ReservaSalaOcupa & {
+    estado: string;
+    solicitada_hasta: string | null;
+    membresia: { alumno: { contacto: { nombre: string | null; apellido: string | null } | null } | null } | null;
+  };
+  const ahora = new Date();
+  const reservas = ((data as unknown as Fila[]) ?? [])
+    .filter((r) => ocupaAhora({ tipo: r.tipo, estado: r.estado, solicitadaHasta: r.solicitada_hasta }, ahora))
+    .map((r) => {
+      const ct = r.membresia?.alumno?.contacto;
+      return { ...r, alumnoNombre: ct ? `${ct.nombre ?? ""} ${ct.apellido ?? ""}`.trim() : null };
+    });
+  const choques = choquesCon(ocupacionDeReservas(reservas), c.hora.slice(0, 5), Number(c.duracion_min));
+  if (!choques.length) return null;
+  const b = choques[0];
+  return `No se puede reabrir: el horario está ocupado por ${b.etiqueta} (${b.hora}, ${b.duracionMin} min). Resolvé esa reserva primero.`;
+}
+
 export async function reabrirSesion(args: {
   cursoId: number;
   fecha: string;
@@ -1192,6 +1240,16 @@ export async function reabrirSesion(args: {
   const sinAcceso = await errorAccesoCurso(args.cursoId);
   if (sinAcceso) return { error: sinAcceso };
   const a = admin();
+  const { data: sus } = await a
+    .from("sesiones")
+    .select("estado")
+    .eq("curso_id", args.cursoId)
+    .eq("fecha", args.fecha)
+    .maybeSingle();
+  if ((sus as { estado: string } | null)?.estado === "suspendida") {
+    const ocupado = await errorHorarioOcupado(a, args.cursoId, args.fecha);
+    if (ocupado) return { error: ocupado };
+  }
   await ejecutarReapertura(a, args);
   revalidatePath("/asistencia");
   return { ok: true };

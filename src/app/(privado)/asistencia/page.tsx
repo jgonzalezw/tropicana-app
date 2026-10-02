@@ -8,7 +8,12 @@ import Pagina from "@/components/Pagina";
 
 export const dynamic = "force-dynamic";
 
-export default async function PaginaAsistencia() {
+export default async function PaginaAsistencia({
+  searchParams,
+}: {
+  searchParams: Promise<{ curso?: string; fecha?: string }>;
+}) {
+  const { curso: cursoParam, fecha: fechaParam } = await searchParams;
   if (!(await tienePermiso("asistencia", "ver"))) return <SinAcceso />;
 
   // Visibilidad "propio" (0043, default para el rol Profesor): el selector se
@@ -154,6 +159,8 @@ export default async function PaginaAsistencia() {
       mostrarDeuda={deudaParam !== "false"}
       minRetroIso={minRetroIso}
       puedeEditar={puedeRetro}
+      cursoInicialId={Number(cursoParam) || null}
+      fechaInicial={fechaParam ?? null}
     />
   );
 }

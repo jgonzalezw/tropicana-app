@@ -17,6 +17,8 @@ export default function ClienteAsistencia({
   mostrarDeuda,
   minRetroIso,
   puedeEditar,
+  cursoInicialId,
+  fechaInicial,
 }: {
   cursos: Curso[];
   alumnosPorCurso: Record<number, number>;
@@ -25,6 +27,10 @@ export default function ClienteAsistencia({
   minRetroIso: string;
   /** Puede cargar fechas pasadas y reabrir clases ya tomadas. */
   puedeEditar: boolean;
+  /** Entrada directa (`?curso=&fecha=`, p. ej. desde Gestionar en /sala). Solo
+   *  preselecciona: lo que se puede operar lo sigue decidiendo el servidor. */
+  cursoInicialId: number | null;
+  fechaInicial: string | null;
 }) {
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
@@ -52,9 +58,12 @@ export default function ClienteAsistencia({
     return out;
   };
 
-  const cursoInicial = cursos[0]?.id ?? null;
+  const cursoInicial = cursos.some((c) => c.id === cursoInicialId) ? cursoInicialId : (cursos[0]?.id ?? null);
   const [cursoId, setCursoId] = useState<number | null>(cursoInicial);
-  const [fecha, setFecha] = useState(fechasDelCurso(cursoInicial)[0]?.iso ?? hoyIso);
+  const [fecha, setFecha] = useState(() => {
+    const ofrecidas = fechasDelCurso(cursoInicial);
+    return ofrecidas.find((f) => f.iso === fechaInicial)?.iso ?? ofrecidas[0]?.iso ?? hoyIso;
+  });
   const [selectorAbierto, setSelectorAbierto] = useState(false);
   const [filas, setFilas] = useState<FilaAsistencia[]>([]);
   const [marcas, setMarcas] = useState<Record<number, Estado>>({});
