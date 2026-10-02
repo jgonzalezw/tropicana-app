@@ -18,16 +18,8 @@ import { useState, useTransition } from "react";
 import GestionReserva from "@/components/GestionReserva";
 import { obtenerReservaParaGestion, type DetalleGestionReserva } from "@/app/(privado)/particulares/acciones";
 import { type AgendamientoExterno } from "./acciones";
-
-const ETIQUETA_TIPO: Record<AgendamientoExterno["tipo"], string> = {
-  particular: "Particular",
-  alquiler: "Alquiler",
-};
-
-function finDe(hora: string, duracionMin: number): string {
-  const finMin = Number(hora.slice(0, 2)) * 60 + Number(hora.slice(3, 5)) + duracionMin;
-  return `${String(Math.floor(finMin / 60) % 24).padStart(2, "0")}:${String(finMin % 60).padStart(2, "0")}`;
-}
+import { filtrarSlots, type FiltroAgenda } from "@/lib/slotSala";
+import SlotFila from "./SlotFila";
 
 export default function AgendamientosExternos({
   fecha,
@@ -38,6 +30,8 @@ export default function AgendamientosExternos({
   motivosSuspension,
   incrementoMin,
   minimoMin,
+  ahora,
+  filtro,
 }: {
   fecha: string;
   /** Lo carga `ClientePanelSala` junto con las salas; `null` = primera lectura pendiente. */
@@ -49,8 +43,10 @@ export default function AgendamientosExternos({
   motivosSuspension: { valor: string; etiqueta: string }[];
   incrementoMin: number;
   minimoMin: number;
+  ahora: Date;
+  filtro: FiltroAgenda;
 }) {
-  const reservas = datos?.reservas ?? [];
+  const reservas = (datos?.reservas ?? []).filter((r) => filtrarSlots([r.slot], filtro, ahora).length > 0);
   const error = datos?.error ?? null;
 
   const [enfoqueId, setEnfoqueId] = useState<number | null>(null);
@@ -99,29 +95,12 @@ export default function AgendamientosExternos({
           <div className="space-y-2">
             {reservas.map((r) => (
               <div key={r.id} className="border-t border-[var(--borde)] first:border-t-0">
-                <div className="flex items-start gap-3 py-2">
-                  <span className="text-xs font-semibold px-2 py-1 rounded-full shrink-0 bg-[color-mix(in_srgb,var(--exito)_16%,transparent)] text-[var(--exito)]">
-                    {ETIQUETA_TIPO[r.tipo]}
-                  </span>
-                  <div className="flex-1">
-                    <div className="text-base">
-                      <strong>
-                        {r.hora.slice(0, 5)}–{finDe(r.hora, r.duracionMin)}
-                      </strong>{" "}
-                      {r.alumnoNombre ?? "Clase particular"}
-                      {r.profesorNombre ? ` · ${r.profesorNombre}` : ""}
-                    </div>
-                    <div className="text-sm text-[var(--texto-tenue)]">📍 {r.lugar}</div>
-                  </div>
-                  {r.gestionable && (
-                    <button
-                      onClick={() => (enfoqueId === r.id ? cerrarGestion() : abrirGestion(r.id))}
-                      className="text-sm text-[var(--primario)] hover:underline shrink-0"
-                    >
-                      {enfoqueId === r.id ? "Cerrar" : "Gestionar"}
-                    </button>
-                  )}
-                </div>
+                <SlotFila
+                  slot={r.slot}
+                  ahora={ahora}
+                  abierto={enfoqueId === r.id}
+                  onGestionar={() => (enfoqueId === r.id ? cerrarGestion() : abrirGestion(r.id))}
+                />
                 {enfoqueId === r.id && (
                   <div className="mb-3 ml-1 pl-3 border-l-2 border-[var(--primario)]">
                     {pendienteGestion && !detalleGestion ? (

@@ -17,6 +17,9 @@
  */
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { filtrarSlots, type FiltroAgenda } from "@/lib/slotSala";
+import SlotFila from "./SlotFila";
 import { describirTramos, describirVentanas } from "@/lib/sala";
 import { etiquetaDuracion } from "@/lib/horarios";
 import AvisoWhatsapp from "@/components/AvisoWhatsapp";
@@ -39,25 +42,12 @@ function diaLargo(iso: string): string {
 const control =
   "px-3 py-2 rounded-[var(--radio-control)] border border-[var(--borde)] bg-[var(--fondo)] text-base";
 
-const ETIQUETA_TIPO: Record<BloqueDisponibilidad["tipo"], string> = {
-  curso: "Curso",
-  particular: "Particular",
-  alquiler: "Alquiler",
-  bloqueo: "Bloqueo",
-};
-
-const CLASE_TAG: Record<BloqueDisponibilidad["tipo"], string> = {
-  curso: "bg-[color-mix(in_srgb,var(--primario)_16%,transparent)] text-[var(--primario)]",
-  particular: "bg-[color-mix(in_srgb,var(--exito)_16%,transparent)] text-[var(--exito)]",
-  alquiler: "bg-[color-mix(in_srgb,var(--exito)_16%,transparent)] text-[var(--exito)]",
-  bloqueo: "bg-[color-mix(in_srgb,var(--peligro)_14%,transparent)] text-[var(--peligro)]",
-};
-
 const vacia: DisponibilidadDia = {
   ventanas: [],
   excepcion: null,
   excepcionMotivoTexto: null,
   ocupados: [],
+  slots: [],
   tramosLibres: [],
   error: null,
 };
@@ -76,6 +66,8 @@ export default function ClienteDisponibilidadSala({
   motivosSuspension,
   incrementoMin,
   minimoMin,
+  ahora,
+  filtro,
 }: {
   salaId: number;
   salaNombre: string;
@@ -95,8 +87,14 @@ export default function ClienteDisponibilidadSala({
   motivosSuspension: { valor: string; etiqueta: string }[];
   incrementoMin: number;
   minimoMin: number;
+  /** Hora de la última lectura de la agenda (para "por cerrar"). */
+  ahora: Date;
+  /** Filtro del resumen de arriba (solicitudes / por cerrar / todo). */
+  filtro: FiltroAgenda;
 }) {
+  const router = useRouter();
   const datos = datosProp ?? vacia;
+  const slotsVisibles = filtrarSlots(datos.slots, filtro, ahora);
   const [pendiente, startTransition] = useTransition();
 
   const [mostrarForm, setMostrarForm] = useState(false);
@@ -255,53 +253,42 @@ export default function ClienteDisponibilidadSala({
           </div>
         ) : (
           <div className="space-y-2">
-            {datos.ocupados.length === 0 ? (
-              <p className="text-base text-[var(--texto-tenue)]">Sin nada ocupado todavía.</p>
+            {slotsVisibles.length === 0 ? (
+              <p className="text-base text-[var(--texto-tenue)]">
+                {filtro === "todo" ? "Sin nada ocupado todavía." : "Nada pendiente en esta sala."}
+              </p>
             ) : (
-              datos.ocupados.map((b, i) => {
-                const ini = b.hora;
-                const finMin = Number(ini.slice(0, 2)) * 60 + Number(ini.slice(3, 5)) + b.duracionMin;
-                const fin = `${String(Math.floor(finMin / 60) % 24).padStart(2, "0")}:${String(finMin % 60).padStart(2, "0")}`;
-                const id = b.id;
+              slotsVisibles.map((sl) => {
+                const id = sl.reservaId;
                 return (
-                  <div key={b.id ?? `curso-${i}`} className="border-t border-[var(--borde)] first:border-t-0">
-                    <div className="flex items-start gap-3 py-2">
-                      <span className={`text-xs font-semibold px-2 py-1 rounded-full shrink-0 ${CLASE_TAG[b.tipo]}`}>
-                        {ETIQUETA_TIPO[b.tipo]}
-                      </span>
-                      <div className="flex-1">
-                        <div className="text-base">
-                          <strong>
-                            {ini}–{fin}
-                          </strong>{" "}
-                          {b.etiqueta}
-                        </div>
-                        {b.detalle && <div className="text-sm text-[var(--texto-tenue)]">{b.detalle}</div>}
-                        {b.notas && (
-                          <div className="text-sm text-[var(--texto-tenue)] mt-0.5">📝 {b.notas}</div>
-                        )}
-                      </div>
-                      {/* H4: reemplaza el link directo a la ficha completa — la
-                          intención acá es actuar sobre ESTA reserva, no ver
-                          todas las de la membresía (Javier, 26/09). */}
-                      {b.gestionable && id != null && (
-                        <button
-                          onClick={() => (enfoqueId === id ? cerrarGestion() : abrirGestion(id))}
-                          className="text-sm text-[var(--primario)] hover:underline shrink-0"
-                        >
-                          {enfoqueId === id ? "Cerrar" : "Gestionar"}
-                        </button>
-                      )}
-                      {puedeEditar && b.id != null && b.tipo === "bloqueo" && (
-                        <button
-                          onClick={() => pedirCancelacion(b)}
-                          className="text-sm text-[var(--texto-tenue)] hover:text-[var(--peligro)]"
-                        >
-                          Cancelar
-                        </button>
-                      )}
-                    </div>
-                    {enfoqueId === b.id && (
+                  <div key={sl.clave} className="border-t border-[var(--borde)] first:border-t-0">
+                    <SlotFila
+                      slot={sl}
+                      ahora={ahora}
+                      abierto={id != null && enfoqueId === id}
+                      onGestionar={() => {
+                        if (id == null) {
+                          router.push(`/asistencia?curso=${sl.cursoId}&fecha=${sl.fecha}`);
+                          return;
+                        }
+                        if (enfoqueId === id) cerrarGestion();
+                        else abrirGestion(id);
+                      }}
+                      extra={
+                        puedeEditar && id != null && sl.tipo === "bloqueo" ? (
+                          <button
+                            onClick={() => {
+                              const b = datos.ocupados.find((o) => o.id === id);
+                              if (b) pedirCancelacion(b);
+                            }}
+                            className="text-sm text-[var(--texto-tenue)] hover:text-[var(--peligro)]"
+                          >
+                            Cancelar
+                          </button>
+                        ) : null
+                      }
+                    />
+                    {id != null && enfoqueId === id && (
                       <div className="mb-3 ml-1 pl-3 border-l-2 border-[var(--primario)]">
                         {pendienteGestion && !detalleGestion ? (
                           <p className="text-sm text-[var(--texto-tenue)]">Cargando…</p>

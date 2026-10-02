@@ -211,6 +211,8 @@ export type BloqueOcupado = {
   etiqueta: string;
   /** Para quién / de quién: el profesor, el comprador. `null` si no aplica. */
   detalle: string | null;
+  /** Solo en bloques de curso: a cuál. */
+  cursoId?: number;
 };
 
 /** Lo mínimo que hay que leer de un curso para saber si ocupa la sala. */
@@ -262,6 +264,7 @@ export function ocupacionDeCursos(
       duracionMin: Number(c.duracion_min),
       etiqueta: c.nombre,
       detalle: `Clase regular · ${etiquetaDuracion(c.duracion_min)}`,
+      cursoId: c.id,
     }));
 }
 
