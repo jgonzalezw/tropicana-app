@@ -121,6 +121,8 @@ Del diagnóstico del 2026-10-02, lo que no se tocó:
   no cambian; leerlos una vez o cachearlos.
 - **Tamaño del JS** (3,7 MB sin minificar en dev): revisar qué pesa en producción.
 - **Tabla de sesiones**: revisar su volumen e índices a medida que crezca.
+- **Tabla de sesiones para reportes** (decisión 2026-10-02, no por rendimiento):
+  diseñar la tabla/vista de sesiones pensada para reportes.
 - Verificar en producción (Vercel Observability / Supabase logs) el efecto real.
 
 ## Decisiones postergadas que además son trabajo
