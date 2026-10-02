@@ -54,3 +54,34 @@ export function planificarSesiones(
     leftoverMin: minutos - necesarias * agenda.duracionMin,
   };
 }
+
+export type AgendaValor = {
+  salaTipo: "propia" | "externa";
+  salaId: number | null;
+  nombreExterna: string;
+  fechaInicio: string;
+  diasSemana: number[];
+  hora: string;
+  duracionMin: number;
+};
+
+/** Horas de inicio posibles: de 06:00 a 23:00 en pasos del incremento estándar (nunca se escribe a mano). */
+export function opcionesHora(incrementoMin: number): string[] {
+  const paso = Math.max(5, incrementoMin);
+  const out: string[] = [];
+  for (let m = 6 * 60; m <= 23 * 60; m += paso) {
+    out.push(`${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`);
+  }
+  return out;
+}
+
+/** Qué falta para poder revisar la agenda (en palabras), o null si está completa. */
+export function faltaAgenda(v: AgendaValor, esFija: boolean, horaAlineadaOk: boolean): string | null {
+  if (v.salaTipo === "propia" && !v.salaId) return "la sala";
+  if (v.salaTipo === "externa" && !v.nombreExterna.trim()) return "el nombre de la sala externa";
+  if (!v.fechaInicio) return "la fecha de inicio";
+  if (esFija && v.diasSemana.length === 0) return "al menos un día de la semana";
+  if (!v.hora || !horaAlineadaOk) return "una hora de inicio válida";
+  if (!(v.duracionMin > 0)) return "la duración";
+  return null;
+}
