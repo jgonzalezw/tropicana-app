@@ -233,9 +233,10 @@ lee **antes** de mirar ramas.
      proceso 8) y se avisa. El recargo de extensión de **particulares** pasa a
      respetar el mismo tope.
      **ESTADO H7 al cierre de sesión (2026-10-01):** tandas **1 y 2 construidas y
-     verificadas en dev, sin push** (commits locales `ad7bb2d` y `db8a2c2` sobre
-     `main`; migraciones **0060 y 0061 solo en dev**, producción sigue en 0059).
-     La tanda 2 (venta de alquiler, `/alquileres`, cobro en Caja, controles 43–44)
+     verificadas en dev**, en la rama **`h7-alquiler`** (desde `origin/main`
+     `c9e579a`; ordenada el 2026-10-01, `main` queda limpio); migraciones **0060 y
+     0061 solo en dev**, producción sigue en 0001–0059 + 0062.
+     La tanda 2 (venta de alquiler, `/alquileres`, cobro en Caja, controles 44–45; el 43 es el del cierre de cuentas)
      se probó de punta a punta en el navegador; detalle en `docs/ESTADO.md`
      ("C3 — H7: tanda 2"). **Falta:** *(a)* **tanda 3**, el titular como contacto
      (alta persona/organización, NIT, redes, consentimiento, persona de contacto
