@@ -91,6 +91,7 @@ pierden y se vuelven a discutir, o peor, se contradicen sin que nadie lo note.
 | D28 | **Corregir o anular una venta ya cobrada entera.** Hoy la única corrección posible después de vender es un descuento en Caja, y solo mientras la cuota tenga saldo (`registrarCobro`, `cuentas.ts`): rechaza si ya está saldada. No existe ningún `anular*`/`editar*` de una membresía, cuota o pago. Surgió con el caso de Manuel Aguilar (membresía particular 44, producción, 26/09): pidió un descuento de Bs 60 sobre un total de Bs 420 — resoluble hoy porque la cuota seguía pendiente sin ningún pago —, pero si hubiera estado saldada no habría forma de corregirla sin tocar la base a mano. | Pendiente (surgida el 2026-09-26/27) | Anular una venta ya cobrada mueve plata real (caja, y eventualmente comisión) — no es un ajuste de datos, es una decisión de negocio: ¿se genera un pago negativo, una nota de crédito, un motivo propio? Merece su propio diseño, no una función suelta. | Cuando aparezca un caso real con la cuota ya saldada (el de Manuel Aguilar no lo fue) o cuando se decida el modelo de "nota de crédito"/reverso para cualquier venta. |
 | D29 | **Simulación anticipada de la pre-liquidación.** Correr el informe antes del fin del período, simulando que ya cerró: tratar como completadas las membresías activas con fin dentro del período y cobradas al 100%, contar como dictadas las clases futuras para que no traben, y rotular "Simulación al <fecha>" (también en el impreso). Límites a declarar: una suspensión futura no se puede prever, las ilimitadas (cuentan solo lo asistido, regla 10) se subestiman, y el saldo es el de hoy. Esfuerzo estimado: +15–20% sobre el informe (capa pura `simularCierre`, rótulo y un botón más; el motor real no se toca). | Pendiente (Javier, 2026-10-01: *"solo el cierre real"*) | La necesidad real es anticipar acciones correctivas dentro del mes, pero el informe del cierre ya cubre lo urgente (septiembre) y el costo no se justifica antes de verlo usado. | Cuando se quiera anticipar correcciones dentro del mes en curso, o la primera vez que la pre-liquidación cerrada llegue tarde para corregir algo. |
 | D30 | ~~**Membresía que no puede completarse porque el profesor se fue.**~~ **CERRADA el 2026-10-01** (dev): al desasignar se puede liquidar el **cierre de cuentas** (avance al corte como pago a cuenta, regla 8, excepción; migración 0062, `tipo='cierre'`) y toda asignación nueva pide su fecha de inicio. Las membresías quedan pendientes hasta que un profesor las complete. Falta el lado particulares (etapa 2). | **Cerrada (dev)** | — | — |
+| D31 | **El profesor gestiona sus propias reservas de alquiler** (cuando él es el titular del alquiler), bajo permisos. Diseño previsto (Hito C del plan del 2026-10-02): `alquileres` entra a `MODULOS_CON_ALCANCE`; con alcance `propio` el dueño es el **titular** (`membresias.contacto_id` = el contacto de su ficha de profesor), aplicado a `/alquileres`, su detalle, las acciones de reserva y `/sala`; migración que le da al Profesor `alquileres` ver + editar con alcance `propio` (vender sigue sin permiso). El lado **particulares ya existe** (ver/crear/editar `propio` desde la 0056): solo falta probarlo de punta a punta con la cuenta de un profesor. | **Postergada** (Javier, 2026-10-02: *"quedará postergado hasta subir la prioridad"*) | Primero va la gestión de reservas de alquiler por el personal (Hito B), que es lo que hace falta para empezar a vender. | Cuando un profesor alquile la sala y necesite gestionar él mismo sus reservas, o cuando Javier suba la prioridad. Requiere que el Hito B esté construido. |
 
 ## 1.b Decisiones tomadas, y su estado de construcción
 
@@ -186,87 +187,16 @@ se actualiza en el mismo commit que cierra cada hito, y una sesión nueva lo
 lee **antes** de mirar ramas.
 
 - **Cierre de cuentas: EN PRODUCCIÓN desde el 2026-10-01** (PR #6, `main` `95a0edb`, migración 0062; ver §4). Isabel Góngora desasignada con corte 10/09, avance liquidado y pagado en Caja, verificado por Javier.
-- **Rama activa:** `main`. **H5 y Paso 4 en producción** (0058 y 0059 aplicadas
-  el 2026-10-01; producción en 0001–0059).
-- **Último hito cerrado:** informe de pre-liquidación (2026-10-01, **en producción**,
-  chip `#9a9ff64`; ver `docs/ESTADO.md`, "Informe de pre-liquidación"). Probado
-  también con una cuenta de Profesor: sin botón y "Sin acceso" por URL directa.
-  Antes: depuración de los datos de inicio (en producción, §4) y H5 + Paso 4.
-- **Qué sigue (actualizado el 2026-10-01):**
-  1. **C3, con prioridad en alquileres** (Javier: *"la prioridad ahora son los
-     alquileres"*): **H7 alquiler primero**, luego H6 extensión de membresía, H8
-     talleres (pasa por Design) y H9 horario hábil. Al abrir H7 se arma su plan
-     propio, con el backlog que toque (D5, lado alquiler) y la consulta de si la
-     pantalla tiene mockup (regla de proceso 3).
-     **H7 arrancó el 2026-10-01 (Javier):** **Design primero** (prompt en
-     `docs/relevamientos/2026-10-01-H7-prompt-design-alquiler.md`; **handoff
-     recibido el mismo día**, ya sincronizado — incluye el bloque del titular como
-     contacto, así que no se espera nada más de Design); las horas de alquiler se venden **solo en los paquetes de la tabla**
-     de Precios (sin horas libres); sala externa **si el plan lo permite**. En
-     **dev** se copiaron los 12 precios de Profesor de Tropicana a Alumno,
-     Profesor externo y Tercero (36 celdas); **producción tiene 1 paquete de horas y
-     9 celdas**: se carga a mano (o con OK explícito) antes de vender el primer
-     alquiler. **Permiso: módulo nuevo `alquileres`** (Javier, 2026-10-01; regla de proceso 11:
-     entra a Roles y Permisos con su migración). Segundo prompt, sobre el titular
-     como contacto (persona vs. organización, documentos, consentimiento):
-     `docs/relevamientos/2026-10-01-H7-prompt-design-contactos-alquiler.md`.
-     **D23, decidida para este caso (Javier, 2026-10-01): el documento (NIT) es
-     obligatorio en el contexto "Tercero · organización"** (matriz de mínimos,
-     celda `tercero_org`/`documento` = `O`). Aplicado en **dev**; la migración de H7
-     lo incluye (idempotente) para que llegue a producción (regla de calidad 7).
-     Para los demás contextos el documento sigue oculto.
-     **Recibido el handoff de Design (2026-10-01) y plan en tres tandas**, validando
-     en dev entre cada una: **(1)** base — permiso `alquileres`, plan de alquiler y
-     nombres editables en Precios (**construida en dev el 2026-10-01**, migración
-     **0060**); **(2)** la venta (categoría, precio de la tabla, reservas, cobro,
-     `/alquileres`); **(3)** el titular como contacto (persona/organización, NIT,
-     persona de contacto). **Decisiones de Javier del 2026-10-01 al revisar el
-     mockup:** *(a)* la categoría de cliente de un alquiler la gobierna un
-     **parámetro** (`alquiler_categoria_modo`: `automatica` — arranca así — o
-     `editable` con glosa obligatoria) que fija la gerente según su política;
-     corrige la regla 24 y la definición v2, que decían "la persona la puede
-     cambiar" y el mockup dejó fija; *(b)* **una persona de contacto puede trabajar
-     en varias organizaciones** (el prototipo mostraba una sola); *(c)* el **recargo
-     de extensión tiene tope por parámetro** (`extension_recargo_max_pct`, 100 —la
-     base ya limita a 100—). **Desviación consciente del mockup:** Design pide
-     ocultar el simulador "Cómo lo resuelve una particular" de Precios porque
-     "contradice v2", pero H5 (decisión 1 del 2026-09-27, vigente) calcula el costo
-     de sala de una particular con esa misma matriz; se **conserva** (regla de
-     proceso 8) y se avisa. El recargo de extensión de **particulares** pasa a
-     respetar el mismo tope.
-     **ESTADO H7 al cierre de sesión (2026-10-01):** tandas **1 y 2 construidas y
-     verificadas en dev**, en la rama **`h7-alquiler`** (desde `origin/main`
-     `c9e579a`; ordenada el 2026-10-01, `main` queda limpio); migraciones **0060 y
-     0061 solo en dev**, producción sigue en 0001–0059 + 0062.
-     La tanda 2 (venta de alquiler, `/alquileres`, cobro en Caja, controles 44–45; el 43 es el del cierre de cuentas)
-     se probó de punta a punta en el navegador; detalle en `docs/ESTADO.md`
-     ("C3 — H7: tanda 2"). **Falta:** *(a)* **tanda 3**, el titular como contacto
-     (alta persona/organización, NIT, redes, consentimiento, persona de contacto
-     `trabaja_en` en varias organizaciones, patrón N70); *(b)* decidir si se
-     enchufa la **gestión de reservas de H3** (confirmar/reprogramar/cancelar) a
-     `/alquileres`, hoy solo lectura; *(c)* probar 375 px, sala externa (el plan
-     de prueba no la permite) y el modo `editable` de categoría; *(d)* **pase a
-     producción solo con OK de Javier**: antes cargar la tabla de precios de
-     alquiler en producción (1 paquete y 9 celdas hoy), ensayo en seco de 0060 y
-     0061, medir antes/después, controles, `get_advisors`, un solo push.
-     **Dato de dev para probar:** se cargó `sala_horario_patron` de la sala 1
-     (09:00–22:00, todos los días); sin horario la sala no es reservable.
-     **Plan vigente desde el 2026-10-01 — "Ventas y contactos con el mismo
-     comportamiento"** (ver §1.b): la tanda 3 se construye junto con las piezas
-     comunes y después se migran los demás flujos, en etapas validadas en dev:
-     **E1** piezas comunes + alquiler completo (**construida y probada en dev el 2026-10-02**: sin migración 0063, el módulo `contactos` ya existía);
-     **E2** particulares; **E3** inscripción regular + prueba; **E4** altas en
-     Alumnos y Profesores (agregar rol a un contacto existente).
-     **EN PRODUCCIÓN desde el 2026-10-02** (0060 y 0061, ver §4). **E1 a E4 construidas y probadas en dev el 2026-10-02** (rama `h7-alquiler`,
-     detalle en `docs/ESTADO.md`, "Cierre de la tanda de ventas"). **Falta antes
-     del pase:** validación de Javier en su local, 375 px, cortesía y agenda fija
-     de particulares, sala externa y categoría `editable` de alquiler, pruebas de
-     `buscarDuplicado`/`asegurarRol`, "Ver ficha ↗", y decidir si la gestión de
-     reservas de H3 se enchufa a `/alquileres`.
-  2. **Después de C3, sin urgencia:** filtros por profesor y período en
-     Liquidaciones (pantalla existente: se avisa antes de construir).
-  3. **Postergada:** D29, simulación anticipada de la pre-liquidación (§1, con su
-     disparador).
+- **H7 alquiler + ventas y contactos unificados: EN PRODUCCIÓN desde el 2026-10-02** (0060 y 0061, PR #8, `main` `aa47824`; ver §4). Producción en migraciones **0001–0062**.
+- **Rama activa:** `main` (la rama `h7-alquiler` ya está mergeada; cualquier cambio nuevo sale de `main`).
+- **Último hito cerrado:** H7 + ventas unificadas (E1–E4), más el arreglo del icono del selector de fecha en Edge (`color-scheme: dark`, ver `docs/ESTADO.md`, "Pase a producción de H7").
+- **Qué sigue (plan aprobado por Javier el 2026-10-02; los alquileres ya se empiezan a vender y hoy no se pueden gestionar sus reservas):**
+  1. **Hito A — pruebas pendientes** (primero, en dev y en el navegador): alquiler con sala externa, categoría `editable` (glosa obligatoria; volver a `automatica`), cortesía y agenda fija de particulares, pruebas automáticas de `buscarDuplicado`/`asegurarRol`, control de contactos duplicados en `control_migracion.sql`, "Ver ficha ↗". (375 px ya se recorrió.)
+  2. **Hito B — gestión de reservas de alquiler, sin migración:** generalizar las acciones de H3 de `particulares/acciones.ts` con un resolvedor por tipo de membresía (módulo de permiso, dueño, personas, avisos); pantalla `/alquileres/[id]` con el componente de reservas de `/particulares/[id]` hecho neutro; aviso al titular o a su persona de contacto. **Corrige un bug que ya está en producción:** `/sala` marca gestionable una reserva de alquiler pero `obtenerReservaParaGestion` solo acepta `tipo='particular'` ("Esa reserva no existe").
+  3. **Hito C — el profesor gestiona sus reservas: POSTERGADO** (D31, §1).
+  4. Después: H6 extensión de membresía, H8 talleres (pasa por Design) y H9 horario hábil.
+  5. **Sin urgencia:** filtros por profesor y período en Liquidaciones (pantalla existente: se avisa antes de construir). **Postergada:** D29.
+  - Plan completo (archivos, pasos y verificación) en `docs/relevamientos/2026-10-02-plan-alquileres-reservas.md`. Crear el plan de alquiler en producción lo hace Natalia cuando decida (la tabla de precios ya está cargada).
   - La **proyección de liquidez se quitó** de los pendientes (Javier, 2026-10-01).
 - **Sin registrar al 2026-10-01 (medido en dev, copia de producción):** cinco
   clases de septiembre con alumnos (28/09 Tropicoreografico; 29/09 Contemporaneo
