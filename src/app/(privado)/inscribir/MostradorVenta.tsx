@@ -144,6 +144,9 @@ export default function MostradorVenta(props: {
           diasCompromiso={props.diasCompromiso}
           incrementoMin={props.incrementoAlquilerMin}
           minimoMin={props.minimoAlquilerMin}
+          matriz={props.matriz}
+          listas={props.listasContacto}
+          puedeVerPrivados={props.puedeVerPrivados}
         />
       ) : vendibles.length > 0 ? (
         <div>
