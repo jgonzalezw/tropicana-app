@@ -72,7 +72,7 @@ Tamaño: **S** = un rato · **M** = un hito chico · **L** = un hito propio.
 
 | # | Qué es | Rebanada | Tamaño |
 | --- | --- | --- | --- |
-| R14 | **App Shell a 7 grupos.** La barra lateral tiene 3 grupos (General · Gestión · Administración); el App Shell diseñado tiene 7. Es el **Paso 3**. | Paso 3 | M |
+| R14 | **App Shell a 7 grupos.** La barra lateral tiene 3 grupos (General · Gestión · Administración); el App Shell diseñado tiene 7. Es el **Paso 3**. **Interacción a resolver (2026-10-02):** la barra inferior de navegación y el «+» flotante previstos en `PLAN_UX_DANZE` chocarían con la barra fija de acciones de la vista de trabajo de `/sala` (y de toda venta). Ya quedó la puerta abierta: la barra de acciones se ancla al contenedor de contenido y apoya en `--shell-barra-inferior`; las medidas del shell son variables CSS en `globals.css`; en **modo enfoque el shell se atenúa** (`DECISIONES.md` §1.b). Al construir el App Shell: usar esas variables y las clases `shell-cabecera` / `shell-nav-inferior`, y no poner un «+» flotante donde haya barra de acciones. | Paso 3 | M |
 | R15 | **Alineación UX del resto de pantallas.** Cursos, Profesores, Dashboard y navegación siguen en el backlog de `docs/PLAN_UX_DANZE.md`. | Paso 6 | L |
 
 ## 5. Datos pendientes

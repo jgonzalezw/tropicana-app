@@ -71,6 +71,15 @@ export default function VistaGestion({
   const [confirmandoSalida, setConfirmandoSalida] = useState(false);
   const [recarga, setRecarga] = useState(0);
 
+  // Modo enfoque: mientras esta vista está abierta el shell se atenúa (ver
+  // globals.css) para que la barra de acciones sea lo único que pide atención.
+  useEffect(() => {
+    document.documentElement.dataset.modoEnfoque = "1";
+    return () => {
+      delete document.documentElement.dataset.modoEnfoque;
+    };
+  }, []);
+
   // Al volver el foco desde una pestaña que esta vista abrió (ficha, curso,
   // cobro), el detalle se recarga: pudo cambiar allá.
   const abrioExterno = useRef(false);
@@ -221,16 +230,17 @@ function BarraGestion({
 }) {
   const teclado = useAlturaTeclado();
   return (
-    <>
-      {/* Reserva el alto de la barra para que no tape el último bloque. */}
-      <div className="h-40 min-[640px]:h-24" aria-hidden />
-      <div
-        className="fixed left-0 right-0 min-[900px]:left-64 bg-[var(--fondo-panel)] border-t border-[var(--borde)] pt-3 z-10"
-        style={{
-          bottom: teclado,
-          paddingBottom: teclado > 0 ? "0.75rem" : "calc(0.75rem + env(safe-area-inset-bottom))",
-        }}
-      >
+    // Anclada al contenedor de contenido (sticky), no a la ventana: acompaña el
+    // ancho de la pantalla y se apoya sobre la barra inferior del shell, sea la
+    // que sea (`--shell-barra-inferior`, hoy 0). Sin medidas escritas a mano.
+    <div
+      className="sticky -mx-6 sm:-mx-8 mt-6 bg-[var(--fondo-panel)] border-t border-[var(--borde)] pt-3 z-10"
+      style={{
+        bottom: `calc(var(--shell-barra-inferior) + ${teclado}px)`,
+        paddingBottom: teclado > 0 ? "0.75rem" : "calc(0.75rem + env(safe-area-inset-bottom))",
+      }}
+    >
+      <div>
         <div className="px-6 sm:px-8 flex items-center gap-3 flex-wrap">
           <div className="flex-1 min-w-[12rem] text-base" aria-live="polite">
             {confirmandoSalida ? (
@@ -278,7 +288,7 @@ function BarraGestion({
           )}
         </div>
       </div>
-    </>
+    </div>
   );
 }
 
