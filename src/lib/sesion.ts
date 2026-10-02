@@ -117,3 +117,31 @@ export async function alcancePropioDe(modulo: string): Promise<{ propio: boolean
   const profesor = await obtenerProfesorActual();
   return { propio: true, profesorId: profesor?.id ?? null };
 }
+
+/**
+ * Los cursos que un profesor tiene hoy como titular (asignación vigente). Es la
+ * regla de "propio" para cursos: la usan la lista de Asistencia y el guardia de
+ * servidor (`errorAccesoCurso`), para que las dos digan lo mismo.
+ */
+export async function cursosDeProfesor(profesorId: number): Promise<number[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("asignaciones")
+    .select("curso_id")
+    .eq("profesor_id", profesorId)
+    .is("hasta", null);
+  return ((data as { curso_id: number }[]) ?? []).map((a) => a.curso_id);
+}
+
+/**
+ * El guardia de servidor del alcance "propio" sobre un curso (módulo
+ * asistencia): que la pantalla filtre la lista no alcanza, quien decide es el
+ * servidor. `null` = puede operar el curso; si no, el mensaje para mostrar.
+ * Con alcance "todo" no consulta nada más.
+ */
+export async function errorAccesoCurso(cursoId: number): Promise<string | null> {
+  const { propio, profesorId } = await alcancePropioDe("asistencia");
+  if (!propio) return null;
+  if (profesorId == null) return "Tu cuenta no está vinculada a ningún profesor.";
+  return (await cursosDeProfesor(profesorId)).includes(cursoId) ? null : "Ese curso no es tuyo.";
+}

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { tienePermiso, obtenerParametro, obtenerPerfilActual } from "@/lib/sesion";
+import { tienePermiso, obtenerParametro, obtenerPerfilActual, errorAccesoCurso } from "@/lib/sesion";
 import { compararPorApellido } from "@/lib/texto";
 import { diaIso } from "@/lib/inscripcion";
 import { cargarImpacto, liquidacionesTocadas, avisoDeImpacto } from "@/lib/periodos";
@@ -244,6 +244,8 @@ export async function cargarPadron(
   };
   if (!(await tienePermiso("asistencia", "ver"))) return vacio;
   if (!ISO.test(fecha)) return vacio;
+  const sinAcceso = await errorAccesoCurso(cursoId);
+  if (sinAcceso) return { ...vacio, error: sinAcceso };
 
   const sb = await createClient();
 
@@ -806,6 +808,8 @@ export async function guardarAsistencia(
   if (!(await tienePermiso("asistencia", "crear")))
     return { error: "No tenés permiso para registrar asistencia." };
   if (!e.marcas.length) return { error: "No hay nada marcado." };
+  const sinAcceso = await errorAccesoCurso(e.cursoId);
+  if (sinAcceso) return { error: sinAcceso };
   const errFecha = await validarFecha(e.cursoId, e.fecha);
   if (errFecha) return { error: errFecha };
 
@@ -1119,6 +1123,8 @@ export async function suspenderClase(args: {
 }): Promise<{ ok?: true; resumen?: string; error?: string }> {
   if (!(await tienePermiso("asistencia", "crear")))
     return { error: "No tenés permiso para suspender clases." };
+  const sinAcceso = await errorAccesoCurso(args.cursoId);
+  if (sinAcceso) return { error: sinAcceso };
   const errFecha = await validarFecha(args.cursoId, args.fecha);
   if (errFecha) return { error: errFecha };
 
@@ -1183,6 +1189,8 @@ export async function reabrirSesion(args: {
 }): Promise<{ ok?: true; error?: string }> {
   if (!(await tienePermiso("asistencia", "crear")))
     return { error: "No tenés permiso." };
+  const sinAcceso = await errorAccesoCurso(args.cursoId);
+  if (sinAcceso) return { error: sinAcceso };
   const a = admin();
   await ejecutarReapertura(a, args);
   revalidatePath("/asistencia");

@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { tienePermiso, obtenerParametro, alcanceDe, obtenerProfesorActual } from "@/lib/sesion";
+import { tienePermiso, obtenerParametro, alcanceDe, obtenerProfesorActual, cursosDeProfesor } from "@/lib/sesion";
 import SinAcceso from "@/components/SinAcceso";
 import { exigir } from "@/lib/datos";
 import ClienteAsistencia from "./ClienteAsistencia";
@@ -45,7 +45,7 @@ export default async function PaginaAsistencia() {
     deudaParam,
     semanasParam,
     puedeRetro,
-    { data: asignacionesPropias },
+    cursosPropios,
   ] = await Promise.all([
     supabase.from("cursos").select("*").eq("activo", true).order("nombre"),
     supabase
@@ -58,13 +58,7 @@ export default async function PaginaAsistencia() {
     obtenerParametro("mostrar_deuda"),
     obtenerParametro("asistencia_semanas_retro"),
     tienePermiso("asistencia", "editar"),
-    profesorActual
-      ? supabase
-          .from("asignaciones")
-          .select("curso_id")
-          .eq("profesor_id", profesorActual.id)
-          .is("hasta", null)
-      : Promise.resolve({ data: [] as { curso_id: number }[] }),
+    profesorActual ? cursosDeProfesor(profesorActual.id) : Promise.resolve([] as number[]),
   ]);
 
   // Visibilidad "propio": el selector se acota a los cursos donde el usuario
@@ -72,9 +66,7 @@ export default async function PaginaAsistencia() {
   // al tomar esa asistencia puntual, regla de negocio 20, no es "su curso").
   const cursos =
     alcance === "propio"
-      ? (cursosRows ?? []).filter((c) =>
-          ((asignacionesPropias as { curso_id: number }[]) ?? []).some((a) => a.curso_id === c.id)
-        )
+      ? (cursosRows ?? []).filter((c) => cursosPropios.includes(c.id))
       : (cursosRows ?? []);
 
   // Ventana de carga retroactiva (semanas). Sin permiso de edición, solo hoy.
