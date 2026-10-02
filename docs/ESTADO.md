@@ -4878,3 +4878,15 @@ curso suspendido (28/09, atenuado, horario libre); con un bloqueo creado en su h
 a la vez y «Reabrir» deshabilitado con «ocupado por…»; bloqueo quitado después. `tsc`, `eslint`,
 `npm test` (269) en verde. **No probado:** el efecto de «Suspender» en un curso programado y el
 rol sin alcance (la sesión se cerró en medio de la prueba). Diferidos en `ROADMAP.md`.
+
+## /sala: gestionar sin salir de la pantalla (2026-10-02, dev; sin push)
+
+Cinco pasos, un commit cada uno, en `hito-b-reservas-alquiler`. Decisión en `DECISIONES.md` §1.b, «La gestión no saca de /sala».
+
+1. **Estado real de la clase** (`slotSala.ts`): una sesión sin marcas de asistencia es «Programada», no «Asistencia tomada» (arreglo de la etiqueta falsa tras reabrir).
+2. **Avisos** (`src/lib/avisosClase.ts`, `AvisosAfectados`): `suspenderClase` y `reabrirSesion` devuelven los avisos de WhatsApp; los muestran Tomar asistencia y /sala.
+3. **Vista de trabajo** (`sala/VistaGestion.tsx`, reemplaza a `PanelGestionar`): URL `?fecha=&gestionar=` con `push`, barra fija con la acción nombrada, recarga al recuperar el foco, `next/dynamic`. Ajuste del shell: barra `sticky` anclada al contenido, variables `--shell-*` y modo enfoque (`globals.css`).
+4. **Asistencia embebida**: `ClienteAsistencia` con prop `embebido` (sin selectores ni título; el guardar va a la barra fija; avisa lo sin guardar). El contexto sale de `src/lib/contextoAsistencia.ts`, compartido por `/asistencia` y la acción `contextoAsistenciaCurso`.
+5. **Pulido y docs**: objetivos táctiles de 44 px en la vista, documentación.
+
+**Verificado:** `tsc`, `lint`, `npm test` (274/274). **Sin verificar en navegador** (la sesión de prueba pedía login): Atrás, primario deshabilitado sin acción, ficha en pestaña nueva + recarga, suspender → avisos, reabrir → «Programada», barra a 375 px con teclado, rol Profesor sobre un curso ajeno. Pendiente medir la latencia de `router.push` (página `force-dynamic`); si pesa, alternativa `history.pushState`.

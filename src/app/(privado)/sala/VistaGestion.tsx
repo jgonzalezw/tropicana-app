@@ -45,9 +45,9 @@ const ClienteAsistencia = dynamic(() => import("@/app/(privado)/asistencia/Clien
 });
 
 const botonTenue =
-  "px-4 py-2 text-base rounded-[var(--radio-control)] border border-[var(--borde)] hover:border-[var(--primario)] disabled:opacity-40 inline-block";
+  "min-h-11 px-4 py-2 text-base rounded-[var(--radio-control)] border border-[var(--borde)] hover:border-[var(--primario)] disabled:opacity-40 inline-block";
 const botonPeligro =
-  "px-4 py-2 text-base rounded-[var(--radio-control)] border border-[var(--peligro)] text-[var(--peligro)] hover:opacity-80 disabled:opacity-40 inline-block";
+  "min-h-11 px-4 py-2 text-base rounded-[var(--radio-control)] border border-[var(--peligro)] text-[var(--peligro)] hover:opacity-80 disabled:opacity-40 inline-block";
 const enlace = "text-base text-[var(--primario)] underline hover:no-underline";
 
 function fechaLarga(iso: string): string {
