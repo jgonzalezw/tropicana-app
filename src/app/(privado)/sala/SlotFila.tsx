@@ -56,7 +56,7 @@ export default function SlotFila({
 }: {
   slot: SlotSala;
   ahora: Date;
-  /** Su panel de gestión está abierto. */
+  /** Fue el último slot gestionado: se resalta al volver a la agenda. */
   abierto: boolean;
   onGestionar: () => void;
   /** Acción propia del tipo que no pasa por el panel (p. ej. quitar un bloqueo). */
@@ -72,7 +72,7 @@ export default function SlotFila({
 
   return (
     <div
-      className={`flex items-start gap-3 py-2 ${solicitada ? "border-l-4 border-[var(--advertencia-texto)] pl-3" : ""} ${
+      className={`flex items-start gap-3 py-2 ${abierto ? "bg-[color-mix(in_srgb,var(--primario)_10%,transparent)] rounded-[var(--radio-control)] px-2 -mx-2 " : ""}${solicitada ? "border-l-4 border-[var(--advertencia-texto)] pl-3" : ""} ${
         slot.atenuado ? "opacity-60" : ""
       }`}
     >
@@ -115,7 +115,7 @@ export default function SlotFila({
             </button>
           ) : (
             <button onClick={onGestionar} className="text-sm text-[var(--primario)] hover:underline">
-              {abierto ? "Cerrar" : "Gestionar"}
+              Gestionar
             </button>
           ))}
       </div>
