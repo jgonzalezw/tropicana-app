@@ -86,7 +86,11 @@ async function contextoReservaMembresia(a: ReturnType<typeof admin>, membresiaId
 
 /** Corte barato antes de leer nada: ¿tiene el permiso en alguno de los dos módulos? */
 async function permisoEnAlguno(accion: "ver" | "crear" | "editar"): Promise<boolean> {
-  return (await tienePermiso("particulares", accion)) || (await tienePermiso("alquileres", accion));
+  const [enParticulares, enAlquileres] = await Promise.all([
+    tienePermiso("particulares", accion),
+    tienePermiso("alquileres", accion),
+  ]);
+  return enParticulares || enAlquileres;
 }
 
 function revalidarReservas(tipo: TipoMembresiaReservas, membresiaId: number) {
@@ -696,36 +700,44 @@ export type DetalleGestionReserva = {
 };
 
 export async function obtenerReservaParaGestion(reservaId: number): Promise<DetalleGestionReserva | { error: string }> {
-  if (!(await permisoEnAlguno("ver"))) return { error: "Sin permiso para ver reservas." };
-
+  // El permiso y la lectura de la reserva no dependen entre sí: van juntos,
+  // pero nada de lo leído se usa hasta que el permiso responda que sí.
   const a = admin();
-  const { data: rRow, error: errR } = await a
-    .from("reservas_sala")
-    .select("id, fecha, hora, duracion_min, estado, solicitada_hasta, sala_id, tipo, membresia_id, es_cortesia, cortesia_motivo, sala:salas(nombre)")
-    .eq("id", reservaId)
-    .maybeSingle();
+  const [puedeVer, { data: rRow, error: errR }] = await Promise.all([
+    permisoEnAlguno("ver"),
+    a
+      .from("reservas_sala")
+      .select("id, fecha, hora, duracion_min, estado, solicitada_hasta, sala_id, tipo, membresia_id, es_cortesia, cortesia_motivo, sala:salas(nombre)")
+      .eq("id", reservaId)
+      .maybeSingle(),
+  ]);
+  if (!puedeVer) return { error: "Sin permiso para ver reservas." };
   if (errR) return { error: `No se pudo leer la reserva: ${errR.message}` };
   if (!rRow || (rRow.tipo !== "particular" && rRow.tipo !== "alquiler") || rRow.membresia_id == null) return { error: "Esa reserva no existe." };
   const tipo = rRow.tipo as TipoMembresiaReservas;
   const modulo = tipo === "alquiler" ? "alquileres" : "particulares";
-  if (!(await tienePermiso(modulo, "ver"))) return { error: `Sin permiso para ver ${tipo === "alquiler" ? "alquileres" : "clases particulares"}.` };
 
-  const { propio, profesorId } = await alcancePropioDe(modulo);
+  // Todo se lee con el cliente admin, ya autorizado abajo: el titular de un
+  // alquiler es un contacto y su select exige el permiso de ese módulo. La
+  // membresía y las comprobaciones de permiso/alcance no dependen entre sí.
+  const sb = a;
+  const [puedeVerModulo, { propio, profesorId }, { data: m, error: errM }] = await Promise.all([
+    tienePermiso(modulo, "ver"),
+    alcancePropioDe(modulo),
+    sb
+      .from("membresias")
+      .select(
+        "fecha_inicio, fecha_fin, horas_contratadas, profesor_id, plan:planes(permite_cortesia), alumno:alumnos(contacto:contactos(nombre, apellido)), " +
+          "titular:contactos(tipo, nombre, apellido, razon_social)"
+      )
+      .eq("id", rRow.membresia_id)
+      .maybeSingle(),
+  ]);
+  if (!puedeVerModulo) return { error: `Sin permiso para ver ${tipo === "alquiler" ? "alquileres" : "clases particulares"}.` };
   if (propio && tipo === "alquiler") return { error: "Tu rol ve solo los alquileres propios, y eso todavía no está habilitado." };
   if (propio && !profesorId)
     return { error: "Tu cuenta no está vinculada a ningún profesor: no podés ver clases particulares." };
 
-  // Todo se lee con el cliente admin, ya autorizado arriba: el titular de un
-  // alquiler es un contacto y su select exige el permiso de ese módulo.
-  const sb = a;
-  const { data: m, error: errM } = await sb
-    .from("membresias")
-    .select(
-      "fecha_inicio, fecha_fin, horas_contratadas, profesor_id, plan:planes(permite_cortesia), alumno:alumnos(contacto:contactos(nombre, apellido)), " +
-        "titular:contactos(tipo, nombre, apellido, razon_social)"
-    )
-    .eq("id", rRow.membresia_id)
-    .maybeSingle();
   if (errM) return { error: `No se pudo leer la membresía: ${errM.message}` };
   if (!m) return { error: "La membresía de esta reserva ya no existe." };
   type M = {
@@ -740,7 +752,7 @@ export async function obtenerReservaParaGestion(reservaId: number): Promise<Deta
   const mm = m as unknown as M;
   if (propio && mm.profesor_id !== profesorId) return { error: "Esta reserva es de otro profesor: no tenés acceso a ella." };
 
-  const [salasR, reservasR, historialR] = await Promise.all([
+  const [salasR, reservasR, historialR, etiquetaMotivo] = await Promise.all([
     sb.from("membresia_salas").select("sala_id, nombre_descriptivo, sala:salas(nombre, es_externa)").eq("membresia_id", rRow.membresia_id),
     sb.from("reservas_sala").select("estado, duracion_min, solicitada_hasta, es_cortesia").eq("membresia_id", rRow.membresia_id),
     sb
@@ -748,6 +760,7 @@ export async function obtenerReservaParaGestion(reservaId: number): Promise<Deta
       .select("reserva_id, estado_nuevo, fecha_nueva, hora_nueva, motivo, glosa, fuera_de_plazo, creado_en")
       .eq("reserva_id", reservaId)
       .order("creado_en", { ascending: true }),
+    mapaEtiquetaMotivoSuspension(sb),
   ]);
   if (salasR.error) return { error: `No se pudieron leer las salas de la membresía: ${salasR.error.message}` };
   if (reservasR.error) return { error: `No se pudo leer el saldo de la membresía: ${reservasR.error.message}` };
@@ -766,7 +779,6 @@ export async function obtenerReservaParaGestion(reservaId: number): Promise<Deta
     reservas: (reservasR.data as { estado: string; duracion_min: number; solicitada_hasta: string | null }[]) ?? [],
     ahora,
   });
-  const etiquetaMotivo = await mapaEtiquetaMotivoSuspension(sb);
   const reserva = armarReservaConHistorial(
     rRow as unknown as FilaReservaConSala,
     (historialR.data as unknown as FilaHistorialReserva[]) ?? [],
