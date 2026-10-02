@@ -51,6 +51,35 @@ const ETIQUETA_DESTINO: Record<EstadoReserva, string> = {
   realizada: "Marcar Realizada",
 };
 
+/** Cómo se llama cada acción según desde dónde se la pide. Cancelar (lo inicia
+ *  el cliente) y Suspender (lo inicia la escuela) se ven distintos a propósito. */
+function etiquetaDestino(destino: EstadoReserva, actual: EstadoReserva, tipo: "particular" | "alquiler"): string {
+  if (destino === "suspendida") return actual === "solicitada" ? "Rechazar solicitud" : "Suspender (lo decide la escuela)";
+  if (destino === "reagendar") return "Cancelar (lo pidió el cliente)";
+  if (destino === "ausente" && tipo === "alquiler") return "No se presentó";
+  return ETIQUETA_DESTINO[destino];
+}
+
+/** Qué pasa si se confirma — se muestra ANTES de confirmar (Hito B, S4). */
+function efectoDestino(destino: EstadoReserva, actual: EstadoReserva): string {
+  switch (destino) {
+    case "confirmada":
+      return "Se confirma: descuenta la hora del saldo y mantiene la sala y el profesor ocupados.";
+    case "reagendar":
+      return "Lo pidió el cliente: la hora vuelve al saldo y se libera la sala y el profesor. Si es fuera de plazo, queda como Ausente y consume la hora.";
+    case "suspendida":
+      return actual === "solicitada"
+        ? "Se rechaza la solicitud: se libera la sala y el profesor, sin tocar el saldo. Se arma un aviso para el cliente."
+        : "Lo decide la escuela: la hora vuelve al saldo (no consume) y se libera la sala y el profesor. Se arman avisos.";
+    case "ausente":
+      return "El cliente no vino: la hora se consume del saldo.";
+    case "realizada":
+      return "La clase se dio: la hora se consume del saldo.";
+    default:
+      return "";
+  }
+}
+
 const COLOR_ESTADO: Record<EstadoReserva, string> = {
   solicitada: "text-[var(--advertencia)]",
   confirmada: "text-[var(--exito)]",
@@ -258,6 +287,7 @@ export default function GestionReserva({
 
       {puedeEditar && accion === "suspendida" && (
         <div className="mt-3">
+          <p className="text-sm text-[var(--texto-tenue)] mb-2">{efectoDestino("suspendida", reserva.estado)}</p>
           <div className="max-w-sm">
             <label className={etiqueta}>Motivo de la suspensión</label>
             <select className={control} value={motivoSuspension} onChange={(e) => setMotivoSuspension(e.target.value)}>
@@ -271,7 +301,7 @@ export default function GestionReserva({
           </div>
           <div className="mt-3 flex gap-2 flex-wrap">
             <button className={botonPrimario} disabled={pendiente || !motivoSuspension} onClick={() => transicionar("suspendida", { motivo: motivoSuspension })}>
-              Confirmar suspensión
+              {reserva.estado === "solicitada" ? "Confirmar rechazo" : "Confirmar suspensión"}
             </button>
             <button className={botonTenue} onClick={() => setAccion(null)}>
               Volver
@@ -331,6 +361,24 @@ export default function GestionReserva({
         </div>
       )}
 
+      {puedeEditar && accion && accion !== "suspendida" && accion !== "reprogramada" && (
+        <div className="mt-3">
+          <p className="text-sm text-[var(--texto-tenue)] mb-2">{efectoDestino(accion, reserva.estado)}</p>
+          <div className="flex gap-2 flex-wrap">
+            <button
+              className={accion === "reagendar" ? botonPeligro : botonPrimario}
+              disabled={pendiente}
+              onClick={() => transicionar(accion)}
+            >
+              Confirmar: {etiquetaDestino(accion, reserva.estado, tipo)}
+            </button>
+            <button className={botonTenue} onClick={() => setAccion(null)}>
+              Volver
+            </button>
+          </div>
+        </div>
+      )}
+
       {puedeEditar && !accion && reserva.transicionesPermitidas.length > 0 && (
         <div className="mt-3 flex gap-2 flex-wrap">
           {reserva.transicionesPermitidas.map((destino) => (
@@ -340,12 +388,11 @@ export default function GestionReserva({
               className={destino === "reagendar" ? botonPeligro : botonTenue}
               onClick={() => {
                 setResultado(null);
-                if (destino === "suspendida") setAccion(destino);
-                else if (destino === "reprogramada") abrirReprogramar();
-                else transicionar(destino);
+                if (destino === "reprogramada") abrirReprogramar();
+                else setAccion(destino);
               }}
             >
-              {ETIQUETA_DESTINO[destino]}
+              {etiquetaDestino(destino, reserva.estado, tipo)}
             </button>
           ))}
         </div>

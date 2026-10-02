@@ -1231,6 +1231,74 @@ async function errorHorarioOcupado(a: Admin, cursoId: number, fecha: string): Pr
   return `No se puede reabrir: el horario está ocupado por ${b.etiqueta} (${b.hora}, ${b.duracionMin} min). Resolvé esa reserva primero.`;
 }
 
+/**
+ * Lo que el panel Gestionar de /sala necesita saber de UNA clase (curso + fecha)
+ * para ofrecer sus acciones y mostrar su efecto antes de confirmar: si ya está
+ * suspendida o con asistencia, a cuántos alumnos mensuales les correría el
+ * ciclo si se suspende, y si reabrirla es posible (horario libre). Lectura pura;
+ * las acciones en sí son `suspenderClase`, `reabrirSesion` y la pantalla de
+ * Tomar asistencia — una sola implementación para los dos lugares.
+ */
+export type ClaseParaGestion = {
+  cursoNombre: string;
+  suspendida: boolean;
+  motivoSuspension: string | null;
+  /** Ya hay asistencia registrada (la clase se dictó). */
+  tomada: boolean;
+  /** Alumnos mensuales con ciclo activo en este curso: a quienes una suspensión les corre el fin de ciclo. */
+  alumnosMensuales: number;
+  /** Solo si está suspendida: `null` = se puede reabrir; si no, por qué no. */
+  noSePuedeReabrir: string | null;
+  /** Puede operar (suspender/reabrir/tomar asistencia): permiso + alcance + fecha válida. */
+  puedeOperar: boolean;
+  motivoNoOperar: string | null;
+};
+
+export async function obtenerClaseParaGestion(
+  cursoId: number,
+  fecha: string
+): Promise<ClaseParaGestion | { error: string }> {
+  if (!(await tienePermiso("asistencia", "ver"))) return { error: "Sin permiso para ver la asistencia." };
+  if (!ISO.test(fecha)) return { error: "Fecha inválida." };
+  const sinAcceso = await errorAccesoCurso(cursoId);
+  if (sinAcceso) return { error: sinAcceso };
+
+  const a = admin();
+  const [{ data: curso }, { data: ses }, { data: icRows }, puedeCrear] = await Promise.all([
+    a.from("cursos").select("nombre").eq("id", cursoId).maybeSingle(),
+    a.from("sesiones").select("id, estado, motivo").eq("curso_id", cursoId).eq("fecha", fecha).maybeSingle(),
+    a
+      .from("membresia_cursos")
+      .select("membresia:membresias!inner(id, modalidad, estado, fecha_inicio)")
+      .eq("curso_id", cursoId),
+    tienePermiso("asistencia", "crear"),
+  ]);
+  if (!curso) return { error: "El curso no existe." };
+  const sesion = ses as { id: number; estado: string; motivo: string | null } | null;
+  const suspendida = sesion?.estado === "suspendida";
+
+  let tomada = false;
+  if (sesion && !suspendida) {
+    const { count } = await a.from("asistencias").select("id", { count: "exact", head: true }).eq("sesion_id", sesion.id);
+    tomada = (count ?? 0) > 0;
+  }
+  const alumnosMensuales = (
+    (icRows as unknown as { membresia: { modalidad: string; estado: string; fecha_inicio: string } }[]) ?? []
+  ).filter((r) => r.membresia.estado === "activa" && r.membresia.modalidad === "mensual" && r.membresia.fecha_inicio <= fecha).length;
+
+  const errFecha = puedeCrear ? await validarFecha(cursoId, fecha) : "No tenés permiso para operar clases.";
+  return {
+    cursoNombre: (curso as { nombre: string }).nombre,
+    suspendida,
+    motivoSuspension: suspendida ? (sesion?.motivo ?? null) : null,
+    tomada,
+    alumnosMensuales,
+    noSePuedeReabrir: suspendida ? await errorHorarioOcupado(a, cursoId, fecha) : null,
+    puedeOperar: !errFecha,
+    motivoNoOperar: errFecha,
+  };
+}
+
 export async function reabrirSesion(args: {
   cursoId: number;
   fecha: string;

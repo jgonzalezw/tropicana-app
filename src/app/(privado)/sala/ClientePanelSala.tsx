@@ -14,7 +14,8 @@ import { useEffect, useState, useTransition } from "react";
 import ClienteDisponibilidadSala from "./ClienteDisponibilidadSala";
 import AgendamientosExternos from "./AgendamientosExternos";
 import { consultarAgendaDia } from "./acciones";
-import { resumirAgenda, type FiltroAgenda } from "@/lib/slotSala";
+import { resumirAgenda, type FiltroAgenda, type SlotSala } from "@/lib/slotSala";
+import PanelGestionar from "./PanelGestionar";
 
 function hoyISO(): string {
   const d = new Date();
@@ -48,6 +49,8 @@ export default function ClientePanelSala({
   // Cuándo se leyó la agenda: "por cerrar" se mide contra ese momento.
   const [ahora, setAhora] = useState(() => new Date());
   const [filtro, setFiltro] = useState<FiltroAgenda>("todo");
+  // El slot con el panel Gestionar abierto: uno solo para toda la pantalla.
+  const [enfoque, setEnfoque] = useState<SlotSala | null>(null);
   const salaIds = salas.map((s) => s.id);
   const claveSalas = salaIds.join(",");
 
@@ -58,6 +61,17 @@ export default function ClientePanelSala({
       setAgenda(a);
       setAhora(new Date());
     });
+  }
+
+  // Cambiar de fecha cierra el panel: el slot enfocado puede no estar en el día nuevo.
+  const [fechaVista, setFechaVista] = useState(fecha);
+  if (fecha !== fechaVista) {
+    setFechaVista(fecha);
+    setEnfoque(null);
+  }
+
+  function alternarEnfoque(sl: SlotSala) {
+    setEnfoque((actual) => (actual?.clave === sl.clave ? null : sl));
   }
 
   useEffect(() => {
@@ -123,12 +137,10 @@ export default function ClientePanelSala({
             motivos={motivos}
             opcionesDuracionMin={opcionesDuracionMin}
             puedeEditar={puedeEditar}
-            salasPropias={salas}
-            motivosSuspension={motivosSuspension}
-            incrementoMin={incrementoMin}
-            minimoMin={minimoMin}
             ahora={ahora}
             filtro={filtro}
+            enfocadoClave={enfoque?.clave ?? null}
+            onGestionar={alternarEnfoque}
           />
         ))}
       </div>
@@ -137,17 +149,29 @@ export default function ClientePanelSala({
           2026-09-27): una reserva en un lugar externo no tiene horario propio
           ni se bloquea. */}
       <AgendamientosExternos
-        fecha={fecha}
         datos={agenda?.externos ?? null}
         cargando={cargando}
-        onRecargar={recargar}
-        salasPropias={salas}
-        motivosSuspension={motivosSuspension}
-        incrementoMin={incrementoMin}
-        minimoMin={minimoMin}
         ahora={ahora}
         filtro={filtro}
+        enfocadoClave={enfoque?.clave ?? null}
+        onGestionar={alternarEnfoque}
       />
+
+      {enfoque && (
+        <PanelGestionar
+          key={enfoque.clave}
+          slot={enfoque}
+          salasPropias={salas}
+          motivosSuspension={motivosSuspension}
+          incrementoMin={incrementoMin}
+          minimoMin={minimoMin}
+          onCerrar={() => setEnfoque(null)}
+          onCambio={() => {
+            // El panel queda abierto con su propio resultado; la agenda se recarga detrás.
+            recargar();
+          }}
+        />
+      )}
     </div>
   );
 }

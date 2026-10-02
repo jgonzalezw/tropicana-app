@@ -14,67 +14,28 @@
  * de sala propia.
  */
 
-import { useState, useTransition } from "react";
-import GestionReserva from "@/components/GestionReserva";
-import { obtenerReservaParaGestion, type DetalleGestionReserva } from "@/app/(privado)/particulares/acciones";
 import { type AgendamientoExterno } from "./acciones";
-import { filtrarSlots, type FiltroAgenda } from "@/lib/slotSala";
+import { filtrarSlots, type FiltroAgenda, type SlotSala } from "@/lib/slotSala";
 import SlotFila from "./SlotFila";
 
 export default function AgendamientosExternos({
-  fecha,
   datos,
   cargando,
-  onRecargar: recargar,
-  salasPropias,
-  motivosSuspension,
-  incrementoMin,
-  minimoMin,
   ahora,
   filtro,
+  enfocadoClave,
+  onGestionar,
 }: {
-  fecha: string;
   /** Lo carga `ClientePanelSala` junto con las salas; `null` = primera lectura pendiente. */
   datos: { reservas: AgendamientoExterno[]; error: string | null } | null;
   cargando: boolean;
-  onRecargar: () => void;
-  /** Para `GestionReserva`, si se reprograma a una sala propia. */
-  salasPropias: { id: number; nombre: string }[];
-  motivosSuspension: { valor: string; etiqueta: string }[];
-  incrementoMin: number;
-  minimoMin: number;
   ahora: Date;
   filtro: FiltroAgenda;
+  enfocadoClave: string | null;
+  onGestionar: (slot: SlotSala) => void;
 }) {
   const reservas = (datos?.reservas ?? []).filter((r) => filtrarSlots([r.slot], filtro, ahora).length > 0);
   const error = datos?.error ?? null;
-
-  const [enfoqueId, setEnfoqueId] = useState<number | null>(null);
-  const [detalleGestion, setDetalleGestion] = useState<DetalleGestionReserva | { error: string } | null>(null);
-  const [pendienteGestion, startGestion] = useTransition();
-
-  // Cambiar de fecha cierra el panel de gestión: la reserva enfocada puede ya
-  // no estar en la lista nueva (mismo patrón que `ClienteDisponibilidadSala`).
-  const [fechaAnterior, setFechaAnterior] = useState(fecha);
-  if (fecha !== fechaAnterior) {
-    setFechaAnterior(fecha);
-    setEnfoqueId(null);
-    setDetalleGestion(null);
-  }
-
-  function abrirGestion(reservaId: number) {
-    setEnfoqueId(reservaId);
-    setDetalleGestion(null);
-    startGestion(async () => {
-      const r = await obtenerReservaParaGestion(reservaId);
-      setDetalleGestion(r);
-    });
-  }
-
-  function cerrarGestion() {
-    setEnfoqueId(null);
-    setDetalleGestion(null);
-  }
 
   return (
     <div className="bg-[var(--fondo-panel)] border border-[var(--borde)] rounded-[var(--radio-tarjeta)] p-6">
@@ -98,43 +59,9 @@ export default function AgendamientosExternos({
                 <SlotFila
                   slot={r.slot}
                   ahora={ahora}
-                  abierto={enfoqueId === r.id}
-                  onGestionar={() => (enfoqueId === r.id ? cerrarGestion() : abrirGestion(r.id))}
+                  abierto={enfocadoClave === r.slot.clave}
+                  onGestionar={() => onGestionar(r.slot)}
                 />
-                {enfoqueId === r.id && (
-                  <div className="mb-3 ml-1 pl-3 border-l-2 border-[var(--primario)]">
-                    {pendienteGestion && !detalleGestion ? (
-                      <p className="text-sm text-[var(--texto-tenue)]">Cargando…</p>
-                    ) : detalleGestion && "error" in detalleGestion ? (
-                      <p className="text-[var(--peligro)]" role="alert">
-                        {detalleGestion.error}
-                      </p>
-                    ) : detalleGestion ? (
-                      <GestionReserva
-                        reserva={detalleGestion.reserva}
-                        membresiaId={detalleGestion.membresiaId}
-                        tipo={detalleGestion.tipo}
-                        disponibleMin={detalleGestion.disponibleMin}
-                        fechaInicioMembresia={detalleGestion.fechaInicioMembresia}
-                        fechaFinMembresia={detalleGestion.fechaFinMembresia}
-                        salasPropias={salasPropias}
-                        salaExternaDeLaMembresia={(() => {
-                          const ext = detalleGestion.salasDeLaMembresia.find((s) => s.esExterna);
-                          return ext ? { salaId: ext.salaId, nombre: ext.nombre } : null;
-                        })()}
-                        motivosSuspension={motivosSuspension}
-                        incrementoMin={incrementoMin}
-                        minimoMin={minimoMin}
-                        puedeEditar
-                        mostrarLinkFicha
-                        onCambio={() => {
-                          cerrarGestion();
-                          recargar();
-                        }}
-                      />
-                    ) : null}
-                  </div>
-                )}
               </div>
             ))}
           </div>

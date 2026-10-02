@@ -17,14 +17,11 @@
  */
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { filtrarSlots, type FiltroAgenda } from "@/lib/slotSala";
+import { filtrarSlots, type FiltroAgenda, type SlotSala } from "@/lib/slotSala";
 import SlotFila from "./SlotFila";
 import { describirTramos, describirVentanas } from "@/lib/sala";
 import { etiquetaDuracion } from "@/lib/horarios";
 import AvisoWhatsapp from "@/components/AvisoWhatsapp";
-import GestionReserva from "@/components/GestionReserva";
-import { obtenerReservaParaGestion, type DetalleGestionReserva } from "@/app/(privado)/particulares/acciones";
 import {
   cancelarReservaSala,
   crearBloqueoSala,
@@ -62,12 +59,10 @@ export default function ClienteDisponibilidadSala({
   motivos,
   opcionesDuracionMin,
   puedeEditar,
-  salasPropias,
-  motivosSuspension,
-  incrementoMin,
-  minimoMin,
   ahora,
   filtro,
+  enfocadoClave,
+  onGestionar,
 }: {
   salaId: number;
   salaNombre: string;
@@ -80,19 +75,14 @@ export default function ClienteDisponibilidadSala({
   motivos: { valor: string; etiqueta: string }[];
   opcionesDuracionMin: number[];
   puedeEditar: boolean;
-  /** H4 — para el panel de gestión de una reserva (`GestionReserva`): todas
-   *  las salas propias (no solo esta tarjeta, por si se reprograma a otra) y
-   *  los mismos motivos/tiempos que usa `/particulares/[id]`. */
-  salasPropias: { id: number; nombre: string }[];
-  motivosSuspension: { valor: string; etiqueta: string }[];
-  incrementoMin: number;
-  minimoMin: number;
   /** Hora de la última lectura de la agenda (para "por cerrar"). */
   ahora: Date;
   /** Filtro del resumen de arriba (solicitudes / por cerrar / todo). */
   filtro: FiltroAgenda;
+  /** El slot cuyo panel Gestionar está abierto (lo maneja `ClientePanelSala`). */
+  enfocadoClave: string | null;
+  onGestionar: (slot: SlotSala) => void;
 }) {
-  const router = useRouter();
   const datos = datosProp ?? vacia;
   const slotsVisibles = filtrarSlots(datos.slots, filtro, ahora);
   const [pendiente, startTransition] = useTransition();
@@ -115,26 +105,6 @@ export default function ClienteDisponibilidadSala({
   } | null>(null);
   const [avisosOperativos, setAvisosOperativos] = useState<AvisoOperativo[] | null>(null);
 
-  // H4: panel de gestión de UNA reserva puntual, enfocado — reemplaza el
-  // salto directo a la ficha completa de la membresía (Javier, 26/09).
-  const [enfoqueId, setEnfoqueId] = useState<number | null>(null);
-  const [detalleGestion, setDetalleGestion] = useState<DetalleGestionReserva | { error: string } | null>(null);
-  const [pendienteGestion, startGestion] = useTransition();
-
-  function abrirGestion(reservaId: number) {
-    setEnfoqueId(reservaId);
-    setDetalleGestion(null);
-    startGestion(async () => {
-      const r = await obtenerReservaParaGestion(reservaId);
-      setDetalleGestion(r);
-    });
-  }
-
-  function cerrarGestion() {
-    setEnfoqueId(null);
-    setDetalleGestion(null);
-  }
-
   // **Un solo aviso para toda la tarjeta**, no uno por acción. Antes había
   // `errForm/msgForm` (bloquear) y `errCancelar/msgCancelar` (cancelar) por
   // separado, y ninguno se limpiaba cuando arrancaba la OTRA acción: el
@@ -146,18 +116,6 @@ export default function ClienteDisponibilidadSala({
   // confirmar cancelación) y vive fuera de `mostrarForm` para que el mensaje
   // de éxito se siga viendo aunque el formulario se colapse.
   const [aviso, setAviso] = useState<{ ok: boolean; texto: string } | null>(null);
-
-  // Cambiar de sala o de fecha cierra el panel de gestión: la reserva
-  // enfocada puede ya no estar en la lista nueva. Ajustado durante el render
-  // (la recarga la dispara el panel al cambiar la fecha) — mismo patrón que
-  // `BarraLateral` usa para resetear estado cuando cambia el pathname.
-  const claveDia = `${salaId}|${fecha}`;
-  const [claveDiaAnterior, setClaveDiaAnterior] = useState(claveDia);
-  if (claveDia !== claveDiaAnterior) {
-    setClaveDiaAnterior(claveDia);
-    setEnfoqueId(null);
-    setDetalleGestion(null);
-  }
 
   function abrirFormulario() {
     setAviso(null);
@@ -265,15 +223,8 @@ export default function ClienteDisponibilidadSala({
                     <SlotFila
                       slot={sl}
                       ahora={ahora}
-                      abierto={id != null && enfoqueId === id}
-                      onGestionar={() => {
-                        if (id == null) {
-                          router.push(`/asistencia?curso=${sl.cursoId}&fecha=${sl.fecha}`);
-                          return;
-                        }
-                        if (enfoqueId === id) cerrarGestion();
-                        else abrirGestion(id);
-                      }}
+                      abierto={enfocadoClave === sl.clave}
+                      onGestionar={() => onGestionar(sl)}
                       extra={
                         puedeEditar && id != null && sl.tipo === "bloqueo" ? (
                           <button
@@ -283,45 +234,11 @@ export default function ClienteDisponibilidadSala({
                             }}
                             className="text-sm text-[var(--texto-tenue)] hover:text-[var(--peligro)]"
                           >
-                            Cancelar
+                            Quitar bloqueo
                           </button>
                         ) : null
                       }
                     />
-                    {id != null && enfoqueId === id && (
-                      <div className="mb-3 ml-1 pl-3 border-l-2 border-[var(--primario)]">
-                        {pendienteGestion && !detalleGestion ? (
-                          <p className="text-sm text-[var(--texto-tenue)]">Cargando…</p>
-                        ) : detalleGestion && "error" in detalleGestion ? (
-                          <p className="text-[var(--peligro)]" role="alert">
-                            {detalleGestion.error}
-                          </p>
-                        ) : detalleGestion ? (
-                          <GestionReserva
-                            reserva={detalleGestion.reserva}
-                            membresiaId={detalleGestion.membresiaId}
-                            tipo={detalleGestion.tipo}
-                            disponibleMin={detalleGestion.disponibleMin}
-                            fechaInicioMembresia={detalleGestion.fechaInicioMembresia}
-                            fechaFinMembresia={detalleGestion.fechaFinMembresia}
-                            salasPropias={salasPropias}
-                            salaExternaDeLaMembresia={(() => {
-                              const ext = detalleGestion.salasDeLaMembresia.find((s) => s.esExterna);
-                              return ext ? { salaId: ext.salaId, nombre: ext.nombre } : null;
-                            })()}
-                            motivosSuspension={motivosSuspension}
-                            incrementoMin={incrementoMin}
-                            minimoMin={minimoMin}
-                            puedeEditar
-                            mostrarLinkFicha
-                            onCambio={() => {
-                              cerrarGestion();
-                              recargar();
-                            }}
-                          />
-                        ) : null}
-                      </div>
-                    )}
                   </div>
                 );
               })
