@@ -24,7 +24,7 @@ const VistaGestion = dynamic(() => import("./VistaGestion"), {
   loading: () => <p className="text-base text-[var(--texto-tenue)]">Cargando…</p>,
 });
 
-const ISO_FECHA = /^d{4}-d{2}-d{2}$/;
+const ISO_FECHA = /^\d{4}-\d{2}-\d{2}$/;
 
 function hoyISO(): string {
   const d = new Date();
