@@ -15,6 +15,7 @@
  *    `editable`, con glosa. Se guardan la propuesta, la aplicada y el motivo.
  */
 
+import { planificarSesiones } from "@/lib/venta/agenda";
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { tienePermiso, obtenerParametro, obtenerPerfilActual } from "@/lib/sesion";
@@ -27,7 +28,6 @@ import { vigenciaDiasEfectiva } from "@/lib/planesParticular";
 import type { CobroInscripcion } from "@/lib/tipos";
 import {
   evaluarSesiones,
-  fechasAgendaFija,
   formatearAgenda,
   hoyLocal,
   parseFechaISO,
@@ -300,24 +300,9 @@ async function calcularAlquiler(a: ReturnType<typeof admin>, e: EntradaAgendaAlq
   const fechaFin = isoFecha(fFin);
 
   // Sesiones: igual que particulares — nunca más minutos que los comprados.
-  const minutos = Math.round(horas * 60);
-  let pedidas: { fecha: string; hora: string; duracionMin: number }[];
-  let leftoverMin = 0;
-  if (e.agenda.modalidad === "flexible") {
-    if (e.agenda.duracionMin > minutos)
-      return { error: `La duración elegida (${e.agenda.duracionMin} min) es mayor a las horas del paquete (${horas} h).` };
-    pedidas = [{ fecha: isoFecha(inicio), hora: e.agenda.hora, duracionMin: e.agenda.duracionMin }];
-    leftoverMin = minutos - e.agenda.duracionMin;
-  } else {
-    if (!e.agenda.diasSemana.length) return { error: "Elegí al menos un día para la agenda fija." };
-    const necesarias = Math.floor(minutos / e.agenda.duracionMin);
-    if (necesarias < 1)
-      return { error: `La duración elegida (${e.agenda.duracionMin} min) es mayor a las horas del paquete (${horas} h).` };
-    const fechas = fechasAgendaFija(e.agenda.diasSemana, inicio, necesarias);
-    if (fechas.length < necesarias) return { error: "No se encontraron suficientes fechas para cubrir las horas del paquete." };
-    pedidas = fechas.map((f) => ({ fecha: f, hora: e.agenda.hora, duracionMin: e.agenda.duracionMin }));
-    leftoverMin = minutos - necesarias * e.agenda.duracionMin;
-  }
+  const plan = planificarSesiones(e.agenda, inicio, horas);
+  if ("error" in plan) return { error: plan.error };
+  const { pedidas, leftoverMin } = plan;
 
   const sesiones = await evaluarSesiones(a, { salaId, esExterna, profesorId: null, sesiones: pedidas, personas });
 

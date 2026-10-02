@@ -1,5 +1,6 @@
 "use server";
 
+import { planificarSesiones } from "@/lib/venta/agenda";
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -42,7 +43,6 @@ import {
 import { vigenciaDiasEfectiva } from "@/lib/planesParticular";
 import {
   evaluarSesiones,
-  fechasAgendaFija,
   formatearAgenda,
   hoyLocal,
   parseFechaISO,
@@ -1204,30 +1204,9 @@ async function calcularAgendaParticular(
   // contratadas (hallazgo de Javier, 26/09/2026). El sobrante, si lo hay,
   // se informa y queda para coordinar después (H3), no se inventa una
   // sesión corta ni se estira el paquete.
-  const minutosContratados = Math.round(horasContratadas * 60);
-  type SesionPedida = { fecha: string; hora: string; duracionMin: number };
-  let sesionesPedidas: SesionPedida[];
-  let leftoverMin = 0;
-  if (e.agenda.modalidad === "flexible") {
-    if (e.agenda.duracionMin > minutosContratados)
-      return {
-        error: `La duración elegida (${e.agenda.duracionMin} min) es mayor a las horas contratadas (${horasContratadas} h = ${minutosContratados} min).`,
-      };
-    sesionesPedidas = [{ fecha: isoFecha(inicio), hora: e.agenda.hora, duracionMin: e.agenda.duracionMin }];
-    leftoverMin = minutosContratados - e.agenda.duracionMin;
-  } else {
-    if (!e.agenda.diasSemana.length) return { error: "Elegí al menos un día para la agenda fija." };
-    const necesarias = Math.floor(minutosContratados / e.agenda.duracionMin);
-    if (necesarias < 1)
-      return {
-        error: `La duración elegida (${e.agenda.duracionMin} min) es mayor a las horas contratadas (${horasContratadas} h = ${minutosContratados} min).`,
-      };
-    const fechas = fechasAgendaFija(e.agenda.diasSemana, inicio, necesarias);
-    if (fechas.length < necesarias)
-      return { error: "No se encontraron suficientes fechas para cubrir las horas contratadas." };
-    sesionesPedidas = fechas.map((f) => ({ fecha: f, hora: e.agenda.hora, duracionMin: e.agenda.duracionMin }));
-    leftoverMin = minutosContratados - necesarias * e.agenda.duracionMin;
-  }
+  const planSesiones = planificarSesiones(e.agenda, inicio, horasContratadas);
+  if ("error" in planSesiones) return { error: planSesiones.error };
+  const { pedidas: sesionesPedidas, leftoverMin } = planSesiones;
 
   const sesiones = await evaluarSesiones(a, { salaId, esExterna, profesorId: e.profesorId, sesiones: sesionesPedidas, personas });
 
