@@ -4822,3 +4822,26 @@ Los alquileres se empiezan a vender y hoy **no se pueden gestionar sus reservas*
 2. **Hito B — gestión de reservas de alquiler, sin migración**: generalizar las acciones de H3 (`particulares/acciones.ts`: crear, cambiar estado, reprogramar, cancelar a pedido, detalle para gestión) con un resolvedor por tipo de membresía (módulo de permiso `particulares`/`alquileres`, dueño, personas, textos de aviso); pantalla `/alquileres/[id]` con el mismo componente de reservas de `/particulares/[id]` hecho neutro; aviso al titular o su persona de contacto.
    **Bug ya en producción que corrige:** `/sala` marca como gestionable una reserva de alquiler (con `particulares.editar`), pero `obtenerReservaParaGestion` solo acepta `tipo='particular'` y al abrirla dice "Esa reserva no existe".
 3. **Hito C — el profesor gestiona sus reservas: POSTERGADO** (Javier, 2026-10-02, hasta que suba la prioridad; ver `DECISIONES.md` §1, D31). Particulares ya lo tiene en dev y producción (ver/crear/editar con alcance `propio` desde la 0056).
+
+## Hito B — rendimiento de /sala (2026-10-02, dev; sin push)
+
+Diagnóstico medido (la lentitud era viajes seriales a la base + chequeos de
+permisos repetidos + 3 acciones en fila + doble refresco). Cambios, un commit
+cada uno, **sin migración ni cambio de reglas de negocio**:
+
+1. `BarraLateral`: `prefetch={false}` en los enlaces (sin precarga de pantallas).
+2. `consultarAgendaDia` (`sala/acciones.ts`): una sola acción trae todas las
+   salas propias y los agendamientos externos; `ClientePanelSala` la llama y
+   reparte los datos a las tarjetas (ya no cargan por su cuenta).
+3. Un solo refresco: se quitó `revalidatePath("/sala")` de las acciones de
+   reserva (`sala/acciones.ts`, `particulares/acciones.ts`); el cliente
+   recarga la agenda una vez.
+4. `sesion.ts`: `obtenerPerfilActual`, `tienePermiso`, `alcanceDe` y
+   `obtenerProfesorActual` memorizados por petición con `cache` de React
+   (nunca entre peticiones ni usuarios; la identidad se verifica igual).
+5. `obtenerReservaParaGestion` y `permisoEnAlguno`: lecturas independientes
+   en paralelo (el permiso sigue decidiendo antes de devolver nada).
+
+Probado en local: `/sala` carga, cambiar de fecha (1 acción de agenda), Gestionar
+abre el panel; `tsc`, `eslint` y `npm test` (261) en verde. En dev se ven 2
+cargas iniciales por el doble efecto de React en modo desarrollo.

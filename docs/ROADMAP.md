@@ -113,6 +113,16 @@ la primera entrega (H1–H9) vive en `docs/relevamientos/2026-09-25-C3-plan-cons
 
 ---
 
+## Rendimiento de /sala — pendiente tras el Hito B
+
+Del diagnóstico del 2026-10-02, lo que no se tocó:
+
+- **Catálogos releídos en cada acción** (estilos, motivos, horario base): casi
+  no cambian; leerlos una vez o cachearlos.
+- **Tamaño del JS** (3,7 MB sin minificar en dev): revisar qué pesa en producción.
+- **Tabla de sesiones**: revisar su volumen e índices a medida que crezca.
+- Verificar en producción (Vercel Observability / Supabase logs) el efecto real.
+
 ## Decisiones postergadas que además son trabajo
 
 No se copian acá — viven en `DECISIONES.md` con su disparador. Se listan para no
