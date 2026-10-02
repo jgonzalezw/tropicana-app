@@ -106,7 +106,12 @@ export default function AltaContacto({
               type="button"
               role="radio"
               aria-checked={tipo === t}
-              onClick={() => setTipo(t)}
+              onClick={() => {
+                setTipo(t);
+                // Una organización se identifica con NIT; una persona, con otro documento.
+                if (!extra.documento?.numero)
+                  setExtra({ ...extra, documento: t === "organizacion" ? { tipo_documento: "nit", numero: "", complemento: null, expedido: null } : null });
+              }}
               className={`px-4 py-2 text-sm rounded-[var(--radio-control)] border ${
                 tipo === t ? "border-[var(--primario)] bg-[var(--accent-100)] font-semibold" : "border-[var(--borde)]"
               }`}

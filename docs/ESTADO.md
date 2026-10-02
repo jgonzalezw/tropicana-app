@@ -4740,3 +4740,17 @@ Primera de tres tandas (plan aprobado por Javier; se valida en dev entre cada un
 - **Para probar la venta hubo que cargar un horario de sala en dev** (`sala_horario_patron`, sala 1, 09:00–22:00): sin horario la sala no es reservable (mensaje de calidad 5, no bug).
 - **Límite conocido**: `/alquileres` es solo lectura; confirmar/reprogramar/cancelar reservas de alquiler (gestión de H3) no está enchufado todavía.
 - **Falta**: tanda 3 (titular como contacto: persona/organización, NIT, persona de contacto) y el pase a producción (cargar antes la tabla de precios de alquiler: hoy 1 paquete y 9 celdas).
+
+## Ventas y contactos con el mismo comportamiento — E1 (piezas comunes + alquiler) · 2026-10-02 (dev, sin pase)
+
+Rama `h7-alquiler`. **Sin migración nueva**: el módulo de permisos `contactos` ya existía desde la 0048 (se usan `contactos.ver/crear/editar`); el plan hablaba de una 0063 que no hace falta.
+
+**Piezas nuevas, reutilizables por todas las ventas:**
+- `src/components/contacto/`: `TitularVenta` (buscar → alta → tarjeta), `AltaContacto` (alta y edición, persona u organización solo si el flujo lo permite; NIT por omisión en organizaciones), `TarjetaContacto` (solo lectura, Editar datos / Cambiar), `PanelDuplicado` (ofrece usar el contacto existente, de cualquier rol).
+- `src/components/venta/`: `BloqueVenta`, `BarraVenta`, `ConfirmacionVenta`, `FechaCompromiso`, `AgendaReservas` (revisión de disponibilidad automática, sin botón).
+- Puras, con pruebas: `lib/contactoVenta.ts`, `lib/venta/cobro.ts` (`cobroParaServidor`), `lib/venta/agenda.ts` (`planificarSesiones`, ya usada también por particulares).
+- Servidor: `contactos/accionesVenta.ts` (buscar, duplicado, crear con borrado compensatorio, asegurar rol, detalle, actualizar).
+
+**`VenderAlquiler.tsx` rearmado** con esas piezas. Verificado en el navegador contra `tropicana-dev`, 1600 px: titular existente (profesor, no recibe rol alumno), organización nueva con NIT y persona de contacto (`trabaja_en` guardada), agenda con choques y libre, cobro, confirmación con WhatsApp; la venta de prueba guardó 1 membresía y 2 reservas.
+
+**Falta:** probar 375 px, sala externa y categoría `editable`; mover `faltaParaAlquiler` a `lib/venta/faltantes.ts`; pruebas de `buscarDuplicado`/`asegurarRol`; control de BD de rol duplicado; link "Ver ficha ↗" (no hay deep-link por id en Alumnos/Profesores). Sigue **E2** (particulares). Pase a producción solo con OK de Javier.
