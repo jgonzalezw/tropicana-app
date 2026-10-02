@@ -6,6 +6,8 @@ import type { Curso, FilaAsistencia, MarcaAsistencia } from "@/lib/tipos";
 import { ETIQUETA_MODALIDAD, diaIso, fechaLarga, gs, isoFecha } from "@/lib/inscripcion";
 import { enVigencia, etiquetaVigencia } from "@/lib/vigencia";
 import { cargarPadron, guardarAsistencia, suspenderClase, reabrirSesion } from "./acciones";
+import AvisosAfectados from "@/components/AvisosAfectados";
+import type { AvisoAlumno } from "@/lib/avisosClase";
 import Pagina from "@/components/Pagina";
 
 type Estado = "presente" | "ausente";
@@ -71,6 +73,8 @@ export default function ClienteAsistencia({
   const [cargando, setCargando] = useState(false);
   const [errorPadron, setErrorPadron] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
+  /** Avisos de WhatsApp de la última suspensión o reapertura de ESTA clase. */
+  const [avisosWa, setAvisosWa] = useState<AvisoAlumno[]>([]);
   const [error, setError] = useState<string | null>(null);
   /** Texto del aviso de impacto en liquidaciones ya cobradas, a confirmar. */
   const [impacto, setImpacto] = useState<string | null>(null);
@@ -157,6 +161,7 @@ export default function ClienteAsistencia({
 
   function cambiarCurso(id: number) {
     setCursoId(id);
+    setAvisosWa([]);
     setSelectorAbierto(false);
     // Un aviso o un error son de la clase/fecha que se estaba mirando: al
     // cambiar de curso o fecha dejan de aplicar y se limpian los dos, o el
@@ -260,6 +265,7 @@ export default function ClienteAsistencia({
       } else {
         setFormSusp(false);
         setAviso(res.resumen ?? "Clase suspendida.");
+        setAvisosWa(res.avisos ?? []);
         setRecarga((n) => n + 1);
         router.refresh();
         scrollArriba();
@@ -277,6 +283,7 @@ export default function ClienteAsistencia({
         scrollArriba();
       } else {
         setAviso("Clase reabierta. Podés tomar o corregir la asistencia.");
+        setAvisosWa(res.avisos ?? []);
         setRecarga((n) => n + 1);
         router.refresh();
       }
@@ -304,6 +311,12 @@ export default function ClienteAsistencia({
           <button onClick={() => setAviso(null)} className="text-sm shrink-0 underline">
             Cerrar
           </button>
+        </div>
+      )}
+
+      {avisosWa.length > 0 && (
+        <div className="mb-4">
+          <AvisosAfectados avisos={avisosWa} onCerrar={() => setAvisosWa([])} />
         </div>
       )}
 
@@ -357,6 +370,7 @@ export default function ClienteAsistencia({
           value={fecha}
           onChange={(e) => {
             setFecha(e.target.value);
+            setAvisosWa([]);
             // Igual que al cambiar de curso: el aviso o el error eran de la
             // fecha anterior; al cambiar de fecha dejan de aplicar y se limpian
             // los dos, o el mensaje queda "pegado" sobre una clase que no lo generó.
