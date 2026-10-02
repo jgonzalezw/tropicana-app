@@ -565,7 +565,8 @@ export type DiasCursoVenta = { cursoId: number; dias: number[] };
 
 /** Entrada de la server action que vende un plan y cobra en un solo paso. */
 export type EntradaInscripcion = {
-  alumnoId: number;
+  /** El titular, como contacto: si no es alumno todavía, la venta le agrega el rol. */
+  contactoId: number;
   /** Plan que se vende (motor). El servidor recomputa N y precio. */
   planId: number;
   /** Fecha de inicio, ISO local YYYY-MM-DD. */
@@ -791,6 +792,10 @@ export const MODULOS = [
   // horarios, y la operativa /sala) y quedaba confuso a quién dársela. Ver
   // docs/DECISIONES.md, hallazgo del 2026-09-26.
   "disponibilidad_sala",
+  // Alquileres (H7, 2026-10-01, regla de proceso 11): módulo propio, nace con
+  // los permisos de "particulares" (migración 0060) menos el alcance propio:
+  // un alquiler no tiene profesor dueño, así que no entra a MODULOS_CON_ALCANCE.
+  "alquileres",
 ] as const;
 
 export const ACCIONES = ["ver", "crear", "editar", "eliminar"] as const;
@@ -822,6 +827,7 @@ export const ETIQUETA_MODULO: Record<string, string> = {
   pagos: "Pagos",
   costos: "Costos",
   particulares: "Particulares",
+  alquileres: "Alquileres de sala",
   inventario: "Inventario",
   caja: "Caja",
   dashboard: "Dashboard",

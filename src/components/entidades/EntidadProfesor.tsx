@@ -18,6 +18,8 @@ import VistaContacto, { Dato, type ModoFicha } from "./VistaContacto";
 import EnlaceWhatsapp from "./EnlaceWhatsapp";
 import { gs } from "@/lib/inscripcion";
 import { detalleContacto } from "@/app/(privado)/contactos/acciones";
+import PanelDuplicado from "@/components/contacto/PanelDuplicado";
+import { useContactoSinRol, comoResumen } from "@/components/contacto/useContactoSinRol";
 
 type Cuenta = { id: string; etiqueta: string };
 
@@ -64,7 +66,7 @@ export default function EntidadProfesor({
   /** Si el rol puede editar un profesor existente (`profesores` · `editar`). */
   puedeEditar?: boolean;
   depsDe?: (id: number) => DepsProfesor | undefined;
-  onGuardar?: (datos: DatosProfesor, id: number | null) => Promise<{ error?: string }>;
+  onGuardar?: (datos: DatosProfesor, id: number | null, existenteId?: number | null) => Promise<{ error?: string }>;
   onBaja?: (id: number) => Promise<{ error?: string; accion?: string }>;
   onActivar?: (id: number) => Promise<{ error?: string }>;
   onSelect?: (prof: Profesor) => void;
@@ -213,7 +215,7 @@ function FichaProfesor({
   permitirBaja: boolean;
   deps?: DepsProfesor;
   onEditar: () => void;
-  onGuardar?: (datos: DatosProfesor, id: number | null) => Promise<{ error?: string }>;
+  onGuardar?: (datos: DatosProfesor, id: number | null, existenteId?: number | null) => Promise<{ error?: string }>;
   onBaja?: (id: number) => Promise<{ error?: string; accion?: string }>;
   onActivar?: (id: number) => Promise<{ error?: string }>;
   onCancelar: () => void;
@@ -268,6 +270,12 @@ function FichaProfesor({
       soloDigitos(p.contacto.whatsapp) === soloDigitos(whatsapp)
   );
 
+  // El WhatsApp es de un contacto que todavía no es profesor (un alumno, o
+  // solo un contacto): se le agrega el rol en vez de rechazar (regla 21).
+  const existente = useContactoSinRol("profesor", whatsapp, !inicial && !dupe);
+  const [usarExistente, setUsarExistente] = useState(false);
+  const usando = usarExistente && !!existente;
+
   // Documento de otro profesor: misma persona (la base igual lo impide).
   const docTipeado = documentoComparable(extra.documento?.numero);
   const dupeDoc =
@@ -305,7 +313,8 @@ function FichaProfesor({
           fee_hora: feeHora.trim() === "" ? null : Number(feeHora.replace(/[^\d.]/g, "")) || 0,
           ...extra,
         },
-        inicial?.id ?? null
+        inicial?.id ?? null,
+        usando && existente ? existente.contactoId : null
       );
       if (res?.error) setError(res.error);
       else onCerrar();
@@ -507,6 +516,19 @@ function FichaProfesor({
           Ese WhatsApp ya es de un profesor: {nombreCompleto(dupe.contacto)} ({dupe.tipo}).
         </div>
       )}
+      {existente && !usando && (
+        <PanelDuplicado
+          por="whatsapp"
+          contacto={comoResumen(existente)}
+          textoUsar="Usar este contacto y agregarle el rol Profesor"
+          onUsar={() => setUsarExistente(true)}
+        />
+      )}
+      {usando && (
+        <p className="text-sm text-[var(--texto-tenue)]">
+          Se le agrega el rol de profesor a {existente.nombre}. Sus datos de contacto no cambian: se editan desde su ficha.
+        </p>
+      )}
 
       <div>
         <span className="block text-base font-medium mb-1.5">Estilos</span>
@@ -600,7 +622,7 @@ function FichaProfesor({
       <div className="flex gap-3">
         <button
           onClick={guardar}
-          disabled={pendiente || !!dupe || !!dupeDoc || faltanExtra.length > 0}
+          disabled={pendiente || !!dupe || (!usando && (!!dupeDoc || !!existente || faltanExtra.length > 0))}
           className="px-5 py-2.5 text-base font-semibold rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)] hover:bg-[var(--primario-hover)] disabled:opacity-40"
         >
           {pendiente ? "Guardando…" : "Guardar profesor"}

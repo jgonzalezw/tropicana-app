@@ -14,6 +14,7 @@ import {
   guardarDatosExtra,
   validarContraMatriz,
 } from "@/app/(privado)/contactos/acciones";
+import { asegurarRolAlumno } from "@/app/(privado)/contactos/accionesVenta";
 
 type Resultado = { ok?: true; error?: string; accion?: "eliminado" | "desactivado" };
 
@@ -23,8 +24,20 @@ function admin() {
   return a;
 }
 
-export async function crearAlumno(d: DatosAlumno): Promise<Resultado> {
+/**
+ * `existenteId`: el contacto ya existe con otro rol (profesor, solo contacto)
+ * y se le agrega el de alumno. Su identidad no se toca: lo que se escribió en
+ * el formulario no pisa lo que ya estaba cargado (se edita aparte, con permiso).
+ */
+export async function crearAlumno(d: DatosAlumno, existenteId?: number | null): Promise<Resultado> {
   if (!(await tienePermiso("alumnos", "crear"))) return { error: "Sin permiso." };
+  if (existenteId) {
+    if (d.es_menor) return { error: "Un menor se carga con su tutor como contacto nuevo." };
+    const r = await asegurarRolAlumno(existenteId, false);
+    if (r.error) return { error: r.error };
+    revalidatePath("/alumnos");
+    return { ok: true };
+  }
   const err = validarIdentidadAlumno(d);
   if (err) return { error: err };
   const errEdad = validarFechaNacimiento(d.fecha_nacimiento, d.es_menor);

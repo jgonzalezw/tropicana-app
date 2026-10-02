@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Alumno, ListasContacto, MatrizMinimo } from "@/lib/tipos";
+import type { ListasContacto, MatrizMinimo } from "@/lib/tipos";
 import ClienteInscribir, { type PlanVenta } from "./ClienteInscribir";
 import VenderPrueba from "./VenderPrueba";
 import VenderParticular, {
@@ -10,10 +10,11 @@ import VenderParticular, {
   type SalaVenta,
   type TarifaParticularVenta,
 } from "./VenderParticular";
+import VenderAlquiler, { type PaqueteHoras, type PlanAlquiler } from "./VenderAlquiler";
+import type { CategoriaSala, TamanoSala, TarifaSala } from "@/lib/sala";
 import Pagina from "@/components/Pagina";
 
-type Canal = { valor: string; etiqueta: string };
-type Modo = "inscripcion" | "prueba" | "particular";
+type Modo = "inscripcion" | "prueba" | "particular" | "alquiler";
 
 /**
  * Las dos formas de vender un plan: la inscripción normal y la clase de
@@ -25,19 +26,18 @@ type Modo = "inscripcion" | "prueba" | "particular";
  * no tiene días, ni bono, ni ciclo; tiene acompañantes y precio por curso).
  */
 export default function MostradorVenta(props: {
-  alumnos: Alumno[];
   planes: PlanVenta[];
   diasCompromiso: number;
   medios: string[];
-  canales: Canal[];
-  cursosPorAlumno: Record<number, string[]>;
-  deudaPorAlumno: Record<number, number>;
-  planesActivosPorAlumno: Record<number, number[]>;
-  bonoPorAlumnoPlan: Record<number, Record<number, number>>;
+  /** Lo que se sabe del titular, por contacto (el titular de una venta es un contacto). */
+  cursosPorContacto: Record<number, string[]>;
+  deudaPorContacto: Record<number, number>;
+  planesActivosPorContacto: Record<number, number[]>;
+  bonoPorContactoPlan: Record<number, Record<number, number>>;
   /** Claves `cursoId|YYYY-MM-DD` de clases suspendidas: no son clase. */
   suspendidas: string[];
   /** Crédito de una clase de prueba sin convertir, por alumno y plan. */
-  creditoPruebaPorAlumnoPlan: Record<number, Record<number, { monto: number; fecha: string; personas: number; pagado: number }>>;
+  creditoPruebaPorContactoPlan: Record<number, Record<number, { monto: number; fecha: string; personas: number; pagado: number }>>;
   matriz: MatrizMinimo[];
   listasContacto: ListasContacto;
   puedeVerPrivados: boolean;
@@ -49,6 +49,17 @@ export default function MostradorVenta(props: {
   incrementoMin: number;
   minimoMin: number;
   puedeVenderParticulares: boolean;
+  puedeVenderAlquileres: boolean;
+  planesAlquiler: PlanAlquiler[];
+  paquetesAlquiler: PaqueteHoras[];
+  tarifasAlquiler: TarifaSala[];
+  tamanosAlquiler: TamanoSala[];
+  etiquetasCategoria: Record<CategoriaSala, string>;
+  modoCategoria: "automatica" | "editable";
+  salasAlquiler: SalaVenta[];
+  salaIdsPorPlanAlquiler: Record<number, number[]>;
+  incrementoAlquilerMin: number;
+  minimoAlquilerMin: number;
 }) {
   const { suspendidas } = props;
   const [modo, setModo] = useState<Modo>("inscripcion");
@@ -74,19 +85,20 @@ export default function MostradorVenta(props: {
 
   return (
     <Pagina ancho="3xl">
-      <div className="flex gap-2 max-w-md mb-6">
+      <div className="flex gap-2 max-w-2xl mb-6 overflow-x-auto pb-1">
         {(
           [
             ["inscripcion", "Inscripción"],
             ["prueba", "Clase de prueba"],
             ...(props.puedeVenderParticulares ? ([["particular", "Clase particular"]] as [Modo, string][]) : []),
+            ...(props.puedeVenderAlquileres ? ([["alquiler", "Alquiler de sala"]] as [Modo, string][]) : []),
           ] as [Modo, string][]
         ).map(([m, etiqueta]) => (
           <button
             key={m}
             type="button"
             onClick={() => setModo(m)}
-            className={`flex-1 px-4 py-2.5 text-base rounded-[var(--radio-control)] border ${
+            className={`flex-1 shrink-0 whitespace-nowrap px-4 py-2.5 text-base rounded-[var(--radio-control)] border ${
               modo === m
                 ? "bg-[var(--primario)] text-[var(--primario-texto)] border-[var(--primario)] font-semibold"
                 : "border-[var(--borde)] hover:border-[var(--primario)]"
@@ -101,14 +113,12 @@ export default function MostradorVenta(props: {
         <ClienteInscribir {...props} />
       ) : modo === "particular" ? (
         <VenderParticular
-          alumnos={props.alumnos}
           planes={props.planesParticular}
           tarifas={props.tarifasParticular}
           profesoresPorEstilo={props.profesoresPorEstilo}
           salas={props.salas}
           salaIdsPorPlan={props.salaIdsPorPlan}
           medios={props.medios}
-          canales={props.canales}
           diasCompromiso={props.diasCompromiso}
           incrementoMin={props.incrementoMin}
           minimoMin={props.minimoMin}
@@ -116,14 +126,30 @@ export default function MostradorVenta(props: {
           listasContacto={props.listasContacto}
           puedeVerPrivados={props.puedeVerPrivados}
         />
+      ) : modo === "alquiler" ? (
+        <VenderAlquiler
+          planes={props.planesAlquiler}
+          paquetes={props.paquetesAlquiler}
+          tarifas={props.tarifasAlquiler}
+          tamanos={props.tamanosAlquiler}
+          etiquetasCategoria={props.etiquetasCategoria}
+          modoCategoria={props.modoCategoria}
+          salas={props.salasAlquiler}
+          salaIdsPorPlan={props.salaIdsPorPlanAlquiler}
+          medios={props.medios}
+          diasCompromiso={props.diasCompromiso}
+          incrementoMin={props.incrementoAlquilerMin}
+          minimoMin={props.minimoAlquilerMin}
+          matriz={props.matriz}
+          listas={props.listasContacto}
+          puedeVerPrivados={props.puedeVerPrivados}
+        />
       ) : vendibles.length > 0 ? (
         <div>
           <VenderPrueba
-            alumnos={props.alumnos}
             planes={vendibles}
             diasCompromiso={props.diasCompromiso}
             medios={props.medios}
-            canales={props.canales}
             suspendidas={suspendidas}
             matriz={props.matriz}
             listasContacto={props.listasContacto}

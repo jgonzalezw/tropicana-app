@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/organic-186d334f-848b-405d-95ba-b805f2b70bf6/styles.css">
+<script src="_ds/organic-186d334f-848b-405d-95ba-b805f2b70bf6/_ds_bundle.js"></script>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&amp;display=swap">
+<style>
+:root {
+  --color-bg: #1c1815; --color-surface: #272220; --color-text: #f4ebdd;
+  --color-divider: color-mix(in srgb, #f4ebdd 16%, transparent);
+  --color-accent: #e08b4f; --color-accent-2: #9bad78;
+  --color-neutral-100: #302a25; --color-neutral-200: #3a332d; --color-neutral-300: #463e37; --color-neutral-400: #6d6359; --color-neutral-500: #8f8578; --color-neutral-600: #ab9f91; --color-neutral-700: #c8bbaa; --color-neutral-800: #e2d7c6; --color-neutral-900: #f4ebdd;
+  --color-accent-100: #37200f; --color-accent-200: #6b3714; --color-accent-300: #8c491a; --color-accent-400: #b2622d; --color-accent-500: #d67f48; --color-accent-600: #f6a06b; --color-accent-700: #ffc0a0; --color-accent-800: #ffd3b5; --color-accent-900: #fff2eb;
+  --color-accent-2-100: #232a18; --color-accent-2-200: #3a4726; --color-accent-2-300: #56633f; --color-accent-2-400: #728157; --color-accent-2-500: #8fa073; --color-accent-2-600: #a8bb88; --color-accent-2-700: #ccdbb2; --color-accent-2-800: #dcebc4; --color-accent-2-900: #f0fae1;
+  --font-heading: "Montserrat", system-ui, sans-serif; --font-heading-weight: 800;
+}
+body { margin: 0; background: var(--color-neutral-300); color: var(--color-text); }
+h1, h2, h3, h4 { letter-spacing: -0.025em; }
+.btn { font-weight: 700; letter-spacing: 0.01em; }
+a { color: var(--color-accent-700); }
+a:hover { color: var(--color-accent-800); }
+.nw { white-space: nowrap; }
+.pa-in { font-size: 17px !important; min-height: 52px !important; background: var(--color-neutral-100) !important; }
+.pa-seg { display: flex; flex-wrap: wrap; width: 100%; }
+.pa-seg .seg-opt { flex: 1 1 200px; justify-content: center; font-size: 15px; padding: 12px 14px; text-align: center; }
+</style>
+</helmet>
+<div style="min-height:100vh;background:var(--color-bg);font-family:var(--font-body)">
+  <div style="max-width:760px;padding:26px 22px 120px">
+    <div style="font-size:14px;color:var(--color-neutral-600);margin-bottom:6px">Administración · Planes</div>
+    <h1 style="font-family:var(--font-heading);font-weight:800;font-size:clamp(30px,4vw,38px);margin:0 0 6px">Nuevo plan de alquiler</h1>
+    <div style="font-size:14px;color:var(--color-neutral-700);line-height:1.5;max-width:64ch;margin-bottom:20px">Define cómo se reserva y cuánto dura un alquiler de sala. El precio no va acá: sale de la tabla de alquiler de <a href="Precios y paquetes v2.dc.html">Precios y paquetes</a>.</div>
+
+    <sc-if value="{{ verCargando }}" hint-placeholder-val="{{ false }}">
+      <div style="background:var(--color-surface);border-radius:26px;padding:20px 22px;display:flex;flex-direction:column;gap:12px">
+        <div style="width:40%;height:20px;border-radius:999px;background:var(--color-neutral-200)"></div>
+        <div style="height:52px;border-radius:999px;background:var(--color-neutral-100)"></div>
+        <div style="height:52px;border-radius:999px;background:var(--color-neutral-100)"></div>
+        <div style="font-size:14px;color:var(--color-neutral-700)">Leyendo salas…</div>
+      </div>
+    </sc-if>
+    <sc-if value="{{ verError }}" hint-placeholder-val="{{ false }}">
+      <div style="background:var(--color-accent-100);border-radius:26px;padding:18px 20px">
+        <div style="font-size:18px;font-weight:700;color:var(--color-accent-900)">No pudimos leer las salas</div>
+        <div style="font-size:15px;line-height:1.5;color:var(--color-accent-800);margin-top:6px">Sin la lista de salas no se puede guardar el plan. Esto no quiere decir que no haya salas cargadas.</div>
+        <button class="btn btn-primary" style="margin-top:14px;min-height:48px;font-size:16px">Reintentar</button>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ verForm }}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div style="background:var(--color-surface);border-radius:26px;padding:20px 22px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px 18px">
+          <div class="field" style="margin:0">
+            <label style="font-size:14px">Nombre del plan</label>
+            <input class="input pa-in" value="{{ nombre }}" onChange="{{ onNombre }}" placeholder="ej. Alquiler agenda fija" style="text-transform: uppercase">
+          </div>
+          <div class="field" style="margin:0">
+            <label style="font-size:14px">Vigencia en días</label>
+            <input class="input pa-in" value="{{ vigencia }}" onChange="{{ onVigencia }}" inputMode="numeric" placeholder="30">
+            <div style="font-size:13px;color:var(--color-neutral-700);margin-top:6px;line-height:1.45">Cuenta desde la primera reserva. Al vencer, las horas no usadas se pierden.</div>
+          </div>
+        </div>
+
+        <div style="background:var(--color-surface);border-radius:26px;padding:20px 22px">
+          <h2 style="font-family:var(--font-heading);font-weight:800;font-size:20px;margin:0 0 4px">Modalidad de reserva</h2>
+          <div style="font-size:14px;color:var(--color-neutral-700);margin-bottom:12px">Cada horario es una reserva independiente en los dos casos.</div>
+          <div class="seg pa-seg">
+            <label class="seg-opt"><input type="radio" name="pamodo" checked="{{ esFija }}" onChange="{{ setFija }}"><span>Agenda fija</span></label>
+            <label class="seg-opt"><input type="radio" name="pamodo" checked="{{ esFlex }}" onChange="{{ setFlex }}"><span>Flexible</span></label>
+          </div>
+          <div style="font-size:15px;color:var(--color-neutral-800);margin-top:10px;line-height:1.5">{{ modoNota }}</div>
+        </div>
+
+        <div style="background:var(--color-surface);border-radius:26px;padding:20px 22px">
+          <h2 style="font-family:var(--font-heading);font-weight:800;font-size:20px;margin:0 0 12px">Salas</h2>
+          <div class="seg pa-seg">
+            <label class="seg-opt"><input type="radio" name="pasalas" checked="{{ todas }}" onChange="{{ setTodas }}"><span>Todas las salas</span></label>
+            <label class="seg-opt"><input type="radio" name="pasalas" checked="{{ algunas }}" onChange="{{ setAlgunas }}"><span>Solo algunas</span></label>
+          </div>
+          <sc-if value="{{ algunas }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">
+              <sc-for list="{{ salas }}" as="x" hint-placeholder-count="3">
+                <button onClick="{{ x.toggle }}" aria-pressed="{{ x.sel }}" style="display:flex;align-items:center;gap:8px;min-height:48px;padding:0 16px;border-radius:999px;border:1px solid {{ x.borde }};background:{{ x.bg }};color:var(--color-text);font-family:var(--font-body);font-size:15px;font-weight:600;cursor:pointer">{{ x.label }}</button>
+              </sc-for>
+            </div>
+          </sc-if>
+          <div style="display:flex;align-items:flex-start;gap:14px;margin-top:16px;padding-top:16px;border-top:1px solid var(--color-divider)">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:16px;font-weight:600">Permite sala externa</div>
+              <div style="font-size:14px;color:var(--color-neutral-700);margin-top:2px;line-height:1.45">Habilita una sala genérica fuera de Tropicana, con nombre descriptivo. No se valida ocupación ni lleva costo.</div>
+            </div>
+            <button role="switch" aria-checked="{{ externa }}" aria-label="Permite sala externa" onClick="{{ toggleExterna }}" style="flex:none;width:58px;height:34px;border-radius:999px;border:none;padding:4px;background:{{ swBg }};cursor:pointer;display:flex;justify-content:{{ swPos }}">
+              <span style="width:26px;height:26px;border-radius:999px;background:var(--color-text)"></span>
+            </button>
+          </div>
+        </div>
+
+        <div style="background:var(--color-surface);border-radius:26px;padding:20px 22px">
+          <h2 style="font-family:var(--font-heading);font-weight:800;font-size:20px;margin:0 0 4px">Extensión</h2>
+          <div style="font-size:14px;color:var(--color-neutral-700);margin-bottom:12px">Cuando el contacto pide más horas sobre un alquiler vigente.</div>
+          <div class="seg pa-seg">
+            <label class="seg-opt"><input type="radio" name="paext" checked="{{ extLista }}" onChange="{{ setExtLista }}"><span>A precio de lista</span></label>
+            <label class="seg-opt"><input type="radio" name="paext" checked="{{ extRecargo }}" onChange="{{ setExtRecargo }}"><span>Con recargo</span></label>
+          </div>
+          <sc-if value="{{ extRecargo }}" hint-placeholder-val="{{ false }}">
+            <div class="field" style="margin:12px 0 0;max-width:220px">
+              <label style="font-size:14px">Recargo</label>
+              <div style="display:flex;align-items:center;gap:8px">
+                <input class="input pa-in" value="{{ recargo }}" onChange="{{ onRecargo }}" inputMode="numeric" placeholder="10" style="width:100px">
+                <span style="font-size:16px;font-weight:600">%</span>
+              </div>
+            </div>
+          </sc-if>
+          <div style="font-size:14px;color:var(--color-neutral-700);margin-top:10px">{{ extNota }}</div>
+        </div>
+
+        <div style="background:var(--color-neutral-100);border-radius:22px;padding:16px 18px">
+          <div style="font-size:15px;font-weight:600;margin-bottom:6px">Este tipo de plan no lleva</div>
+          <div style="font-size:14px;color:var(--color-neutral-700);line-height:1.55">Estilo, profesor, forma de pago al profesor, criterio de liquidación ni precio. Un alquiler no le paga nada a un profesor, y el precio lo resuelve la tabla de alquiler según categoría, personas y horas.</div>
+        </div>
+      </div>
+    </sc-if>
+  </div>
+
+  <sc-if value="{{ verForm }}" hint-placeholder-val="{{ true }}">
+    <div style="position:fixed;left:0;right:0;bottom:0;background:var(--color-surface);border-top:1px solid var(--color-divider)">
+      <div style="max-width:760px;padding:12px 22px 16px;display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px">
+        <div style="flex:1 1 240px;min-width:0;font-size:15px;color:{{ pieColor }}">{{ pie }}</div>
+        <button class="btn btn-ghost" style="min-height:52px;font-size:16px">Cancelar</button>
+        <button class="btn btn-primary" onClick="{{ guardar }}" disabled="{{ noPuede }}" style="min-height:52px;font-size:17px;padding:0 28px">Guardar plan</button>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:800,&quot;height&quot;:900},&quot;estado&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;datos&quot;,&quot;cargando&quot;,&quot;error&quot;],&quot;default&quot;:&quot;datos&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Revisión&quot;}}">
+const SALAS = [{ id: 'S1', label: 'Sala 1' }, { id: 'S2', label: 'Sala 2' }, { id: 'S3', label: 'Sala 3' }];
+const soloNum = (v) => String(v == null ? '' : v).replace(/\D/g, '');
+
+class Component extends DCLogic {
+  state = { nombre: '', vigencia: '30', modo: 'fija', todas: true, salas: ['S1'], externa: false, ext: 'lista', recargo: '', guardado: false };
+  set = (p) => this.setState(Object.assign({ guardado: false }, p));
+
+  renderVals() {
+    const s = this.state;
+    const estado = this.props.estado || 'datos';
+    const vig = Number(s.vigencia) || 0;
+    const rec = Number(s.recargo) || 0;
+    let falta = null;
+    if (!s.nombre.trim()) falta = 'Falta el nombre del plan.';
+    else if (vig <= 0) falta = 'Falta la vigencia en días.';
+    else if (!s.todas && !s.salas.length) falta = 'Elegí al menos una sala.';
+    else if (s.ext === 'recargo' && rec <= 0) falta = 'Falta el porcentaje de recargo.';
+    return {
+      verCargando: estado === 'cargando', verError: estado === 'error', verForm: estado === 'datos',
+      nombre: s.nombre, onNombre: (e) => this.set({ nombre: e.target.value }),
+      vigencia: s.vigencia, onVigencia: (e) => this.set({ vigencia: soloNum(e.target.value) }),
+      esFija: s.modo === 'fija', esFlex: s.modo === 'flex',
+      setFija: () => this.set({ modo: 'fija' }), setFlex: () => this.set({ modo: 'flex' }),
+      modoNota: s.modo === 'fija'
+        ? 'Al vender se eligen días de la semana, hora y duración, y se genera el calendario completo hasta agotar las horas.'
+        : 'Al vender se reserva solo el primer horario. El resto se reserva después, dentro de la vigencia.',
+      todas: s.todas, algunas: !s.todas,
+      setTodas: () => this.set({ todas: true }), setAlgunas: () => this.set({ todas: false }),
+      salas: SALAS.map((x) => {
+        const sel = s.salas.indexOf(x.id) >= 0;
+        return { label: x.label, sel: sel, bg: sel ? 'var(--color-accent-2-200)' : 'var(--color-neutral-100)', borde: sel ? 'var(--color-accent-2-400)' : 'var(--color-divider)',
+          toggle: () => this.set({ salas: sel ? s.salas.filter((y) => y !== x.id) : s.salas.concat([x.id]) }) };
+      }),
+      externa: s.externa, toggleExterna: () => this.set({ externa: !s.externa }),
+      swBg: s.externa ? 'var(--color-accent)' : 'var(--color-neutral-300)',
+      swPos: s.externa ? 'flex-end' : 'flex-start',
+      extLista: s.ext === 'lista', extRecargo: s.ext === 'recargo',
+      setExtLista: () => this.set({ ext: 'lista' }), setExtRecargo: () => this.set({ ext: 'recargo' }),
+      recargo: s.recargo, onRecargo: (e) => this.set({ recargo: soloNum(e.target.value) }),
+      extNota: s.ext === 'lista' ? 'Las horas extra se cobran al precio de la tabla.' : 'Las horas extra se cobran al precio de la tabla' + (rec > 0 ? ' más ' + rec + '%.' : ' más el recargo.'),
+      pie: s.guardado ? 'Plan guardado. Ya aparece en Vender alquiler de sala.' : (falta || 'Listo para guardar.'),
+      pieColor: falta && !s.guardado ? 'var(--color-accent-700)' : 'var(--color-neutral-700)',
+      noPuede: !!falta, guardar: () => { if (!falta) this.setState({ guardado: true }); }
+    };
+  }
+}
+</script>
+</body>
+</html>

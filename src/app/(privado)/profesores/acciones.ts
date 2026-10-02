@@ -62,10 +62,36 @@ async function guardarEstilos(profesorId: number, estilos: string[]): Promise<{ 
   return {};
 }
 
-export async function crearProfesor(d: DatosProfesor): Promise<Resultado> {
+/**
+ * `existenteId`: el contacto ya existe con otro rol (alumno, solo contacto) y se
+ * le agrega el de profesor. Su identidad no se toca (regla 21): nombre, WhatsApp
+ * y demás se editan aparte, con el permiso del módulo `contactos`.
+ */
+export async function crearProfesor(d: DatosProfesor, existenteId?: number | null): Promise<Resultado> {
   if (!(await tienePermiso("profesores", "crear"))) return { error: "Sin permiso." };
   const err = validar(d);
   if (err) return { error: err };
+
+  if (existenteId) {
+    const { data: ya } = await admin().from("profesores").select("id").eq("contacto_id", existenteId).maybeSingle();
+    if (ya) return { error: "Ese contacto ya es profesor." };
+    const { data: fila, error } = await admin()
+      .from("profesores")
+      .insert({
+        contacto_id: existenteId,
+        tipo: d.tipo,
+        tarifa_reemplazo: d.tarifa_reemplazo,
+        fee_hora: d.fee_hora,
+        usuario_id: d.usuario_id,
+      })
+      .select("id")
+      .single();
+    if (error || !fila) return { error: error ? mapearError(error) : "No se pudo crear el profesor." };
+    const errEst = await guardarEstilos(fila.id, d.estilos);
+    if (errEst.error) return { error: errEst.error };
+    revalidatePath("/profesores");
+    return { ok: true };
+  }
 
   const errMatriz = await validarContraMatriz("profesor", {
     nombre: !!d.nombre.trim(),

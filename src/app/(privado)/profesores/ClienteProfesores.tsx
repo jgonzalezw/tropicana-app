@@ -117,8 +117,8 @@ function TabListado({
 
   const ordenado = [...padron].sort((a, b) => compararContactosPorApellido(a.contacto, b.contacto));
 
-  async function onGuardar(datos: DatosProfesor, id: number | null) {
-    const res = id ? await actualizarProfesor(id, datos) : await crearProfesor(datos);
+  async function onGuardar(datos: DatosProfesor, id: number | null, existenteId?: number | null) {
+    const res = id ? await actualizarProfesor(id, datos) : await crearProfesor(datos, existenteId);
     if (!res?.error) {
       setEditSel(null);
       setRemount((n) => n + 1);

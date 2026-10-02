@@ -1,19 +1,14 @@
 "use server";
 
+import { asegurarRolAlumno } from "@/app/(privado)/contactos/accionesVenta";
+import { planificarSesiones } from "@/lib/venta/agenda";
+import { faltaParaParticular } from "@/lib/venta/faltantes";
+import { destinatarioAviso } from "@/lib/venta/destinatarioAviso";
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { tienePermiso, obtenerParametro, obtenerPerfilActual, alcancePropioDe } from "@/lib/sesion";
-import { validarIdentidadAlumno, validarFechaNacimiento } from "@/lib/contactos";
-import { contextoAlumno, presenteDesdeExtra } from "@/lib/matrizMinimos";
-import type { Alumno, CobroInscripcion, Contacto, DatosAlumno, EntradaInscripcion, TipoProfesor } from "@/lib/tipos";
-import {
-  crearOReusarContactoPersona,
-  resolverTutor,
-  vincularTutor,
-  guardarDatosExtra,
-  validarContraMatriz,
-} from "@/app/(privado)/contactos/acciones";
+import type { CobroInscripcion, EntradaInscripcion, TipoProfesor } from "@/lib/tipos";
 import {
   fechaClaseN,
   fechaLarga,
@@ -30,23 +25,25 @@ import {
   motivoFueraDeVigencia,
   type VigenciaCurso,
 } from "@/lib/vigencia";
-import { validarReservaSala, ocupacionDeProfesor, ocupaAhora, FILTRO_ESTADOS_QUE_LIBERAN } from "@/lib/reservas";
 import {
-  ocupacionDelDia,
   costoSalaDeVenta,
   categoriaSalaDeProfesor,
   tamanoPorPersonas,
-  type CursoOcupa,
-  type ExcepcionHorario,
-  type FranjaPatron,
-  type ReservaSalaOcupa,
   type CategoriaSala,
   type ClaveTamano,
   type TamanoSala,
   type TarifaSala,
 } from "@/lib/sala";
-import { COLUMNAS_ASIGNACION } from "@/lib/asignaciones";
 import { vigenciaDiasEfectiva } from "@/lib/planesParticular";
+import {
+  evaluarSesiones,
+  formatearAgenda,
+  hoyLocal,
+  parseFechaISO,
+  type SesionAgendaEvaluada,
+} from "./agendaSala";
+
+export type { SesionAgendaEvaluada };
 
 const DIAS_ROTULO = ["", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"];
 /** "martes y jueves" — para decirle a la persona qué días sí tiene el curso. */
@@ -62,67 +59,55 @@ function admin() {
   return a;
 }
 
-// ── Alta rápida de alumno desde la inscripción ──────────────────────────
-// Mismo camino que `alumnos/acciones.ts:crearAlumno` — un contacto por
-// persona, creado o reusado antes que la fila de alumno — para no repetir
-// la validación ni la normalización del WhatsApp (estaba duplicada acá).
+// ── El titular de una venta de cursos ───────────────────────────────────
+// Es un contacto (regla 21): puede ser alumno, profesor o solo contacto. La
+// venta le agrega el rol alumno al confirmar. El alta se hace con el mismo
+// formulario que el resto de las ventas (`contactos/accionesVenta.ts`).
 
-export async function crearAlumnoDesdeInscripcion(
-  d: DatosAlumno
-): Promise<{ alumno?: Alumno; error?: string }> {
-  if (!(await tienePermiso("alumnos", "crear"))) return { error: "Sin permiso para crear alumnos." };
-  const err = validarIdentidadAlumno(d);
-  if (err) return { error: err };
-  const errEdad = validarFechaNacimiento(d.fecha_nacimiento, d.es_menor);
-  if (errEdad) return { error: errEdad };
+type TitularCurso = {
+  contactoId: number;
+  alumnoId: number | null;
+  esMenor: boolean;
+  alumno: { nombre: string; apellido: string };
+  whatsapp: string | null;
+};
 
-  const contexto = contextoAlumno({ esMenor: d.es_menor, enPrueba: d.enPrueba ?? false });
-  const errMatriz = await validarContraMatriz(contexto, {
-    nombre: !!d.nombre.trim(),
-    apellido: !!d.apellido.trim(),
-    canal_captacion: !!d.canal_captacion,
-    ...presenteDesdeExtra(d),
-  });
-  if (errMatriz) return { error: errMatriz };
-
-  const { contacto, error: errContacto } = await crearOReusarContactoPersona({
-    nombre: d.nombre,
-    apellido: d.apellido,
-    whatsapp: d.es_menor ? null : d.whatsapp,
-    canal_captacion: d.canal_captacion,
-    sexo: d.sexo,
-    email: d.email,
-    reusarSiExiste: false,
-  });
-  if (errContacto || !contacto) return { error: errContacto ?? "No se pudo crear el contacto." };
-
-  let tutor: Contacto | null = null;
-  if (d.es_menor) {
-    const r = await resolverTutor(d);
-    if (r.error || !r.contacto) return { error: r.error ?? "No se pudo resolver el tutor." };
-    tutor = r.contacto;
-    const errRel = await vincularTutor(tutor.id, contacto.id);
-    if (errRel.error) return { error: errRel.error };
-  }
-
-  const { data, error } = await admin()
-    .from("alumnos")
-    .insert({ contacto_id: contacto.id, es_menor: d.es_menor })
-    .select("id, contacto_id, es_menor, activo, creado_en, actualizado_en")
-    .single();
-
-  if (error) return { error: error.message };
-
-  const errExtra = await guardarDatosExtra(contacto.id, d);
-  if (errExtra.error) return { error: errExtra.error };
-
-  revalidatePath("/inscribir");
-  return { alumno: { ...(data as Omit<Alumno, "contacto" | "tutor">), contacto, tutor } };
+async function cargarTitularCurso(
+  a: ReturnType<typeof admin>,
+  contactoId: number
+): Promise<TitularCurso | { error: string }> {
+  const { data, error } = await a
+    .from("contactos")
+    .select("id, tipo, nombre, apellido, whatsapp, activo, alumno:alumnos(id, es_menor)")
+    .eq("id", contactoId)
+    .maybeSingle();
+  if (error) return { error: `No se pudo leer el titular: ${error.message}` };
+  const c = data as unknown as {
+    id: number;
+    tipo: string;
+    nombre: string | null;
+    apellido: string | null;
+    whatsapp: string | null;
+    activo: boolean;
+    alumno: { id: number; es_menor: boolean }[] | { id: number; es_menor: boolean } | null;
+  } | null;
+  if (!c || !c.activo) return { error: "El titular no existe o está inactivo." };
+  if (c.tipo !== "persona") return { error: "El titular de un curso tiene que ser una persona." };
+  const al = Array.isArray(c.alumno) ? (c.alumno[0] ?? null) : c.alumno;
+  return {
+    contactoId: c.id,
+    alumnoId: al?.id ?? null,
+    esMenor: al?.es_menor ?? false,
+    alumno: { nombre: c.nombre ?? "", apellido: c.apellido ?? "" },
+    whatsapp: c.whatsapp,
+  };
 }
 
 // ── Vender plan y cobrar ────────────────────────────────────────────────
 
-type ResultadoInscripcion = { ok?: true; resumen?: string; error?: string };
+type DatoVenta = { etiqueta: string; valor: string };
+type AvisoCurso = { nombre: string; whatsapp: string | null; mensaje: string };
+type ResultadoInscripcion = { ok?: true; resumen?: string; datos?: DatoVenta[]; avisoAlumno?: AvisoCurso; error?: string };
 
 export async function inscribirYCobrar(e: EntradaInscripcion): Promise<ResultadoInscripcion> {
   if (!(await tienePermiso("inscripciones", "crear")))
@@ -143,14 +128,12 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
   // prorrateo ya pagado — eso vive en Asistencia, donde se toca la clase.
 
   // 1. Alumno y plan (datos autoritativos del servidor).
-  const { data: alumnoRowRaw } = await sb
-    .from("alumnos")
-    .select("id, contacto_id, contacto:contactos(nombre, apellido)")
-    .eq("id", e.alumnoId)
-    .maybeSingle();
-  const alumnoRow = alumnoRowRaw as unknown as { id: number; contacto_id: number; contacto: { nombre: string | null; apellido: string | null } | null } | null;
-  if (!alumnoRow) return { error: "El alumno no existe." };
-  const alumno = { nombre: alumnoRow.contacto?.nombre ?? "", apellido: alumnoRow.contacto?.apellido ?? "" };
+  const titular = await cargarTitularCurso(a, e.contactoId);
+  if ("error" in titular) return { error: titular.error };
+  const alumno = titular.alumno;
+  // Si el titular todavía no es alumno, la venta le agrega el rol (regla 21) —
+  // pero recién después de validar todo, para no dejar un rol por una venta caída.
+  const alumnoExistenteId = titular.alumnoId;
 
   const { data: plan } = await sb
     .from("planes")
@@ -174,11 +157,11 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
   // mismo plan aun no redimidas. Suma clases al nuevo ciclo (solo planes con N).
   let bono = 0;
   let bonoOrigenIds: number[] = [];
-  if (!ilimitado) {
+  if (!ilimitado && alumnoExistenteId != null) {
     const { data: previos } = await sb
       .from("membresias")
       .select("id, bono_generado")
-      .eq("alumno_id", e.alumnoId)
+      .eq("alumno_id", alumnoExistenteId)
       .eq("plan_id", e.planId)
       .eq("estado", "completada")
       .eq("bono_redimido", false)
@@ -189,13 +172,16 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
   }
   // Conversión: si el alumno probó este mismo plan y el plan acredita el fee,
   // lo que pagó por la prueba se le descuenta de la membresía (regla 11).
-  const conversion = await pruebaConvertible(sb, {
-    alumnoId: e.alumnoId,
-    planId: e.planId,
-    acredita: plan.prueba_acredita !== false,
-    plazoDias: (plan.prueba_plazo_dias as number | null) ?? null,
-    fechaVentaISO: e.fechaInicio,
-  });
+  const conversion =
+    alumnoExistenteId != null
+      ? await pruebaConvertible(sb, {
+          alumnoId: alumnoExistenteId,
+          planId: e.planId,
+          acredita: plan.prueba_acredita !== false,
+          plazoDias: (plan.prueba_plazo_dias as number | null) ?? null,
+          fechaVentaISO: e.fechaInicio,
+        })
+      : null;
 
   const clasesPlan = clasesPlanBase != null ? clasesPlanBase + bono : null;
   const precioUnit = Number(plan.precio);
@@ -264,19 +250,23 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
   }
 
   // 4. No repetir una membresía activa del mismo plan para el alumno.
-  const { data: dup } = await sb
-    .from("membresias")
-    .select("id")
-    .eq("alumno_id", e.alumnoId)
-    .eq("plan_id", e.planId)
-    .eq("estado", "activa")
-    .maybeSingle();
+  const { data: dup } =
+    alumnoExistenteId != null
+      ? await sb
+          .from("membresias")
+          .select("id")
+          .eq("alumno_id", alumnoExistenteId)
+          .eq("plan_id", e.planId)
+          .eq("estado", "activa")
+          .maybeSingle()
+      : { data: null };
   if (dup) return { error: "Este alumno ya tiene una membresía activa de este plan." };
 
   // 5. Movimiento de dinero (recomputado): lo que se mueve = total − saldo.
   const c = e.cobro;
   const glosa = medioGlosa(c);
-  const mueveBruto = c.modo === "sin" ? 0 : Math.max(0, (Number(c.total) || 0) - (Number(c.saldo) || 0));
+  // `monto` es lo que se mueve de verdad (`cobroParaServidor`): igual que la prueba y la particular.
+  const mueveBruto = c.modo === "sin" ? 0 : Math.max(0, Number(c.monto) || 0);
   const mueve = Math.min(referencia, Math.max(0, Math.round(mueveBruto)));
   const descManual = Math.min(referencia, Math.max(0, Math.round(Number(c.ajuste) || 0)));
   if (mueve > 0 && !c.medio) return { error: "Elegí el medio de pago." };
@@ -302,14 +292,17 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
     fechaCompromiso = isoFecha(fc);
   }
 
-  // 7. Membresía.
+  // 7. Membresía. El titular adquiere el rol alumno si todavía no lo tiene.
+  const rol = await asegurarRolAlumno(titular.contactoId);
+  if (rol.error || rol.alumnoId == null) return { error: rol.error ?? "No se pudo dar el rol de alumno al titular." };
+  const alumnoId = rol.alumnoId;
   const { data: insc, error: errInsc } = await a
     .from("membresias")
     .insert({
-      alumno_id: e.alumnoId,
+      alumno_id: alumnoId,
       // El titular de la membresía es un contacto (0053, regla 21): la
       // columna es obligatoria y nada la completa sola.
-      contacto_id: alumnoRow.contacto_id,
+      contacto_id: titular.contactoId,
       curso_id: cursoPrincipal,
       modalidad: "mensual",
       fecha_inicio: isoFecha(inicio),
@@ -385,7 +378,7 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
     const { error: errPago } = await a.from("pagos").insert({
       tipo: "cobro",
       motivo: "membresia",
-      alumno_id: e.alumnoId,
+      alumno_id: alumnoId,
       membresia_id: inscripcionId,
       cuota_id: cuota.id,
       monto: porPlata,
@@ -401,7 +394,7 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
     const { error: errCred } = await a.from("pagos").insert({
       tipo: "cobro",
       motivo: "membresia",
-      alumno_id: e.alumnoId,
+      alumno_id: alumnoId,
       membresia_id: inscripcionId,
       cuota_id: cuota.id,
       monto: 0,
@@ -420,11 +413,29 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
   }
 
   revalidatePath("/inscribir");
+  const dest = await destinatarioAviso(a, { contactoId: titular.contactoId, esMenor: titular.esMenor, nombre: `${alumno.nombre} ${alumno.apellido}`.trim(), whatsapp: titular.whatsapp });
+  const quienEs = `${alumno.nombre} ${alumno.apellido}`.trim();
+  const sujeto = titular.esMenor ? `la inscripción de ${quienEs}` : "tu inscripción";
   return {
     ok: true,
     resumen:
       armarResumen(alumno, plan.nombre, inicio, porPlata, c.medio, bono) +
       (credito > 0 ? ` Se acreditó ${gs(credito)} de su clase de prueba.` : ""),
+    datos: [
+      { etiqueta: "Plan", valor: plan.nombre },
+      { etiqueta: ilimitado ? "Ciclo" : "Clases", valor: ilimitado ? `ilimitado, ${cicloDias} días` : `${clasesPlan}${bono > 0 ? ` (${clasesPlanBase} + ${bono} de bono)` : ""}` },
+      { etiqueta: "Empieza", valor: fechaLarga(inicio) },
+      ...(fechaFin ? [{ etiqueta: "Termina aprox.", valor: fechaLarga(parseFechaISO(fechaFin) ?? inicio) }] : []),
+      { etiqueta: "Precio", valor: gs(referencia) },
+      { etiqueta: "Cobrado", valor: porPlata > 0 ? `${gs(porPlata)}${c.medio ? ` (${c.medio})` : ""}` : "sin cobro por ahora" },
+      ...(credito > 0 ? [{ etiqueta: "Crédito de prueba", valor: gs(credito) }] : []),
+      ...(saldo > 0 && fechaCompromiso ? [{ etiqueta: "Saldo", valor: `${gs(saldo)} hasta el ${fechaLarga(parseFechaISO(fechaCompromiso) ?? inicio)}` }] : []),
+    ],
+    avisoAlumno: {
+      nombre: dest.nombre,
+      whatsapp: dest.whatsapp,
+      mensaje: `Hola! Confirmamos ${sujeto} en ${plan.nombre}: empieza el ${fechaLarga(inicio)}${fechaFin ? ` y el ciclo termina aprox. el ${fechaLarga(parseFechaISO(fechaFin) ?? inicio)}` : ""}. ¡Te esperamos!`,
+    },
   };
 }
 
@@ -528,7 +539,8 @@ function sumarDias(iso: string, n: number): string {
 
 /** Lo que la pantalla manda para vender una prueba. */
 export type EntradaPrueba = {
-  alumnoId: number;
+  /** Quien viene a probar, como contacto: si no es alumno todavía, la venta le agrega el rol. */
+  contactoId: number;
   planId: number;
   /**
    * Cursos que va a probar, **con la fecha de su clase**: una clase en cada
@@ -554,7 +566,7 @@ export type EntradaPrueba = {
  */
 export async function venderPrueba(
   e: EntradaPrueba
-): Promise<{ ok?: true; error?: string; resumen?: string }> {
+): Promise<{ ok?: true; error?: string; resumen?: string; datos?: DatoVenta[]; avisoAlumno?: AvisoCurso }> {
   if (!(await tienePermiso("inscripciones", "crear")))
     return { error: "No tenés permiso para vender." };
 
@@ -580,14 +592,11 @@ export async function venderPrueba(
   // membresía ya liquidada da otro número, la diferencia sale como un ajuste al
   // liquidar (0044) sin reescribir lo pagado. Una venta retroactiva no se traba.
 
-  const { data: alumnoRowRaw } = await sb
-    .from("alumnos")
-    .select("id, contacto_id, contacto:contactos(nombre, apellido)")
-    .eq("id", e.alumnoId)
-    .maybeSingle();
-  const alumnoRow = alumnoRowRaw as unknown as { id: number; contacto_id: number; contacto: { nombre: string | null; apellido: string | null } | null } | null;
-  if (!alumnoRow) return { error: "El alumno no existe." };
-  const alumno = { nombre: alumnoRow.contacto?.nombre ?? "", apellido: alumnoRow.contacto?.apellido ?? "" };
+  const titular = await cargarTitularCurso(a, e.contactoId);
+  if ("error" in titular) return { error: titular.error };
+  const alumno = titular.alumno;
+  // Si el titular todavía no es alumno, la venta le agrega el rol (regla 21) —
+  // pero recién después de validar todo, para no dejar un rol por una venta caída.
 
   const { data: plan } = await sb
     .from("planes")
@@ -618,12 +627,15 @@ export async function venderPrueba(
   // 11: la prueba es preliminar de un plan regular, no algo que conviva con
   // uno ya vendido). La prueba existe para decidir si alguien se inscribe, no
   // para alguien que ya decidió y ya paga.
-  const { data: yaSocioRows } = await sb
-    .from("membresias")
-    .select("id, curso_id, membresia_cursos(curso_id)")
-    .eq("alumno_id", e.alumnoId)
-    .eq("es_prueba", false)
-    .neq("estado", "baja");
+  const { data: yaSocioRows } =
+    titular.alumnoId != null
+      ? await sb
+          .from("membresias")
+          .select("id, curso_id, membresia_cursos(curso_id)")
+          .eq("alumno_id", titular.alumnoId)
+          .eq("es_prueba", false)
+          .neq("estado", "baja")
+      : { data: [] };
   const cursosYaSocio = new Set(
     ((yaSocioRows as { curso_id: number | null; membresia_cursos: { curso_id: number }[] }[]) ?? []).flatMap(
       (r) => [r.curso_id, ...r.membresia_cursos.map((ic) => ic.curso_id)].filter((x): x is number => x != null)
@@ -719,11 +731,15 @@ export async function venderPrueba(
   }
 
   // La membresía preliminar. Sin tolerancia: una prueba no genera bono.
+  // Quien viene a probar adquiere el rol alumno (regla 21), ya validado todo.
+  const rol = await asegurarRolAlumno(titular.contactoId);
+  if (rol.error || rol.alumnoId == null) return { error: rol.error ?? "No se pudo dar el rol de alumno al titular." };
+  const alumnoId = rol.alumnoId;
   const { data: insc, error: errInsc } = await a
     .from("membresias")
     .insert({
-      alumno_id: e.alumnoId,
-      contacto_id: alumnoRow.contacto_id,
+      alumno_id: alumnoId,
+      contacto_id: titular.contactoId,
       curso_id: cursoIds[0],
       modalidad: "clase",
       fecha_inicio: isoFecha(inicio),
@@ -789,12 +805,12 @@ export async function venderPrueba(
       .from("asistencias")
       .select("id")
       .eq("sesion_id", ses.id)
-      .eq("alumno_id", e.alumnoId)
+      .eq("alumno_id", alumnoId)
       .maybeSingle();
     if (ya) continue;
     const { error: errAsis } = await a.from("asistencias").insert({
       sesion_id: ses.id,
-      alumno_id: e.alumnoId,
+      alumno_id: alumnoId,
       membresia_id: inscripcionId,
       estado: "presente",
       con_licencia: false,
@@ -834,7 +850,7 @@ export async function venderPrueba(
     const { error: errPago } = await a.from("pagos").insert({
       tipo: "cobro",
       motivo: "membresia",
-      alumno_id: e.alumnoId,
+      alumno_id: alumnoId,
       membresia_id: inscripcionId,
       cuota_id: cuota.id,
       monto: porPlata,
@@ -879,8 +895,23 @@ export async function venderPrueba(
     ? ` Asistencia confirmada en ${confirmadas === 1 ? "la clase ya dictada" : `${confirmadas} clases ya dictadas`}.`
     : "";
 
+  const dest = await destinatarioAviso(a, { contactoId: titular.contactoId, esMenor: titular.esMenor, nombre: quien.trim(), whatsapp: titular.whatsapp });
+  const sujetoP = titular.esMenor ? `la clase de prueba de ${quien.trim()}` : "tu clase de prueba";
   return {
     ok: true,
+    datos: [
+      { etiqueta: "Plan", valor: plan.nombre },
+      { etiqueta: "Cursos", valor: clases.length ? clases.join(" · ") : cursosTxt },
+      { etiqueta: "Personas", valor: gente },
+      { etiqueta: "Total", valor: gs(referencia) },
+      { etiqueta: "Cobrado", valor: porPlata > 0 ? `${gs(porPlata)}${c.medio ? ` (${c.medio})` : ""}` : "sin cobro por ahora" },
+      ...(saldo > 0 && fechaCompromiso ? [{ etiqueta: "Saldo", valor: `${gs(saldo)} hasta el ${fechaLarga(parseFechaISO(fechaCompromiso) ?? inicio)}` }] : []),
+    ],
+    avisoAlumno: {
+      nombre: dest.nombre,
+      whatsapp: dest.whatsapp,
+      mensaje: `Hola! Confirmamos ${sujetoP} (${plan.nombre}, ${gente}):${clases.length ? ` ${clases.join(" y ")}` : ""}. ¡Te esperamos!`,
+    },
     resumen:
       `Clase de prueba de ${quien} — ${cursosTxt}, ${gente}, ${gs(referencia)}.${asiste} ` +
       (porPlata > 0 ? `Cobrado ${gs(porPlata)}${c.medio ? ` (${c.medio})` : ""}.` : "Sin cobro por ahora.") +
@@ -905,18 +936,6 @@ async function cursosDelPlan(
 
 // ── Auxiliares ──────────────────────────────────────────────────────────
 
-function parseFechaISO(s: string): Date | null {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec((s ?? "").trim());
-  if (!m) return null;
-  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-  return Number.isNaN(d.getTime()) ? null : d;
-}
-
-/** Hoy a medianoche local (para comparar contra fechas ISO sin hora). */
-function hoyLocal(): Date {
-  const n = new Date();
-  return new Date(n.getFullYear(), n.getMonth(), n.getDate());
-}
 
 function medioGlosa(c: EntradaInscripcion["cobro"]): string | null {
   if (c.medio && /otro/i.test(c.medio) && c.notaMedio.trim()) return c.notaMedio.trim();
@@ -957,7 +976,8 @@ function armarResumen(
 // cuando se construya esa parte.
 
 export type EntradaParticular = {
-  alumnoId: number;
+  /** El titular, como contacto: si no es alumno todavía, la venta le agrega el rol. */
+  contactoId: number;
   planId: number;
   tarifaParticularId: number;
   profesorId: number;
@@ -985,52 +1005,12 @@ type ResultadoParticular = {
   error?: string;
 };
 
-function agregarA<K>(mapa: Map<K, Set<number>>, clave: K, valor: number): void {
-  const set = mapa.get(clave) ?? new Set<number>();
-  set.add(valor);
-  mapa.set(clave, set);
-}
-
-/** Las próximas fechas (incluida `desde`) en que cae alguno de `diasSemana`
- *  (1=lun..7=dom), hasta juntar `sesiones` fechas. Tope de 400 días, igual
- *  que el resto del motor: una plantilla sin ningún día elegible no puede
- *  colgar el servidor buscando para siempre. */
-function fechasAgendaFija(diasSemana: number[], desde: Date, sesiones: number): string[] {
-  const out: string[] = [];
-  const cursor = new Date(desde.getFullYear(), desde.getMonth(), desde.getDate());
-  for (let i = 0; i < 400 && out.length < sesiones; i++) {
-    const dow = cursor.getDay() === 0 ? 7 : cursor.getDay();
-    if (diasSemana.includes(dow)) out.push(isoFecha(cursor));
-    cursor.setDate(cursor.getDate() + 1);
-  }
-  return out;
-}
-
-const DIAS_ABREV = ["", "lun", "mar", "mié", "jue", "vie", "sáb", "dom"];
-
-/** Lista legible de fechas/horas ("lun 29/09 18:00, mié 01/10 18:00, …"), para
- *  el mensaje de confirmación (detallar la agenda completa, no solo "primera
- *  clase + N más" — ver hallazgo del 26/09) y para listar los choques de la
- *  agenda fija. */
-function formatearAgenda(sesiones: { fecha: string; hora: string }[]): string {
-  return sesiones
-    .map((s) => {
-      const d = new Date(`${s.fecha}T00:00:00`);
-      const dow = d.getDay() === 0 ? 7 : d.getDay();
-      const dd = String(d.getDate()).padStart(2, "0");
-      const mm = String(d.getMonth() + 1).padStart(2, "0");
-      return `${DIAS_ABREV[dow]} ${dd}/${mm} ${s.hora.slice(0, 5)}`;
-    })
-    .join(", ");
-}
-
-export type SesionAgendaEvaluada = { fecha: string; hora: string; duracionMin: number; ok: boolean; motivo?: string };
 
 export type EntradaAgendaParticular = Omit<EntradaParticular, "cobro">;
 
 type AgendaCalculada = {
   error?: string;
-  alumno?: { id: number; contacto_id: number; nombre: string; whatsapp: string | null };
+  alumno?: { id: number | null; contacto_id: number; nombre: string; whatsapp: string | null };
   planNombre?: string;
   nombreProfesor?: string;
   whatsappProfesor?: string | null;
@@ -1081,34 +1061,38 @@ async function calcularAgendaParticular(
   const inicio = parseFechaISO(e.fechaInicio);
   if (!inicio) return { error: "Fecha de inicio inválida." };
 
-  const { data: alumnoRow } = await sb
-    .from("alumnos")
-    .select("id, contacto_id, es_menor, contacto:contactos(nombre, apellido, whatsapp)")
-    .eq("id", e.alumnoId)
+  // El titular es un contacto: si todavía no es alumno, la venta le agrega el
+  // rol (regla 21). La previsualización no escribe: solo lo lee.
+  const { data: contactoRow } = await a
+    .from("contactos")
+    .select("id, tipo, nombre, apellido, whatsapp, activo, alumno:alumnos(id, es_menor)")
+    .eq("id", e.contactoId)
     .maybeSingle();
-  const alumnoData = alumnoRow as unknown as {
+  const contactoData = contactoRow as unknown as {
     id: number;
-    contacto_id: number;
-    es_menor: boolean;
-    contacto: { nombre: string | null; apellido: string | null; whatsapp: string | null } | null;
+    tipo: string;
+    nombre: string | null;
+    apellido: string | null;
+    whatsapp: string | null;
+    activo: boolean;
+    alumno: { id: number; es_menor: boolean }[] | { id: number; es_menor: boolean } | null;
   } | null;
-  if (!alumnoData) return { error: "El alumno no existe." };
+  if (!contactoData || !contactoData.activo) return { error: "El titular no existe o está inactivo." };
+  if (contactoData.tipo !== "persona") return { error: "El titular de una clase particular tiene que ser una persona." };
+  const alumnoExistente = Array.isArray(contactoData.alumno) ? contactoData.alumno[0] ?? null : contactoData.alumno;
+  const alumnoData = {
+    id: alumnoExistente?.id ?? null,
+    contacto_id: contactoData.id,
+    es_menor: alumnoExistente?.es_menor ?? false,
+    contacto: { nombre: contactoData.nombre, apellido: contactoData.apellido, whatsapp: contactoData.whatsapp },
+  };
 
-  let destinatarioAviso = {
+  const destinatario = await destinatarioAviso(sb, {
+    contactoId: alumnoData.contacto_id,
+    esMenor: alumnoData.es_menor,
     nombre: `${alumnoData.contacto?.nombre ?? ""} ${alumnoData.contacto?.apellido ?? ""}`.trim(),
     whatsapp: alumnoData.contacto?.whatsapp ?? null,
-  };
-  if (alumnoData.es_menor) {
-    const { data: rel } = await sb
-      .from("contacto_relaciones")
-      .select("tutor:contactos!contacto_relaciones_desde_id_fkey(nombre, apellido, whatsapp)")
-      .eq("tipo", "tutor_de")
-      .eq("hacia_id", alumnoData.contacto_id)
-      .maybeSingle();
-    const tutor = (rel as unknown as { tutor: { nombre: string | null; apellido: string | null; whatsapp: string | null } } | null)
-      ?.tutor;
-    if (tutor) destinatarioAviso = { nombre: `${tutor.nombre ?? ""} ${tutor.apellido ?? ""}`.trim(), whatsapp: tutor.whatsapp };
-  }
+  });
 
   const { data: planRow } = await sb
     .from("planes")
@@ -1253,153 +1237,18 @@ async function calcularAgendaParticular(
   // contratadas (hallazgo de Javier, 26/09/2026). El sobrante, si lo hay,
   // se informa y queda para coordinar después (H3), no se inventa una
   // sesión corta ni se estira el paquete.
-  const minutosContratados = Math.round(horasContratadas * 60);
-  type SesionPedida = { fecha: string; hora: string; duracionMin: number };
-  let sesionesPedidas: SesionPedida[];
-  let leftoverMin = 0;
-  if (e.agenda.modalidad === "flexible") {
-    if (e.agenda.duracionMin > minutosContratados)
-      return {
-        error: `La duración elegida (${e.agenda.duracionMin} min) es mayor a las horas contratadas (${horasContratadas} h = ${minutosContratados} min).`,
-      };
-    sesionesPedidas = [{ fecha: isoFecha(inicio), hora: e.agenda.hora, duracionMin: e.agenda.duracionMin }];
-    leftoverMin = minutosContratados - e.agenda.duracionMin;
-  } else {
-    if (!e.agenda.diasSemana.length) return { error: "Elegí al menos un día para la agenda fija." };
-    const necesarias = Math.floor(minutosContratados / e.agenda.duracionMin);
-    if (necesarias < 1)
-      return {
-        error: `La duración elegida (${e.agenda.duracionMin} min) es mayor a las horas contratadas (${horasContratadas} h = ${minutosContratados} min).`,
-      };
-    const fechas = fechasAgendaFija(e.agenda.diasSemana, inicio, necesarias);
-    if (fechas.length < necesarias)
-      return { error: "No se encontraron suficientes fechas para cubrir las horas contratadas." };
-    sesionesPedidas = fechas.map((f) => ({ fecha: f, hora: e.agenda.hora, duracionMin: e.agenda.duracionMin }));
-    leftoverMin = minutosContratados - necesarias * e.agenda.duracionMin;
-  }
+  const planSesiones = planificarSesiones(e.agenda, inicio, horasContratadas);
+  if ("error" in planSesiones) return { error: planSesiones.error };
+  const { pedidas: sesionesPedidas, leftoverMin } = planSesiones;
 
-  const incrementoMin = Math.max(1, Number(await obtenerParametro("tiempos_incremento_min")) || 30);
-  const minimoMin = Math.max(1, Number(await obtenerParametro("duracion_minima_curso_min")) || 30);
-  const fechasUnicas = [...new Set(sesionesPedidas.map((s) => s.fecha))];
-
-  // ── Datos para validar la sala (si es propia) ──────────────────────────
-  let patronSala: FranjaPatron[] = [];
-  let excepcionesSala: ExcepcionHorario[] = [];
-  let cursosSala: CursoOcupa[] = [];
-  const reservasSalaPorFecha = new Map<string, ReservaSalaOcupa[]>();
-  const suspendidasSalaPorFecha = new Map<string, Set<number>>();
-  if (!esExterna) {
-    const [patronR, excR, cursosR, resR] = await Promise.all([
-      a.from("sala_horario_patron").select("dia_semana, desde, hasta").eq("sala_id", salaId),
-      a.from("sala_horario_excepciones").select("fecha, hasta_fecha, cerrado, desde, hasta, motivo, glosa").eq("sala_id", salaId),
-      a.from("cursos").select(`id, nombre, dias_semana, hora, duracion_min, sala_id, ${COLS_VIGENCIA}`).eq("sala_id", salaId).eq("activo", true),
-      a
-        .from("reservas_sala")
-        .select("id, tipo, motivo, glosa, hora, duracion_min, fecha, estado, solicitada_hasta")
-        .eq("sala_id", salaId)
-        .in("fecha", fechasUnicas)
-        .not("estado", "in", FILTRO_ESTADOS_QUE_LIBERAN),
-    ]);
-    patronSala = (patronR.data as FranjaPatron[]) ?? [];
-    excepcionesSala = (excR.data as ExcepcionHorario[]) ?? [];
-    cursosSala = (cursosR.data as unknown as CursoOcupa[]) ?? [];
-    const ahoraSala = new Date();
-    for (const r of (resR.data as (ReservaSalaOcupa & { fecha: string; estado: string; solicitada_hasta: string | null })[]) ?? []) {
-      if (!ocupaAhora({ tipo: r.tipo, estado: r.estado, solicitadaHasta: r.solicitada_hasta }, ahoraSala)) continue;
-      const l = reservasSalaPorFecha.get(r.fecha) ?? [];
-      l.push(r);
-      reservasSalaPorFecha.set(r.fecha, l);
-    }
-    const cursoIdsSala = cursosSala.map((c) => c.id);
-    if (cursoIdsSala.length) {
-      const { data: susRows } = await a
-        .from("sesiones")
-        .select("curso_id, fecha")
-        .in("curso_id", cursoIdsSala)
-        .eq("estado", "suspendida")
-        .in("fecha", fechasUnicas);
-      for (const s of (susRows as { curso_id: number; fecha: string }[]) ?? [])
-        agregarA(suspendidasSalaPorFecha, s.fecha, s.curso_id);
-    }
-  }
-
-  // ── Datos para validar al profesor (siempre, incluso con sala externa) ──
-  const { data: asigRows } = await a.from("asignaciones").select(COLUMNAS_ASIGNACION).eq("profesor_id", e.profesorId).is("hasta", null);
-  const cursoIdsProfesor = ((asigRows as { curso_id: number }[]) ?? []).map((r) => r.curso_id);
-  const [cursosProfR, reservasProfR] = await Promise.all([
-    cursoIdsProfesor.length
-      ? a.from("cursos").select(`id, nombre, dias_semana, hora, duracion_min, sala_id, ${COLS_VIGENCIA}`).in("id", cursoIdsProfesor)
-      : Promise.resolve({ data: [] as unknown[] }),
-    a
-      .from("reservas_sala")
-      .select("id, tipo, motivo, glosa, hora, duracion_min, fecha, estado, solicitada_hasta")
-      .eq("profesor_id", e.profesorId)
-      .in("fecha", fechasUnicas)
-      .not("estado", "in", FILTRO_ESTADOS_QUE_LIBERAN),
-  ]);
-  const cursosProfesor = (cursosProfR.data as unknown as CursoOcupa[]) ?? [];
-  const reservasProfesorPorFecha = new Map<string, ReservaSalaOcupa[]>();
-  const ahoraProf = new Date();
-  for (const r of (reservasProfR.data as (ReservaSalaOcupa & { fecha: string; estado: string; solicitada_hasta: string | null })[]) ?? []) {
-    if (!ocupaAhora({ tipo: r.tipo, estado: r.estado, solicitadaHasta: r.solicitada_hasta }, ahoraProf)) continue;
-    const l = reservasProfesorPorFecha.get(r.fecha) ?? [];
-    l.push(r);
-    reservasProfesorPorFecha.set(r.fecha, l);
-  }
-  const cursoIdsSusProf = cursosProfesor.map((c) => c.id);
-  const suspendidasProfesorPorFecha = new Map<string, Set<number>>();
-  if (cursoIdsSusProf.length) {
-    const { data: susRows } = await a
-      .from("sesiones")
-      .select("curso_id, fecha")
-      .in("curso_id", cursoIdsSusProf)
-      .eq("estado", "suspendida")
-      .in("fecha", fechasUnicas);
-    for (const s of (susRows as { curso_id: number; fecha: string }[]) ?? [])
-      agregarA(suspendidasProfesorPorFecha, s.fecha, s.curso_id);
-  }
-
-  // ── Evaluar CADA sesión: no corta en el primer choque, así la pantalla
-  //    puede mostrar el calendario completo con qué está libre y qué no
-  //    ("elegir de slots disponibles sin prueba y error", Javier 26/09).
-  const sesiones: SesionAgendaEvaluada[] = sesionesPedidas.map((s) => {
-    const ocupadosSala = esExterna
-      ? []
-      : ocupacionDelDia(
-          cursosSala,
-          reservasSalaPorFecha.get(s.fecha) ?? [],
-          s.fecha,
-          suspendidasSalaPorFecha.get(s.fecha) ?? new Set(),
-          salaId
-        );
-    const ocupadosProfesor = ocupacionDeProfesor(
-      cursosProfesor,
-      s.fecha,
-      suspendidasProfesorPorFecha.get(s.fecha) ?? new Set(),
-      reservasProfesorPorFecha.get(s.fecha) ?? []
-    );
-    const v = validarReservaSala({
-      fecha: s.fecha,
-      hora: s.hora,
-      duracionMin: s.duracionMin,
-      incrementoMin,
-      minimoMin,
-      personas,
-      sala: { esExterna, capacidad: null },
-      patron: patronSala,
-      excepciones: excepcionesSala,
-      ocupadosSala,
-      ocupadosProfesor,
-    });
-    return v.ok ? { ...s, ok: true } : { ...s, ok: false, motivo: v.motivo };
-  });
+  const sesiones = await evaluarSesiones(a, { salaId, esExterna, profesorId: e.profesorId, sesiones: sesionesPedidas, personas });
 
   const nombreProfesor = `${(profesorRow.contacto as unknown as { nombre: string | null } | null)?.nombre ?? ""} ${
     (profesorRow.contacto as unknown as { apellido: string | null } | null)?.apellido ?? ""
   }`.trim();
 
   return {
-    alumno: { id: alumnoData.id, contacto_id: alumnoData.contacto_id, nombre: destinatarioAviso.nombre, whatsapp: destinatarioAviso.whatsapp },
+    alumno: { id: alumnoData.id, contacto_id: alumnoData.contacto_id, nombre: destinatario.nombre, whatsapp: destinatario.whatsapp },
     planNombre: planRow.nombre,
     nombreProfesor,
     whatsappProfesor: (profesorRow.contacto as unknown as { whatsapp: string | null } | null)?.whatsapp ?? null,
@@ -1470,6 +1319,27 @@ export async function venderParticular(e: EntradaParticular): Promise<ResultadoP
   const { propio, profesorId } = await alcancePropioDe("particulares");
   if (propio && e.profesorId !== profesorId) return { error: "Solo podés vender clases particulares a tu propio nombre." };
 
+  // La misma función que deshabilita el botón en la pantalla (calidad 9). La
+  // alineación de la hora al intervalo la valida `evaluarSesiones` por sesión.
+  const falta = faltaParaParticular({
+    contactoId: e.contactoId,
+    planId: e.planId,
+    tarifaId: e.tarifaParticularId,
+    profesorId: e.profesorId,
+    salaTipo: e.sala.tipo,
+    salaId: e.sala.tipo === "propia" ? e.sala.salaId : null,
+    nombreExterna: e.sala.tipo === "externa" ? e.sala.nombreDescriptivo : "",
+    fechaInicio: e.fechaInicio,
+    esFija: e.agenda.modalidad === "fija",
+    diasSemana: e.agenda.modalidad === "fija" ? e.agenda.diasSemana : [],
+    hora: e.agenda.hora,
+    horaAlineada: true,
+    duracionMin: e.agenda.duracionMin,
+    esCortesia: !!e.cortesia,
+    cortesiaMotivo: e.cortesia?.motivo ?? "",
+  });
+  if (falta) return { error: `Falta ${falta}.` };
+
   const perfil = await obtenerPerfilActual();
   const a = admin();
   const sb = await createClient();
@@ -1521,7 +1391,8 @@ export async function venderParticular(e: EntradaParticular): Promise<ResultadoP
   // ── Cobro (mismo cálculo que inscribirYCobrar) ─────────────────────────
   const c = e.cobro;
   const glosa = medioGlosa(c);
-  const mueveBruto = c.modo === "sin" ? 0 : Math.max(0, (Number(c.total) || 0) - (Number(c.saldo) || 0));
+  // `monto` es lo que se mueve de verdad (`cobroParaServidor`): igual que la prueba y la particular.
+  const mueveBruto = c.modo === "sin" ? 0 : Math.max(0, Number(c.monto) || 0);
   const mueve = Math.min(precio, Math.max(0, Math.round(mueveBruto)));
   const descManual = Math.min(precio, Math.max(0, Math.round(Number(c.ajuste) || 0)));
   if (mueve > 0 && !c.medio) return { error: "Elegí el medio de pago." };
@@ -1541,10 +1412,15 @@ export async function venderParticular(e: EntradaParticular): Promise<ResultadoP
   }
 
   // ── Grabar ──────────────────────────────────────────────────────────
+  // El titular adquiere el rol alumno al comprar (regla 21).
+  const rol = await asegurarRolAlumno(alumno.contacto_id);
+  if (rol.error || rol.alumnoId == null) return { error: `No se pudo registrar al titular como alumno: ${rol.error ?? "sin id"}` };
+  const alumnoId = rol.alumnoId;
+
   const { data: mem, error: errMem } = await a
     .from("membresias")
     .insert({
-      alumno_id: e.alumnoId,
+      alumno_id: alumnoId,
       contacto_id: alumno.contacto_id,
       curso_id: null,
       modalidad: "clase",
@@ -1616,7 +1492,7 @@ export async function venderParticular(e: EntradaParticular): Promise<ResultadoP
     const { error: errPago } = await a.from("pagos").insert({
       tipo: "cobro",
       motivo: "clase_particular",
-      alumno_id: e.alumnoId,
+      alumno_id: alumnoId,
       membresia_id: membresiaId,
       cuota_id: cuota.id,
       monto: mueve,
@@ -1678,7 +1554,7 @@ export async function venderParticular(e: EntradaParticular): Promise<ResultadoP
 
   return {
     ok: true,
-    resumen: `Membresía particular de ${alumno.nombre || `alumno #${e.alumnoId}`} — ${planNombre}, ${horasContratadas} h con ${nombreProfesor}. ${introAlumno}: ${agendaTexto}.${restoCoordina} ${mueve > 0 ? `Cobrado ${gs(mueve)}.` : "Sin cobro por ahora."}`,
+    resumen: `Membresía particular de ${alumno.nombre || `alumno #${alumnoId}`} — ${planNombre}, ${horasContratadas} h con ${nombreProfesor}. ${introAlumno}: ${agendaTexto}.${restoCoordina} ${mueve > 0 ? `Cobrado ${gs(mueve)}.` : "Sin cobro por ahora."}`,
     avisoAlumno: {
       nombre: alumno.nombre,
       whatsapp: alumno.whatsapp,

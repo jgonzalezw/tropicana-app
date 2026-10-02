@@ -57,7 +57,11 @@ export type PaqueteParticularEdit = {
 };
 
 export type SalaEdit = {
-  tamanos: { clave: string; max_personas: number }[];
+  tamanos: { clave: string; etiqueta: string; max_personas: number }[];
+  /** Nombres de las categorías de cliente (catálogo `categoria_comprador`).
+   *  Se renombra la etiqueta; la clave no se toca (de ella depende la regla
+   *  que propone la categoría, regla 24). */
+  categorias: { clave: string; etiqueta: string }[];
   /** Los paquetes de horas: `id` null = fila nueva. */
   horas: { id: number | null; horas: number }[];
   /** Celdas de la matriz. `precio` null = sin tarifa cargada. */
@@ -190,11 +194,32 @@ export async function guardarPrecios(c: CambiosPrecios): Promise<Resultado> {
     for (const t of c.sala.tamanos) {
       if (!(t.max_personas > 0))
         return { error: "El máximo de personas de un tamaño tiene que ser mayor a cero." };
+      if (!t.etiqueta.trim()) return { error: "Un tramo de personas necesita nombre." };
       const { error } = await a
         .from("sala_tamanos")
-        .update({ max_personas: Math.trunc(t.max_personas) })
+        .update({ etiqueta: t.etiqueta.trim(), max_personas: Math.trunc(t.max_personas) })
         .eq("clave", t.clave);
       if (error) return { error: `No se pudo guardar el tamaño: ${error.message}` };
+    }
+
+    // Nombres de las categorías: solo la etiqueta, nunca la clave.
+    if (c.sala.categorias.length) {
+      const { data: cat, error: errCat } = await a
+        .from("catalogos")
+        .select("id")
+        .eq("clave", "categoria_comprador")
+        .maybeSingle();
+      if (errCat || !cat)
+        return { error: "No se pudo leer el catálogo de categorías de cliente." };
+      for (const k of c.sala.categorias) {
+        if (!k.etiqueta.trim()) return { error: "Una categoría de cliente necesita nombre." };
+        const { error } = await a
+          .from("catalogo_valores")
+          .update({ etiqueta: k.etiqueta.trim() })
+          .eq("catalogo_id", cat.id)
+          .eq("valor", k.clave);
+        if (error) return { error: `No se pudo guardar la categoría: ${error.message}` };
+      }
     }
 
     for (const id of c.horasEliminadas ?? []) {

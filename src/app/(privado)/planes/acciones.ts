@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { tienePermiso } from "@/lib/sesion";
+import { obtenerParametro, tienePermiso } from "@/lib/sesion";
 import type { DatosPlan } from "@/lib/tipos";
 import { validarDatosPlan } from "@/lib/planes";
 
@@ -14,7 +14,15 @@ function admin() {
   return a;
 }
 
-const validar = validarDatosPlan;
+/**
+ * Tope del recargo de extensión (parámetro `extension_recargo_max_pct`, 0060).
+ * La base ya limita `extension_recargo_pct` a 100, así que un parámetro mayor
+ * no ampliaría nada: se acota ahí.
+ */
+async function topeRecargoExtension(): Promise<number> {
+  const v = Number(await obtenerParametro("extension_recargo_max_pct"));
+  return Number.isFinite(v) && v > 0 ? Math.min(v, 100) : 100;
+}
 
 /** Cursos a guardar en plan_cursos según el modo de acceso. */
 function cursosParaGuardar(d: DatosPlan): number[] {
@@ -94,7 +102,27 @@ async function guardarSalas(
 /** Columnas propias de un plan de particulares (0052, H1); null/default en
  *  cualquier otro tipo_servicio, para no dejar restos configurados que
  *  confundan si el tipo cambiara. */
-function camposParticular(d: DatosPlan) {
+function camposPorTipo(d: DatosPlan) {
+  // Un alquiler (H7) comparte con particulares la vigencia, la modalidad de
+  // reserva, las salas, la sala externa y la extensión; NO lleva estilo,
+  // profesor, forma de pago, acompañantes ni cortesía.
+  if (d.tipo_servicio === "alquiler") {
+    return {
+      estilo: null,
+      vigencia_dias: d.vigencia_dias,
+      reserva_modalidad: d.reserva_modalidad,
+      salas_modo: d.salas_modo,
+      forma_pago_profesor: null,
+      pago_pct_margen: null,
+      pago_descuenta_sala: false,
+      pago_monto_fijo: null,
+      extension_modo: d.extension_modo,
+      extension_recargo_pct: d.extension_modo === "recargo" ? d.extension_recargo_pct : null,
+      registra_acompanantes: false,
+      permite_sala_externa: d.permite_sala_externa,
+      permite_cortesia: false,
+    };
+  }
   if (d.tipo_servicio !== "particular") {
     return {
       estilo: null,
@@ -131,7 +159,7 @@ function camposParticular(d: DatosPlan) {
 
 export async function crearPlan(d: DatosPlan): Promise<Resultado> {
   if (!(await tienePermiso("planes", "crear"))) return { error: "Sin permiso." };
-  const err = validar(d);
+  const err = validarDatosPlan(d, await topeRecargoExtension());
   if (err) return { error: err };
 
   const a = admin();
@@ -154,7 +182,7 @@ export async function crearPlan(d: DatosPlan): Promise<Resultado> {
       prueba_cursos_max: d.acepta_prueba ? d.prueba_cursos_max : null,
       prueba_acredita: d.acepta_prueba ? d.prueba_acredita : true,
       prueba_plazo_dias: d.acepta_prueba ? d.prueba_plazo_dias : null,
-      ...camposParticular(d),
+      ...camposPorTipo(d),
       renovable: true,
       activo: true,
     })
@@ -222,7 +250,7 @@ export async function actualizarPlan(
   aplicarCriterioAMembresias = false
 ): Promise<Resultado> {
   if (!(await tienePermiso("planes", "editar"))) return { error: "Sin permiso." };
-  const err = validar(d);
+  const err = validarDatosPlan(d, await topeRecargoExtension());
   if (err) return { error: err };
 
   const a = admin();
@@ -245,7 +273,7 @@ export async function actualizarPlan(
       prueba_cursos_max: d.acepta_prueba ? d.prueba_cursos_max : null,
       prueba_acredita: d.acepta_prueba ? d.prueba_acredita : true,
       prueba_plazo_dias: d.acepta_prueba ? d.prueba_plazo_dias : null,
-      ...camposParticular(d),
+      ...camposPorTipo(d),
       actualizado_en: new Date().toISOString(),
     })
     .eq("id", id);

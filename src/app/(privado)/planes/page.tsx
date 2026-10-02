@@ -18,6 +18,8 @@ export default async function PaginaPlanes() {
   const plazoAcademia = Math.max(0, Number(await obtenerParametro("prueba_plazo_dias")) || 7);
   const factorMedioMes = Math.max(1, Number(await obtenerParametro("medio_mes_factor")) || 2);
   const vigenciaMesesAcademia = Math.max(1, Number(await obtenerParametro("vencimiento_paquete_meses")) || 2);
+  // Tope del recargo de extensión (0060). La base ya limita a 100.
+  const recargoMaxPct = Math.min(100, Number(await obtenerParametro("extension_recargo_max_pct")) || 100);
 
   const [
     { data: planes },
@@ -88,6 +90,7 @@ export default async function PaginaPlanes() {
         tarifas={tarifas}
         factorMedioMes={factorMedioMes}
         vigenciaMesesAcademia={vigenciaMesesAcademia}
+        recargoMaxPct={recargoMaxPct}
       />
     </Pagina>
   );

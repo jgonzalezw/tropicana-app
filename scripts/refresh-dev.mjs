@@ -66,7 +66,7 @@ const ORDEN = [
   "membresia_salas",
   "membresia_asistentes",
   // Antes de comisiones_devengadas: su reserva_sala_id le apunta.
-  "alquileres_sala",
+  // (`alquileres_sala` se eliminó en la 0061: el alquiler es una membresía.)
   "reservas_sala",
   // Depende de reservas_sala (0054, C3 H3): el rastro de cada cambio de
   // estado. Mismo hallazgo que el de arriba (0053): sin entrar acá, el

@@ -461,7 +461,9 @@ export async function lineasPorCobrar(
     .from("cuotas")
     .select(
       "id, membresia_id, monto_devengado, descuento_adelanto, vencimiento, fecha_compromiso, " +
-        "inscripcion:membresias(id, alumno_id, alumno:alumnos(id, contacto:contactos(nombre, apellido)), " +
+        "inscripcion:membresias(id, alumno_id, contacto_id, categoria_aplicada, " +
+        "alumno:alumnos(id, contacto:contactos(nombre, apellido)), " +
+        "titular:contactos(id, tipo, nombre, apellido, razon_social), " +
         "plan:planes(nombre, tipo_servicio), curso:cursos(nombre))"
     )
     .neq("estado", "pagada");
@@ -475,13 +477,20 @@ export async function lineasPorCobrar(
     fecha_compromiso: string | null;
     inscripcion: {
       id: number;
-      alumno_id: number;
+      alumno_id: number | null;
+      contacto_id: number | null;
+      categoria_aplicada: string | null;
       alumno: { id: number; contacto: { nombre: string | null; apellido: string | null } | null } | null;
+      /** El titular como contacto: es quien debe en un alquiler (sin rol alumno, regla 21). */
+      titular: { id: number; tipo: "persona" | "organizacion"; nombre: string | null; apellido: string | null; razon_social: string | null } | null;
       plan: { nombre: string; tipo_servicio: string } | null;
       curso: { nombre: string } | null;
     } | null;
   };
-  let filas = ((data as unknown as Fila[]) ?? []).filter((f) => f.inscripcion?.alumno);
+  // Una membresía tiene un alumno; un alquiler (H7) solo un titular-contacto.
+  let filas = ((data as unknown as Fila[]) ?? []).filter(
+    (f) => f.inscripcion?.alumno || f.inscripcion?.categoria_aplicada != null
+  );
   if (filtro?.alumnoId != null)
     filas = filas.filter((f) => f.inscripcion!.alumno_id === filtro.alumnoId);
   if (!filas.length) return [];
@@ -498,25 +507,36 @@ export async function lineasPorCobrar(
 
   return filas
     .map((f) => {
-      const al = f.inscripcion!.alumno!;
-      const servicio = f.inscripcion!.plan?.nombre ?? f.inscripcion!.curso?.nombre ?? "Membresía";
-      // Una membresía de particulares no tiene curso (H2): el bucket y el
-      // motivo sugerido siguen el tipo de servicio del plan, no "membresía".
-      const esParticular = f.inscripcion!.plan?.tipo_servicio === "particular";
-      const bucket: Bucket = esParticular ? "particulares" : "cuotas";
+      const insc = f.inscripcion!;
+      const servicio = insc.plan?.nombre ?? insc.curso?.nombre ?? "Membresía";
+      // El bucket y el motivo sugerido siguen el tipo de servicio del plan, no
+      // "membresía": una particular (H2) y un alquiler (H7) no tienen curso.
+      const tipoServicio = insc.plan?.tipo_servicio;
+      const esParticular = tipoServicio === "particular";
+      const esAlquiler = tipoServicio === "alquiler";
+      const bucket: Bucket = esAlquiler ? "alquiler" : esParticular ? "particulares" : "cuotas";
+      const al = insc.alumno;
+      const t = insc.titular;
+      const sujeto = al
+        ? `${al.contacto?.apellido ?? ""}, ${al.contacto?.nombre ?? ""}`
+        : t
+          ? t.tipo === "organizacion"
+            ? t.razon_social ?? "—"
+            : `${t.apellido ?? ""}, ${t.nombre ?? ""}`
+          : "Titular de alquiler";
       return {
         clave: `cuota:${f.id}`,
         bucket,
         cuotaId: f.id,
-        sujetoTipo: "alumno" as const,
-        sujetoId: al.id,
-        sujeto: `${al.contacto?.apellido ?? ""}, ${al.contacto?.nombre ?? ""}`,
+        sujetoTipo: al ? ("alumno" as const) : ("tercero" as const),
+        sujetoId: al ? al.id : insc.contacto_id,
+        sujeto,
         detalle: servicio,
         saldo: saldoCuota(num(f.monto_devengado), num(f.descuento_adelanto), cubierto[f.id] ?? 0),
         // Si se pactó una fecha de compromiso, esa manda sobre el vencimiento
         // original: es la que la escuela acordó con el alumno.
         fechaLimite: f.fecha_compromiso ?? f.vencimiento,
-        motivoSugerido: esParticular ? "clase_particular" : "membresia",
+        motivoSugerido: esAlquiler ? "alquiler" : esParticular ? "clase_particular" : "membresia",
       };
     })
     .filter((l) => l.saldo > 0)
@@ -563,11 +583,11 @@ export async function registrarCobro(
 
   const { data: inscRow } = await a
     .from("membresias")
-    .select("id, alumno_id")
+    .select("id, alumno_id, contacto_id")
     .eq("id", cuota.membresia_id)
     .maybeSingle();
   if (!inscRow) return { error: "La membresía de esa cuota no existe." };
-  const insc = inscRow as { id: number; alumno_id: number };
+  const insc = inscRow as { id: number; alumno_id: number | null; contacto_id: number | null };
 
   // Cuánto se debe hoy, antes de este cobro.
   const { data: previos } = await a
@@ -621,6 +641,8 @@ export async function registrarCobro(
     // descartaba lo que elegia el operador.
     motivo: e.motivo?.trim() || "membresia",
     alumno_id: insc.alumno_id,
+    // Un alquiler no tiene alumno (regla 21): la plata queda a nombre del contacto.
+    contacto_id: insc.alumno_id == null ? insc.contacto_id : null,
     membresia_id: insc.id,
     cuota_id: cuota.id,
     monto: plata,

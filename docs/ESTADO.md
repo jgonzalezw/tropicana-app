@@ -4710,3 +4710,100 @@ Javier preguntó dónde estaban las particulares y las membresías de varios cur
 - **Asignar:** `crearAsignacion` recibe `desde` (hoy por defecto); cierra la abierta el día anterior y rechaza solapes (`validarAsignacionNueva`).
 - **Medido en dev (Isabel, corte 10/09):** Bs 63,75 por cada membresía (23 y 24) + 4 pruebas Zumba ya completadas a Bs 15 = **Bs 187,50**, visible en Caja "Por pagar".
 - **En producción desde el 2026-10-01** (0062 + PR #6); Isabel desasignada, avance liquidado y pagado, verificado por Javier. Pendiente: particulares (etapa 2). H7 (0060/0061) sigue solo en dev, aparte.
+
+
+## C3 — H7: alquiler de sala, tanda 1 (base) · 2026-10-01 (dev, sin pase)
+
+Primera de tres tandas (plan aprobado por Javier; se valida en dev entre cada una). Diseño recibido de Design el mismo día (`docs/design/`: `Vender alquiler de sala`, `Plan de alquiler`, `Precios y paquetes v2`).
+
+**Migración 0060** (`0060_alquiler_base.sql`, aplicada en dev; idempotente y aditiva, ningún dato de dominio): (1) módulo de permisos `alquileres`, copiado de `particulares` a cada rol **menos** los de alcance `propio` (el Profesor queda sin acceso hasta que Javier se lo dé: un alquiler no tiene profesor dueño) — 12 permisos para administrador, gerente y asistente; (2) matriz de mínimos `tercero_org`/`documento` = `O` (NIT obligatorio para empresas, D23 para este caso; en dev ya estaba aplicado a mano); (3) dos parámetros nuevos: `alquiler_categoria_modo` (`automatica`/`editable`, arranca `automatica`) y `extension_recargo_max_pct` (100).
+
+**Código**
+- `src/lib/tipos.ts`: módulo `alquileres` en `MODULOS`/`ETIQUETA_MODULO` (no entra a `MODULOS_CON_ALCANCE`).
+- `src/lib/planesAlquiler.ts` (+ test, 6 pruebas): `validarPlanAlquiler` y `validarRecargoExtension`, una sola función pura para cliente y servidor (calidad 9). `validarDatosPlan`/`validarPlanParticular` reciben el tope de recargo; el de particulares también lo respeta ahora.
+- `planes/`: pestaña "Alquiler de salas" construida (vigencia en días obligatoria, modalidad fija/flexible, salas todas/algunas, permite sala externa, extensión lista/recargo con tope). `camposParticular` pasó a `camposPorTipo`: un alquiler no guarda estilo, forma de pago, acompañantes ni cortesía. Sin precio ni criterio en la tabla.
+- `precios/`: **nombres editables** de los tramos de personas (`sala_tamanos.etiqueta`) y de las categorías de cliente (`catalogo_valores.etiqueta` del catálogo `categoria_comprador`), con las **claves bloqueadas** y la nota. `costoDeSala` acepta un rotulador de categoría (el nombre del catálogo); `ETIQUETA_CATEGORIA` queda solo de respaldo.
+- Reglas/decisiones: regla 24 reescrita (categoría según el parámetro) y bloque de H7 en `DECISIONES.md`.
+
+**Respuestas de Javier (2026-10-01):** categoría gobernada por parámetro (automática de entrada); una persona puede trabajar en varias organizaciones; recargo de extensión con tope por parámetro. **Desviación del mockup, a propósito:** se conserva el simulador "Cómo lo resuelve una particular" en Precios (H5 usa esa matriz para el costo de sala de `pct_margen`).
+
+**Verificación:** `tsc` y `eslint` limpios; `npm test` 211/211. Falta el recorrido en el navegador y que Javier pruebe en su local antes de pasar a la tanda 2.
+
+**Hallazgo (dev):** el catálogo `categoria_comprador` tiene un 5º valor `clientes_varios` que la matriz no usa; se revisa si existe en producción antes del pase.
+
+## C3 — H7: alquiler de sala, tanda 2 (la venta) · 2026-10-01 (dev, sin pase)
+
+- **Migración 0061** (solo dev): en `membresias` `categoria_propuesta`, `categoria_aplicada`, `categoria_motivo`, `categoria_glosa`, `alquiler_personas`, `alquiler_tamano`, `alquiler_ruta`; `alumno_id` pasa a nullable con check por tipo de servicio; se elimina `alquileres_sala` (0 filas en las dos bases) y `reservas_sala.alquiler_id` (la reserva cuelga de `membresia_id`).
+- **Un alquiler = membresía con `categoria_aplicada`**, titular `contacto_id` (sin rol alumno, regla 21), reservas `tipo='alquiler'` confirmadas, cuota y pago con motivo `alquiler` (cierra D5, lado alquiler).
+- **Código**: `categoriaAlquiler.ts` (política + 12 pruebas), `ventaAlquiler.ts` (`faltaParaAlquiler`, validación única cliente/servidor), `inscribir/{accionesAlquiler.ts,VenderAlquiler.tsx,agendaSala.ts}`, `/alquileres` (solo lectura), Caja (`lineasPorCobrar`/`registrarCobro` con titular contacto). Controles **43 y 44** nuevos.
+- **Verificado en dev (navegador)**: titular, categoría propuesta con motivo, precio de la tabla, choque real con clases, venta de 2 h Bs 100 (membresía 49, 2 reservas, 1 cuota, 1 pago), Caja, `/alquileres`, y que `/particulares` no la lista. tsc/lint limpios, 223 pruebas, advisors sin hallazgos nuevos.
+- **Para probar la venta hubo que cargar un horario de sala en dev** (`sala_horario_patron`, sala 1, 09:00–22:00): sin horario la sala no es reservable (mensaje de calidad 5, no bug).
+- **Límite conocido**: `/alquileres` es solo lectura; confirmar/reprogramar/cancelar reservas de alquiler (gestión de H3) no está enchufado todavía.
+- **Falta**: tanda 3 (titular como contacto: persona/organización, NIT, persona de contacto) y el pase a producción (cargar antes la tabla de precios de alquiler: hoy 1 paquete y 9 celdas).
+
+## Ventas y contactos con el mismo comportamiento — E1 (piezas comunes + alquiler) · 2026-10-02 (dev, sin pase)
+
+Rama `h7-alquiler`. **Sin migración nueva**: el módulo de permisos `contactos` ya existía desde la 0048 (se usan `contactos.ver/crear/editar`); el plan hablaba de una 0063 que no hace falta.
+
+**Piezas nuevas, reutilizables por todas las ventas:**
+- `src/components/contacto/`: `TitularVenta` (buscar → alta → tarjeta), `AltaContacto` (alta y edición, persona u organización solo si el flujo lo permite; NIT por omisión en organizaciones), `TarjetaContacto` (solo lectura, Editar datos / Cambiar), `PanelDuplicado` (ofrece usar el contacto existente, de cualquier rol).
+- `src/components/venta/`: `BloqueVenta`, `BarraVenta`, `ConfirmacionVenta`, `FechaCompromiso`, `AgendaReservas` (revisión de disponibilidad automática, sin botón).
+- Puras, con pruebas: `lib/contactoVenta.ts`, `lib/venta/cobro.ts` (`cobroParaServidor`), `lib/venta/agenda.ts` (`planificarSesiones`, ya usada también por particulares).
+- Servidor: `contactos/accionesVenta.ts` (buscar, duplicado, crear con borrado compensatorio, asegurar rol, detalle, actualizar).
+
+**`VenderAlquiler.tsx` rearmado** con esas piezas. Verificado en el navegador contra `tropicana-dev`, 1600 px: titular existente (profesor, no recibe rol alumno), organización nueva con NIT y persona de contacto (`trabaja_en` guardada), agenda con choques y libre, cobro, confirmación con WhatsApp; la venta de prueba guardó 1 membresía y 2 reservas.
+
+**Falta:** probar 375 px, sala externa y categoría `editable`; mover `faltaParaAlquiler` a `lib/venta/faltantes.ts`; pruebas de `buscarDuplicado`/`asegurarRol`; control de BD de rol duplicado; link "Ver ficha ↗" (no hay deep-link por id en Alumnos/Profesores). Sigue **E2** (particulares). Pase a producción solo con OK de Javier.
+
+## E2 — Clase particular con las piezas comunes (2026-10-01, dev)
+
+`VenderParticular` se rearmó con el mismo esqueleto que el alquiler: titular
+(`TitularVenta`, solo persona, **adquiere el rol alumno** al vender: la venta
+llama a `asegurarRolAlumno`), plan y tramo (la cortesía vive en el resumen de
+ese paso), profesor (con acompañantes si el plan los registra), sala y horario
+(`AgendaReservas`, revisión automática que incluye la ocupación del profesor),
+cobro con `FechaCompromiso`, `BarraVenta` y `ConfirmacionVenta` con los dos
+avisos de WhatsApp. `EntradaParticular` pasa de `alumnoId` a `contactoId`.
+Faltantes compartidos pantalla-servidor en `src/lib/venta/faltantes.ts`
+(`faltaParaParticular`; `faltaParaAlquiler` se movió ahí). El aviso del alquiler
+a una organización va a su persona de contacto. Alta de contacto como alumno usa
+el contexto `alumno_adulto` de la matriz. **Límite de v1:** crear un *menor* con
+tutor desde esta pantalla no está; se hace en Alumnos hasta E4 (un alumno menor
+ya existente sí se elige y el aviso va a su tutor). Probado en dev: contacto
+"solo contacto" (Lucia Prueba) → rol alumno agregado, choque con Zumba detectado,
+venta, dos avisos. Pendiente: 375 px, cortesía y agenda fija en navegador.
+
+
+## E3 — Inscripción regular y clase de prueba con las piezas comunes (2026-10-01, dev)
+
+Mismo esqueleto que alquiler y particular: `TitularVenta` (contacto que adquiere el rol alumno al vender), `BloqueVenta`, `Cobro` con `FechaCompromiso`, `BarraVenta` con faltantes puros compartidos con el servidor (`faltaParaInscripcion`, `faltaParaPrueba`) y `ConfirmacionVenta` con `AvisoWhatsapp` (regla de proceso 12).
+
+**Funcionalidad conservada:** menor con tutor (`AltaContacto` con `permiteMenor`; en prueba rige `alumno_menor`, y el aviso va al tutor vía `destinatarioAviso`), deuda anterior, "ya inscripto en", días por curso, fecha de inicio y retroactiva, bono, crédito de prueba, acompañantes, un curso por fecha en la prueba, cursos auto-elegidos si caben en el tope.
+
+**Se retira:** `crearAlumnoDesdeInscripcion` (el alta pasa por `crearContacto`, que ya crea el rol alumno). `page.tsx` entrega lo del alumno por contacto (`...PorContacto`).
+
+**Verificado en dev:** tsc, lint y 261 tests; en el navegador, prueba de Zumba a un profesor existente (Angel Caceres): se le agregó el rol alumno, membresía 54 (prueba, activa), confirmación con WhatsApp. **Falta:** menor con tutor en el navegador, inscripción completa, 375 px.
+
+
+## E4 — Agregar un rol a un contacto existente desde Alumnos y Profesores (2026-10-02, dev)
+
+Cargar un alumno o un profesor cuyo WhatsApp ya es de otro contacto (que todavía no tiene ese rol) ya no se rechaza: aparece `PanelDuplicado` con "Usar este contacto y agregarle el rol Alumno/Profesor". Al guardar solo se crea la fila del rol (`crearAlumno`/`crearProfesor` con `existenteId`); la identidad del contacto no se toca (regla 21) y se edita desde su ficha, con permiso.
+
+- `contactos/accionesRol.ts` (`contactoSinRol`) y `components/contacto/useContactoSinRol.ts` (comprobación con espera mientras se escribe el WhatsApp).
+- Si el contacto ya tiene ese rol, sigue valiendo el aviso del padrón propio.
+- Alcance acotado: solo adultos con WhatsApp (un menor se carga con su tutor, como contacto nuevo).
+
+**Verificado en dev:** alumno nuevo con el WhatsApp de un profesor (Inamsai De Dazan) → ahora es profesor y alumno, sin contacto duplicado; profesor nuevo con el WhatsApp de una alumna (Mariana Claure) → igual. Bug encontrado y corregido en la prueba: con `contacto_id` UNIQUE, PostgREST devuelve un objeto y no un arreglo al anidar `alumnos`/`profesores`, y el rol salía mal.
+
+**E3 verificado en el navegador:** inscripción completa (membresía con cobro, aviso al tutor de una menor), menor nuevo con tutor en prueba (sin WhatsApp propio, `alumno_menor`, aviso a la tutora). Observación (corregida el 2026-10-02, ver abajo): cambiar la fecha de inicio reiniciaba el medio de pago.
+
+
+## Cierre de la tanda de ventas — vigencia, cobro y avisos (2026-10-02, dev)
+
+- **Fechas de inicio dentro de la vigencia del curso** (decisión del 2026-10-02, §1.b de DECISIONES): inscripción y prueba no ofrecen fechas fuera de activación → baja (`enVigencia`, mismo criterio que el servidor) y explican por qué no hay fechas. Solo los cursos tienen vigencia; los planes de particular y alquiler no.
+- **Prueba multicurso en dev:** plan de 4 cursos, membresía 57 (retroactiva, 8 clases, Bs 250 pagada, 4 filas en `membresia_cursos`). El plan BACHAHEELS ofrece solo el 16/10. El filtro retroactivo por vigencia no se vio en acción: no hay datos que lo discriminen.
+- **Tarjeta de confirmación de la inscripción:** ya no repite "Plan" (el servidor lo devuelve; la pantalla solo agrega "Alumno").
+- **Medio de pago al cambiar la fecha:** el paso Cobro ya se reinicia solo cuando cambia el monto; se quitó la fecha y los días de la clave de la cuenta (inscripción, particular y alquiler), así que cambiar la fecha ya no borra el medio.
+- **Aviso de la particular:** usa `destinatarioAviso` (titular o su tutor) como las demás ventas; se borró la copia propia. Alquiler no aplica: su aviso va a la persona de contacto.
+- **375 px (2026-10-02):** recorridas inscripción (plan multicurso), prueba, particular y alquiler (titular, plan, agenda con choques, cobro), más `/alquileres`, `/alumnos`, `/profesores` y `/particulares`, en un marco de 375 px (la ventana del navegador no se achica): ninguna pantalla desborda a lo ancho. Corregido: las pestañas de tipo de venta se cortaban sin poder alcanzarse (ahora una línea que se desliza), la barra fija (146 px) tapaba el último bloque (el espacio reservado era de 100 px) y el relleno anidado dejaba el campo del alta con poco ancho. No se vio la confirmación final ni el alto real de un teléfono.
+- **Pendiente:** cortesía y agenda fija de particulares, sala externa y categoría `editable` de alquiler, pruebas de `buscarDuplicado`/`asegurarRol`, control de rol duplicado, "Ver ficha ↗", pase a producción (0060/0061 + precios de alquiler) con OK de Javier.

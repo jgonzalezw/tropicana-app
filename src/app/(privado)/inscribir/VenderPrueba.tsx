@@ -2,45 +2,52 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import type { Alumno, DatosAlumno, ListasContacto, MatrizMinimo } from "@/lib/tipos";
-import { nombreCompleto } from "@/lib/contactos";
-import EntidadAlumno from "@/components/entidades/EntidadAlumno";
+import type { ListasContacto, MatrizMinimo } from "@/lib/tipos";
 import Cobro, { type PayloadCobro } from "@/components/Cobro";
 import Toggle from "@/components/Toggle";
+import TitularVenta from "@/components/contacto/TitularVenta";
+import BloqueVenta from "@/components/venta/BloqueVenta";
+import BarraVenta from "@/components/venta/BarraVenta";
+import ConfirmacionVenta, { type AvisoVenta } from "@/components/venta/ConfirmacionVenta";
+import FechaCompromiso, { fechaCompromisoEfectiva } from "@/components/venta/FechaCompromiso";
+import { cobroParaServidor } from "@/lib/venta/cobro";
+import { faltaParaPrueba } from "@/lib/venta/faltantes";
 import { etiquetaDias } from "@/components/entidades/EntidadCurso";
+import { enVigencia } from "@/lib/vigencia";
 import { fechaLarga, gs, isoFecha, proximasClases } from "@/lib/inscripcion";
-import { crearAlumnoDesdeInscripcion, venderPrueba } from "./acciones";
+import { venderPrueba } from "./acciones";
 import type { PlanVenta } from "./ClienteInscribir";
 
-type Canal = { valor: string; etiqueta: string };
+type Cerrada = { datos: { etiqueta: string; valor: string }[]; avisos: AvisoVenta[] };
 
 /**
  * Vender una clase de prueba. Es una **membresía preliminar** del mismo plan
- * regular, no un plan aparte (regla 11 de `docs/REGLAS.md`).
+ * regular, no un plan aparte (regla 11 de `docs/REGLAS.md`). Rearmada en E3 de
+ * "Ventas y contactos con el mismo comportamiento": mismo esqueleto, titular,
+ * cobro, barra y confirmación que el resto de las ventas.
  *
- * Tres decisiones del modelo que se ven en pantalla:
+ * Lo intrínseco de la prueba, que se ve en pantalla:
  *  - El monto NO es el precio del plan: es la suma del precio de prueba de los
  *    cursos elegidos, por la cantidad de personas.
- *  - Los cursos se eligen **al comprar** — por eso el monto se conoce acá.
+ *  - Los cursos se eligen **al comprar** — por eso el monto se conoce acá — y
+ *    cada uno con la fecha de su clase.
  *  - El grupo es un titular identificado más N acompañantes sin nombre, con un
  *    solo monto: todos van a la misma clase.
+ *  - Un menor se carga con su tutor, con las reglas de alumno menor.
+ *  - Quien viene a probar adquiere el rol alumno al comprar.
  */
 export default function VenderPrueba({
-  alumnos,
   planes,
   diasCompromiso,
   medios,
-  canales,
   suspendidas,
   matriz,
   listasContacto,
   puedeVerPrivados,
 }: {
-  alumnos: Alumno[];
   planes: PlanVenta[];
   diasCompromiso: number;
   medios: string[];
-  canales: Canal[];
   suspendidas: string[];
   matriz: MatrizMinimo[];
   listasContacto: ListasContacto;
@@ -49,8 +56,8 @@ export default function VenderPrueba({
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
 
-  const [alumno, setAlumno] = useState<Alumno | null>(null);
-  const [remountAlumno, setRemountAlumno] = useState(0);
+  const [titularId, setTitularId] = useState<number | null>(null);
+  const [titularNombre, setTitularNombre] = useState("");
   const [plan, setPlan] = useState<PlanVenta | null>(null);
   const [cursoIds, setCursoIds] = useState<number[]>([]);
   const [acompanantes, setAcompanantes] = useState("0");
@@ -58,29 +65,18 @@ export default function VenderPrueba({
   const [retroActivo, setRetroActivo] = useState(false);
   const [cobro, setCobro] = useState<PayloadCobro | null>(null);
   const [fechaCompromiso, setFechaCompromiso] = useState("");
-  const [aviso, setAviso] = useState<string | null>(null);
+  const [cerrada, setCerrada] = useState<Cerrada | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const hoy = useMemo(() => new Date(), []);
-  const maxCompromiso = useMemo(() => {
-    const d = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
-    d.setDate(d.getDate() + Math.max(1, diasCompromiso));
-    return d;
-  }, [hoy, diasCompromiso]);
 
   // Solo los planes que se ofrecen a prueba y tienen algún curso con precio.
-  const planesPrueba = useMemo(
-    () => planes.filter((p) => p.aceptaPrueba && p.cursos.some((c) => (c.precioPrueba ?? 0) > 0)),
-    [planes]
-  );
+  const planesPrueba = useMemo(() => planes.filter((p) => p.aceptaPrueba && p.cursos.some((c) => (c.precioPrueba ?? 0) > 0)), [planes]);
 
   const cursosProbables = plan?.cursos.filter((c) => (c.precioPrueba ?? 0) > 0) ?? [];
   const tope = plan?.pruebaCursosMax ?? 1;
   const personas = 1 + Math.max(0, Math.trunc(Number(acompanantes) || 0));
-  const porPersona = cursoIds.reduce(
-    (t, id) => t + (cursosProbables.find((c) => c.id === id)?.precioPrueba ?? 0),
-    0
-  );
+  const porPersona = cursoIds.reduce((t, id) => t + (cursosProbables.find((c) => c.id === id)?.precioPrueba ?? 0), 0);
   const total = porPersona * personas;
 
   const susp = useMemo(() => new Set(suspendidas), [suspendidas]);
@@ -93,25 +89,20 @@ export default function VenderPrueba({
   );
 
   // Una fecha POR CURSO. La fecha de la venta no es la fecha de la clase, y con
-  // dos cursos cada clase cae en su propio día: pedir una sola fecha dejaba al
-  // segundo curso donde el calendario lo tirara — y en una prueba pasada, podía
-  // tirarlo al futuro. Las opciones saltean las clases suspendidas, igual que
-  // el motor (regla de negocio 4).
+  // dos cursos cada clase cae en su propio día. Las opciones saltean las clases
+  // suspendidas, igual que el motor (regla de negocio 4). Hacia atrás (prueba
+  // pasada) son solo clases reales que ya ocurrieron: un campo libre dejó
+  // cargar una prueba un día en que el curso no se dicta.
   const opcionesPorCurso = useMemo(() => {
     const m = new Map<number, Date[]>();
     for (const c of elegidos) {
       if (retroActivo) {
-        // Clases que YA ocurrieron, de atrás hacia adelante. Antes acá había un
-        // campo de fecha libre, y dejó cargar una prueba de Bachata Conexión un
-        // sábado — un día en que ese curso no se dicta. Esa clase no existe:
-        // no aparece en ningún padrón y no liquida. Ofreciendo las clases
-        // reales, el error no se puede cometer.
         const desde = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
         desde.setDate(desde.getDate() - 60);
         m.set(
           c.id,
           proximasClases(c.dias_semana ?? [], 40, desde)
-            .filter((d) => isoFecha(d) <= isoFecha(hoy) && !susp.has(`${c.id}|${isoFecha(d)}`))
+            .filter((d) => isoFecha(d) <= isoFecha(hoy) && !susp.has(`${c.id}|${isoFecha(d)}`) && enVigencia(c, isoFecha(d)))
             .slice(-6)
             .reverse()
         );
@@ -119,7 +110,7 @@ export default function VenderPrueba({
         m.set(
           c.id,
           proximasClases(c.dias_semana ?? [], 12, hoy)
-            .filter((d) => !susp.has(`${c.id}|${isoFecha(d)}`))
+            .filter((d) => !susp.has(`${c.id}|${isoFecha(d)}`) && enVigencia(c, isoFecha(d)))
             .slice(0, 3)
         );
       }
@@ -135,18 +126,21 @@ export default function VenderPrueba({
     return op?.length ? isoFecha(op[0]) : "";
   };
 
-  const cuandoAsiste = elegidos.map((c) => ({
-    id: c.id,
-    nombre: c.nombre,
-    hora: c.hora,
-    fecha: fechaDe(c.id),
-  }));
-  const faltaAlgunaFecha = cuandoAsiste.some((c) => !c.fecha);
+  const cuandoAsiste = elegidos.map((c) => ({ id: c.id, nombre: c.nombre, hora: c.hora, fecha: fechaDe(c.id) }));
+  const cursosSinFecha = cuandoAsiste.filter((c) => !c.fecha).length;
+  const faltaSaldo = cobro ? cobro.saldo > 0 : false;
 
-  // Cambiar de alumno reinicia todo lo que viene después: si no, una venta a
-  // medias deja el plan y los cursos del anterior.
-  function elegirAlumno(al: Alumno | null) {
-    setAlumno(al);
+  const faltaPara = faltaParaPrueba({
+    contactoId: titularId,
+    planId: plan?.id ?? null,
+    cursosElegidos: cursoIds.length,
+    cursosSinFecha,
+  });
+  const faltaTexto = faltaPara ?? (cobro && !cobro.valido ? "revisar el cobro (monto, medio de pago o motivo del descuento)" : null);
+
+  function reiniciar() {
+    setTitularId(null);
+    setTitularNombre("");
     setPlan(null);
     setCursoIds([]);
     setAcompanantes("0");
@@ -155,16 +149,14 @@ export default function VenderPrueba({
     setCobro(null);
     setFechaCompromiso("");
     setError(null);
-    setAviso(null);
   }
-
-  async function guardarAlumnoNuevo(datos: DatosAlumno) {
-    const res = await crearAlumnoDesdeInscripcion(datos);
-    if (res.alumno) {
-      setAlumno(res.alumno);
-      setError(null);
-    }
-    return { error: res.error };
+  // Cambiar de titular reinicia todo lo que viene después: si no, una venta a
+  // medias deja el plan y los cursos del anterior.
+  function elegirTitular(id: number, nombre: string) {
+    if (id === titularId) return; // la tarjeta vuelve a avisar al cargar su detalle
+    reiniciar();
+    setTitularId(id);
+    setTitularNombre(nombre);
   }
 
   function elegirPlan(p: PlanVenta) {
@@ -189,206 +181,172 @@ export default function VenderPrueba({
     });
   }
 
-  const faltaSaldo = cobro ? cobro.saldo > 0 : false;
-  const fechaCompromisoEfectiva = fechaCompromiso || isoFecha(maxCompromiso);
-
   function confirmar() {
     setError(null);
-    setAviso(null);
-    if (!alumno) return setError("Elegí el alumno titular.");
-    if (!plan) return setError("Elegí el plan que va a probar.");
-    if (!cursoIds.length) return setError("Elegí al menos un curso para probar.");
-    if (faltaAlgunaFecha)
-      return setError("Cargá la fecha de la clase de cada curso que va a probar.");
-    if (cobro && !cobro.valido)
-      return setError("Revisá el monto, el medio de pago o el motivo del descuento.");
-
+    if (faltaTexto || titularId == null || !plan) return setError(`Falta ${faltaTexto ?? "completar la venta"}.`);
+    const titular = titularNombre;
     startTransition(async () => {
       const res = await venderPrueba({
-        alumnoId: alumno.id,
+        contactoId: titularId,
         planId: plan.id,
         cursos: cuandoAsiste.map((c) => ({ cursoId: c.id, fecha: c.fecha })),
         acompanantes: personas - 1,
-        cobro: {
-          modo: cobro?.modo ?? "sin",
-          monto: cobro ? cobro.total - cobro.saldo : 0,
-          medio: cobro?.medio ?? null,
-          notaMedio: cobro?.notaMedio ?? "",
-          ajuste: cobro?.ajuste ?? 0,
-          ajusteMotivo: cobro?.ajusteMotivo ?? "",
-          total,
-          saldo: cobro?.saldo ?? total,
-          fechaCompromiso: faltaSaldo ? fechaCompromisoEfectiva : null,
-        },
+        cobro: cobroParaServidor(cobro, total, fechaCompromisoEfectiva(fechaCompromiso, diasCompromiso)),
       });
       if (res.error) return setError(res.error);
-      setAviso(res.resumen ?? "Clase de prueba registrada.");
-      setAlumno(null);
-      setRemountAlumno((n) => n + 1);
-      setPlan(null);
-      setCursoIds([]);
-      setAcompanantes("0");
-      setFechaPorCurso({});
-      setCobro(null);
-      setRetroActivo(false);
+      setCerrada({
+        datos: [{ etiqueta: "Quién prueba", valor: titular }, ...(res.datos ?? [])],
+        avisos: res.avisoAlumno ? [res.avisoAlumno] : [],
+      });
+      reiniciar();
       router.refresh();
     });
   }
 
+  if (cerrada) return <ConfirmacionVenta titulo="Clase de prueba registrada" datos={cerrada.datos} avisos={cerrada.avisos} onNueva={() => setCerrada(null)} />;
+
+  if (planesPrueba.length === 0)
+    return (
+      <div className="rounded-[var(--radio-tarjeta)] bg-[var(--fondo-panel)] border border-[var(--borde)] p-6">
+        <p className="text-base">Todavía no hay ningún plan que se pueda probar.</p>
+        <p className="text-sm text-[var(--texto-tenue)] mt-1">
+          Hacen falta dos cosas: encender <strong>&quot;Se puede probar antes de comprar&quot;</strong> en el plan, y cargar el{" "}
+          <strong>precio de la clase de prueba</strong> en la ficha de sus cursos.
+        </p>
+      </div>
+    );
+
+  const titularListo = titularId != null;
+  const planListo = titularListo && !!plan;
+  const cobroListo = planListo && cursoIds.length > 0 && cursosSinFecha === 0;
+
   return (
     <div className="space-y-4">
-      {aviso && (
-        <div className="rounded-[var(--radio-panel)] bg-[var(--exito-fill)] text-[var(--exito-texto)] p-4 text-base">
-          {aviso}
-        </div>
-      )}
+      {/* 1 · Quién viene */}
+      <BloqueVenta numero={1} titulo="¿Quién viene a probar?" estado="activo">
+        <TitularVenta
+          modulo="inscripciones"
+          matriz={matriz}
+          listas={listasContacto}
+          puedeVerPrivados={puedeVerPrivados}
+          permiteOrganizacion={false}
+          rolQueAdquiere="alumno"
+          permiteMenor
+          enPrueba
+          titularId={titularId}
+          onElegido={(c) => {
+            if (c) elegirTitular(c.id, c.nombre);
+            else reiniciar();
+          }}
+        />
+        {titularListo && (
+          <label className="block mt-4 max-w-[260px]">
+            <span className="block text-base font-medium mb-1.5">¿Cuántos vienen con él o ella?</span>
+            <input
+              value={acompanantes}
+              onChange={(e) => {
+                setAcompanantes(e.target.value.replace(/\D/g, ""));
+                setCobro(null);
+              }}
+              inputMode="numeric"
+              className="entrada"
+            />
+            <span className="block text-sm text-[var(--texto-tenue)] mt-1.5">
+              Acompañantes sin nombre: solo cuentan para el monto y para el conteo de la clase. Son {personas} {personas === 1 ? "persona" : "personas"} en total.
+            </span>
+          </label>
+        )}
+      </BloqueVenta>
 
-      {planesPrueba.length === 0 ? (
-        <div className="rounded-[var(--radio-tarjeta)] bg-[var(--fondo-panel)] border border-[var(--borde)] p-6">
-          <p className="text-base">Todavía no hay ningún plan que se pueda probar.</p>
-          <p className="text-sm text-[var(--texto-tenue)] mt-1">
-            Hacen falta dos cosas: encender <strong>&quot;Se puede probar antes de comprar&quot;</strong> en
-            el plan, y cargar el <strong>precio de la clase de prueba</strong> en la ficha de sus
-            cursos.
-          </p>
-        </div>
-      ) : (
-        <>
-          {/* 1 · Quién viene */}
-          <section className="rounded-[var(--radio-tarjeta)] bg-[var(--fondo-panel)] border border-[var(--borde)] p-5">
-            <h2 className="titulo text-xl mb-3">¿Quién viene a probar?</h2>
-            {alumno ? (
-              <div className="rounded-[var(--radio-panel)] bg-[var(--fondo-elevado)] p-4">
-                <div className="flex items-start gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="text-lg font-semibold">{nombreCompleto(alumno.contacto)}</div>
-                    <div className="text-sm text-[var(--texto-tenue)] mt-0.5">
-                      {alumno.es_menor
-                        ? `menor · tutor ${alumno.tutor?.whatsapp || "—"}`
-                        : alumno.contacto.whatsapp || "sin WhatsApp"}
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      elegirAlumno(null);
-                      setRemountAlumno((n) => n + 1);
-                    }}
-                    className="text-[var(--primario)] text-base shrink-0"
-                  >
-                    Cambiar
-                  </button>
-                </div>
-                <label className="block mt-3 max-w-[260px]">
-                  <span className="block text-base font-medium mb-1.5">
-                    ¿Cuántos vienen con él o ella?
-                  </span>
-                  <input
-                    value={acompanantes}
-                    onChange={(e) => setAcompanantes(e.target.value.replace(/\D/g, ""))}
-                    inputMode="numeric"
-                    className="entrada"
-                  />
-                  <span className="block text-sm text-[var(--texto-tenue)] mt-1.5">
-                    Acompañantes sin nombre: solo cuentan para el monto y para el conteo de la
-                    clase. Son {personas} {personas === 1 ? "persona" : "personas"} en total.
-                  </span>
-                </label>
+      {/* 2 · Qué va a probar: el plan */}
+      <BloqueVenta
+        numero={2}
+        titulo="Plan a probar"
+        estado={!titularListo ? "bloqueado" : plan ? "completo" : "activo"}
+        bloqueo="Primero elegí quién viene."
+        resumen={
+          plan && (
+            <p className="text-base">
+              <span className="font-medium">{plan.nombre}</span>{" "}
+              <span className="text-sm text-[var(--texto-tenue)]">
+                · prueba {plan.pruebaCursosMax === 1 ? "1 curso" : `hasta ${plan.pruebaCursosMax} cursos`} de {plan.cursos.length}, una clase en cada uno
+              </span>
+            </p>
+          )
+        }
+        onCambiar={() => {
+          setPlan(null);
+          setCursoIds([]);
+          setFechaPorCurso({});
+          setRetroActivo(false);
+          setCobro(null);
+        }}
+      >
+        <div className="space-y-2">
+          {planesPrueba.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => elegirPlan(p)}
+              className="w-full text-left px-4 py-3 rounded-[var(--radio-control)] border border-[var(--borde)] hover:border-[var(--primario)]"
+            >
+              <div className="text-base font-medium">{p.nombre}</div>
+              <div className="text-sm text-[var(--texto-tenue)]">
+                Prueba {p.pruebaCursosMax === 1 ? "1 curso" : `hasta ${p.pruebaCursosMax} cursos`} de {p.cursos.length}, una clase en cada uno.
               </div>
-            ) : (
-              <EntidadAlumno
-                key={remountAlumno}
-                padron={alumnos}
-                canales={canales}
-                matriz={matriz}
-                listasContacto={listasContacto}
-                puedeVerPrivados={puedeVerPrivados}
-                enPrueba
-                abrirAlElegir={false}
-                onSelect={elegirAlumno}
-                onGuardar={guardarAlumnoNuevo}
-              />
-            )}
-          </section>
+            </button>
+          ))}
+        </div>
+      </BloqueVenta>
 
-          {/* 2 · Qué va a probar */}
-          <section className="rounded-[var(--radio-tarjeta)] bg-[var(--fondo-panel)] border border-[var(--borde)] p-5">
-            <h2 className="titulo text-xl mb-3">¿Qué va a probar?</h2>
-            <div className="space-y-2">
-              {planesPrueba.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => elegirPlan(p)}
-                  className={`w-full text-left px-4 py-3 rounded-[var(--radio-control)] border ${
-                    plan?.id === p.id
-                      ? "border-[var(--primario)] bg-[var(--fondo-elevado)]"
-                      : "border-[var(--borde)] hover:border-[var(--primario)]"
-                  }`}
-                >
-                  <div className="text-base font-medium">{p.nombre}</div>
-                  <div className="text-sm text-[var(--texto-tenue)]">
-                    Prueba {p.pruebaCursosMax === 1 ? "1 curso" : `hasta ${p.pruebaCursosMax} cursos`}{" "}
-                    de {p.cursos.length}, una clase en cada uno.
-                  </div>
-                </button>
-              ))}
+      {/* 3 · Cursos y fecha de cada clase (se queda abierto: se ajusta hasta cobrar) */}
+      <BloqueVenta numero={3} titulo="Cursos y fecha de cada clase" estado={planListo ? "activo" : "bloqueado"} bloqueo="Primero elegí el plan.">
+        {plan && (
+          <div className="space-y-4">
+            <div>
+              <span className="block text-base font-medium mb-1.5">
+                {cursosProbables.length <= tope
+                  ? cursosProbables.length === 1
+                    ? "Curso que va a probar"
+                    : "Cursos que va a probar"
+                  : `Cursos a probar (${cursoIds.length} de ${tope})`}
+              </span>
+              <div className="space-y-2">
+                {cursosProbables.map((c) => {
+                  const elegido = cursoIds.includes(c.id);
+                  const bloqueado = !elegido && cursoIds.length >= tope;
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      disabled={bloqueado}
+                      onClick={() => toggleCurso(c.id)}
+                      className={`w-full text-left px-4 py-2.5 rounded-[var(--radio-control)] border flex items-baseline justify-between gap-3 ${
+                        elegido ? "border-[var(--primario)] bg-[var(--fondo-elevado)]" : "border-[var(--borde)] hover:border-[var(--primario)]"
+                      } disabled:opacity-40`}
+                    >
+                      <span className="min-w-0">
+                        <span className="block text-base">{c.nombre}</span>
+                        <span className="block text-sm text-[var(--texto-tenue)]">
+                          {etiquetaDias(c.dias_semana)}
+                          {c.hora ? ` · ${c.hora.slice(0, 5)}` : ""}
+                        </span>
+                      </span>
+                      <span className="shrink-0 tabular-nums">{gs(c.precioPrueba ?? 0)}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              {plan.cursos.length > cursosProbables.length && (
+                <p className="text-sm text-[var(--texto-tenue)] mt-2">
+                  {plan.cursos.length - cursosProbables.length} curso(s) del plan no aparecen: les falta el precio de prueba en su ficha.
+                </p>
+              )}
             </div>
 
-            {plan && (
-              <div className="mt-4">
-                <span className="block text-base font-medium mb-1.5">
-                  {cursosProbables.length <= tope
-                    ? cursosProbables.length === 1
-                      ? "Curso que va a probar"
-                      : "Cursos que va a probar"
-                    : `Cursos a probar (${cursoIds.length} de ${tope})`}
-                </span>
-                <div className="space-y-2">
-                  {cursosProbables.map((c) => {
-                    const elegido = cursoIds.includes(c.id);
-                    const bloqueado = !elegido && cursoIds.length >= tope;
-                    return (
-                      <button
-                        key={c.id}
-                        type="button"
-                        disabled={bloqueado}
-                        onClick={() => toggleCurso(c.id)}
-                        className={`w-full text-left px-4 py-2.5 rounded-[var(--radio-control)] border flex items-baseline justify-between gap-3 ${
-                          elegido
-                            ? "border-[var(--primario)] bg-[var(--fondo-elevado)]"
-                            : "border-[var(--borde)] hover:border-[var(--primario)]"
-                        } disabled:opacity-40`}
-                      >
-                        <span className="min-w-0">
-                          <span className="block text-base">{c.nombre}</span>
-                          <span className="block text-sm text-[var(--texto-tenue)]">
-                            {etiquetaDias(c.dias_semana)}
-                            {c.hora ? ` · ${c.hora.slice(0, 5)}` : ""}
-                          </span>
-                        </span>
-                        <span className="shrink-0 tabular-nums">{gs(c.precioPrueba ?? 0)}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-                {plan.cursos.length > cursosProbables.length && (
-                  <p className="text-sm text-[var(--texto-tenue)] mt-2">
-                    {plan.cursos.length - cursosProbables.length} curso(s) del plan no aparecen: les
-                    falta el precio de prueba en su ficha.
-                  </p>
-                )}
-              </div>
-            )}
-
             {cursoIds.length > 0 && (
-              <div className="mt-4">
-                <div className="text-sm text-[var(--texto-tenue)] mb-2">
-                  {retroActivo ? "¿Qué día vino a cada curso?" : "¿Qué día viene a cada curso?"}
-                </div>
-
-                {/* Una fecha por curso: con dos cursos, cada clase cae en su
-                    propio día. Con uno solo se ve igual que en inscripción. */}
+              <div>
+                <div className="text-sm text-[var(--texto-tenue)] mb-2">{retroActivo ? "¿Qué día vino a cada curso?" : "¿Qué día viene a cada curso?"}</div>
                 <div className="space-y-3">
                   {elegidos.map((c) => {
                     const opciones = opcionesPorCurso.get(c.id) ?? [];
@@ -397,12 +355,7 @@ export default function VenderPrueba({
                       <div key={c.id}>
                         <div className="text-base font-medium">
                           {c.nombre}
-                          {c.hora ? (
-                            <span className="text-[var(--texto-tenue)] font-normal">
-                              {" "}
-                              · {c.hora.slice(0, 5)}
-                            </span>
-                          ) : null}
+                          {c.hora ? <span className="text-[var(--texto-tenue)] font-normal"> · {c.hora.slice(0, 5)}</span> : null}
                         </div>
                         {opciones.length ? (
                           <div className="flex flex-wrap gap-2 mt-1">
@@ -430,9 +383,7 @@ export default function VenderPrueba({
                           </div>
                         ) : (
                           <p className="text-sm text-[var(--peligro)] mt-1">
-                            {retroActivo
-                              ? "Este curso no dictó clases en los últimos dos meses."
-                              : "Este curso no tiene próximas clases sin suspender."}
+                            {retroActivo ? "Este curso no dictó clases en los últimos dos meses." : "Este curso no tiene próximas clases sin suspender dentro de su vigencia (revisá sus fechas de activación y baja en Cursos)."}
                           </p>
                         )}
                       </div>
@@ -442,9 +393,8 @@ export default function VenderPrueba({
 
                 {retroActivo && (
                   <p className="text-sm text-[var(--texto-tenue)] mt-2">
-                    Son las clases que ya se dictaron. Al cargar una prueba pasada, la
-                    asistencia queda confirmada sola: inscribirla con fecha vieja ya es
-                    decir que vino.
+                    Son las clases que ya se dictaron. Al cargar una prueba pasada, la asistencia queda confirmada sola: inscribirla con fecha vieja ya es decir
+                    que vino.
                   </p>
                 )}
 
@@ -462,73 +412,36 @@ export default function VenderPrueba({
                 </div>
               </div>
             )}
-          </section>
+          </div>
+        )}
+      </BloqueVenta>
 
-          {/* 3 · Cobro */}
-          {plan && cursoIds.length > 0 && (
-            <section className="rounded-[var(--radio-tarjeta)] bg-[var(--fondo-panel)] border border-[var(--borde)] p-5">
-              <h2 className="titulo text-xl mb-1">Cobro</h2>
-              <p className="text-sm text-[var(--texto-tenue)] mb-3">
-                {gs(porPersona)} por persona × {personas}{" "}
-                {personas === 1 ? "persona" : "personas"} = {gs(total)}. Asiste{" "}
-                {cuandoAsiste
-                  .map(
-                    (c) =>
-                      `${c.nombre} el ${
-                        c.fecha ? fechaLarga(new Date(c.fecha + "T00:00:00")) : "—"
-                      }`
-                  )
-                  .join(" · ")}
-                .
-              </p>
-              <Cobro
-                sujeto={alumno ? nombreCompleto(alumno.contacto) : undefined}
-                detalle={`Clase de prueba · ${plan.nombre}`}
-                referencia={total}
-                referenciaLabel="Precio de la prueba"
-                politica="descuento"
-                direccion="cobro"
-                medios={medios}
-                permitirSinCobro={false}
-                cuentaId={`prueba:${plan.id}:${cursoIds.join("-")}:${personas}`}
-                onChange={setCobro}
-              />
-              {faltaSaldo && (
-                <div className="pt-3 mt-3 border-t border-[var(--borde)]">
-                  <label className="text-sm text-[var(--texto-tenue)] block mb-1.5">
-                    Fecha de compromiso de pago del saldo
-                  </label>
-                  <input
-                    type="date"
-                    value={fechaCompromisoEfectiva}
-                    min={isoFecha(hoy)}
-                    max={isoFecha(maxCompromiso)}
-                    onChange={(e) => {
-                      setFechaCompromiso(e.target.value);
-                      setError(null);
-                    }}
-                    className="entrada max-w-[200px]"
-                  />
-                </div>
-              )}
-            </section>
-          )}
-
-          {error && (
-            <p className="text-[var(--peligro)] text-base" role="alert">
-              {error}
+      {/* 4 · Cobro */}
+      <BloqueVenta numero={4} titulo="Cobro" estado={cobroListo ? "activo" : "bloqueado"} bloqueo="Primero elegí los cursos y la fecha de cada clase.">
+        {plan && cursoIds.length > 0 && (
+          <>
+            <p className="text-sm text-[var(--texto-tenue)] mb-3">
+              {gs(porPersona)} por persona × {personas} {personas === 1 ? "persona" : "personas"} = {gs(total)}. Asiste{" "}
+              {cuandoAsiste.map((c) => `${c.nombre} el ${c.fecha ? fechaLarga(new Date(c.fecha + "T00:00:00")) : "—"}`).join(" · ")}.
             </p>
-          )}
+            <Cobro
+              sujeto={titularNombre}
+              detalle={`Clase de prueba · ${plan.nombre}`}
+              referencia={total}
+              referenciaLabel="Precio de la prueba"
+              politica="descuento"
+              direccion="cobro"
+              medios={medios}
+              permitirSinCobro={false}
+              cuentaId={`prueba:${plan.id}:${cursoIds.join("-")}:${personas}`}
+              onChange={setCobro}
+            />
+            {faltaSaldo && <FechaCompromiso valor={fechaCompromiso} diasCompromiso={diasCompromiso} onChange={setFechaCompromiso} />}
+          </>
+        )}
+      </BloqueVenta>
 
-          <button
-            onClick={confirmar}
-            disabled={pendiente}
-            className="w-full px-5 py-3 text-lg font-semibold rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)] hover:bg-[var(--primario-hover)] disabled:opacity-40"
-          >
-            {pendiente ? "Guardando…" : `Registrar prueba · ${gs(total)}`}
-          </button>
-        </>
-      )}
+      <BarraVenta falta={faltaTexto} total={cursoIds.length > 0 ? gs(total) : null} etiqueta="Registrar prueba" pendiente={pendiente} error={error} onConfirmar={confirmar} />
     </div>
   );
 }

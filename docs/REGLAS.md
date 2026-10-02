@@ -323,7 +323,14 @@ ciclo". Antes de tocar fechas o contadores, mirá acá.
 24. **La categoría de alquiler la propone el sistema, y queda guardada con la
     venta.** Se deduce de los datos —alumno, profesor de Tropicana, profesor
     externo o tercero, con los días de gracia del parámetro— y se muestra por
-    qué; la persona la puede cambiar. Lo que se aplicó se guarda con la venta
+    qué. **Si se puede cambiar a mano lo gobierna un parámetro**
+    (`alquiler_categoria_modo`, migración 0060) **que fija la gerente según su
+    política**: *automática* —no se cambia, y es como arranca— o *editable* —se
+    puede cambiar con una **glosa obligatoria**, y la venta guarda la propuesta
+    original junto a la aplicada—. *(Javier, 2026-10-01: antes la regla decía que
+    la persona la podía cambiar; el mockup de H7 la dejó automática, y se decidió
+    que no se cablea ninguna de las dos sino que la política la elige la
+    gerente.)* Lo que se aplicó se guarda con la venta
     como histórico (regla 12): cambiar después la situación del cliente no
     reescribe lo vendido. Los **nombres** de las categorías y de los tramos de
     personas se editan; las **claves** no, porque de ellas depende la regla

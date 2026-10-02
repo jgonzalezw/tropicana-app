@@ -82,7 +82,7 @@ a:hover { color: var(--color-accent-800); }
 }
 .pp-num.falta { border-color: var(--color-accent-400) !important; background: var(--color-accent-100) !important; }
 .pp-seg { display: flex; flex-wrap: wrap; width: 100%; }
-.pp-seg .seg-opt { flex: 1 1 auto; justify-content: center; font-size: 15px; padding: 12px 14px; text-align: center; }
+.pp-seg .seg-opt { flex: 1 1 auto; justify-content: center; font-size: 15px; padding: 12px 14px; text-align: center; white-space: nowrap; }
 .pp-card { background: var(--color-surface); border-radius: 26px; padding: 20px 22px; }
 .pp-hint { font-size: 14px; color: var(--color-neutral-700); line-height: 1.5; }
 </style>
@@ -153,32 +153,44 @@ a:hover { color: var(--color-accent-800); }
     </sc-if>
 
     <sc-if value="{{ esB }}" hint-placeholder-val="{{ false }}">
-      <div class="pp-card" style="max-width:560px">
+      <div class="pp-card" style="max-width:720px">
         <h2 style="font-family:var(--font-heading);font-weight:800;font-size:24px;margin:0 0 4px">Descuento por meses adelantados</h2>
         <div class="pp-hint" style="margin-bottom:16px">Una sola tabla para toda la escuela. El sistema busca el tramo mayor que no supere los meses pagados.</div>
-        <table class="pp-tbl">
-          <thead>
-            <tr>
-              <th class="num">Meses</th>
-              <th class="num">%Descuento</th>
-              <th>Uso</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            <sc-for list="{{ filasB }}" as="f" hint-placeholder-count="4">
-              <tr class="{{ f.cls }}">
-                <td class="num"><input class="input pp-num" style="width:80px" value="{{ f.meses }}" onChange="{{ f.onMeses }}"></td>
-                <td class="num"><input class="input pp-num" style="width:80px" value="{{ f.pct }}" onChange="{{ f.onPct }}"></td>
-                <td class="pp-hint" style="font-size:13px">{{ f.uso }}</td>
-                <td>
-                  <button class="btn btn-ghost nw" onClick="{{ f.accion }}" style="font-size:14px">{{ f.accionLabel }}</button>
-                  <div class="pp-hint" style="font-size:12px;max-width:22ch">{{ f.motivo }}</div>
-                </td>
+        <div style="overflow-x:auto">
+          <table class="pp-tbl">
+            <thead>
+              <tr>
+                <th style="min-width:0;width:150px">Meses</th>
+                <th style="width:150px">Descuento</th>
+                <th>Uso</th>
+                <th style="min-width:0"></th>
               </tr>
-            </sc-for>
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              <sc-for list="{{ filasB }}" as="f" hint-placeholder-count="4">
+                <tr class="{{ f.cls }}">
+                  <td style="min-width:0;white-space:nowrap">
+                    <div style="display:flex;align-items:center;gap:8px">
+                      <input class="input pp-num" style="width:72px" value="{{ f.meses }}" onChange="{{ f.onMeses }}"></input>
+                      <span class="pp-hint">meses</span>
+                    </div>
+                  </td>
+                  <td style="white-space:nowrap">
+                    <div style="display:flex;align-items:center;gap:8px">
+                      <input class="input pp-num" style="width:72px" value="{{ f.pct }}" onChange="{{ f.onPct }}"></input>
+                      <span class="pp-hint">%</span>
+                    </div>
+                  </td>
+                  <td class="pp-hint" style="font-size:13px;white-space:nowrap">{{ f.uso }}</td>
+                  <td style="min-width:0;text-align:right">
+                    <button class="btn btn-ghost nw" onClick="{{ f.accion }}" style="font-size:14px">{{ f.accionLabel }}</button>
+                    <div class="pp-hint" style="font-size:12px;max-width:24ch;margin-left:auto">{{ f.motivo }}</div>
+                  </td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
         <button class="btn btn-secondary" onClick="{{ agregarB }}" style="margin-top:14px">Agregar tramo</button>
       </div>
     </sc-if>
@@ -265,30 +277,57 @@ a:hover { color: var(--color-accent-800); }
         <div style="display:flex;align-items:flex-start;gap:12px;background:var(--color-accent-2-200);border-radius:22px;padding:16px 18px">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-2-800)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:2px"><path d="M12 2 2 7l10 5 10-5z"></path><path d="M2 17l10 5 10-5M2 12l10 5 10-5"></path></svg>
           <div style="font-size:15px;line-height:1.55;color:var(--color-accent-2-900);max-width:82ch">
-            <strong>Fuente única del costo de sala.</strong> Esta tabla se consulta desde los dos lados: cuando un tercero alquila directo, y cuando se vende un paquete de clase particular. En ese segundo caso el sistema no pregunta el costo de sala — lo busca acá por <em>categoría del profesor × tamaño del grupo × horas del paquete</em> y lo descuenta en su liquidación del mes. Cambiar un precio de esta tabla cambia las dos cosas.
+            <strong>Fuente única del precio de alquiler.</strong> Vender alquiler de sala busca el precio acá, por <em>categoría del cliente × tramo de personas × horas</em>. El plan de alquiler no tiene precio propio, y un alquiler no le paga ni le descuenta nada a un profesor. Una celda vacía bloquea la venta de esa combinación.
           </div>
         </div>
 
         <div class="pp-card">
-          <h2 style="font-family:var(--font-heading);font-weight:800;font-size:24px;margin:0 0 4px">Tamaños de grupo</h2>
-          <div class="pp-hint" style="margin-bottom:14px">El máximo de personas de cada tamaño también es un parámetro, no un número fijo.</div>
-          <div style="display:flex;flex-wrap:wrap;gap:12px">
+          <h2 style="font-family:var(--font-heading);font-weight:800;font-size:24px;margin:0 0 4px">Tramos de personas</h2>
+          <div class="pp-hint" style="max-width:76ch;margin-bottom:14px">El nombre y el máximo se editan; el nombre es el que se ve en ventas y comprobantes. La clave no se edita: con ella el sistema elige el tramo según la cantidad de personas.</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">
             <sc-for list="{{ tamanos }}" as="t" hint-placeholder-count="3">
-              <div style="background:var(--color-neutral-100);border:1px solid var(--color-divider);border-radius:18px;padding:12px 14px;min-width:180px">
-                <div style="font-size:15px;font-weight:600;margin-bottom:8px">{{ t.label }}</div>
+              <div style="background:var(--color-neutral-100);border:1px solid var(--color-divider);border-radius:18px;padding:12px 14px;display:flex;flex-direction:column;gap:10px">
+                <div class="field" style="margin:0">
+                  <label style="font-size:13px">Nombre</label>
+                  <input class="input pp-txt" value="{{ t.label }}" onChange="{{ t.onLabel }}" style="background:var(--color-neutral-200) !important"></input>
+                </div>
                 <div style="display:flex;align-items:center;gap:8px">
                   <span class="pp-hint nw" style="font-size:13px">Hasta</span>
-                  <input class="input pp-num" style="width:74px" value="{{ t.max }}" onChange="{{ t.onMax }}">
+                  <input class="input pp-num" style="width:74px;background:var(--color-neutral-200) !important" value="{{ t.max }}" onChange="{{ t.onMax }}"></input>
                   <span class="pp-hint nw" style="font-size:13px">personas</span>
                 </div>
+                <span class="tag tag-neutral nw" title="La clave no se edita" style="display:inline-flex;align-items:center;gap:6px;font-size:13px;align-self:flex-start"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>Clave {{ t.id }}</span>
               </div>
             </sc-for>
           </div>
         </div>
 
         <div class="pp-card">
+          <h2 style="font-family:var(--font-heading);font-weight:800;font-size:24px;margin:0 0 4px">Categorías de cliente</h2>
+          <div class="pp-hint" style="max-width:76ch;margin-bottom:14px">Renombrá cómo se ve cada categoría. La clave y la regla no se editan: el sistema determina la categoría en cada venta a partir de ellas; quien vende no la elige.</div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <sc-for list="{{ catsEdit }}" as="c" hint-placeholder-count="4">
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px 18px;align-items:start;background:var(--color-neutral-100);border:1px solid var(--color-divider);border-radius:18px;padding:12px 14px">
+                <div style="display:flex;flex-direction:column;gap:8px">
+                  <div class="field" style="margin:0">
+                    <label style="font-size:13px">Nombre</label>
+                    <input class="input pp-txt" value="{{ c.label }}" onChange="{{ c.onLabel }}" style="background:var(--color-neutral-200) !important"></input>
+                  </div>
+                  <span class="tag tag-neutral nw" title="La clave no se edita" style="display:inline-flex;align-items:center;gap:6px;font-size:13px;align-self:flex-start"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>Clave {{ c.clave }}</span>
+                </div>
+                <div>
+                  <div style="font-size:13px;color:var(--color-neutral-600);margin-bottom:4px">Regla del sistema</div>
+                  <div class="pp-hint" style="font-size:15px;color:var(--color-neutral-800)">{{ c.regla }}</div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+          <div class="pp-hint" style="margin-top:12px">N, la gracia después de cerrar, hoy es 7 días.</div>
+        </div>
+
+        <div class="pp-card">
           <h2 style="font-family:var(--font-heading);font-weight:800;font-size:24px;margin:0 0 12px">Tarifas de alquiler de sala</h2>
-          <div class="pp-hint" style="margin-bottom:8px">Categoría del comprador</div>
+          <div class="pp-hint" style="margin-bottom:8px">Categoría del cliente</div>
           <div class="seg pp-seg" style="margin-bottom:16px">
             <sc-for list="{{ categorias }}" as="c" hint-placeholder-count="4">
               <label class="seg-opt">
@@ -414,11 +453,11 @@ const PAQUETES = [
 ];
 
 const CATS = [
-  { id: 'alu', label: 'Alumno', nota: 'Alumno inscripto que alquila la sala para practicar por su cuenta.' },
-  { id: 'pact', label: 'Profesor Activo', nota: 'Profesor de Tropicana con cursos asignados. Es la categoría que usa la liquidación cuando la particular la da un profesor de la casa — paga menos que un externo por el mismo tamaño y paquete.' },
-  { id: 'pext', label: 'Profesor Externo', nota: 'Profesor que no dicta cursos en Tropicana y usa la sala para sus propios alumnos.' },
-  { id: 'ter', label: 'Tercero', nota: 'Cualquier otro comprador: eventos, ensayos, filmaciones.' }
-];
+  { id: 'alu', clave: 'alumno', label: 'Alumno', nota: 'Alumno de Tropicana que alquila la sala para practicar por su cuenta.', regla: 'Membresía activa en curso regular o particular, o cerrada hace 7 días o menos.' },
+  { id: 'pact', clave: 'profesor_tropicana', label: 'Profesor de Tropicana', nota: 'Profesor de la casa que alquila la sala.', regla: 'Cursos asignados activos o particulares vendidas activas, o cerrados hace 7 días o menos.' },
+  { id: 'pext', clave: 'profesor_externo', label: 'Profesor externo', nota: 'Profesor que no dicta en Tropicana y usa la sala para sus propios alumnos.', regla: 'Está cargado como profesor pero no cumple la regla anterior.' },
+  { id: 'ter', clave: 'tercero', label: 'Tercero', nota: 'Cualquier otro cliente: eventos, ensayos, filmaciones, empresas.', regla: 'Todos los demás contactos.' }
+]
 
 const TAMANOS = [
   { id: 'ind', label: 'Individual', max: 1 },
@@ -453,9 +492,9 @@ const clon = (o) => JSON.parse(JSON.stringify(o));
 
 class Component extends DCLogic {
   state = {
-    tab: 'a', cat: 'pact',
+    tab: 'e', cat: 'alu',
     cursos: clon(CURSOS), desc: clon(DESC), paquetes: clon(PAQUETES),
-    tamanos: clon(TAMANOS), horas: clon(HORAS), precios: clon(PRECIOS),
+    tamanos: clon(TAMANOS), horas: clon(HORAS), precios: clon(PRECIOS), cats: clon(CATS),
     off: {}, cambios: 0, guardado: null,
     simPaquete: 'p1', simCat: 'pact', simAlumnos: '2'
   };
@@ -583,16 +622,18 @@ class Component extends DCLogic {
       agregarD: () => this.toca({ paquetes: s.paquetes.concat([{ id: 'p' + Date.now(), nombre: '', estilo: ESTILOS[0], horas: null, precio: null, usos: 0 }]) }),
 
       tamanos: s.tamanos.map((t) => ({
-        label: t.label, max: String(t.max),
+        id: t.id, label: t.label, max: String(t.max),
+        onLabel: (e) => setTexto('tamanos', t.id, 'label', e.target.value),
         onMax: (e) => setLista('tamanos', t.id, 'max', soloNum(e.target.value))
       })),
-      categorias: CATS.map((c) => ({ label: c.label, sel: s.cat === c.id, elegir: () => this.setState({ cat: c.id }) })),
-      catNota: (CATS.filter((c) => c.id === s.cat)[0] || CATS[0]).nota,
+      categorias: s.cats.map((c) => ({ label: c.label, sel: s.cat === c.id, elegir: () => this.setState({ cat: c.id }) })),
+      catsEdit: s.cats.map((c) => ({ label: c.label, clave: c.clave, regla: c.regla, onLabel: (e) => setTexto('cats', c.id, 'label', e.target.value) })),
+      catNota: (s.cats.filter((c) => c.id === s.cat)[0] || s.cats[0]).nota,
       colsE: s.tamanos.map((t) => ({ label: t.label + ' · hasta ' + t.max })),
       filasE: filasE,
       agregarE: () => this.toca({ horas: s.horas.concat([{ id: 'h' + Date.now(), horas: null, usos: 0 }]) }),
 
-      verSimulador: this.props.mostrarSimulador ?? true,
+      verSimulador: false,
       simPaquetes: s.paquetes.map((p) => ({ id: p.id, label: (p.nombre || 'Sin nombre') + ' · ' + p.estilo + ' · ' + (p.horas || 0) + ' h' })),
       simPaquete: s.simPaquete,
       onSimPaquete: (e) => this.setState({ simPaquete: e.target.value }),
@@ -617,7 +658,7 @@ class Component extends DCLogic {
       guardar: () => this.setState({ cambios: 0, guardado: 'Guardado. Los precios nuevos rigen desde ahora; lo ya vendido conserva el precio de su venta.' }),
       descartar: () => this.setState({
         cursos: clon(CURSOS), desc: clon(DESC), paquetes: clon(PAQUETES),
-        tamanos: clon(TAMANOS), horas: clon(HORAS), precios: clon(PRECIOS),
+        tamanos: clon(TAMANOS), horas: clon(HORAS), precios: clon(PRECIOS), cats: clon(CATS),
         off: {}, cambios: 0, guardado: null
       })
     };

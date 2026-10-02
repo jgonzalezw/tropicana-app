@@ -61,6 +61,8 @@ export type TarifaSala = {
   precio: number | null;
 };
 
+/** Nombres de respaldo. Los vigentes salen del catálogo `categoria_comprador`
+ *  (editables desde Precios y paquetes); esto solo cubre que no se hayan leído. */
 export const ETIQUETA_CATEGORIA: Record<CategoriaSala, string> = {
   alumno: "Alumno",
   profesor_tropicana: "Profesor Tropicana",
@@ -119,9 +121,12 @@ export function costoDeSala(
   tamano: TamanoSala,
   horas: number,
   /** En qué sala. Si esa sala tiene tarifa propia, manda sobre la general. */
-  salaId?: number | null
+  salaId?: number | null,
+  /** Cómo se llama la categoría: el nombre del catálogo (editable, H7). Sin
+   *  esto, el de respaldo de `ETIQUETA_CATEGORIA`. */
+  etiquetaCategoria: (c: CategoriaSala) => string = (c) => ETIQUETA_CATEGORIA[c]
 ): CostoSala {
-  const ruta = `Alquiler de sala → ${ETIQUETA_CATEGORIA[categoria]} × ${tamano.etiqueta} (hasta ${tamano.max_personas}) × ${horas} h`;
+  const ruta = `Alquiler de sala → ${etiquetaCategoria(categoria)} × ${tamano.etiqueta} (hasta ${tamano.max_personas}) × ${horas} h`;
 
   const coincideCoordenada = (t: TarifaSala) =>
     t.categoria === categoria &&
@@ -146,7 +151,7 @@ export function costoDeSala(
     return {
       precio: null,
       ruta,
-      motivo: `La celda ${ETIQUETA_CATEGORIA[categoria]} × ${tamano.etiqueta} × ${horas} h está vacía en la tabla de alquiler de sala. Vacío no es cero: cargá el precio para poder liquidarla.`,
+      motivo: `La celda ${etiquetaCategoria(categoria)} × ${tamano.etiqueta} × ${horas} h está vacía en la tabla de alquiler de sala. Vacío no es cero: cargá el precio para poder liquidarla.`,
     };
 
   return { precio: Number(fila.precio), ruta };

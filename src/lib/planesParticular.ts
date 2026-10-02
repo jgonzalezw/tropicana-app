@@ -1,4 +1,5 @@
 import type { DatosPlan } from "./tipos.ts";
+import { validarRecargoExtension } from "./planesAlquiler.ts";
 
 /**
  * Vigencia efectiva del paquete, en días: la propia del plan si la tiene, o
@@ -15,7 +16,7 @@ export function vigenciaDiasEfectiva(vigenciaDias: number | null, mesesAcademia:
  * común a todo plan (nombre, precio, criterio 1-5) lo valida `validar` en
  * `planes/acciones.ts`; acá solo lo que es propio de este tipo de servicio.
  */
-export function validarPlanParticular(d: DatosPlan): string | null {
+export function validarPlanParticular(d: DatosPlan, maxRecargoPct: number | null = null): string | null {
   if (!d.estilo) return "Elegí el estilo del plan.";
   if (!d.reserva_modalidad) return "Elegí la modalidad de reserva: agenda fija o reserva flexible.";
   if (d.salas_modo === "solo" && d.salaIds.length === 0)
@@ -25,8 +26,8 @@ export function validarPlanParticular(d: DatosPlan): string | null {
     return "Cargá el % sobre el margen para el profesor.";
   if (d.forma_pago_profesor === "monto_fijo" && !(d.pago_monto_fijo != null && d.pago_monto_fijo >= 0))
     return "Cargá el monto fijo por membresía para el profesor.";
-  if (d.extension_modo === "recargo" && !(d.extension_recargo_pct != null && d.extension_recargo_pct > 0))
-    return "Cargá el % de recargo de la extensión (o dejá el modo en precio de lista).";
+  const errRecargo = validarRecargoExtension(d, maxRecargoPct);
+  if (errRecargo) return errRecargo;
   if (d.criterio_liquidacion < 1 || d.criterio_liquidacion > 3)
     return "Un plan de particulares liquida con el criterio 1, 2 o 3 (el 4 y el 5 son solo de taller).";
   if (d.vigencia_dias != null && !(d.vigencia_dias > 0))
