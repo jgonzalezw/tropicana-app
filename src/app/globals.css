@@ -113,6 +113,14 @@
 
   /* ── Elevación ─────────────────────────────────────────────────── */
   --sombra: none; /* sin sombras sobre fondo oscuro (D3) */
+
+  /* Los controles nativos (icono del selector de fecha/hora, flechas de los
+     select, barras de scroll) se dibujan según este valor, no según nuestros
+     tokens. Sin declararlo, un navegador en modo claro (Edge) los pinta
+     oscuros sobre fondo oscuro y el icono del calendario no se ve. Los dos
+     temas del sistema son oscuros; si algún día se suma uno claro, este valor
+     tiene que viajar con sus tokens. */
+  color-scheme: dark;
 }
 
 /* Mapea tokens a utilidades de Tailwind (bg-fondo, text-texto, etc.). */
