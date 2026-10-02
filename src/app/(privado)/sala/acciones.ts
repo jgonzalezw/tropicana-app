@@ -282,6 +282,30 @@ export async function consultarDisponibilidad(salaId: number, fechaISO: string):
   };
 }
 
+/**
+ * Toda la agenda del día en UNA sola acción: una entrada por sala propia más
+ * los agendamientos externos. Antes eran N+1 acciones (una por sala y una para
+ * las externas) y Next las ejecuta de a una desde el cliente, así que cada
+ * cambio de fecha esperaba la suma de todas. Acá corren juntas en el servidor.
+ */
+export async function consultarAgendaDia(
+  salaIds: number[],
+  fechaISO: string
+): Promise<{
+  salas: Record<number, DisponibilidadDia>;
+  externos: { reservas: AgendamientoExterno[]; error: string | null };
+}> {
+  const [lista, externos] = await Promise.all([
+    Promise.all(salaIds.map((id) => consultarDisponibilidad(id, fechaISO))),
+    consultarAgendamientosExternos(fechaISO),
+  ]);
+  const salas: Record<number, DisponibilidadDia> = {};
+  salaIds.forEach((id, i) => {
+    salas[id] = lista[i];
+  });
+  return { salas, externos };
+}
+
 // ── Agendamientos del día en salas externas ─────────────────────────────────
 
 export type AgendamientoExterno = {

@@ -14,10 +14,10 @@
  * de sala propia.
  */
 
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import GestionReserva from "@/components/GestionReserva";
 import { obtenerReservaParaGestion, type DetalleGestionReserva } from "@/app/(privado)/particulares/acciones";
-import { consultarAgendamientosExternos, type AgendamientoExterno } from "./acciones";
+import { type AgendamientoExterno } from "./acciones";
 
 const ETIQUETA_TIPO: Record<AgendamientoExterno["tipo"], string> = {
   particular: "Particular",
@@ -31,38 +31,31 @@ function finDe(hora: string, duracionMin: number): string {
 
 export default function AgendamientosExternos({
   fecha,
+  datos,
+  cargando,
+  onRecargar: recargar,
   salasPropias,
   motivosSuspension,
   incrementoMin,
   minimoMin,
 }: {
   fecha: string;
+  /** Lo carga `ClientePanelSala` junto con las salas; `null` = primera lectura pendiente. */
+  datos: { reservas: AgendamientoExterno[]; error: string | null } | null;
+  cargando: boolean;
+  onRecargar: () => void;
   /** Para `GestionReserva`, si se reprograma a una sala propia. */
   salasPropias: { id: number; nombre: string }[];
   motivosSuspension: { valor: string; etiqueta: string }[];
   incrementoMin: number;
   minimoMin: number;
 }) {
-  const [reservas, setReservas] = useState<AgendamientoExterno[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [cargando, startCarga] = useTransition();
+  const reservas = datos?.reservas ?? [];
+  const error = datos?.error ?? null;
 
   const [enfoqueId, setEnfoqueId] = useState<number | null>(null);
   const [detalleGestion, setDetalleGestion] = useState<DetalleGestionReserva | { error: string } | null>(null);
   const [pendienteGestion, startGestion] = useTransition();
-
-  function recargar() {
-    startCarga(async () => {
-      const r = await consultarAgendamientosExternos(fecha);
-      setReservas(r.reservas);
-      setError(r.error);
-    });
-  }
-
-  useEffect(() => {
-    recargar();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fecha]);
 
   // Cambiar de fecha cierra el panel de gestión: la reserva enfocada puede ya
   // no estar en la lista nueva (mismo patrón que `ClienteDisponibilidadSala`).

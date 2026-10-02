@@ -16,7 +16,7 @@
  * el mismo día — el selector de fecha vive una sola vez, en `ClientePanelSala`.
  */
 
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { describirTramos, describirVentanas } from "@/lib/sala";
 import { etiquetaDuracion } from "@/lib/horarios";
 import AvisoWhatsapp from "@/components/AvisoWhatsapp";
@@ -24,7 +24,6 @@ import GestionReserva from "@/components/GestionReserva";
 import { obtenerReservaParaGestion, type DetalleGestionReserva } from "@/app/(privado)/particulares/acciones";
 import {
   cancelarReservaSala,
-  consultarDisponibilidad,
   crearBloqueoSala,
   type AvisoOperativo,
   type BloqueDisponibilidad,
@@ -67,6 +66,9 @@ export default function ClienteDisponibilidadSala({
   salaId,
   salaNombre,
   fecha,
+  datos: datosProp,
+  cargando,
+  onRecargar: recargar,
   motivos,
   opcionesDuracionMin,
   puedeEditar,
@@ -78,6 +80,11 @@ export default function ClienteDisponibilidadSala({
   salaId: number;
   salaNombre: string;
   fecha: string;
+  /** La agenda la carga `ClientePanelSala` una sola vez para todas las salas;
+   *  `null` = todavía no llegó la primera lectura. */
+  datos: DisponibilidadDia | null;
+  cargando: boolean;
+  onRecargar: () => void;
   motivos: { valor: string; etiqueta: string }[];
   opcionesDuracionMin: number[];
   puedeEditar: boolean;
@@ -89,8 +96,7 @@ export default function ClienteDisponibilidadSala({
   incrementoMin: number;
   minimoMin: number;
 }) {
-  const [datos, setDatos] = useState<DisponibilidadDia>(vacia);
-  const [cargando, startCarga] = useTransition();
+  const datos = datosProp ?? vacia;
   const [pendiente, startTransition] = useTransition();
 
   const [mostrarForm, setMostrarForm] = useState(false);
@@ -143,21 +149,9 @@ export default function ClienteDisponibilidadSala({
   // de éxito se siga viendo aunque el formulario se colapse.
   const [aviso, setAviso] = useState<{ ok: boolean; texto: string } | null>(null);
 
-  function recargar() {
-    startCarga(async () => {
-      const r = await consultarDisponibilidad(salaId, fecha);
-      setDatos(r);
-    });
-  }
-
-  useEffect(() => {
-    recargar();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [salaId, fecha]);
-
   // Cambiar de sala o de fecha cierra el panel de gestión: la reserva
   // enfocada puede ya no estar en la lista nueva. Ajustado durante el render
-  // (no en el efecto de arriba, que ya dispara `recargar`) — mismo patrón que
+  // (la recarga la dispara el panel al cambiar la fecha) — mismo patrón que
   // `BarraLateral` usa para resetear estado cuando cambia el pathname.
   const claveDia = `${salaId}|${fecha}`;
   const [claveDiaAnterior, setClaveDiaAnterior] = useState(claveDia);

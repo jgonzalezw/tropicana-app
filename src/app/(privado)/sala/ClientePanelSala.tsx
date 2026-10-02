@@ -10,9 +10,10 @@
  * cada sala es una tarjeta independiente (`ClienteDisponibilidadSala`).
  */
 
-import { useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import ClienteDisponibilidadSala from "./ClienteDisponibilidadSala";
 import AgendamientosExternos from "./AgendamientosExternos";
+import { consultarAgendaDia } from "./acciones";
 
 function hoyISO(): string {
   const d = new Date();
@@ -41,6 +42,22 @@ export default function ClientePanelSala({
   puedeEditar: boolean;
 }) {
   const [fecha, setFecha] = useState(hoyISO());
+  const [agenda, setAgenda] = useState<Awaited<ReturnType<typeof consultarAgendaDia>> | null>(null);
+  const [cargando, startCarga] = useTransition();
+  const salaIds = salas.map((s) => s.id);
+  const claveSalas = salaIds.join(",");
+
+  // Una sola lectura para todas las tarjetas y la lista externa.
+  function recargar() {
+    startCarga(async () => {
+      setAgenda(await consultarAgendaDia(salaIds, fecha));
+    });
+  }
+
+  useEffect(() => {
+    recargar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fecha, claveSalas]);
 
   if (salas.length === 0) {
     return (
@@ -64,6 +81,9 @@ export default function ClientePanelSala({
             salaId={s.id}
             salaNombre={s.nombre}
             fecha={fecha}
+            datos={agenda?.salas[s.id] ?? null}
+            cargando={cargando}
+            onRecargar={recargar}
             motivos={motivos}
             opcionesDuracionMin={opcionesDuracionMin}
             puedeEditar={puedeEditar}
@@ -80,6 +100,9 @@ export default function ClientePanelSala({
           ni se bloquea. */}
       <AgendamientosExternos
         fecha={fecha}
+        datos={agenda?.externos ?? null}
+        cargando={cargando}
+        onRecargar={recargar}
         salasPropias={salas}
         motivosSuspension={motivosSuspension}
         incrementoMin={incrementoMin}
