@@ -24,6 +24,14 @@ import { recalcularFinDeCiclo, recalcularMembresia } from "@/lib/membresias";
 import { revertirDevengosAbiertos } from "../liquidaciones/acciones";
 import { choquesCon, ocupacionDeReservas, type ReservaSalaOcupa } from "@/lib/sala";
 import { FILTRO_ESTADOS_QUE_LIBERAN, ocupaAhora } from "@/lib/reservas";
+import {
+  avisoProfesorTitular,
+  avisosSuspensionAlumnos,
+  contactosDeAlumnos,
+  mensajeReapertura,
+  type AvisoAlumno,
+  type ClaseSuspendida,
+} from "@/lib/avisosClase";
 
 function admin() {
   const a = createAdminClient();
@@ -1122,7 +1130,7 @@ export async function suspenderClase(args: {
   cursoId: number;
   fecha: string;
   motivo: string;
-}): Promise<{ ok?: true; resumen?: string; error?: string }> {
+}): Promise<{ ok?: true; resumen?: string; avisos?: AvisoAlumno[]; error?: string }> {
   if (!(await tienePermiso("asistencia", "crear")))
     return { error: "No tenés permiso para suspender clases." };
   const sinAcceso = await errorAccesoCurso(args.cursoId);
@@ -1132,21 +1140,40 @@ export async function suspenderClase(args: {
 
   const { data: curso } = await admin()
     .from("cursos")
-    .select("id")
+    .select("id, nombre")
     .eq("id", args.cursoId)
     .maybeSingle();
   if (!curso) return { error: "El curso no existe." };
 
   const perfil = await obtenerPerfilActual();
-  const { corridos } = await ejecutarSuspension(admin(), {
+  const { corridos, alumnosCorridos, alumnosAfectados } = await ejecutarSuspension(admin(), {
     cursoId: args.cursoId,
     fecha: args.fecha,
     motivo: args.motivo,
     registradoPor: perfil?.id ?? null,
   });
 
+  // Los avisos de WhatsApp (regla de proceso 12): a cada alumno que tomaba la
+  // clase, con su nuevo fin de ciclo si se le corrió, y al profesor titular.
+  const cursoNombre = (curso as { nombre: string }).nombre;
+  const motivoTexto = args.motivo.trim() || "una decisión de la escuela";
+  const finPorAlumno = new Map(alumnosCorridos.map((x) => [x.alumnoId, x.finCicloNuevo]));
+  const porAlumno = new Map<number, ClaseSuspendida[]>(
+    alumnosAfectados.map((id) => [
+      id,
+      [{ curso: cursoNombre, fecha: args.fecha, finCicloNuevo: finPorAlumno.get(id) ?? null, motivoTexto }],
+    ])
+  );
+  const { data: asigs } = await admin().from("asignaciones").select(COLUMNAS_ASIGNACION).eq("curso_id", args.cursoId);
+  const titular = asignacionEnFecha((asigs as AsignacionVigencia[]) ?? [], args.fecha);
+  const [avisosAlumnos, avisoProfesor] = await Promise.all([
+    avisosSuspensionAlumnos(admin(), porAlumno),
+    avisoProfesorTitular(admin(), titular?.profesor_id ?? null, { curso: cursoNombre, fecha: args.fecha, motivoTexto }),
+  ]);
+
   const plu = (n: number, s: string, p: string) => `${n} ${n === 1 ? s : p}`;
   revalidatePath("/asistencia");
+  revalidatePath("/sala");
   return {
     ok: true,
     resumen: `Clase suspendida. Se corrió el fin de ciclo de ${plu(
@@ -1154,6 +1181,7 @@ export async function suspenderClase(args: {
       "alumno mensual",
       "alumnos mensuales"
     )}. Los paquetes por clase se difieren solos.`,
+    avisos: [...avisosAlumnos, ...(avisoProfesor ? [avisoProfesor] : [])],
   };
 }
 
@@ -1167,22 +1195,42 @@ export async function suspenderClase(args: {
 export async function ejecutarReapertura(
   a: Admin,
   args: { cursoId: number; fecha: string }
-): Promise<{ ok: true; huboSesion: boolean }> {
+): Promise<{
+  ok: true;
+  huboSesion: boolean;
+  /** Alumnos a quienes la suspensión les había corrido el ciclo, con el fin de ciclo que les quedó. */
+  alumnosRestablecidos: { alumnoId: number; finCiclo: string | null }[];
+}> {
   const { data: sesion } = await a
     .from("sesiones")
     .select("id")
     .eq("curso_id", args.cursoId)
     .eq("fecha", args.fecha)
     .maybeSingle();
-  if (!sesion) return { ok: true, huboSesion: false };
+  if (!sesion) return { ok: true, huboSesion: false, alumnosRestablecidos: [] };
   // Reabrir tambien cambia el conteo de clases dictadas: mismo tratamiento.
   await revertirDevengosAbiertos(a, args.cursoId, args.fecha);
+  // Quiénes tenían el ciclo corrido por esta sesión, para avisarles.
+  const { data: corridos } = await a
+    .from("corrimientos_ciclo")
+    .select("alumno_id, membresia_id")
+    .eq("sesion_id", sesion.id);
+  const afectados = (corridos as { alumno_id: number; membresia_id: number }[]) ?? [];
   await revertirCorrimientos(a, sesion.id);
   await a
     .from("sesiones")
     .update({ estado: "dictada", motivo: null, excepcion_id: null, actualizado_en: new Date().toISOString() })
     .eq("id", sesion.id);
-  return { ok: true, huboSesion: true };
+  let alumnosRestablecidos: { alumnoId: number; finCiclo: string | null }[] = [];
+  if (afectados.length) {
+    const { data: ms } = await a
+      .from("membresias")
+      .select("id, fecha_fin")
+      .in("id", afectados.map((x) => x.membresia_id));
+    const fin = new Map(((ms as { id: number; fecha_fin: string | null }[]) ?? []).map((m) => [m.id, m.fecha_fin]));
+    alumnosRestablecidos = afectados.map((x) => ({ alumnoId: x.alumno_id, finCiclo: fin.get(x.membresia_id) ?? null }));
+  }
+  return { ok: true, huboSesion: true, alumnosRestablecidos };
 }
 
 /**
@@ -1312,7 +1360,7 @@ export async function obtenerClaseParaGestion(
 export async function reabrirSesion(args: {
   cursoId: number;
   fecha: string;
-}): Promise<{ ok?: true; error?: string }> {
+}): Promise<{ ok?: true; avisos?: AvisoAlumno[]; error?: string }> {
   if (!(await tienePermiso("asistencia", "crear")))
     return { error: "No tenés permiso." };
   const sinAcceso = await errorAccesoCurso(args.cursoId);
@@ -1324,11 +1372,33 @@ export async function reabrirSesion(args: {
     .eq("curso_id", args.cursoId)
     .eq("fecha", args.fecha)
     .maybeSingle();
-  if ((sus as { estado: string } | null)?.estado === "suspendida") {
+  const estabaSuspendida = (sus as { estado: string } | null)?.estado === "suspendida";
+  if (estabaSuspendida) {
     const ocupado = await errorHorarioOcupado(a, args.cursoId, args.fecha);
     if (ocupado) return { error: ocupado };
   }
-  await ejecutarReapertura(a, args);
+  const r = await ejecutarReapertura(a, args);
+
+  // Aviso de "tu clase se restableció", con la fecha de fin que les quedó.
+  let avisos: AvisoAlumno[] = [];
+  if (estabaSuspendida && r.alumnosRestablecidos.length) {
+    const { data: curso } = await a.from("cursos").select("nombre").eq("id", args.cursoId).maybeSingle();
+    const cursoNombre = (curso as { nombre: string } | null)?.nombre ?? "tu curso";
+    const datos = await contactosDeAlumnos(a, r.alumnosRestablecidos.map((x) => x.alumnoId));
+    avisos = r.alumnosRestablecidos
+      .map((x): AvisoAlumno => {
+        const c = datos.get(x.alumnoId);
+        const nombre = c?.nombre ?? `Alumno #${x.alumnoId}`;
+        return {
+          id: `curso-${x.alumnoId}`,
+          nombre,
+          whatsapp: c?.whatsapp ?? null,
+          mensaje: mensajeReapertura({ nombrePila: c?.nombrePila ?? nombre, curso: cursoNombre, fecha: args.fecha, finCiclo: x.finCiclo }),
+        };
+      })
+      .sort((x, y) => x.nombre.localeCompare(y.nombre, "es"));
+  }
   revalidatePath("/asistencia");
-  return { ok: true };
+  revalidatePath("/sala");
+  return { ok: true, avisos };
 }
