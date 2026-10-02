@@ -23,7 +23,7 @@ import { nombreCompleto, compararContactosPorApellido } from "@/lib/contactos";
 import { gs, isoFecha, primerDiaDelMes, sumarMeses } from "@/lib/inscripcion";
 import { proponerCategoria } from "@/lib/categoriaAlquiler";
 import { costoDeSala, tamanoPorPersonas, type CategoriaSala, type ClaveTamano, type TamanoSala, type TarifaSala } from "@/lib/sala";
-import { faltaParaAlquiler } from "@/lib/ventaAlquiler";
+import { faltaParaAlquiler } from "@/lib/venta/faltantes";
 import { vigenciaDiasEfectiva } from "@/lib/planesParticular";
 import type { CobroInscripcion } from "@/lib/tipos";
 import {

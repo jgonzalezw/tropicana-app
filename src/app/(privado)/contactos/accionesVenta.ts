@@ -27,7 +27,7 @@ import {
 import { soloDigitos } from "@/lib/texto";
 import { nivelesDe } from "@/lib/matrizMinimos";
 import {
-  contextoTercero,
+  contextoAlta,
   faltantesAlta,
   rolDe,
   textoFaltaAlta,
@@ -248,7 +248,7 @@ export async function crearContacto(d: EntradaCrearContacto): Promise<ResultadoC
   const a = admin();
   const { matriz, error: errMatriz } = await leerMatriz(a);
   if (errMatriz || !matriz) return { error: errMatriz };
-  const niveles = nivelesDe(matriz, contextoTercero(d.tipo));
+  const niveles = nivelesDe(matriz, contextoAlta(d.tipo, d.rol));
   const falt = textoFaltaAlta(
     faltantesAlta(
       { tipo: d.tipo, nombre: d.nombre, apellido: d.apellido, razonSocial: d.razonSocial, whatsapp: d.whatsapp, extra: d.extra },

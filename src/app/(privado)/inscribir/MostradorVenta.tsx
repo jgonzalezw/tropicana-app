@@ -115,14 +115,12 @@ export default function MostradorVenta(props: {
         <ClienteInscribir {...props} />
       ) : modo === "particular" ? (
         <VenderParticular
-          alumnos={props.alumnos}
           planes={props.planesParticular}
           tarifas={props.tarifasParticular}
           profesoresPorEstilo={props.profesoresPorEstilo}
           salas={props.salas}
           salaIdsPorPlan={props.salaIdsPorPlan}
           medios={props.medios}
-          canales={props.canales}
           diasCompromiso={props.diasCompromiso}
           incrementoMin={props.incrementoMin}
           minimoMin={props.minimoMin}

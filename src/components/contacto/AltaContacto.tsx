@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import CamposContacto from "@/components/entidades/CamposContacto";
 import PanelDuplicado from "./PanelDuplicado";
 import { nivelesDe } from "@/lib/matrizMinimos";
-import { contextoTercero, faltantesAlta, textoFaltaAlta, type ContactoResumen } from "@/lib/contactoVenta";
+import { contextoAlta, contextoTercero, faltantesAlta, textoFaltaAlta, type ContactoResumen } from "@/lib/contactoVenta";
 import type { DatosContactoExtra, ListasContacto, MatrizMinimo, ModuloClave, TipoContacto } from "@/lib/tipos";
 import {
   actualizarContactoVenta,
@@ -66,7 +66,7 @@ export default function AltaContacto({
   const [dup, setDup] = useState<NonNullable<ResultadoCrearContacto["duplicado"]> | null>(null);
   const [pendiente, empezar] = useTransition();
 
-  const niveles = useMemo(() => nivelesDe(matriz, contextoTercero(tipo)), [matriz, tipo]);
+  const niveles = useMemo(() => nivelesDe(matriz, edicion ? contextoTercero(tipo) : contextoAlta(tipo, rolQueAdquiere)), [matriz, tipo, edicion, rolQueAdquiere]);
   const form = { tipo, nombre, apellido, razonSocial, whatsapp, extra };
   const falta = textoFaltaAlta(faltantesAlta(form, niveles), form);
   const esOrg = tipo === "organizacion";

@@ -43,3 +43,41 @@ export function faltaParaAlquiler(e: EstadoVentaAlquiler): string | null {
   if (e.esFija && e.diasSemana.length === 0) return "los días de la agenda fija";
   return null;
 }
+
+/**
+ * Qué falta para vender una clase particular (mismo contrato que el alquiler:
+ * pantalla y servidor deciden con esta función). La disponibilidad de la agenda
+ * y el cobro los mira el host, que sabe del resultado de la revisión.
+ */
+export type EstadoVentaParticular = {
+  contactoId: number | null;
+  planId: number | null;
+  tarifaId: number | null;
+  profesorId: number | null;
+  salaTipo: "propia" | "externa";
+  salaId: number | null;
+  nombreExterna: string;
+  fechaInicio: string;
+  esFija: boolean;
+  diasSemana: number[];
+  hora: string;
+  horaAlineada: boolean;
+  duracionMin: number | null;
+  esCortesia: boolean;
+  cortesiaMotivo: string;
+};
+
+export function faltaParaParticular(e: EstadoVentaParticular): string | null {
+  if (e.contactoId == null) return "el titular";
+  if (e.planId == null) return "el plan";
+  if (e.tarifaId == null) return "el tramo de horas";
+  if (e.esCortesia && !e.cortesiaMotivo.trim()) return "el motivo de la cortesía";
+  if (e.profesorId == null) return "el profesor";
+  if (e.salaTipo === "propia" ? e.salaId == null : !e.nombreExterna.trim())
+    return e.salaTipo === "propia" ? "la sala" : "el nombre del lugar";
+  if (!e.fechaInicio) return "la fecha de inicio";
+  if (!e.hora || !e.horaAlineada) return "una hora de inicio alineada al intervalo";
+  if (!e.duracionMin) return "la duración";
+  if (e.esFija && e.diasSemana.length === 0) return "los días de la agenda fija";
+  return null;
+}

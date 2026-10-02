@@ -1,39 +1,40 @@
 "use client";
 
 /**
- * Vender un plan de particulares (C3, hito H2).
+ * Vender un plan de particulares (C3, hito H2; rearmada en E2 de "Ventas y
+ * contactos con el mismo comportamiento").
  *
- * Mismo patrón que `VenderPrueba.tsx`: un componente autocontenido, con el
- * titular resuelto igual que en cualquier otra venta (`EntidadAlumno` — el
- * rol alumno se adquiere al elegirlo o crearlo, regla de negocio 21) y el
- * paso de `Cobro` compartido.
+ * Usa las piezas comunes de venta (`components/venta`, `components/contacto`):
+ * el mismo esqueleto de pasos, titular, agenda con revisión automática,
+ * cobro, barra con el primer faltante y confirmación que usan todas las
+ * ventas. Lo intrínseco de la particular: el titular es una **persona** que
+ * **adquiere el rol alumno** al comprar; el **profesor** (la agenda también
+ * valida su ocupación); acompañantes si el plan los registra; la
+ * **cortesía** si el plan la permite; y dos avisos (al alumno o su tutor, y
+ * al profesor).
  *
- * **Lo que se personaliza al vender** (definiciones-v2 §7, H1): el tramo de
- * horas (de `tarifas_particular`, según el estilo de la plantilla), el
- * profesor, la sala —propia o externa— y la primera reserva. Con agenda
- * **fija** se genera el calendario completo (decisión de Javier, 25/09); con
- * **flexible**, solo la primera sesión — el resto se reserva después desde
- * la gestión de reservas (H3, sin construir todavía).
+ * Lo que se personaliza al vender (definiciones-v2 §7, H1): el tramo de horas
+ * (de `tarifas_particular`, según el estilo de la plantilla), el profesor, la
+ * sala —propia o externa— y la primera reserva. Con agenda **fija** se genera
+ * el calendario completo; con **flexible**, solo la primera sesión.
  */
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import type { Alumno, DatosAlumno } from "@/lib/tipos";
-import { nombreCompleto } from "@/lib/contactos";
-import { opcionesDuracionReserva, etiquetaDuracion, formatearHoras, horaAlineada } from "@/lib/horarios";
-import { gs, isoFecha, fechaLarga } from "@/lib/inscripcion";
-import EntidadAlumno from "@/components/entidades/EntidadAlumno";
-import AvisoWhatsapp from "@/components/AvisoWhatsapp";
-import Cobro, { type PayloadCobro } from "@/components/Cobro";
+import { formatearHoras, horaAlineada } from "@/lib/horarios";
+import { gs, isoFecha } from "@/lib/inscripcion";
+import { faltaParaParticular } from "@/lib/venta/faltantes";
+import { cobroParaServidor } from "@/lib/venta/cobro";
+import type { AgendaValor } from "@/lib/venta/agenda";
 import type { ListasContacto, MatrizMinimo } from "@/lib/tipos";
-import {
-  crearAlumnoDesdeInscripcion,
-  venderParticular,
-  previsualizarParticular,
-  type EntradaParticular,
-  type EntradaAgendaParticular,
-  type ResultadoPreviewParticular,
-} from "./acciones";
+import Cobro, { type PayloadCobro } from "@/components/Cobro";
+import TitularVenta from "@/components/contacto/TitularVenta";
+import BloqueVenta from "@/components/venta/BloqueVenta";
+import BarraVenta from "@/components/venta/BarraVenta";
+import AgendaReservas, { type ResultadoRevision } from "@/components/venta/AgendaReservas";
+import ConfirmacionVenta, { type AvisoVenta } from "@/components/venta/ConfirmacionVenta";
+import FechaCompromiso, { fechaCompromisoEfectiva } from "@/components/venta/FechaCompromiso";
+import { venderParticular, previsualizarParticular, type EntradaParticular, type EntradaAgendaParticular } from "./acciones";
 
 export type PlanParticular = {
   id: number;
@@ -50,37 +51,18 @@ export type TarifaParticularVenta = { id: number; nombre: string; estilo: string
 export type ProfesorParticular = { id: number; nombre: string; whatsapp: string | null };
 export type SalaVenta = { id: number; nombre: string; esExterna: boolean; activa: boolean };
 
-type Canal = { valor: string; etiqueta: string };
-
 const control =
   "px-3 py-2 rounded-[var(--radio-control)] border border-[var(--borde)] bg-[var(--fondo)] text-base w-full";
-const DIAS: { n: number; label: string }[] = [
-  { n: 1, label: "Lun" },
-  { n: 2, label: "Mar" },
-  { n: 3, label: "Mié" },
-  { n: 4, label: "Jue" },
-  { n: 5, label: "Vie" },
-  { n: 6, label: "Sáb" },
-  { n: 7, label: "Dom" },
-];
-const DIAS_ABREV = ["", "lun", "mar", "mié", "jue", "vie", "sáb", "dom"];
 
-/** "lun 29/09", para la lista de sesiones de la revisión de disponibilidad. */
-function diaCorto(fechaISO: string): string {
-  const d = new Date(`${fechaISO}T00:00:00`);
-  const dow = d.getDay() === 0 ? 7 : d.getDay();
-  return `${DIAS_ABREV[dow]} ${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
+type Cerrada = { datos: { etiqueta: string; valor: string }[]; avisos: AvisoVenta[] };
 
 export default function VenderParticular({
-  alumnos,
   planes,
   tarifas,
   profesoresPorEstilo,
   salas,
   salaIdsPorPlan,
   medios,
-  canales,
   diasCompromiso,
   incrementoMin,
   minimoMin,
@@ -88,14 +70,12 @@ export default function VenderParticular({
   listasContacto,
   puedeVerPrivados,
 }: {
-  alumnos: Alumno[];
   planes: PlanParticular[];
   tarifas: TarifaParticularVenta[];
   profesoresPorEstilo: Record<string, ProfesorParticular[]>;
   salas: SalaVenta[];
   salaIdsPorPlan: Record<number, number[]>;
   medios: string[];
-  canales: Canal[];
   diasCompromiso: number;
   incrementoMin: number;
   minimoMin: number;
@@ -106,235 +86,169 @@ export default function VenderParticular({
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
 
-  const [alumno, setAlumno] = useState<Alumno | null>(null);
-  const [remountAlumno, setRemountAlumno] = useState(0);
+  const [titularId, setTitularId] = useState<number | null>(null);
+  const [titularNombre, setTitularNombre] = useState("");
   const [plan, setPlan] = useState<PlanParticular | null>(null);
   const [tarifaId, setTarifaId] = useState<number | null>(null);
-  const [profesorId, setProfesorId] = useState<number | null>(null);
-  const [salaTipo, setSalaTipo] = useState<"propia" | "externa">("propia");
-  const [salaId, setSalaId] = useState<number | null>(null);
-  const [nombreExterna, setNombreExterna] = useState("");
-  const [acompanantes, setAcompanantes] = useState("0");
-  const hoy = useMemo(() => new Date(), []);
-  const [fechaInicio, setFechaInicio] = useState(isoFecha(hoy));
-  const [diasSemana, setDiasSemana] = useState<number[]>([]);
-  const duraciones = useMemo(() => opcionesDuracionReserva(minimoMin), [minimoMin]);
-  const [hora, setHora] = useState("18:00");
-  const [duracionMin, setDuracionMin] = useState(duraciones[0] ?? 60);
-  const [cobro, setCobro] = useState<PayloadCobro | null>(null);
-  const [fechaCompromiso, setFechaCompromiso] = useState("");
   const [esCortesia, setEsCortesia] = useState(false);
   const [cortesiaMotivo, setCortesiaMotivo] = useState("");
-  const [aviso, setAviso] = useState<{
-    resumen: string;
-    avisoAlumno?: { nombre: string; whatsapp: string | null; mensaje: string };
-    avisoProfesor?: { nombre: string; whatsapp: string | null; mensaje: string };
-  } | null>(null);
+  const [profesorId, setProfesorId] = useState<number | null>(null);
+  const [acompanantes, setAcompanantes] = useState("0");
+  const hoy = useMemo(() => new Date(), []);
+  const agendaInicial: AgendaValor = {
+    salaTipo: "propia",
+    salaId: null,
+    nombreExterna: "",
+    fechaInicio: isoFecha(hoy),
+    diasSemana: [],
+    hora: "18:00",
+    duracionMin: minimoMin,
+  };
+  const [agenda, setAgenda] = useState<AgendaValor>(agendaInicial);
+  const [agendaListo, setAgendaListo] = useState(false);
+  const [cobro, setCobro] = useState<PayloadCobro | null>(null);
+  const [fechaCompromiso, setFechaCompromiso] = useState("");
+  const [cerrada, setCerrada] = useState<Cerrada | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [preview, setPreview] = useState<ResultadoPreviewParticular | null>(null);
-  const [previewFirma, setPreviewFirma] = useState<string | null>(null);
-  const [verificando, startVerificacion] = useTransition();
-
-  const maxCompromiso = useMemo(() => {
-    const d = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
-    d.setDate(d.getDate() + Math.max(1, diasCompromiso));
-    return d;
-  }, [hoy, diasCompromiso]);
 
   const tarifasDelPlan = plan ? tarifas.filter((t) => t.estilo === plan.estilo) : [];
   const tarifa = tarifasDelPlan.find((t) => t.id === tarifaId) ?? null;
   const profesores = (plan ? profesoresPorEstilo[plan.estilo] : undefined) ?? [];
+  const profesor = profesores.find((p) => p.id === profesorId) ?? null;
   const salasPropias = salas
     .filter((s) => !s.esExterna && s.activa)
-    .filter((s) => !plan || plan.salasModo === "todas" || (salaIdsPorPlan[plan.id] ?? []).includes(s.id));
-  const total = tarifa?.precio ?? 0;
+    .filter((s) => !plan || plan.salasModo === "todas" || (salaIdsPorPlan[plan.id] ?? []).includes(s.id))
+    .map((s) => ({ id: s.id, nombre: s.nombre }));
+  const total = esCortesia ? 0 : (tarifa?.precio ?? 0);
+  const personas = 1 + Math.max(0, Math.trunc(Number(acompanantes) || 0));
+  const esFija = plan?.reservaModalidad === "fija";
+  const faltaSaldo = cobro ? cobro.saldo > 0 : false;
 
-  function elegirAlumno(al: Alumno | null) {
-    setAlumno(al);
+  function elegirTitular(id: number, nombre: string) {
+    if (id === titularId) return; // la tarjeta vuelve a avisar al cargar su detalle
+    setTitularId(id);
+    setTitularNombre(nombre);
     setError(null);
-    setAviso(null);
   }
-  async function guardarAlumnoNuevo(datos: DatosAlumno) {
-    const res = await crearAlumnoDesdeInscripcion(datos);
-    if (res.alumno) {
-      setAlumno(res.alumno);
-      setError(null);
-    }
-    return { error: res.error };
+
+  function reiniciar() {
+    setTitularId(null);
+    setTitularNombre("");
+    setPlan(null);
+    setTarifaId(null);
+    setEsCortesia(false);
+    setCortesiaMotivo("");
+    setProfesorId(null);
+    setAcompanantes("0");
+    setAgenda(agendaInicial);
+    setAgendaListo(false);
+    setCobro(null);
+    setFechaCompromiso("");
+    setError(null);
   }
 
   function elegirPlan(p: PlanParticular) {
     setPlan(p);
     setTarifaId(null);
-    setProfesorId(null);
-    setSalaId(null);
-    setDiasSemana([]);
-    setCobro(null);
     setEsCortesia(false);
     setCortesiaMotivo("");
+    setProfesorId(null);
+    setAcompanantes("0");
+    setAgenda({ ...agendaInicial, fechaInicio: agenda.fechaInicio });
+    setAgendaListo(false);
+    setCobro(null);
     setError(null);
   }
 
-  function toggleDia(n: number) {
-    setDiasSemana((prev) => (prev.includes(n) ? prev.filter((x) => x !== n) : [...prev, n].sort()));
+  const faltaPara = faltaParaParticular({
+    contactoId: titularId,
+    planId: plan?.id ?? null,
+    tarifaId,
+    profesorId,
+    salaTipo: agenda.salaTipo,
+    salaId: agenda.salaId,
+    nombreExterna: agenda.nombreExterna,
+    fechaInicio: agenda.fechaInicio,
+    esFija: !!esFija,
+    diasSemana: agenda.diasSemana,
+    hora: agenda.hora,
+    horaAlineada: !!agenda.hora && horaAlineada(agenda.hora, incrementoMin),
+    duracionMin: agenda.duracionMin,
+    esCortesia,
+    cortesiaMotivo,
+  });
+
+  const faltaTexto: string | null = faltaPara
+    ? faltaPara
+    : !agendaListo
+      ? "una agenda disponible (revisión de la sala y del profesor)"
+      : !esCortesia && cobro && !cobro.valido
+        ? "revisar el cobro"
+        : null;
+
+  // Lo que manda `venderParticular`, sin el cobro: la revisión de la agenda
+  // consulta con esto.
+  function entradaDe(v: AgendaValor): EntradaAgendaParticular | null {
+    if (titularId == null || !plan || !tarifa || profesorId == null) return null;
+    return {
+      contactoId: titularId,
+      planId: plan.id,
+      tarifaParticularId: tarifa.id,
+      profesorId,
+      sala:
+        v.salaTipo === "propia"
+          ? {
+              tipo: "propia",
+              salaId: v.salaId!,
+              ...(plan.permiteSalaExterna && v.nombreExterna.trim() ? { lugarExternoOpcional: v.nombreExterna.trim() } : {}),
+            }
+          : { tipo: "externa", nombreDescriptivo: v.nombreExterna.trim() },
+      acompanantes: personas - 1,
+      fechaInicio: v.fechaInicio,
+      agenda: esFija
+        ? { modalidad: "fija", diasSemana: v.diasSemana, hora: v.hora, duracionMin: v.duracionMin }
+        : { modalidad: "flexible", hora: v.hora, duracionMin: v.duracionMin },
+      // Placeholder estable: que cambie la glosa no invalida la revisión ya hecha.
+      ...(esCortesia ? { cortesia: { motivo: "cortesía" } } : {}),
+    };
   }
 
-  const personas = 1 + Math.max(0, Math.trunc(Number(acompanantes) || 0));
-  const faltaSaldo = cobro ? cobro.saldo > 0 : false;
-  const fechaCompromisoEfectiva = fechaCompromiso || isoFecha(maxCompromiso);
-
-  const esFija = plan?.reservaModalidad === "fija";
-  const horaOk = !!hora && horaAlineada(hora, incrementoMin);
-  const agendaCompleta = esFija ? diasSemana.length > 0 && horaOk && !!duracionMin : horaOk && !!duracionMin;
-  const salaCompleta = salaTipo === "propia" ? !!salaId : nombreExterna.trim().length > 0;
-
-  // Lo mismo que manda `venderParticular`, sin el cobro — se usa para pedir
-  // la revisión de disponibilidad ANTES de vender (pedido de Javier, 26/09:
-  // "elegir de slots disponibles directamente sin hacer prueba y error").
-  const entradaAgenda: EntradaAgendaParticular | null =
-    alumno && plan && tarifa && profesorId && salaCompleta && fechaInicio && agendaCompleta
-      ? {
-          alumnoId: alumno.id,
-          planId: plan.id,
-          tarifaParticularId: tarifa.id,
-          profesorId,
-          sala:
-            salaTipo === "propia"
-              ? {
-                  tipo: "propia",
-                  salaId: salaId!,
-                  ...(plan.permiteSalaExterna && nombreExterna.trim() ? { lugarExternoOpcional: nombreExterna.trim() } : {}),
-                }
-              : { tipo: "externa", nombreDescriptivo: nombreExterna.trim() },
-          acompanantes: personas - 1,
-          fechaInicio,
-          agenda: esFija ? { modalidad: "fija", diasSemana, hora, duracionMin } : { modalidad: "flexible", hora, duracionMin },
-          // Placeholder estable (no la glosa real, que se escribe letra por
-          // letra): que ESTE campo cambie no debería invalidar la revisión
-          // de disponibilidad ya hecha. La glosa real se agrega recién en
-          // `confirmar()`.
-          ...(esCortesia ? { cortesia: { motivo: "cortesía" } } : {}),
-        }
-      : null;
-  const firmaAgenda = entradaAgenda ? JSON.stringify(entradaAgenda) : null;
-  // "Vigente" = calzó con lo último que se revisó contra la disponibilidad
-  // real. Cualquier cambio en la agenda (día, hora, sala, profesor...) lo
-  // desactualiza, y hay que revisar de nuevo antes de poder vender.
-  const previewVigente = !!preview && !preview.error && previewFirma === firmaAgenda;
-
-  function revisarDisponibilidad() {
-    if (!entradaAgenda) return;
-    const firmaAlPedir = firmaAgenda;
-    startVerificacion(async () => {
-      const res = await previsualizarParticular(entradaAgenda);
-      setPreview(res);
-      setPreviewFirma(firmaAlPedir);
-    });
+  async function revisar(v: AgendaValor): Promise<ResultadoRevision> {
+    const e = entradaDe(v);
+    if (!e) return { error: "Faltan datos de la venta para revisar la agenda." };
+    const r = await previsualizarParticular(e);
+    return { error: r.error, sesiones: r.sesiones, horas: r.horasContratadas, leftoverMin: r.leftoverMin, todasOk: r.todasOk };
   }
-
-  // Todo lo obligatorio, completo: el botón queda deshabilitado hasta acá,
-  // no alcanza con que el clic muestre el error después (pedido de Javier,
-  // 26/09/2026) — mismas condiciones que valida `confirmar()` al enviar.
-  const puedeVender =
-    !!alumno &&
-    !!plan &&
-    !!tarifa &&
-    !!profesorId &&
-    salaCompleta &&
-    !!fechaInicio &&
-    agendaCompleta &&
-    previewVigente &&
-    !!preview?.todasOk &&
-    (!esCortesia || cortesiaMotivo.trim().length > 0) &&
-    (!cobro || cobro.valido) &&
-    (!faltaSaldo || !!fechaCompromisoEfectiva) &&
-    !pendiente;
-
-  // Mismo orden que confirmar(), para que el texto bajo el botón diga
-  // exactamente qué falta (regla de calidad 1: nunca un "no se puede" a secas).
-  const faltaPara: string | null = !alumno
-    ? "el titular"
-    : !plan
-      ? "el plan"
-      : !tarifa
-        ? "el tramo de horas"
-        : !profesorId
-          ? "el profesor"
-          : !salaCompleta
-            ? salaTipo === "propia"
-              ? "la sala"
-              : "el nombre del lugar"
-            : !fechaInicio
-              ? "la fecha de inicio"
-              : !agendaCompleta
-                ? hora && !horaOk
-                  ? `una hora de inicio en intervalos de ${incrementoMin} minutos`
-                  : esFija
-                  ? "los días, la hora y la duración"
-                  : "la hora y la duración de la primera clase"
-                : !previewVigente
-                  ? 'revisar la disponibilidad ("Revisar disponibilidad", abajo)'
-                  : !preview?.todasOk
-                    ? "resolver los choques que muestra la revisión"
-                    : esCortesia && !cortesiaMotivo.trim()
-                      ? "el motivo de la cortesía"
-                      : cobro && !cobro.valido
-                        ? "revisar el cobro"
-                        : faltaSaldo && !fechaCompromisoEfectiva
-                          ? "la fecha de compromiso de pago"
-                          : null;
 
   function confirmar() {
     setError(null);
-    setAviso(null);
-    if (!alumno) return setError("Elegí el alumno titular.");
-    if (!plan) return setError("Elegí el plan.");
-    if (!tarifa) return setError("Elegí el tramo de horas.");
-    if (!profesorId) return setError("Elegí el profesor.");
-    if (!salaCompleta) return setError(salaTipo === "propia" ? "Elegí la sala." : "Cargá el nombre del lugar.");
-    if (!fechaInicio) return setError("Cargá la fecha de inicio.");
-    if (!agendaCompleta) return setError(esFija ? "Elegí los días, la hora y la duración." : "Cargá la hora y la duración de la primera clase.");
-    if (!previewVigente) return setError('Revisá la disponibilidad antes de vender ("Revisar disponibilidad").');
-    if (!preview?.todasOk) return setError("Hay clases que chocan con la disponibilidad: revisá la agenda.");
-    if (esCortesia && !cortesiaMotivo.trim()) return setError("Cargá el motivo de la cortesía.");
-    if (cobro && !cobro.valido) return setError("Revisá el monto, el medio de pago o el motivo del descuento.");
-    if (faltaSaldo && !fechaCompromisoEfectiva) return setError("Cargá la fecha de compromiso de pago.");
-    if (!entradaAgenda) return setError("No se pudo armar la venta.");
-
+    const e = entradaDe(agenda);
+    if (!e || faltaTexto) return setError(`Falta ${faltaTexto ?? "completar la venta"}.`);
     const entrada: EntradaParticular = {
-      ...entradaAgenda,
+      ...e,
       ...(esCortesia ? { cortesia: { motivo: cortesiaMotivo.trim() } } : {}),
-      cobro: {
-        modo: esCortesia ? "sin" : cobro?.modo ?? "sin",
-        monto: esCortesia ? 0 : cobro ? cobro.total - cobro.saldo : 0,
-        medio: esCortesia ? null : cobro?.medio ?? null,
-        notaMedio: cobro?.notaMedio ?? "",
-        ajuste: esCortesia ? 0 : cobro?.ajuste ?? 0,
-        ajusteMotivo: cobro?.ajusteMotivo ?? "",
-        total: esCortesia ? 0 : total,
-        saldo: esCortesia ? 0 : cobro?.saldo ?? total,
-        fechaCompromiso: !esCortesia && faltaSaldo ? fechaCompromisoEfectiva : null,
-      },
+      cobro: esCortesia
+        ? { modo: "sin", monto: 0, medio: null, notaMedio: "", ajuste: 0, ajusteMotivo: "", total: 0, saldo: 0, fechaCompromiso: null }
+        : cobroParaServidor(cobro, total, fechaCompromisoEfectiva(fechaCompromiso, diasCompromiso)),
     };
-
+    const resumenLocal = [
+      { etiqueta: "Titular", valor: titularNombre },
+      { etiqueta: "Plan", valor: plan?.nombre ?? "" },
+      { etiqueta: "Horas", valor: tarifa ? `${formatearHoras(tarifa.horas)} h` : "" },
+      { etiqueta: "Profesor", valor: profesor?.nombre ?? "" },
+      { etiqueta: esCortesia ? "Cortesía" : "Total", valor: esCortesia ? "no se cobra" : gs(total) },
+    ];
     startTransition(async () => {
       const res = await venderParticular(entrada);
       if (res.error) return setError(res.error);
-      setAviso({ resumen: res.resumen ?? "Membresía particular registrada.", avisoAlumno: res.avisoAlumno, avisoProfesor: res.avisoProfesor });
-      setAlumno(null);
-      setRemountAlumno((n) => n + 1);
-      setPlan(null);
-      setTarifaId(null);
-      setProfesorId(null);
-      setSalaId(null);
-      setNombreExterna("");
-      setAcompanantes("0");
-      setDiasSemana([]);
-      setCobro(null);
-      setEsCortesia(false);
-      setCortesiaMotivo("");
-      setPreview(null);
-      setPreviewFirma(null);
+      const avisos: AvisoVenta[] = [];
+      if (res.avisoAlumno) avisos.push(res.avisoAlumno);
+      if (res.avisoProfesor) avisos.push({ ...res.avisoProfesor, nombre: `Profesor: ${res.avisoProfesor.nombre}` });
+      setCerrada({
+        datos: [...resumenLocal, { etiqueta: "Registro", valor: res.resumen ?? "Membresía particular registrada." }],
+        avisos,
+      });
+      reiniciar();
       router.refresh();
     });
   }
@@ -347,401 +261,254 @@ export default function VenderParticular({
       </div>
     );
 
+  if (cerrada)
+    return <ConfirmacionVenta titulo="Clase particular registrada" datos={cerrada.datos} avisos={cerrada.avisos} onNueva={() => setCerrada(null)} />;
+
+  const campoAcompanantes = (
+    <label className="block max-w-[260px]">
+      <span className="block text-base font-medium mb-1.5">¿Cuántos vienen con el titular?</span>
+      <input
+        value={acompanantes}
+        onChange={(e) => {
+          setAcompanantes(e.target.value.replace(/\D/g, ""));
+          setAgendaListo(false);
+        }}
+        inputMode="numeric"
+        className="entrada"
+      />
+      <span className="block text-sm text-[var(--texto-tenue)] mt-1.5">
+        Son {personas} {personas === 1 ? "persona" : "personas"} en total.
+      </span>
+    </label>
+  );
+
+  const titularListo = titularId != null;
+  const planListo = titularListo && !!plan && !!tarifa;
+  const profesorListo = planListo && !!profesor;
+
   return (
     <div className="space-y-4">
-      {aviso && (
-        <div className="rounded-[var(--radio-panel)] bg-[var(--exito-fill)] text-[var(--exito-texto)] p-4 text-base space-y-3">
-          <p>{aviso.resumen}</p>
-          {aviso.avisoAlumno && (
-            <AvisoWhatsapp nombre={aviso.avisoAlumno.nombre} whatsapp={aviso.avisoAlumno.whatsapp} mensaje={aviso.avisoAlumno.mensaje} />
-          )}
-          {aviso.avisoProfesor && (
-            <AvisoWhatsapp nombre={`Profesor: ${aviso.avisoProfesor.nombre}`} whatsapp={aviso.avisoProfesor.whatsapp} mensaje={aviso.avisoProfesor.mensaje} />
-          )}
-        </div>
-      )}
-
       {/* 1 · Titular */}
-      <section className="rounded-[var(--radio-tarjeta)] bg-[var(--fondo-panel)] border border-[var(--borde)] p-5">
-        <h2 className="titulo text-xl mb-3">Titular</h2>
-        {alumno ? (
-          <div className="rounded-[var(--radio-panel)] bg-[var(--fondo-elevado)] p-4 flex items-start gap-3">
-            <div className="flex-1 min-w-0">
-              <div className="text-lg font-semibold">{nombreCompleto(alumno.contacto)}</div>
-              <div className="text-sm text-[var(--texto-tenue)] mt-0.5">
-                {alumno.es_menor ? `menor · tutor ${alumno.tutor?.whatsapp || "—"}` : alumno.contacto.whatsapp || "sin WhatsApp"}
-              </div>
+      <BloqueVenta numero={1} titulo="Titular" estado="activo">
+        <TitularVenta
+          modulo="particulares"
+          matriz={matriz}
+          listas={listasContacto}
+          puedeVerPrivados={puedeVerPrivados}
+          permiteOrganizacion={false}
+          rolQueAdquiere="alumno"
+          titularId={titularId}
+          onElegido={(c) => {
+            if (c) elegirTitular(c.id, c.nombre);
+            else reiniciar();
+          }}
+        />
+      </BloqueVenta>
+
+      {/* 2 · Plan y tramo de horas */}
+      <BloqueVenta
+        numero={2}
+        titulo="Plan y tramo de horas"
+        estado={!titularListo ? "bloqueado" : planListo ? "completo" : "activo"}
+        bloqueo="Primero elegí el titular."
+        resumen={
+          plan &&
+          tarifa && (
+            <div className="space-y-2">
+              <p className="text-base">
+                <span className="font-medium">{plan.nombre}</span>{" "}
+                <span className="text-sm text-[var(--texto-tenue)]">
+                  · {tarifa.nombre} · {formatearHoras(tarifa.horas)} h · {esCortesia ? "cortesía" : gs(tarifa.precio)}
+                </span>
+              </p>
+              {plan.permiteCortesia && (
+                <div>
+                  <label className="flex items-center gap-2 text-base">
+                    <input
+                      type="checkbox"
+                      checked={esCortesia}
+                      onChange={(e) => {
+                        setEsCortesia(e.target.checked);
+                        setCobro(null);
+                      }}
+                    />
+                    Es una membresía de cortesía (no se cobra, no le devenga nada a nadie)
+                  </label>
+                  {esCortesia && (
+                    <label className="block mt-2">
+                      <span className="block text-sm text-[var(--texto-tenue)] mb-1">Motivo de la cortesía (quién la otorga, por qué)</span>
+                      <input
+                        value={cortesiaMotivo}
+                        onChange={(e) => setCortesiaMotivo(e.target.value)}
+                        placeholder="Ej. cortesía de bienvenida, autorizada por Javier"
+                        className={control}
+                      />
+                    </label>
+                  )}
+                </div>
+              )}
             </div>
+          )
+        }
+        onCambiar={() => {
+          setPlan(null);
+          setTarifaId(null);
+          setEsCortesia(false);
+          setCortesiaMotivo("");
+          setProfesorId(null);
+          setAgendaListo(false);
+          setCobro(null);
+        }}
+      >
+        <div className="space-y-2">
+          {planes.map((p) => (
             <button
+              key={p.id}
               type="button"
-              onClick={() => {
-                elegirAlumno(null);
-                setRemountAlumno((n) => n + 1);
-              }}
-              className="text-[var(--primario)] text-base shrink-0"
+              onClick={() => elegirPlan(p)}
+              className={`w-full text-left px-4 py-3 rounded-[var(--radio-control)] border ${
+                plan?.id === p.id ? "border-[var(--primario)] bg-[var(--fondo-elevado)]" : "border-[var(--borde)] hover:border-[var(--primario)]"
+              }`}
             >
-              Cambiar
+              <div className="text-base font-medium">{p.nombre}</div>
+              <div className="text-sm text-[var(--texto-tenue)]">
+                {p.estilo} · agenda {p.reservaModalidad === "fija" ? "fija" : "flexible"}
+              </div>
             </button>
+          ))}
+        </div>
+        {plan && (
+          <div className="mt-4">
+            <span className="block text-base font-medium mb-1.5">Tramo de horas</span>
+            {tarifasDelPlan.length === 0 ? (
+              <p className="text-sm text-[var(--peligro)]">
+                No hay tramos de horas cargados para el estilo &quot;{plan.estilo}&quot;. Se cargan en Precios y paquetes.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {tarifasDelPlan.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => {
+                      setTarifaId(t.id);
+                      setAgendaListo(false);
+                    }}
+                    className="w-full text-left px-4 py-2.5 rounded-[var(--radio-control)] border border-[var(--borde)] hover:border-[var(--primario)] flex items-baseline justify-between gap-3"
+                  >
+                    <span>
+                      {t.nombre} · {formatearHoras(t.horas)} h
+                    </span>
+                    <span className="tabular-nums">{gs(t.precio)}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
-        ) : (
-          <EntidadAlumno
-            key={remountAlumno}
-            padron={alumnos}
-            canales={canales}
-            matriz={matriz}
-            listasContacto={listasContacto}
-            puedeVerPrivados={puedeVerPrivados}
-            abrirAlElegir={false}
-            onSelect={elegirAlumno}
-            onGuardar={guardarAlumnoNuevo}
-          />
         )}
-      </section>
+      </BloqueVenta>
 
-      {/* 2 · Plan y tramo */}
-      {alumno && (
-        <section className="rounded-[var(--radio-tarjeta)] bg-[var(--fondo-panel)] border border-[var(--borde)] p-5">
-          <h2 className="titulo text-xl mb-3">Plan Clases Particulares</h2>
-          <div className="space-y-2">
-            {planes.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => elegirPlan(p)}
-                className={`w-full text-left px-4 py-3 rounded-[var(--radio-control)] border ${
-                  plan?.id === p.id ? "border-[var(--primario)] bg-[var(--fondo-elevado)]" : "border-[var(--borde)] hover:border-[var(--primario)]"
-                }`}
-              >
-                <div className="text-base font-medium">{p.nombre}</div>
-                <div className="text-sm text-[var(--texto-tenue)]">
-                  {p.estilo} · agenda {p.reservaModalidad === "fija" ? "fija" : "flexible"}
-                </div>
-              </button>
-            ))}
-          </div>
-
-          {plan && (
-            <div className="mt-4">
-              <span className="block text-base font-medium mb-1.5">Tramo de horas</span>
-              {tarifasDelPlan.length === 0 ? (
-                <p className="text-sm text-[var(--peligro)]">
-                  No hay tramos de horas cargados para el estilo &quot;{plan.estilo}&quot;. Se cargan en Precios y paquetes.
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  {tarifasDelPlan.map((t) => (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => setTarifaId(t.id)}
-                      className={`w-full text-left px-4 py-2.5 rounded-[var(--radio-control)] border flex items-baseline justify-between gap-3 ${
-                        tarifaId === t.id ? "border-[var(--primario)] bg-[var(--fondo-elevado)]" : "border-[var(--borde)] hover:border-[var(--primario)]"
-                      }`}
-                    >
-                      <span>
-                        {t.nombre} · {t.horas} h
-                      </span>
-                      <span className="tabular-nums">{gs(t.precio)}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
+      {/* 3 · Profesor */}
+      <BloqueVenta
+        numero={3}
+        titulo="Profesor"
+        estado={!planListo ? "bloqueado" : profesorListo ? "completo" : "activo"}
+        bloqueo="Primero elegí el plan y el tramo de horas."
+        resumen={
+          profesor && (
+            <div className="space-y-2">
+              <p className="text-base">
+                <span className="font-medium">{profesor.nombre}</span>
+              </p>
+              {plan?.registraAcompanantes && campoAcompanantes}
             </div>
-          )}
-
-          {plan?.permiteCortesia && (
-            <div className="mt-4 pt-4 border-t border-[var(--borde)]">
-              <label className="flex items-center gap-2 text-base">
-                <input
-                  type="checkbox"
-                  checked={esCortesia}
-                  onChange={(e) => setEsCortesia(e.target.checked)}
-                />
-                Es una membresía de cortesía (no se cobra, no le devenga nada a nadie)
-              </label>
-              {esCortesia && (
-                <label className="block mt-2">
-                  <span className="block text-sm text-[var(--texto-tenue)] mb-1">Motivo de la cortesía (quién la otorga, por qué)</span>
-                  <input
-                    value={cortesiaMotivo}
-                    onChange={(e) => setCortesiaMotivo(e.target.value)}
-                    placeholder="Ej. cortesía de bienvenida, autorizada por Javier"
-                    className={control}
-                  />
-                </label>
-              )}
-            </div>
-          )}
-        </section>
-      )}
-
-      {/* 3 · Profesor y sala */}
-      {plan && tarifa && (
-        <section className="rounded-[var(--radio-tarjeta)] bg-[var(--fondo-panel)] border border-[var(--borde)] p-5 space-y-4">
-          <h2 className="titulo text-xl">Profesor y sala</h2>
-
-          <div>
-            <span className="block text-base font-medium mb-1.5">Profesor</span>
+          )
+        }
+        onCambiar={() => {
+          setProfesorId(null);
+          setAgendaListo(false);
+        }}
+      >
+        {plan && (
+          <div className="space-y-4">
             {profesores.length === 0 ? (
               <p className="text-sm text-[var(--peligro)]">Ningún profesor tiene cargado el estilo &quot;{plan.estilo}&quot;.</p>
             ) : (
-              <select value={profesorId ?? ""} onChange={(e) => setProfesorId(Number(e.target.value) || null)} className={control}>
-                <option value="">Elegí…</option>
+              <div className="space-y-2">
                 {profesores.map((p) => (
-                  <option key={p.id} value={p.id}>
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => {
+                      setProfesorId(p.id);
+                      setAgendaListo(false);
+                    }}
+                    className="w-full text-left px-4 py-2.5 rounded-[var(--radio-control)] border border-[var(--borde)] hover:border-[var(--primario)]"
+                  >
                     {p.nombre}
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
-
-          <div>
-            <span className="block text-base font-medium mb-1.5">Sala</span>
-            <div className="flex gap-2 mb-2">
-              {(["propia", "externa"] as const)
-                .filter((t) => t === "propia" || plan?.permiteSalaExterna)
-                .map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => setSalaTipo(t)}
-                    className={`px-3 py-1.5 text-sm rounded-[var(--radio-control)] border ${
-                      salaTipo === t ? "bg-[var(--primario)] text-[var(--primario-texto)] border-[var(--primario)]" : "border-[var(--borde)]"
-                    }`}
-                  >
-                    {t === "propia" ? "En Tropicana" : "Ubicación externa"}
-                  </button>
-                ))}
-            </div>
-            {salaTipo === "propia" ? (
-              salasPropias.length === 0 ? (
-                <p className="text-sm text-[var(--peligro)]">Este plan no tiene ninguna sala propia permitida.</p>
-              ) : (
-                <>
-                  <select value={salaId ?? ""} onChange={(e) => setSalaId(Number(e.target.value) || null)} className={control}>
-                    <option value="">Elegí…</option>
-                    {salasPropias.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.nombre}
-                      </option>
-                    ))}
-                  </select>
-                  {plan?.permiteSalaExterna && (
-                    <div className="mt-2">
-                      <label className="text-sm text-[var(--texto-tenue)] block mb-1">
-                        Lugar externo para esta membresía (opcional)
-                      </label>
-                      <input
-                        value={nombreExterna}
-                        onChange={(e) => setNombreExterna(e.target.value)}
-                        placeholder='Ej. "Salón Conquistador — Hotel Los Tajibos" (por si hay que reprogramar alguna clase ahí)'
-                        className={control}
-                      />
-                    </div>
-                  )}
-                </>
-              )
-            ) : (
-              <input
-                value={nombreExterna}
-                onChange={(e) => setNombreExterna(e.target.value)}
-                placeholder='Ej. "Salón Conquistador — Hotel Los Tajibos"'
-                className={control}
-              />
-            )}
-          </div>
-
-          {plan.registraAcompanantes && (
-            <label className="block max-w-[260px]">
-              <span className="block text-base font-medium mb-1.5">¿Cuántos vienen con el titular?</span>
-              <input
-                value={acompanantes}
-                onChange={(e) => setAcompanantes(e.target.value.replace(/\D/g, ""))}
-                inputMode="numeric"
-                className="entrada"
-              />
-              <span className="block text-sm text-[var(--texto-tenue)] mt-1.5">
-                Son {personas} {personas === 1 ? "persona" : "personas"} en total.
-              </span>
-            </label>
-          )}
-        </section>
-      )}
-
-      {/* 4 · Agenda */}
-      {plan && tarifa && profesorId && salaCompleta && (
-        <section className="rounded-[var(--radio-tarjeta)] bg-[var(--fondo-panel)] border border-[var(--borde)] p-5 space-y-3">
-          <h2 className="titulo text-xl">{esFija ? "Agenda fija" : "Primera clase"}</h2>
-          <p className="text-sm text-[var(--texto-tenue)]">
-            {esFija
-              ? `Se reservan todas las clases que cubran las ${tarifa.horas} h contratadas, en los días elegidos, desde la fecha de inicio.`
-              : "Se reserva la primera clase. El resto se coordina después."}
-          </p>
-
-          <label className="block max-w-[200px]">
-            <span className="block text-sm text-[var(--texto-tenue)] mb-1">Fecha de inicio</span>
-            <input type="date" value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} className={control} />
-          </label>
-
-          {esFija && (
-            <div>
-              <span className="block text-sm text-[var(--texto-tenue)] mb-1">Días</span>
-              <div className="flex gap-1.5 flex-wrap">
-                {DIAS.map((d) => (
-                  <button
-                    key={d.n}
-                    type="button"
-                    onClick={() => toggleDia(d.n)}
-                    className={`px-3 py-1.5 text-sm rounded-[var(--radio-control)] border ${
-                      diasSemana.includes(d.n)
-                        ? "bg-[var(--primario)] text-[var(--primario-texto)] border-[var(--primario)]"
-                        : "border-[var(--borde)]"
-                    }`}
-                  >
-                    {d.label}
                   </button>
                 ))}
               </div>
-            </div>
-          )}
-
-          <div className="flex gap-3 flex-wrap">
-            <label className="block max-w-[140px]">
-              <span className="block text-sm text-[var(--texto-tenue)] mb-1">Hora</span>
-              <input type="time" value={hora} onChange={(e) => setHora(e.target.value)} className={control} />
-            </label>
-            <label className="block max-w-[180px]">
-              <span className="block text-sm text-[var(--texto-tenue)] mb-1">Duración</span>
-              <select value={duracionMin} onChange={(e) => setDuracionMin(Number(e.target.value))} className={control}>
-                {duraciones.map((d) => (
-                  <option key={d} value={d}>
-                    {etiquetaDuracion(d)}
-                  </option>
-                ))}
-              </select>
-            </label>
+            )}
+            {plan.registraAcompanantes && campoAcompanantes}
           </div>
+        )}
+      </BloqueVenta>
 
-          {agendaCompleta && (
-            <div className="pt-3 mt-1 border-t border-[var(--borde)]">
-              <button
-                type="button"
-                onClick={revisarDisponibilidad}
-                disabled={!entradaAgenda || verificando}
-                className="px-4 py-2 text-sm font-medium rounded-[var(--radio-control)] border border-[var(--primario)] text-[var(--primario)] hover:bg-[var(--fondo-elevado)] disabled:opacity-40"
-              >
-                {verificando ? "Revisando…" : "Revisar disponibilidad"}
-              </button>
-
-              {preview?.error && previewFirma === firmaAgenda && (
-                <p className="text-[var(--peligro)] text-sm mt-2">{preview.error}</p>
-              )}
-
-              {!previewVigente && !verificando && !(preview?.error && previewFirma === firmaAgenda) && (
-                <p className="text-sm text-[var(--texto-tenue)] mt-2">
-                  Todavía no se revisó esta agenda contra la disponibilidad real de la sala y el profesor.
-                </p>
-              )}
-
-              {previewVigente && preview?.sesiones && (
-                <div className="mt-3 space-y-1.5">
-                  <p className="text-sm font-medium">
-                    {preview.sesiones.length === 1 ? "1 clase" : `${preview.sesiones.length} clases`}
-                    {esFija && preview.horasContratadas ? ` para cubrir ${formatearHoras(preview.horasContratadas)} h` : ""}:
-                  </p>
-                  <ul className="space-y-1">
-                    {preview.sesiones.map((s, i) => (
-                      <li key={i} className={`text-sm flex items-start gap-2 ${s.ok ? "" : "text-[var(--peligro)]"}`}>
-                        <span className="shrink-0">{s.ok ? "✓" : "✗"}</span>
-                        <span>
-                          {diaCorto(s.fecha)} {s.hora.slice(0, 5)} ({etiquetaDuracion(s.duracionMin)})
-                          {!s.ok && s.motivo ? ` — ${s.motivo}` : ""}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                  {!!preview.leftoverMin && (
-                    <p className="text-sm text-[var(--texto-tenue)]">
-                      Quedan {formatearHoras(preview.leftoverMin / 60)}
-                      {preview.horasContratadas ? ` de ${formatearHoras(preview.horasContratadas)}` : ""} h del
-                      paquete sin agendar en esta venta. Se coordinan después.
-                    </p>
-                  )}
-                  {preview.todasOk ? (
-                    <p className="text-sm text-[var(--exito-texto)]">Toda la agenda está disponible.</p>
-                  ) : (
-                    <p className="text-sm text-[var(--peligro)]">
-                      Hay clases que chocan con la sala, el profesor o el horario. Cambiá el día, la hora o la sala y
-                      volvé a revisar — en{" "}
-                      <a href="/sala" target="_blank" rel="noreferrer" className="underline">
-                        Disponibilidad de sala
-                      </a>{" "}
-                      se puede ver qué la ocupa.
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-        </section>
-      )}
-
-      {/* 5 · Cobro (no aplica a una membresía de cortesía: no se cobra nada) */}
-      {plan && tarifa && profesorId && salaCompleta && agendaCompleta && !esCortesia && (
-        <section className="rounded-[var(--radio-tarjeta)] bg-[var(--fondo-panel)] border border-[var(--borde)] p-5">
-          <h2 className="titulo text-xl mb-3">Cobro</h2>
-          <Cobro
-            sujeto={alumno ? nombreCompleto(alumno.contacto) : undefined}
-            detalle={`${plan.nombre} · ${tarifa.horas} h`}
-            referencia={total}
-            referenciaLabel="Precio del paquete"
-            politica="descuento"
-            direccion="cobro"
-            medios={medios}
-            permitirSinCobro
-            cuentaId={`particular:${plan.id}:${tarifa.id}:${fechaInicio}`}
-            onChange={setCobro}
+      {/* 4 · Sala y horario */}
+      <BloqueVenta numero={4} titulo="Sala y horario" estado={profesorListo ? "activo" : "bloqueado"} bloqueo="Primero elegí el profesor.">
+        {plan && tarifa && profesor && (
+          <AgendaReservas
+            valor={agenda}
+            onChange={setAgenda}
+            onEstado={(e) => setAgendaListo(e.listo)}
+            salasPropias={salasPropias}
+            permiteExterna={plan.permiteSalaExterna}
+            esFija={!!esFija}
+            horasPaquete={tarifa.horas}
+            incrementoMin={incrementoMin}
+            minimoMin={minimoMin}
+            revisar={revisar}
+            firmaExtra={`${plan.id}:${tarifa.id}:${profesor.id}:${personas}:${esCortesia}`}
           />
-          {faltaSaldo && (
-            <div className="pt-3 mt-3 border-t border-[var(--borde)]">
-              <label className="text-sm text-[var(--texto-tenue)] block mb-1.5">Fecha de compromiso de pago del saldo</label>
-              <input
-                type="date"
-                value={fechaCompromisoEfectiva}
-                min={isoFecha(hoy)}
-                max={isoFecha(maxCompromiso)}
-                onChange={(e) => setFechaCompromiso(e.target.value)}
-                className="entrada max-w-[200px]"
-              />
-            </div>
-          )}
-        </section>
-      )}
+        )}
+      </BloqueVenta>
 
-      {error && (
-        <p className="text-[var(--peligro)] text-base" role="alert">
-          {error}
-        </p>
-      )}
+      {/* 5 · Cobro (una membresía de cortesía no cobra nada) */}
+      <BloqueVenta
+        numero={5}
+        titulo="Cobro"
+        estado={esCortesia && profesorListo ? "completo" : profesorListo && agendaListo ? "activo" : "bloqueado"}
+        bloqueo="Primero dejá la agenda disponible."
+        resumen={<p className="text-base">Cortesía: no se cobra ni devenga nada.</p>}
+      >
+        {plan && tarifa && !esCortesia && (
+          <>
+            <Cobro
+              sujeto={titularNombre}
+              detalle={`${plan.nombre} · ${formatearHoras(tarifa.horas)} h`}
+              referencia={total}
+              referenciaLabel="Precio del paquete"
+              politica="descuento"
+              direccion="cobro"
+              medios={medios}
+              permitirSinCobro
+              cuentaId={`particular:${plan.id}:${tarifa.id}:${agenda.fechaInicio}`}
+              onChange={setCobro}
+            />
+            {faltaSaldo && <FechaCompromiso valor={fechaCompromiso} diasCompromiso={diasCompromiso} onChange={setFechaCompromiso} />}
+          </>
+        )}
+      </BloqueVenta>
 
-      {plan && tarifa && (
-        <div>
-          <button
-            onClick={confirmar}
-            disabled={!puedeVender}
-            className="w-full px-5 py-3 text-lg font-semibold rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)] hover:bg-[var(--primario-hover)] disabled:opacity-40"
-          >
-            {pendiente ? "Guardando…" : esCortesia ? "Otorgar cortesía" : `Vender · ${gs(total)}`}
-          </button>
-          {!puedeVender && !pendiente && faltaPara && (
-            <p className="text-sm text-[var(--texto-tenue)] mt-1.5">Falta {faltaPara} para poder vender.</p>
-          )}
-        </div>
-      )}
-      {esFija && fechaInicio && diasSemana.length > 0 && (
-        <p className="text-xs text-[var(--texto-tenue)]">Primera clase estimada desde el {fechaLarga(new Date(fechaInicio + "T00:00:00"))}.</p>
-      )}
+      <BarraVenta
+        falta={faltaTexto}
+        total={esCortesia ? null : tarifa ? gs(total) : null}
+        etiqueta={esCortesia ? "Otorgar cortesía" : "Vender"}
+        pendiente={pendiente}
+        error={error}
+        onConfirmar={confirmar}
+      />
     </div>
   );
 }

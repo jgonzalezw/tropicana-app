@@ -17,7 +17,7 @@ import { useRouter } from "next/navigation";
 import { formatearHoras, horaAlineada } from "@/lib/horarios";
 import { gs, isoFecha } from "@/lib/inscripcion";
 import { costoDeSala, tamanoPorPersonas, type CategoriaSala, type TamanoSala, type TarifaSala } from "@/lib/sala";
-import { faltaParaAlquiler } from "@/lib/ventaAlquiler";
+import { faltaParaAlquiler } from "@/lib/venta/faltantes";
 import { cobroParaServidor } from "@/lib/venta/cobro";
 import type { AgendaValor } from "@/lib/venta/agenda";
 import type { ListasContacto, MatrizMinimo } from "@/lib/tipos";

@@ -1,6 +1,8 @@
 "use server";
 
+import { asegurarRolAlumno } from "@/app/(privado)/contactos/accionesVenta";
 import { planificarSesiones } from "@/lib/venta/agenda";
+import { faltaParaParticular } from "@/lib/venta/faltantes";
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -948,7 +950,8 @@ function armarResumen(
 // cuando se construya esa parte.
 
 export type EntradaParticular = {
-  alumnoId: number;
+  /** El titular, como contacto: si no es alumno todavía, la venta le agrega el rol. */
+  contactoId: number;
   planId: number;
   tarifaParticularId: number;
   profesorId: number;
@@ -981,7 +984,7 @@ export type EntradaAgendaParticular = Omit<EntradaParticular, "cobro">;
 
 type AgendaCalculada = {
   error?: string;
-  alumno?: { id: number; contacto_id: number; nombre: string; whatsapp: string | null };
+  alumno?: { id: number | null; contacto_id: number; nombre: string; whatsapp: string | null };
   planNombre?: string;
   nombreProfesor?: string;
   whatsappProfesor?: string | null;
@@ -1032,18 +1035,31 @@ async function calcularAgendaParticular(
   const inicio = parseFechaISO(e.fechaInicio);
   if (!inicio) return { error: "Fecha de inicio inválida." };
 
-  const { data: alumnoRow } = await sb
-    .from("alumnos")
-    .select("id, contacto_id, es_menor, contacto:contactos(nombre, apellido, whatsapp)")
-    .eq("id", e.alumnoId)
+  // El titular es un contacto: si todavía no es alumno, la venta le agrega el
+  // rol (regla 21). La previsualización no escribe: solo lo lee.
+  const { data: contactoRow } = await a
+    .from("contactos")
+    .select("id, tipo, nombre, apellido, whatsapp, activo, alumno:alumnos(id, es_menor)")
+    .eq("id", e.contactoId)
     .maybeSingle();
-  const alumnoData = alumnoRow as unknown as {
+  const contactoData = contactoRow as unknown as {
     id: number;
-    contacto_id: number;
-    es_menor: boolean;
-    contacto: { nombre: string | null; apellido: string | null; whatsapp: string | null } | null;
+    tipo: string;
+    nombre: string | null;
+    apellido: string | null;
+    whatsapp: string | null;
+    activo: boolean;
+    alumno: { id: number; es_menor: boolean }[] | { id: number; es_menor: boolean } | null;
   } | null;
-  if (!alumnoData) return { error: "El alumno no existe." };
+  if (!contactoData || !contactoData.activo) return { error: "El titular no existe o está inactivo." };
+  if (contactoData.tipo !== "persona") return { error: "El titular de una clase particular tiene que ser una persona." };
+  const alumnoExistente = Array.isArray(contactoData.alumno) ? contactoData.alumno[0] ?? null : contactoData.alumno;
+  const alumnoData = {
+    id: alumnoExistente?.id ?? null,
+    contacto_id: contactoData.id,
+    es_menor: alumnoExistente?.es_menor ?? false,
+    contacto: { nombre: contactoData.nombre, apellido: contactoData.apellido, whatsapp: contactoData.whatsapp },
+  };
 
   let destinatarioAviso = {
     nombre: `${alumnoData.contacto?.nombre ?? ""} ${alumnoData.contacto?.apellido ?? ""}`.trim(),
@@ -1286,6 +1302,27 @@ export async function venderParticular(e: EntradaParticular): Promise<ResultadoP
   const { propio, profesorId } = await alcancePropioDe("particulares");
   if (propio && e.profesorId !== profesorId) return { error: "Solo podés vender clases particulares a tu propio nombre." };
 
+  // La misma función que deshabilita el botón en la pantalla (calidad 9). La
+  // alineación de la hora al intervalo la valida `evaluarSesiones` por sesión.
+  const falta = faltaParaParticular({
+    contactoId: e.contactoId,
+    planId: e.planId,
+    tarifaId: e.tarifaParticularId,
+    profesorId: e.profesorId,
+    salaTipo: e.sala.tipo,
+    salaId: e.sala.tipo === "propia" ? e.sala.salaId : null,
+    nombreExterna: e.sala.tipo === "externa" ? e.sala.nombreDescriptivo : "",
+    fechaInicio: e.fechaInicio,
+    esFija: e.agenda.modalidad === "fija",
+    diasSemana: e.agenda.modalidad === "fija" ? e.agenda.diasSemana : [],
+    hora: e.agenda.hora,
+    horaAlineada: true,
+    duracionMin: e.agenda.duracionMin,
+    esCortesia: !!e.cortesia,
+    cortesiaMotivo: e.cortesia?.motivo ?? "",
+  });
+  if (falta) return { error: `Falta ${falta}.` };
+
   const perfil = await obtenerPerfilActual();
   const a = admin();
   const sb = await createClient();
@@ -1357,10 +1394,15 @@ export async function venderParticular(e: EntradaParticular): Promise<ResultadoP
   }
 
   // ── Grabar ──────────────────────────────────────────────────────────
+  // El titular adquiere el rol alumno al comprar (regla 21).
+  const rol = await asegurarRolAlumno(alumno.contacto_id);
+  if (rol.error || rol.alumnoId == null) return { error: `No se pudo registrar al titular como alumno: ${rol.error ?? "sin id"}` };
+  const alumnoId = rol.alumnoId;
+
   const { data: mem, error: errMem } = await a
     .from("membresias")
     .insert({
-      alumno_id: e.alumnoId,
+      alumno_id: alumnoId,
       contacto_id: alumno.contacto_id,
       curso_id: null,
       modalidad: "clase",
@@ -1432,7 +1474,7 @@ export async function venderParticular(e: EntradaParticular): Promise<ResultadoP
     const { error: errPago } = await a.from("pagos").insert({
       tipo: "cobro",
       motivo: "clase_particular",
-      alumno_id: e.alumnoId,
+      alumno_id: alumnoId,
       membresia_id: membresiaId,
       cuota_id: cuota.id,
       monto: mueve,
@@ -1494,7 +1536,7 @@ export async function venderParticular(e: EntradaParticular): Promise<ResultadoP
 
   return {
     ok: true,
-    resumen: `Membresía particular de ${alumno.nombre || `alumno #${e.alumnoId}`} — ${planNombre}, ${horasContratadas} h con ${nombreProfesor}. ${introAlumno}: ${agendaTexto}.${restoCoordina} ${mueve > 0 ? `Cobrado ${gs(mueve)}.` : "Sin cobro por ahora."}`,
+    resumen: `Membresía particular de ${alumno.nombre || `alumno #${alumnoId}`} — ${planNombre}, ${horasContratadas} h con ${nombreProfesor}. ${introAlumno}: ${agendaTexto}.${restoCoordina} ${mueve > 0 ? `Cobrado ${gs(mueve)}.` : "Sin cobro por ahora."}`,
     avisoAlumno: {
       nombre: alumno.nombre,
       whatsapp: alumno.whatsapp,

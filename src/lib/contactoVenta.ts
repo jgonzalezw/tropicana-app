@@ -46,6 +46,11 @@ export function contextoTercero(tipo: TipoContacto): ContextoMinimo {
   return tipo === "organizacion" ? "tercero_org" : "tercero_persona";
 }
 
+/** El contexto de un alta: quien nace como alumno se pide con las reglas de alumno adulto. */
+export function contextoAlta(tipo: TipoContacto, rol: "alumno" | null | undefined): ContextoMinimo {
+  return tipo === "persona" && rol === "alumno" ? "alumno_adulto" : contextoTercero(tipo);
+}
+
 /** Lo que el formulario de alta arma antes de guardar. */
 export type FormAltaContacto = {
   tipo: TipoContacto;
