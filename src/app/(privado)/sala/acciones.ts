@@ -152,13 +152,23 @@ export async function consultarDisponibilidad(salaId: number, fechaISO: string):
 
   // Ronda 2: lo que sí depende de la ronda 1 (cursoIds, o si hace falta el
   // catálogo de motivos), también en paralelo entre sí.
-  const [sesR, asigR, valR, valExcR] = await Promise.all([
+  const [sesR, marcasR, asigR, valR, valExcR] = await Promise.all([
     cursoIds.length
       ? sb
           .from("sesiones")
           .select("curso_id, estado, profesor_id, titular_id")
           .in("curso_id", cursoIds)
           .eq("fecha", fechaISO)
+      : Promise.resolve({ data: [] as unknown[], error: null }),
+    // UNA consulta agregada para todo el día: qué cursos tienen alguna
+    // asistencia marcada. Una sesión `dictada` sin marcas (p. ej. reabierta)
+    // no es una asistencia tomada.
+    cursoIds.length
+      ? sb
+          .from("asistencias")
+          .select("sesion:sesiones!inner(curso_id, fecha)")
+          .in("sesion.curso_id", cursoIds)
+          .eq("sesion.fecha", fechaISO)
       : Promise.resolve({ data: [] as unknown[], error: null }),
     cursoIds.length
       ? sb.from("asignaciones").select(COLUMNAS_ASIGNACION).in("curso_id", cursoIds)
@@ -171,6 +181,7 @@ export async function consultarDisponibilidad(salaId: number, fechaISO: string):
       : Promise.resolve({ data: [] as { valor: string; etiqueta: string }[], error: null }),
   ]);
   if (sesR.error) return { ...vacio, error: `No se pudieron leer las sesiones del día: ${sesR.error.message}` };
+  if (marcasR.error) return { ...vacio, error: `No se pudieron leer las asistencias del día: ${marcasR.error.message}` };
   if (asigR.error) return { ...vacio, error: `No se pudieron leer los titulares de los cursos: ${asigR.error.message}` };
   if (profR.error) return { ...vacio, error: `No se pudieron leer los profesores: ${profR.error.message}` };
   if (valR.error) return { ...vacio, error: `No se pudieron leer los motivos de bloqueo: ${valR.error.message}` };
@@ -178,6 +189,11 @@ export async function consultarDisponibilidad(salaId: number, fechaISO: string):
   type SesionDia = { curso_id: number; estado: string; profesor_id: number | null; titular_id: number | null };
   const sesionesDia = (sesR.data as unknown as SesionDia[]) ?? [];
   const suspendidos = new Set(sesionesDia.filter((s) => s.estado === "suspendida").map((s) => s.curso_id));
+  const cursosConAsistencia = new Set(
+    ((marcasR.data as unknown as { sesion: { curso_id: number } | { curso_id: number }[] | null }[]) ?? []).flatMap((m) =>
+      (Array.isArray(m.sesion) ? m.sesion : m.sesion ? [m.sesion] : []).map((s) => s.curso_id)
+    )
+  );
 
   type ReservaConJoins = {
     id: number;
@@ -322,7 +338,9 @@ export async function consultarDisponibilidad(salaId: number, fechaISO: string):
       cursoNombre: b.etiqueta,
       titularNombre: titularId != null ? (nombreProfesor.get(titularId) ?? null) : null,
       suspendida: suspendidos.has(cursoId),
-      sesion: sesion ? { estado: sesion.estado, profesorId: dicto, titularId: sesion.titular_id } : null,
+      sesion: sesion
+        ? { estado: sesion.estado, profesorId: dicto, titularId: sesion.titular_id, conAsistencia: cursosConAsistencia.has(cursoId) }
+        : null,
       sustitutoNombre: dicto != null && dicto !== (sesion?.titular_id ?? titularId) ? (nombreProfesor.get(dicto) ?? null) : null,
       gestionable: puedeAsistencia && (!alcAsistencia.propio || cursosPropios.includes(cursoId)),
     });

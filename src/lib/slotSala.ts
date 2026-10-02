@@ -27,7 +27,13 @@ export type EstadoSlot = {
   tono: TonoEstado;
 };
 
-export type SesionSlot = { estado: string; profesorId: number | null; titularId: number | null };
+export type SesionSlot = {
+  estado: string;
+  profesorId: number | null;
+  titularId: number | null;
+  /** Hay al menos una asistencia marcada en esa sesión. */
+  conAsistencia: boolean;
+};
 
 export type SlotSala = {
   /** Estable dentro del día: `r-<reservaId>` o `c-<cursoId>`. */
@@ -86,7 +92,9 @@ export const ESTADO_BLOQUEO: EstadoSlot = { clave: "bloqueo", etiqueta: "Bloquea
 export function estadoDeCurso(e: { suspendida: boolean; sesion: SesionSlot | null }): EstadoSlot {
   if (e.suspendida) return { clave: "suspendida", etiqueta: "Suspendida · sala liberada", icono: "⏸", tono: "tenue" };
   const s = e.sesion;
-  if (!s) return { clave: "programada", etiqueta: "Programada", icono: "🗓", tono: "neutro" };
+  // Una sesión sin marcas (por ejemplo, reabierta) no es una asistencia tomada:
+  // el estado real lo da `conAsistencia`, no que la fila de `sesiones` exista.
+  if (!s || !s.conAsistencia) return { clave: "programada", etiqueta: "Programada", icono: "🗓", tono: "neutro" };
   if (s.profesorId != null && s.titularId != null && s.profesorId !== s.titularId)
     return { clave: "con_relevo", etiqueta: "Con relevo", icono: "⇄", tono: "ambar" };
   return { clave: "tomada", etiqueta: "Asistencia tomada", icono: "✔", tono: "exito" };

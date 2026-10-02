@@ -49,13 +49,26 @@ test("estadoDeCurso: programada, suspendida, con relevo y asistencia tomada", ()
   assert.equal(estadoDeCurso({ suspendida: false, sesion: null }).clave, "programada");
   assert.equal(estadoDeCurso({ suspendida: true, sesion: null }).etiqueta, "Suspendida · sala liberada");
   assert.equal(
-    estadoDeCurso({ suspendida: false, sesion: { estado: "dictada", profesorId: 2, titularId: 1 } }).clave,
+    estadoDeCurso({ suspendida: false, sesion: { estado: "dictada", profesorId: 2, titularId: 1, conAsistencia: true } }).clave,
     "con_relevo"
   );
   assert.equal(
-    estadoDeCurso({ suspendida: false, sesion: { estado: "dictada", profesorId: 1, titularId: 1 } }).clave,
+    estadoDeCurso({ suspendida: false, sesion: { estado: "dictada", profesorId: 1, titularId: 1, conAsistencia: true } }).clave,
     "tomada"
   );
+});
+
+test("estadoDeCurso: una sesión reabierta, sin marcas, vuelve a Programada (no 'Asistencia tomada')", () => {
+  const e = estadoDeCurso({
+    suspendida: false,
+    sesion: { estado: "dictada", profesorId: 1, titularId: 1, conAsistencia: false },
+  });
+  assert.equal(e.clave, "programada");
+  const relevoSinMarcas = estadoDeCurso({
+    suspendida: false,
+    sesion: { estado: "dictada", profesorId: 2, titularId: 1, conAsistencia: false },
+  });
+  assert.equal(relevoSinMarcas.clave, "programada");
 });
 
 test("slot: el estado es el de la reserva, y un curso suspendido sale atenuado", () => {
@@ -101,7 +114,7 @@ test("resumen: solicitudes (con urgentes) y clases por cerrar", () => {
     reserva("solicitada", { reservaId: 2, fecha: "2026-10-09" }), // no urgente
     curso({ hora: "08:00" }), // terminó 09:00 sin asistencia
     curso({ cursoId: 2, hora: "19:00" }), // futura
-    curso({ cursoId: 3, hora: "08:00", sesion: { estado: "dictada", profesorId: 1, titularId: 1 } }), // tomada
+    curso({ cursoId: 3, hora: "08:00", sesion: { estado: "dictada", profesorId: 1, titularId: 1, conAsistencia: true } }), // tomada
     curso({ cursoId: 4, hora: "08:00", suspendida: true }), // suspendida: no cierra
     reserva("confirmada", { reservaId: 3, hora: "09:00" }), // pasó, sin cerrar
   ];
