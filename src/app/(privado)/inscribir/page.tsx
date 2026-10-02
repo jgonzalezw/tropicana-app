@@ -135,6 +135,8 @@ export default async function PaginaInscribir() {
         dias_semana: c.dias_semana,
         hora: c.hora,
         precioPrueba: precioPruebaPorCurso.get(c.id) ?? null,
+        vigente_desde: c.vigente_desde ?? null,
+        vigente_hasta: c.vigente_hasta ?? null,
       })),
     }))
     .filter((p) => p.cursos.length > 0);

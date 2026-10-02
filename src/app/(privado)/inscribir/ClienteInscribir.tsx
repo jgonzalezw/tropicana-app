@@ -26,6 +26,7 @@ import ConfirmacionVenta, { type AvisoVenta } from "@/components/venta/Confirmac
 import FechaCompromiso, { fechaCompromisoEfectiva } from "@/components/venta/FechaCompromiso";
 import { cobroParaServidor } from "@/lib/venta/cobro";
 import { faltaParaInscripcion } from "@/lib/venta/faltantes";
+import { enVigencia } from "@/lib/vigencia";
 import { DIAS_LARGOS, diaIso, fechaClaseN, fechaLarga, gs, isoFecha, proximasClases } from "@/lib/inscripcion";
 import { etiquetaDias } from "@/components/entidades/EntidadCurso";
 import { inscribirYCobrar } from "./acciones";
@@ -37,6 +38,9 @@ export type CursoPlan = {
   hora: string | null;
   /** Precio de la prueba por alumno. `null` = este curso no se puede probar. */
   precioPrueba: number | null;
+  /** Vigencia del curso (0033): ninguna fecha de inicio puede caer fuera de ella. */
+  vigente_desde?: string | null;
+  vigente_hasta?: string | null;
 };
 export type PlanVenta = {
   id: number;
@@ -125,14 +129,21 @@ export default function ClienteInscribir({
 
   const unionDias = useMemo(() => Array.from(new Set(diasConteo)).sort(), [diasConteo]);
   const susp = useMemo(() => new Set(suspendidas), [suspendidas]);
-  /** ¿Ese día hay clase de alguno de los cursos elegidos, y no está suspendida? */
+  /**
+   * ¿Ese día hay clase de alguno de los cursos elegidos, no está suspendida y el
+   * curso estaba vigente? Fuera de su vigencia (desde / baja) el curso no se
+   * dicta: ninguna fecha de inicio puede caer ahí (el servidor también lo valida).
+   */
   const hayClaseReal = useCallback(
     (d: Date) => {
       const dia = diaIso(d);
       const iso = isoFecha(d);
-      return Object.entries(diasPorCurso).some(([cid, dias]) => dias.includes(dia) && !susp.has(`${cid}|${iso}`));
+      const elegidos = Object.entries(diasPorCurso).filter(([, dias]) => dias.length > 0);
+      // El servidor exige que TODOS los cursos elegidos estén vigentes al empezar.
+      const todosVigentes = elegidos.every(([cid]) => enVigencia(plan?.cursos.find((c) => c.id === Number(cid)), iso));
+      return todosVigentes && elegidos.some(([cid, dias]) => dias.includes(dia) && !susp.has(`${cid}|${iso}`));
     },
-    [diasPorCurso, susp]
+    [diasPorCurso, susp, plan]
   );
 
   // Fechas de inicio ofrecidas. Hacia adelante, las próximas 3 clases; hacia
@@ -403,7 +414,11 @@ export default function ClienteInscribir({
                 ))}
                 {fechas.length === 0 && (
                   <span className="text-sm text-[var(--texto-tenue)]">
-                    {retroActivo ? "No hay clases dictadas en los últimos dos meses para esos días." : "Elegí días para ver fechas de inicio."}
+                    {retroActivo
+                      ? "No hay clases dictadas en los últimos dos meses para esos días."
+                      : diasConteo.length > 0
+                        ? "No hay próximas clases dentro de la vigencia de esos cursos (revisá sus fechas de activación y baja en Cursos)."
+                        : "Elegí días para ver fechas de inicio."}
                   </span>
                 )}
               </div>

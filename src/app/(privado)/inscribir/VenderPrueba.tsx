@@ -13,6 +13,7 @@ import FechaCompromiso, { fechaCompromisoEfectiva } from "@/components/venta/Fec
 import { cobroParaServidor } from "@/lib/venta/cobro";
 import { faltaParaPrueba } from "@/lib/venta/faltantes";
 import { etiquetaDias } from "@/components/entidades/EntidadCurso";
+import { enVigencia } from "@/lib/vigencia";
 import { fechaLarga, gs, isoFecha, proximasClases } from "@/lib/inscripcion";
 import { venderPrueba } from "./acciones";
 import type { PlanVenta } from "./ClienteInscribir";
@@ -101,7 +102,7 @@ export default function VenderPrueba({
         m.set(
           c.id,
           proximasClases(c.dias_semana ?? [], 40, desde)
-            .filter((d) => isoFecha(d) <= isoFecha(hoy) && !susp.has(`${c.id}|${isoFecha(d)}`))
+            .filter((d) => isoFecha(d) <= isoFecha(hoy) && !susp.has(`${c.id}|${isoFecha(d)}`) && enVigencia(c, isoFecha(d)))
             .slice(-6)
             .reverse()
         );
@@ -109,7 +110,7 @@ export default function VenderPrueba({
         m.set(
           c.id,
           proximasClases(c.dias_semana ?? [], 12, hoy)
-            .filter((d) => !susp.has(`${c.id}|${isoFecha(d)}`))
+            .filter((d) => !susp.has(`${c.id}|${isoFecha(d)}`) && enVigencia(c, isoFecha(d)))
             .slice(0, 3)
         );
       }
@@ -382,7 +383,7 @@ export default function VenderPrueba({
                           </div>
                         ) : (
                           <p className="text-sm text-[var(--peligro)] mt-1">
-                            {retroActivo ? "Este curso no dictó clases en los últimos dos meses." : "Este curso no tiene próximas clases sin suspender."}
+                            {retroActivo ? "Este curso no dictó clases en los últimos dos meses." : "Este curso no tiene próximas clases sin suspender dentro de su vigencia (revisá sus fechas de activación y baja en Cursos)."}
                           </p>
                         )}
                       </div>
