@@ -4754,3 +4754,21 @@ Rama `h7-alquiler`. **Sin migración nueva**: el módulo de permisos `contactos`
 **`VenderAlquiler.tsx` rearmado** con esas piezas. Verificado en el navegador contra `tropicana-dev`, 1600 px: titular existente (profesor, no recibe rol alumno), organización nueva con NIT y persona de contacto (`trabaja_en` guardada), agenda con choques y libre, cobro, confirmación con WhatsApp; la venta de prueba guardó 1 membresía y 2 reservas.
 
 **Falta:** probar 375 px, sala externa y categoría `editable`; mover `faltaParaAlquiler` a `lib/venta/faltantes.ts`; pruebas de `buscarDuplicado`/`asegurarRol`; control de BD de rol duplicado; link "Ver ficha ↗" (no hay deep-link por id en Alumnos/Profesores). Sigue **E2** (particulares). Pase a producción solo con OK de Javier.
+
+## E2 — Clase particular con las piezas comunes (2026-10-01, dev)
+
+`VenderParticular` se rearmó con el mismo esqueleto que el alquiler: titular
+(`TitularVenta`, solo persona, **adquiere el rol alumno** al vender: la venta
+llama a `asegurarRolAlumno`), plan y tramo (la cortesía vive en el resumen de
+ese paso), profesor (con acompañantes si el plan los registra), sala y horario
+(`AgendaReservas`, revisión automática que incluye la ocupación del profesor),
+cobro con `FechaCompromiso`, `BarraVenta` y `ConfirmacionVenta` con los dos
+avisos de WhatsApp. `EntradaParticular` pasa de `alumnoId` a `contactoId`.
+Faltantes compartidos pantalla-servidor en `src/lib/venta/faltantes.ts`
+(`faltaParaParticular`; `faltaParaAlquiler` se movió ahí). El aviso del alquiler
+a una organización va a su persona de contacto. Alta de contacto como alumno usa
+el contexto `alumno_adulto` de la matriz. **Límite de v1:** crear un *menor* con
+tutor desde esta pantalla no está; se hace en Alumnos hasta E4 (un alumno menor
+ya existente sí se elige y el aviso va a su tutor). Probado en dev: contacto
+"solo contacto" (Lucia Prueba) → rol alumno agregado, choque con Zumba detectado,
+venta, dos avisos. Pendiente: 375 px, cortesía y agenda fija en navegador.
