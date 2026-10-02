@@ -29,9 +29,11 @@ import { nivelesDe } from "@/lib/matrizMinimos";
 import {
   contextoAlta,
   faltantesAlta,
+  faltaTutor,
   rolDe,
   textoFaltaAlta,
   type ContactoResumen,
+  type TutorAlta,
 } from "@/lib/contactoVenta";
 import type {
   ConsentimientoVigente,
@@ -42,7 +44,7 @@ import type {
   ModuloClave,
   TipoContacto,
 } from "@/lib/tipos";
-import { guardarDatosExtra } from "./acciones";
+import { guardarDatosExtra, resolverTutor, vincularTutor } from "./acciones";
 
 type Admin = NonNullable<ReturnType<typeof createAdminClient>>;
 
@@ -207,6 +209,10 @@ export type EntradaCrearContacto = {
   personaContacto?: { contactoId: number } | { nombre: string; whatsapp: string } | null;
   /** Rol que el contacto adquiere al crearse (la venta de un curso o una particular hace alumno al titular). */
   rol?: "alumno" | null;
+  /** Solo personas que nacen alumno: un menor se carga con su tutor (obligatorio). */
+  menor?: { tutor: TutorAlta | null } | null;
+  /** La prueba pide menos datos a un adulto que la inscripción (contexto `prueba`). */
+  enPrueba?: boolean;
 };
 
 export type ResultadoCrearContacto = {
@@ -226,14 +232,17 @@ async function leerMatriz(a: Admin): Promise<{ matriz?: MatrizMinimo[]; error?: 
  * El contacto que ya existe puede no ser alumno todavía: la venta de un curso
  * o una particular le agrega el rol, sin pedir ni duplicar ningún dato.
  */
-export async function asegurarRolAlumno(contactoId: number): Promise<{ alumnoId?: number; error?: string }> {
+export async function asegurarRolAlumno(
+  contactoId: number,
+  esMenor = false
+): Promise<{ alumnoId?: number; error?: string }> {
   const a = admin();
   const { data: existente, error: errLeer } = await a.from("alumnos").select("id").eq("contacto_id", contactoId).maybeSingle();
   if (errLeer) return { error: errLeer.message };
   if (existente) return { alumnoId: (existente as { id: number }).id };
   const { data, error } = await a
     .from("alumnos")
-    .insert({ contacto_id: contactoId, es_menor: false })
+    .insert({ contacto_id: contactoId, es_menor: esMenor })
     .select("id")
     .single();
   if (error) return { error: error.message };
@@ -248,18 +257,25 @@ export async function crearContacto(d: EntradaCrearContacto): Promise<ResultadoC
   const a = admin();
   const { matriz, error: errMatriz } = await leerMatriz(a);
   if (errMatriz || !matriz) return { error: errMatriz };
-  const niveles = nivelesDe(matriz, contextoAlta(d.tipo, d.rol));
+  const esMenor = !!d.menor && d.tipo === "persona" && d.rol === "alumno";
+  const niveles = nivelesDe(matriz, contextoAlta(d.tipo, d.rol, { esMenor, enPrueba: d.enPrueba }));
+  // Un menor no se identifica por su WhatsApp: el aviso va a su tutor.
+  const whatsappAlta = esMenor ? "" : d.whatsapp;
   const falt = textoFaltaAlta(
     faltantesAlta(
-      { tipo: d.tipo, nombre: d.nombre, apellido: d.apellido, razonSocial: d.razonSocial, whatsapp: d.whatsapp, extra: d.extra },
+      { tipo: d.tipo, nombre: d.nombre, apellido: d.apellido, razonSocial: d.razonSocial, whatsapp: whatsappAlta, extra: d.extra },
       niveles
     ),
     d
   );
   if (falt) return { error: falt };
+  if (esMenor) {
+    const errTutor = faltaTutor(d.menor?.tutor ?? null);
+    if (errTutor) return { error: errTutor };
+  }
 
   // Un duplicado no es un error: se ofrece usar el que ya existe.
-  const dup = await buscarDuplicado({ modulo: d.modulo, whatsapp: d.whatsapp, documento: d.extra.documento });
+  const dup = await buscarDuplicado({ modulo: d.modulo, whatsapp: whatsappAlta, documento: d.extra.documento });
   if (dup.error) return { error: dup.error };
   if (dup.porDocumento) return { duplicado: { por: "documento", contacto: dup.porDocumento } };
   if (dup.porWhatsapp) return { duplicado: { por: "whatsapp", contacto: dup.porWhatsapp } };
@@ -270,7 +286,7 @@ export async function crearContacto(d: EntradaCrearContacto): Promise<ResultadoC
       : { tipo: "persona", nombre: d.nombre.trim(), apellido: d.apellido.trim() || null, razon_social: null };
   const { data: creado, error } = await a
     .from("contactos")
-    .insert({ ...base, whatsapp: normalizarWhatsapp(d.whatsapp), email: d.extra.email?.trim() || null, sexo: d.extra.sexo || null })
+    .insert({ ...base, whatsapp: normalizarWhatsapp(whatsappAlta), email: d.extra.email?.trim() || null, sexo: d.extra.sexo || null })
     .select(COLUMNAS)
     .single();
   if (error) {
@@ -295,8 +311,20 @@ export async function crearContacto(d: EntradaCrearContacto): Promise<ResultadoC
     if (r.error) return deshacer(r.error);
   }
 
+  if (esMenor && d.menor?.tutor) {
+    const t = d.menor.tutor;
+    const rt = await resolverTutor({
+      tutorContactoId: "contactoId" in t ? t.contactoId : null,
+      tutorNombre: "nombre" in t ? t.nombre : "",
+      tutorWhatsapp: "whatsapp" in t ? t.whatsapp : "",
+    });
+    if (rt.error || !rt.contacto) return deshacer(rt.error ?? "No se pudo resolver el tutor.");
+    const rv = await vincularTutor(rt.contacto.id, fila.id);
+    if (rv.error) return deshacer(rv.error);
+  }
+
   if (d.rol === "alumno") {
-    const r = await asegurarRolAlumno(fila.id);
+    const r = await asegurarRolAlumno(fila.id, esMenor);
     if (r.error) return deshacer(r.error);
   }
 

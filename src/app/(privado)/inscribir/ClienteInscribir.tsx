@@ -1,25 +1,35 @@
 "use client";
 
+/**
+ * Inscribir a un plan regular (rearmada en E3 de "Ventas y contactos con el
+ * mismo comportamiento").
+ *
+ * Usa las piezas comunes de venta (`components/venta`, `components/contacto`):
+ * el mismo esqueleto de pasos, titular, cobro, barra con el primer faltante y
+ * confirmación con WhatsApp que usan todas las ventas. Lo intrínseco de la
+ * inscripción: el titular es una **persona** (o un menor con su tutor) que
+ * **adquiere el rol alumno** al comprar; los **cursos y días** que toma; las
+ * **próximas clases** como fecha de inicio (o las ya dictadas, si es
+ * retroactiva); el **bono de tolerancia** y el **crédito de la clase de
+ * prueba** del mismo plan.
+ */
+
 import { useCallback, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import type { Alumno, DatosAlumno, ListasContacto, MatrizMinimo } from "@/lib/tipos";
-import { nombreCompleto } from "@/lib/contactos";
-import EntidadAlumno from "@/components/entidades/EntidadAlumno";
+import type { ListasContacto, MatrizMinimo } from "@/lib/tipos";
 import Cobro, { type PayloadCobro } from "@/components/Cobro";
 import Toggle from "@/components/Toggle";
-import {
-  DIAS_LARGOS,
-  diaIso,
-  fechaClaseN,
-  fechaLarga,
-  gs,
-  isoFecha,
-  proximasClases,
-} from "@/lib/inscripcion";
+import TitularVenta from "@/components/contacto/TitularVenta";
+import BloqueVenta from "@/components/venta/BloqueVenta";
+import BarraVenta from "@/components/venta/BarraVenta";
+import ConfirmacionVenta, { type AvisoVenta } from "@/components/venta/ConfirmacionVenta";
+import FechaCompromiso, { fechaCompromisoEfectiva } from "@/components/venta/FechaCompromiso";
+import { cobroParaServidor } from "@/lib/venta/cobro";
+import { faltaParaInscripcion } from "@/lib/venta/faltantes";
+import { DIAS_LARGOS, diaIso, fechaClaseN, fechaLarga, gs, isoFecha, proximasClases } from "@/lib/inscripcion";
 import { etiquetaDias } from "@/components/entidades/EntidadCurso";
-import { crearAlumnoDesdeInscripcion, inscribirYCobrar } from "./acciones";
+import { inscribirYCobrar } from "./acciones";
 
-type Canal = { valor: string; etiqueta: string };
 export type CursoPlan = {
   id: number;
   nombre: string;
@@ -42,35 +52,34 @@ export type PlanVenta = {
   cursos: CursoPlan[];
 };
 
+type Cerrada = { datos: { etiqueta: string; valor: string }[]; avisos: AvisoVenta[] };
+type CreditoPrueba = { monto: number; fecha: string; personas: number; pagado: number };
+
 export default function ClienteInscribir({
-  alumnos,
   planes,
   diasCompromiso,
   medios,
-  canales,
-  cursosPorAlumno,
-  deudaPorAlumno,
-  planesActivosPorAlumno,
-  bonoPorAlumnoPlan,
+  cursosPorContacto,
+  deudaPorContacto,
+  planesActivosPorContacto,
+  bonoPorContactoPlan,
   suspendidas,
-  creditoPruebaPorAlumnoPlan,
+  creditoPruebaPorContactoPlan,
   matriz,
   listasContacto,
   puedeVerPrivados,
 }: {
-  alumnos: Alumno[];
   planes: PlanVenta[];
   diasCompromiso: number;
   medios: string[];
-  canales: Canal[];
-  cursosPorAlumno: Record<number, string[]>;
-  deudaPorAlumno: Record<number, number>;
-  planesActivosPorAlumno: Record<number, number[]>;
-  bonoPorAlumnoPlan: Record<number, Record<number, number>>;
+  cursosPorContacto: Record<number, string[]>;
+  deudaPorContacto: Record<number, number>;
+  planesActivosPorContacto: Record<number, number[]>;
+  bonoPorContactoPlan: Record<number, Record<number, number>>;
   /** Claves `cursoId|YYYY-MM-DD` de clases suspendidas: no son clase. */
   suspendidas: string[];
-  /** Crédito de una clase de prueba sin convertir, por alumno y plan. */
-  creditoPruebaPorAlumnoPlan: Record<number, Record<number, { monto: number; fecha: string; personas: number; pagado: number }>>;
+  /** Crédito de una clase de prueba sin convertir, por contacto y plan. */
+  creditoPruebaPorContactoPlan: Record<number, Record<number, CreditoPrueba>>;
   matriz: MatrizMinimo[];
   listasContacto: ListasContacto;
   puedeVerPrivados: boolean;
@@ -78,40 +87,31 @@ export default function ClienteInscribir({
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
 
-  const [alumno, setAlumno] = useState<Alumno | null>(null);
-  const [remountAlumno, setRemountAlumno] = useState(0);
+  const [titularId, setTitularId] = useState<number | null>(null);
+  const [titularNombre, setTitularNombre] = useState("");
   const [plan, setPlan] = useState<PlanVenta | null>(null);
   const [diasPorCurso, setDiasPorCurso] = useState<Record<number, number[]>>({});
   const [fechaIdx, setFechaIdx] = useState(0);
   const [retroActivo, setRetroActivo] = useState(false);
-  const [fechaRetro, setFechaRetro] = useState<string>("");
   const [cobro, setCobro] = useState<PayloadCobro | null>(null);
-  const [fechaCompromiso, setFechaCompromiso] = useState<string>("");
-  const [aviso, setAviso] = useState<string | null>(null);
+  const [fechaCompromiso, setFechaCompromiso] = useState("");
+  const [cerrada, setCerrada] = useState<Cerrada | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const hoy = useMemo(() => new Date(), []);
-  const maxCompromiso = useMemo(() => {
-    const d = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
-    d.setDate(d.getDate() + Math.max(1, diasCompromiso));
-    return d;
-  }, [hoy, diasCompromiso]);
 
   const ilimitado = plan?.ilimitado ?? false;
-  const N = ilimitado ? null : plan?.cantidadClases ?? null;
+  const N = ilimitado ? null : (plan?.cantidadClases ?? null);
   const precioPlan = plan?.precio ?? 0;
-  // Bono de tolerancia pendiente del alumno para este plan (solo planes con N).
-  const bono = !ilimitado && alumno && plan ? bonoPorAlumnoPlan[alumno.id]?.[plan.id] ?? 0 : 0;
-  // Crédito de la clase de prueba de este mismo plan (regla 11). Se muestra
-  // acá, antes de cobrar, pero el servidor lo vuelve a calcular al vender: la
+  // Bono de tolerancia pendiente del titular para este plan (solo planes con N).
+  const bono = !ilimitado && titularId != null && plan ? (bonoPorContactoPlan[titularId]?.[plan.id] ?? 0) : 0;
+  // Crédito de la clase de prueba de este mismo plan (regla 11). Se muestra acá,
+  // antes de cobrar, pero el servidor lo vuelve a calcular al vender: la
   // pantalla propone, el servidor decide.
-  const credito = alumno && plan ? creditoPruebaPorAlumnoPlan[alumno.id]?.[plan.id] ?? null : null;
+  const credito = titularId != null && plan ? (creditoPruebaPorContactoPlan[titularId]?.[plan.id] ?? null) : null;
   const creditoPrueba = credito ? Math.min(credito.monto, precioPlan) : 0;
-  /**
-   * El precio del plan NO cambia: el crédito se deduce de lo que hay que
-   * cobrar, como un descuento con su motivo (Javier). Por eso `total` sigue
-   * siendo el precio, y el crédito viaja al paso de cobro.
-   */
+  // El precio del plan NO cambia: el crédito se deduce de lo que hay que cobrar,
+  // como un descuento con su motivo (Javier).
   const total = precioPlan;
   const Nefectivo = N != null ? N + bono : null;
 
@@ -130,18 +130,15 @@ export default function ClienteInscribir({
     (d: Date) => {
       const dia = diaIso(d);
       const iso = isoFecha(d);
-      return Object.entries(diasPorCurso).some(
-        ([cid, dias]) => dias.includes(dia) && !susp.has(`${cid}|${iso}`)
-      );
+      return Object.entries(diasPorCurso).some(([cid, dias]) => dias.includes(dia) && !susp.has(`${cid}|${iso}`));
     },
     [diasPorCurso, susp]
   );
 
   // Fechas de inicio ofrecidas. Hacia adelante, las próximas 3 clases; hacia
-  // atrás (inscripción retroactiva), las últimas 6 que YA se dictaron. Antes
-  // acá había un campo de fecha libre: dejaba elegir un día en que el curso no
-  // se dicta, o una clase suspendida, y la membresía arrancaba en un día que
-  // no existe.
+  // atrás (inscripción retroactiva), las últimas 6 que YA se dictaron. Un campo
+  // de fecha libre dejaba elegir un día en que el curso no se dicta, o una
+  // clase suspendida, y la membresía arrancaba en un día que no existe.
   const fechas = useMemo(() => {
     if (!plan) return [] as Date[];
     if (!retroActivo) return proximasClases(unionDias, 12, hoy).filter(hayClaseReal).slice(0, 3);
@@ -152,68 +149,51 @@ export default function ClienteInscribir({
       .slice(-6)
       .reverse();
   }, [plan, unionDias, hoy, retroActivo, hayClaseReal]);
-  const fechaProxima = fechas[Math.min(fechaIdx, Math.max(0, fechas.length - 1))] ?? null;
-  const fechaRetroDate = useMemo(
-    () => (retroActivo ? parseFechaLocal(fechaRetro) : null),
-    [retroActivo, fechaRetro]
-  );
-  void fechaRetroDate;
-  const fechaSel = fechaProxima;
+  const fechaSel = fechas[Math.min(fechaIdx, Math.max(0, fechas.length - 1))] ?? null;
   const fechaFin = !fechaSel
     ? null
     : ilimitado
-    ? plan?.cicloDias
-      ? sumarDias(fechaSel, plan.cicloDias)
-      : null
-    : Nefectivo
-    ? fechaClaseN(diasConteo, fechaSel, Nefectivo)
-    : null;
+      ? plan?.cicloDias
+        ? sumarDias(fechaSel, plan.cicloDias)
+        : null
+      : Nefectivo
+        ? fechaClaseN(diasConteo, fechaSel, Nefectivo)
+        : null;
 
-  const mueve = cobro ? Math.max(0, cobro.total - cobro.saldo) : 0;
   const saldoActual = cobro ? cobro.saldo : total;
   const pideCompromiso = total > 0 && saldoActual > 0;
-  const fechaCompromisoEfectiva = fechaCompromiso || isoFecha(maxCompromiso);
 
-  const yaTiene = !!alumno && !!plan && (planesActivosPorAlumno[alumno.id] ?? []).includes(plan.id);
-  // El alumno entra en la clave: `Cobro` tiene estado propio (monto, medio,
-  // descuento) y se reinicia cuando cambia la clave. Sin el alumno acá, pasar
-  // de una persona a otra dejaba cargado el cobro del intento anterior.
-  const cuentaId = plan
-    ? `${alumno?.id ?? 0}·${plan.id}·${fechaIdx}·${plan.cursos
-        .map((c) => (diasPorCurso[c.id] ?? []).join(""))
-        .join("-")}`
-    : `${alumno?.id ?? 0}`;
+  const yaTiene = titularId != null && !!plan && (planesActivosPorContacto[titularId] ?? []).includes(plan.id);
+  const planCompleto = !!plan && (ilimitado ? !!plan.cicloDias : !!N && N > 0);
 
-  function resetTodo() {
-    setAlumno(null);
-    setRemountAlumno((n) => n + 1);
+  const faltaPara = faltaParaInscripcion({
+    contactoId: titularId,
+    planId: plan?.id ?? null,
+    planCompleto,
+    yaTiene,
+    diasElegidos: diasConteo.length,
+    fechaInicio: fechaSel ? isoFecha(fechaSel) : null,
+  });
+  const faltaTexto = faltaPara ?? (cobro && !cobro.valido ? "revisar el cobro (monto, medio de pago o motivo del descuento)" : null);
+
+  function reiniciar() {
+    setTitularId(null);
+    setTitularNombre("");
     setPlan(null);
     setDiasPorCurso({});
     setFechaIdx(0);
     setRetroActivo(false);
-    setFechaRetro("");
     setCobro(null);
     setFechaCompromiso("");
     setError(null);
   }
-  /**
-   * Cambiar de alumno reinicia TODO lo que viene después.
-   *
-   * Sin esto, una venta que quedó a medias dejaba el plan, los días, la fecha
-   * y el cobro cargados, y al elegir otro alumno la pantalla mostraba los
-   * datos del anterior — listos para guardarse sobre la persona equivocada.
-   */
-  function elegirAlumno(a: Alumno | null) {
-    setAlumno(a);
-    setPlan(null);
-    setDiasPorCurso({});
-    setFechaIdx(0);
-    setRetroActivo(false);
-    setFechaRetro("");
-    setCobro(null);
-    setFechaCompromiso("");
-    setError(null);
-    setAviso(null);
+  // Cambiar de alumno reinicia TODO lo que viene después: una venta a medias no
+  // puede quedar lista para guardarse sobre la persona equivocada.
+  function elegirTitular(id: number, nombre: string) {
+    if (id === titularId) return; // la tarjeta vuelve a avisar al cargar su detalle
+    reiniciar();
+    setTitularId(id);
+    setTitularNombre(nombre);
   }
 
   function elegirPlan(p: PlanVenta) {
@@ -224,7 +204,6 @@ export default function ClienteInscribir({
     setDiasPorCurso(init);
     setFechaIdx(0);
     setRetroActivo(false);
-    setFechaRetro("");
     setCobro(null);
     setFechaCompromiso("");
     setError(null);
@@ -238,188 +217,133 @@ export default function ClienteInscribir({
     setFechaIdx(0);
   }
 
-  async function guardarAlumnoNuevo(datos: DatosAlumno) {
-    const res = await crearAlumnoDesdeInscripcion(datos);
-    if (res.alumno) {
-      setAlumno(res.alumno);
-      setError(null);
-    }
-    return { error: res.error };
-  }
-
   function confirmar() {
     setError(null);
-    if (!alumno) return setError("Falta elegir o cargar el alumno.");
-    if (!plan) return setError("Falta elegir el plan.");
-    if (yaTiene) return setError("Este alumno ya tiene una membresía activa de este plan.");
-    if (ilimitado) {
-      if (!plan.cicloDias) return setError("El plan ilimitado no tiene duración de ciclo. Cargala en Planes.");
-    } else if (!N || N <= 0) {
-      return setError("El plan no tiene una cantidad de clases (N) cargada. Cargala en Planes.");
-    }
-    if (diasConteo.length === 0) return setError("Elegí al menos un día de clase.");
-    if (!fechaSel) return setError("No hay una fecha de inicio válida.");
-    if (cobro && cobro.modo !== "sin" && mueve > 0 && !cobro.medio) return setError("Elegí el medio de pago.");
-    if (cobro && cobro.ajuste > 0 && !cobro.ajusteMotivo.trim()) return setError("El descuento necesita un motivo.");
-    if (pideCompromiso && !fechaCompromisoEfectiva) return setError("Cargá la fecha de compromiso de pago.");
-
-    const c = cobro;
+    if (faltaTexto || titularId == null || !plan || !fechaSel) return setError(`Falta ${faltaTexto ?? "completar la venta"}.`);
     const diasPorCursoOut = plan.cursos
       .map((cu) => ({ cursoId: cu.id, dias: diasPorCurso[cu.id] ?? [] }))
       .filter((x) => x.dias.length > 0);
-
+    const resumenLocal = [
+      { etiqueta: "Alumno", valor: titularNombre },
+      { etiqueta: "Plan", valor: plan.nombre },
+    ];
     startTransition(async () => {
       const res = await inscribirYCobrar({
-        alumnoId: alumno.id,
+        contactoId: titularId,
         planId: plan.id,
         fechaInicio: isoFecha(fechaSel),
         diasPorCurso: diasPorCursoOut,
-        cobro: {
-          modo: c?.modo ?? "sin",
-          monto: c?.monto ?? 0,
-          medio: c?.medio ?? null,
-          notaMedio: c?.notaMedio ?? "",
-          ajuste: c?.ajuste ?? 0,
-          ajusteMotivo: c?.ajusteMotivo ?? "",
-          total: c?.total ?? total,
-          saldo: c?.saldo ?? total,
-          fechaCompromiso: pideCompromiso ? fechaCompromisoEfectiva : null,
-        },
+        cobro: cobroParaServidor(cobro, total, fechaCompromisoEfectiva(fechaCompromiso, diasCompromiso)),
       });
-      if (res.error) setError(res.error);
-      else {
-        resetTodo();
-        setAviso(res.resumen ?? "Membresía registrada.");
-        router.refresh();
-        if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
-      }
+      if (res.error) return setError(res.error);
+      setCerrada({
+        datos: [...resumenLocal, ...(res.datos ?? [])],
+        avisos: res.avisoAlumno ? [res.avisoAlumno] : [],
+      });
+      reiniciar();
+      router.refresh();
+      if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
     });
   }
 
-  const limiteOk = ilimitado ? !!plan?.cicloDias : !!N;
-  const puedeConfirmar =
-    !!alumno && !!plan && !!fechaSel && limiteOk && diasConteo.length > 0 && !pendiente && !yaTiene;
+  if (cerrada) return <ConfirmacionVenta titulo="Inscripción registrada" datos={cerrada.datos} avisos={cerrada.avisos} onNueva={() => setCerrada(null)} />;
+
+  if (planes.length === 0)
+    return (
+      <div className="rounded-[var(--radio-tarjeta)] bg-[var(--fondo-panel)] border border-[var(--borde)] p-6">
+        <p className="text-base">No hay planes activos para inscribir.</p>
+        <p className="text-sm text-[var(--texto-tenue)] mt-1">Cargá uno en Gestión → Planes.</p>
+      </div>
+    );
+
+  const titularListo = titularId != null;
+  const planListo = titularListo && !!plan;
+  const cobroListo = planListo && diasConteo.length > 0 && !!fechaSel;
+  const cursosActuales = titularId != null ? (cursosPorContacto[titularId] ?? []) : [];
 
   return (
-    <div className="pb-28">
-      <div className="mb-6">
-        <h1 className="text-3xl">Inscribir y cobrar</h1>
-        <p className="text-[var(--texto-tenue)] mt-2 text-lg">
-          Alumno, plan y primer cobro en una sola pantalla.
-        </p>
-      </div>
-
-      {aviso && (
-        <div className="mb-4 flex items-start gap-3 rounded-[var(--radio-panel)] bg-[var(--exito-fill)] text-[var(--exito-texto)] p-4">
-          <span className="text-lg leading-none mt-0.5">✓</span>
-          <div className="flex-1 text-base leading-relaxed">{aviso}</div>
-          <button onClick={() => setAviso(null)} className="text-sm shrink-0 underline">
-            Cerrar
-          </button>
-        </div>
-      )}
-
-      {/* Paso 1 — Alumno */}
-      <Paso n={1} titulo="Alumno">
-        {alumno ? (
-          <div className="rounded-[var(--radio-panel)] bg-[var(--fondo-elevado)] p-4">
-            <div className="flex items-start gap-3">
-              <div className="flex-1 min-w-0">
-                <div className="text-lg font-semibold">{nombreCompleto(alumno.contacto)}</div>
-                <div className="text-sm text-[var(--texto-tenue)] mt-0.5">
-                  {alumno.es_menor
-                    ? `menor · tutor ${alumno.tutor?.whatsapp || "—"}`
-                    : alumno.contacto.whatsapp || "sin WhatsApp"}
-                </div>
-              </div>
-              <button
-                onClick={() => {
-                  setAlumno(null);
-                  setRemountAlumno((n) => n + 1);
-                }}
-                className="text-[var(--primario)] text-base shrink-0"
-              >
-                Cambiar
-              </button>
-            </div>
-            <div className="grid grid-cols-2 gap-2 mt-3">
-              <Mini etiqueta="Deuda anterior" valor={gs(deudaPorAlumno[alumno.id] ?? 0)} />
-              <Mini
-                etiqueta="Ya inscripto en"
-                valor={
-                  (cursosPorAlumno[alumno.id] ?? []).length
-                    ? cursosPorAlumno[alumno.id].join(" · ")
-                    : "Ningún curso todavía"
-                }
-              />
-            </div>
+    <div className="space-y-4">
+      {/* 1 · Alumno */}
+      <BloqueVenta numero={1} titulo="Alumno" estado="activo">
+        <TitularVenta
+          modulo="inscripciones"
+          matriz={matriz}
+          listas={listasContacto}
+          puedeVerPrivados={puedeVerPrivados}
+          permiteOrganizacion={false}
+          rolQueAdquiere="alumno"
+          permiteMenor
+          titularId={titularId}
+          onElegido={(c) => {
+            if (c) elegirTitular(c.id, c.nombre);
+            else reiniciar();
+          }}
+        />
+        {titularListo && (
+          <div className="grid grid-cols-2 gap-2 mt-3">
+            <Mini etiqueta="Deuda anterior" valor={gs(deudaPorContacto[titularId] ?? 0)} />
+            <Mini etiqueta="Ya inscripto en" valor={cursosActuales.length ? cursosActuales.join(" · ") : "Ningún curso todavía"} />
           </div>
-        ) : (
-          <EntidadAlumno
-            key={remountAlumno}
-            padron={alumnos}
-            canales={canales}
-            matriz={matriz}
-            listasContacto={listasContacto}
-            puedeVerPrivados={puedeVerPrivados}
-            abrirAlElegir={false}
-            onSelect={elegirAlumno}
-            onGuardar={guardarAlumnoNuevo}
-          />
         )}
-      </Paso>
+      </BloqueVenta>
 
-      {/* Paso 2 — Plan */}
-      <Paso n={2} titulo="Plan y días">
-        {!alumno ? (
-          <p className="text-[var(--texto-tenue)]">Elegí primero el alumno.</p>
-        ) : !plan ? (
-          <div className="space-y-2">
-            {planes.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => elegirPlan(p)}
-                className="w-full flex items-center gap-3 text-left rounded-[var(--radio-panel)] bg-[var(--fondo-elevado)] border border-[var(--borde)] px-4 py-3 hover:border-[var(--primario)]"
-              >
-                <div className="flex-1 min-w-0">
-                  <div className="text-base font-semibold">{p.nombre}</div>
-                  <div className="text-sm text-[var(--texto-tenue)] mt-0.5">
-                    {p.cursos.map((c) => c.nombre).join(" · ")}
-                    {p.ilimitado ? " · ilimitado" : p.cantidadClases ? ` · ${p.cantidadClases} clases` : ""}
-                  </div>
-                </div>
-                <div className="text-base font-bold shrink-0">{gs(p.precio)}</div>
-              </button>
-            ))}
-            {planes.length === 0 && (
-              <p className="text-[var(--texto-tenue)]">
-                No hay planes activos. Cargá uno en Gestión → Planes.
+      {/* 2 · Plan */}
+      <BloqueVenta
+        numero={2}
+        titulo="Plan"
+        estado={!titularListo ? "bloqueado" : plan ? "completo" : "activo"}
+        bloqueo="Primero elegí el alumno."
+        resumen={
+          plan && (
+            <div className="space-y-2">
+              <p className="text-base">
+                <span className="font-medium">{plan.nombre}</span>{" "}
+                <span className="text-sm text-[var(--texto-tenue)]">
+                  · {ilimitado ? "ilimitado" : N ? `${N} clases` : "sin cantidad de clases"} · {gs(plan.precio)}
+                </span>
               </p>
-            )}
-          </div>
-        ) : (
-          <div className="rounded-[var(--radio-panel)] bg-[var(--fondo-elevado)] p-4 space-y-4">
-            <div className="flex items-start gap-3">
+              {yaTiene && (
+                <div className="rounded-[var(--radio-panel)] border border-[var(--primario)] bg-[var(--accent-100)] px-4 py-3 text-sm text-[var(--peligro-texto)]">
+                  Este alumno ya tiene una membresía activa de este plan. La renovación se hará desde su membresía
+                  (próximamente); acá no se duplica.
+                </div>
+              )}
+            </div>
+          )
+        }
+        onCambiar={() => {
+          setPlan(null);
+          setDiasPorCurso({});
+          setFechaIdx(0);
+          setRetroActivo(false);
+          setCobro(null);
+        }}
+      >
+        <div className="space-y-2">
+          {planes.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => elegirPlan(p)}
+              className="w-full flex items-center gap-3 text-left rounded-[var(--radio-panel)] bg-[var(--fondo-elevado)] border border-[var(--borde)] px-4 py-3 hover:border-[var(--primario)]"
+            >
               <div className="flex-1 min-w-0">
-                <div className="text-lg font-semibold">{plan.nombre}</div>
+                <div className="text-base font-semibold">{p.nombre}</div>
                 <div className="text-sm text-[var(--texto-tenue)] mt-0.5">
-                  {ilimitado ? "Ilimitado · " : N ? `${N} clases · ` : ""}
-                  {gs(plan.precio)}
+                  {p.cursos.map((c) => c.nombre).join(" · ")}
+                  {p.ilimitado ? " · ilimitado" : p.cantidadClases ? ` · ${p.cantidadClases} clases` : ""}
                 </div>
               </div>
-              <button onClick={() => setPlan(null)} className="text-[var(--primario)] text-base shrink-0">
-                Cambiar
-              </button>
-            </div>
+              <div className="text-base font-bold shrink-0">{gs(p.precio)}</div>
+            </button>
+          ))}
+        </div>
+      </BloqueVenta>
 
-            {yaTiene && (
-              <div className="rounded-[var(--radio-panel)] border border-[var(--primario)] bg-[var(--accent-100)] px-4 py-3 text-sm text-[var(--peligro-texto)]">
-                Este alumno ya tiene una membresía activa de este plan. La renovación se hará desde su
-                membresía (próximamente); acá no se duplica.
-              </div>
-            )}
-
-            {/* Días por curso */}
+      {/* 3 · Días y fecha de inicio (se queda abierto: la persona los ajusta hasta cobrar) */}
+      <BloqueVenta numero={3} titulo="Días y fecha de inicio" estado={planListo ? "activo" : "bloqueado"} bloqueo="Primero elegí el plan.">
+        {plan && (
+          <div className="space-y-4">
             {plan.cursos.map((c) => (
               <div key={c.id}>
                 <div className="text-sm text-[var(--texto-tenue)] mb-1.5">
@@ -427,9 +351,7 @@ export default function ClienteInscribir({
                   {c.hora ? ` · ${c.hora.slice(0, 5)}` : ""} — qué días toma
                 </div>
                 {c.dias_semana.length === 0 ? (
-                  <div className="text-sm text-[var(--peligro-texto)]">
-                    Este curso no tiene días cargados (revisá el curso).
-                  </div>
+                  <div className="text-sm text-[var(--peligro-texto)]">Este curso no tiene días cargados (revisá el curso).</div>
                 ) : (
                   <div className="flex flex-wrap gap-2">
                     {c.dias_semana.map((d) => {
@@ -437,6 +359,7 @@ export default function ClienteInscribir({
                       return (
                         <button
                           key={d}
+                          type="button"
                           onClick={() => toggleDia(c.id, d)}
                           className={`px-4 py-2 text-sm rounded-[var(--radio-control)] border ${
                             on
@@ -454,45 +377,39 @@ export default function ClienteInscribir({
               </div>
             ))}
 
-            {/* Resumen del calendario */}
             <div className="text-sm text-[var(--texto-tenue)]">
               {diasConteo.length > 0
                 ? `${diasConteo.length} ${diasConteo.length === 1 ? "clase" : "clases"} por semana · ${etiquetaDias(unionDias)}`
                 : "Elegí al menos un día."}
             </div>
 
-            {/* Fecha de inicio */}
             <div>
               <div className="text-sm text-[var(--texto-tenue)] mb-1.5">Empieza a tomar clases</div>
-              {(
-                <div className="flex flex-wrap gap-2">
-                  {fechas.map((f, i) => (
-                    <button
-                      key={i}
-                      onClick={() => setFechaIdx(i)}
-                      className={`px-4 py-2 text-sm rounded-[var(--radio-control)] border ${
-                        fechaIdx === i
-                          ? "bg-[var(--primario)] text-[var(--primario-texto)] border-[var(--primario)] font-semibold"
-                          : "border-[var(--borde)] hover:border-[var(--primario)]"
-                      }`}
-                    >
-                      {i === 0 && esHoy(f, hoy) ? "hoy " : ""}
-                      {fechaLarga(f)}
-                    </button>
-                  ))}
-                  {fechas.length === 0 && (
-                    <span className="text-sm text-[var(--texto-tenue)]">
-                      {retroActivo
-                        ? "No hay clases dictadas en los últimos dos meses para esos días."
-                        : "Elegí días para ver fechas de inicio."}
-                    </span>
-                  )}
-                </div>
-              )}
+              <div className="flex flex-wrap gap-2">
+                {fechas.map((f, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setFechaIdx(i)}
+                    className={`px-4 py-2 text-sm rounded-[var(--radio-control)] border ${
+                      fechaIdx === i
+                        ? "bg-[var(--primario)] text-[var(--primario-texto)] border-[var(--primario)] font-semibold"
+                        : "border-[var(--borde)] hover:border-[var(--primario)]"
+                    }`}
+                  >
+                    {esHoy(f, hoy) ? "hoy " : ""}
+                    {fechaLarga(f)}
+                  </button>
+                ))}
+                {fechas.length === 0 && (
+                  <span className="text-sm text-[var(--texto-tenue)]">
+                    {retroActivo ? "No hay clases dictadas en los últimos dos meses para esos días." : "Elegí días para ver fechas de inicio."}
+                  </span>
+                )}
+              </div>
               {retroActivo && (
                 <p className="text-sm text-[var(--texto-tenue)] mt-1.5">
-                  Clases que ya se dictaron. Se usa para reconstruir un ciclo cuyo registro se
-                  omitió en su momento.
+                  Clases que ya se dictaron. Se usa para reconstruir un ciclo cuyo registro se omitió en su momento.
                 </p>
               )}
 
@@ -501,6 +418,7 @@ export default function ClienteInscribir({
                   checked={retroActivo}
                   onChange={(v) => {
                     setRetroActivo(v);
+                    setFechaIdx(0);
                     setError(null);
                   }}
                   label="Fecha retroactiva"
@@ -510,14 +428,12 @@ export default function ClienteInscribir({
 
               {creditoPrueba > 0 && credito && (
                 <div className="mt-3 rounded-[var(--radio-panel)] border border-[var(--exito)] bg-[var(--exito-fill)] text-[var(--exito-texto)] px-4 py-2.5 text-sm">
-                  Se le acredita su <strong>clase de prueba</strong> del{" "}
-                  {fechaLarga(new Date(credito.fecha + "T00:00:00"))}: {gs(creditoPrueba)} sobre{" "}
+                  Se le acredita su <strong>clase de prueba</strong> del {fechaLarga(new Date(credito.fecha + "T00:00:00"))}: {gs(creditoPrueba)} sobre{" "}
                   {gs(precioPlan)}. A cobrar <strong>{gs(precioPlan - creditoPrueba)}</strong>.
                   {credito.personas > 1 && (
                     <>
                       {" "}
-                      Es <strong>su parte</strong> de {gs(credito.pagado)} que pagaron{" "}
-                      {credito.personas} personas: al resto del grupo le queda la suya hasta la
+                      Es <strong>su parte</strong> de {gs(credito.pagado)} que pagaron {credito.personas} personas: al resto del grupo le queda la suya hasta la
                       misma fecha.
                     </>
                   )}
@@ -526,9 +442,8 @@ export default function ClienteInscribir({
 
               {bono > 0 && (
                 <div className="mt-3 rounded-[var(--radio-panel)] border border-[var(--exito)] bg-[var(--exito-fill)] text-[var(--exito-texto)] px-4 py-2.5 text-sm">
-                  Se aplicará bono de tolerancia: <strong>+{bono} {bono === 1 ? "clase" : "clases"}</strong> por
-                  falta{bono === 1 ? "" : "s"} con licencia del ciclo anterior. El nuevo ciclo es de{" "}
-                  <strong>{Nefectivo} clases</strong> (incluye la clase de tolerancia).
+                  Se aplicará bono de tolerancia: <strong>+{bono} {bono === 1 ? "clase" : "clases"}</strong> por falta{bono === 1 ? "" : "s"} con licencia del ciclo
+                  anterior. El nuevo ciclo es de <strong>{Nefectivo} clases</strong> (incluye la clase de tolerancia).
                 </div>
               )}
 
@@ -536,33 +451,30 @@ export default function ClienteInscribir({
                 {retroActivo && !fechaSel
                   ? "Elegí la fecha real de inicio."
                   : ilimitado
-                  ? `Membresía ilimitada.${fechaFin ? ` Termina el ${fechaLarga(fechaFin)}.` : ""}`
-                  : Nefectivo
-                  ? `Membresía de ${Nefectivo} clases${bono > 0 ? ` (${N} + ${bono} bono)` : ""}.${
-                      fechaFin ? ` Termina aprox. el ${fechaLarga(fechaFin)}.` : ""
-                    }`
-                  : "El plan no tiene N de clases cargado."}
+                    ? `Membresía ilimitada.${fechaFin ? ` Termina el ${fechaLarga(fechaFin)}.` : ""}`
+                    : Nefectivo
+                      ? `Membresía de ${Nefectivo} clases${bono > 0 ? ` (${N} + ${bono} bono)` : ""}.${fechaFin ? ` Termina aprox. el ${fechaLarga(fechaFin)}.` : ""}`
+                      : "El plan no tiene N de clases cargado."}
               </div>
             </div>
           </div>
         )}
-      </Paso>
+      </BloqueVenta>
 
-      {/* Paso 3 — Cobro */}
-      <Paso n={3} titulo="Cobro del ciclo">
-        {!plan ? (
-          <p className="text-[var(--texto-tenue)]">Elegí el plan para ver el cobro.</p>
-        ) : (
-          <div className="rounded-[var(--radio-panel)] bg-[var(--fondo-elevado)] p-4 space-y-3">
-            <div className="flex items-baseline gap-2">
+      {/* 4 · Cobro */}
+      <BloqueVenta numero={4} titulo="Cobro del ciclo" estado={cobroListo ? "activo" : "bloqueado"} bloqueo="Primero elegí los días y la fecha de inicio.">
+        {plan && (
+          <>
+            <div className="flex items-baseline gap-2 mb-3">
               <span className="text-base text-[var(--texto-tenue)]">
                 {plan.nombre}
                 {ilimitado ? " · ilimitado" : N ? ` · ${N} clases` : ""}
               </span>
               <span className="ml-auto titulo text-2xl">{gs(total)}</span>
             </div>
-
             <Cobro
+              sujeto={titularNombre}
+              detalle={plan.nombre}
               referencia={total}
               referenciaLabel="Precio del plan"
               credito={
@@ -570,72 +482,26 @@ export default function ClienteInscribir({
                   ? {
                       monto: creditoPrueba,
                       motivo:
-                        `Crédito de su clase de prueba del ${fechaLarga(
-                          new Date(credito.fecha + "T00:00:00")
-                        )}` +
-                        (credito.personas > 1
-                          ? ` (su parte de ${gs(credito.pagado)} entre ${credito.personas} personas)`
-                          : ""),
+                        `Crédito de su clase de prueba del ${fechaLarga(new Date(credito.fecha + "T00:00:00"))}` +
+                        (credito.personas > 1 ? ` (su parte de ${gs(credito.pagado)} entre ${credito.personas} personas)` : ""),
                     }
                   : null
               }
               politica="descuento"
               direccion="cobro"
               medios={medios}
-              cuentaId={cuentaId}
+              cuentaId={`${titularId ?? 0}·${plan.id}·${fechaIdx}·${plan.cursos.map((c) => (diasPorCurso[c.id] ?? []).join("")).join("-")}`}
               onChange={(p) => {
                 setCobro(p);
                 setError(null);
               }}
             />
-
-            {pideCompromiso && (
-              <div className="pt-2 border-t border-[var(--borde)]">
-                <label className="text-sm text-[var(--texto-tenue)] block mb-1.5">
-                  Fecha de compromiso de pago del saldo
-                </label>
-                <input
-                  type="date"
-                  value={fechaCompromisoEfectiva}
-                  min={isoFecha(hoy)}
-                  max={isoFecha(maxCompromiso)}
-                  onChange={(e) => {
-                    setFechaCompromiso(e.target.value);
-                    setError(null);
-                  }}
-                  className="entrada max-w-[200px]"
-                />
-                <p className="text-sm text-[var(--texto-tenue)] mt-1.5">
-                  Queda saldo pendiente. Debe pagarse a más tardar esta fecha (máx. {diasCompromiso} días
-                  desde hoy).
-                </p>
-              </div>
-            )}
-          </div>
+            {pideCompromiso && <FechaCompromiso valor={fechaCompromiso} diasCompromiso={diasCompromiso} onChange={setFechaCompromiso} />}
+          </>
         )}
-      </Paso>
+      </BloqueVenta>
 
-      {error && (
-        <p className="text-[var(--peligro)] text-base mt-4" role="alert">
-          {error}
-        </p>
-      )}
-
-      <div className="sticky bottom-0 -mx-6 sm:-mx-8 mt-6 px-6 sm:px-8 py-4 bg-[var(--fondo-panel)] border-t border-[var(--borde)]">
-        <div className="flex items-baseline mb-2">
-          <span className="text-sm text-[var(--texto-tenue)]">
-            {!alumno ? "Sin alumno todavía" : !plan ? "Falta el plan" : "Cobra hoy"}
-          </span>
-          <span className="ml-auto titulo text-2xl">{gs(mueve)}</span>
-        </div>
-        <button
-          onClick={confirmar}
-          disabled={!puedeConfirmar}
-          className="w-full px-5 py-3 text-lg font-semibold rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)] hover:bg-[var(--primario-hover)] disabled:opacity-40"
-        >
-          {pendiente ? "Guardando…" : "Confirmar inscripción"}
-        </button>
-      </div>
+      <BarraVenta falta={faltaTexto} total={plan ? gs(total) : null} etiqueta="Inscribir" pendiente={pendiente} error={error} onConfirmar={confirmar} />
     </div>
   );
 }
@@ -646,33 +512,8 @@ function sumarDias(d: Date, n: number): Date {
   return r;
 }
 
-/** Parsea YYYY-MM-DD como fecha local (sin corrimiento de zona horaria). */
-function parseFechaLocal(iso: string): Date | null {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
-  if (!m) return null;
-  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-}
-
 function esHoy(d: Date, hoy: Date): boolean {
-  return (
-    d.getFullYear() === hoy.getFullYear() &&
-    d.getMonth() === hoy.getMonth() &&
-    d.getDate() === hoy.getDate()
-  );
-}
-
-function Paso({ n, titulo, children }: { n: number; titulo: string; children: React.ReactNode }) {
-  return (
-    <div className="bg-[var(--fondo-panel)] border border-[var(--borde)] rounded-[var(--radio-tarjeta)] p-5 mb-3">
-      <div className="flex items-center gap-2.5 mb-3">
-        <div className="w-7 h-7 rounded-full bg-[var(--primario)] text-[var(--primario-texto)] grid place-items-center titulo text-sm shrink-0">
-          {n}
-        </div>
-        <div className="titulo text-lg">{titulo}</div>
-      </div>
-      {children}
-    </div>
-  );
+  return d.getFullYear() === hoy.getFullYear() && d.getMonth() === hoy.getMonth() && d.getDate() === hoy.getDate();
 }
 
 function Mini({ etiqueta, valor }: { etiqueta: string; valor: string }) {

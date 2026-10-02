@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Alumno, ListasContacto, MatrizMinimo } from "@/lib/tipos";
+import type { ListasContacto, MatrizMinimo } from "@/lib/tipos";
 import ClienteInscribir, { type PlanVenta } from "./ClienteInscribir";
 import VenderPrueba from "./VenderPrueba";
 import VenderParticular, {
@@ -14,7 +14,6 @@ import VenderAlquiler, { type PaqueteHoras, type PlanAlquiler } from "./VenderAl
 import type { CategoriaSala, TamanoSala, TarifaSala } from "@/lib/sala";
 import Pagina from "@/components/Pagina";
 
-type Canal = { valor: string; etiqueta: string };
 type Modo = "inscripcion" | "prueba" | "particular" | "alquiler";
 
 /**
@@ -27,19 +26,18 @@ type Modo = "inscripcion" | "prueba" | "particular" | "alquiler";
  * no tiene días, ni bono, ni ciclo; tiene acompañantes y precio por curso).
  */
 export default function MostradorVenta(props: {
-  alumnos: Alumno[];
   planes: PlanVenta[];
   diasCompromiso: number;
   medios: string[];
-  canales: Canal[];
-  cursosPorAlumno: Record<number, string[]>;
-  deudaPorAlumno: Record<number, number>;
-  planesActivosPorAlumno: Record<number, number[]>;
-  bonoPorAlumnoPlan: Record<number, Record<number, number>>;
+  /** Lo que se sabe del titular, por contacto (el titular de una venta es un contacto). */
+  cursosPorContacto: Record<number, string[]>;
+  deudaPorContacto: Record<number, number>;
+  planesActivosPorContacto: Record<number, number[]>;
+  bonoPorContactoPlan: Record<number, Record<number, number>>;
   /** Claves `cursoId|YYYY-MM-DD` de clases suspendidas: no son clase. */
   suspendidas: string[];
   /** Crédito de una clase de prueba sin convertir, por alumno y plan. */
-  creditoPruebaPorAlumnoPlan: Record<number, Record<number, { monto: number; fecha: string; personas: number; pagado: number }>>;
+  creditoPruebaPorContactoPlan: Record<number, Record<number, { monto: number; fecha: string; personas: number; pagado: number }>>;
   matriz: MatrizMinimo[];
   listasContacto: ListasContacto;
   puedeVerPrivados: boolean;
@@ -149,11 +147,9 @@ export default function MostradorVenta(props: {
       ) : vendibles.length > 0 ? (
         <div>
           <VenderPrueba
-            alumnos={props.alumnos}
             planes={vendibles}
             diasCompromiso={props.diasCompromiso}
             medios={props.medios}
-            canales={props.canales}
             suspendidas={suspendidas}
             matriz={props.matriz}
             listasContacto={props.listasContacto}

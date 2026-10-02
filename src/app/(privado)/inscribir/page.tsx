@@ -9,7 +9,7 @@ import type { PlanVenta } from "./ClienteInscribir";
 import type { PlanParticular, ProfesorParticular, SalaVenta, TarifaParticularVenta } from "./VenderParticular";
 import type { PaqueteHoras, PlanAlquiler } from "./VenderAlquiler";
 import { ETIQUETA_CATEGORIA, type CategoriaSala, type ClaveTamano, type TamanoSala, type TarifaSala } from "@/lib/sala";
-import type { Alumno, Contacto, Curso } from "@/lib/tipos";
+import type { Contacto, Curso } from "@/lib/tipos";
 import { cargarListasContacto } from "@/app/(privado)/contactos/acciones";
 
 export const dynamic = "force-dynamic";
@@ -24,12 +24,11 @@ export default async function PaginaInscribir() {
     { data: cursos },
     { data: planes, error: errPlanes },
     { data: planCursos },
-    { data: catCanal },
     mediosParam,
     diasCompromisoParam,
     contactoListas,
   ] = await Promise.all([
-    supabase.from("alumnos").select("*, contacto:contactos(*, privados:contactos_privados(numero))").eq("activo", true),
+    supabase.from("alumnos").select("id, contacto_id"),
     supabase.from("cursos").select("*").eq("activo", true).order("nombre"),
     supabase
       .from("planes")
@@ -38,7 +37,6 @@ export default async function PaginaInscribir() {
       .eq("activo", true)
       .order("nombre"),
     supabase.from("plan_cursos").select("plan_id, curso_id"),
-    supabase.from("catalogos").select("id").eq("clave", "canal_captacion").maybeSingle(),
     obtenerParametro("medios_pago"),
     obtenerParametro("dias_compromiso_pago"),
     cargarListasContacto(),
@@ -47,18 +45,19 @@ export default async function PaginaInscribir() {
   // Sin planes no hay venta: un fallo acá no puede pasar por "no hay ninguno".
   if (errPlanes) throw new Error(`No se pudieron cargar los planes: ${errPlanes.message}`);
 
-  const padronAlumnos = ((alumnos as Alumno[]) ?? []).slice();
-  const idsMenores = padronAlumnos.filter((a) => a.es_menor).map((a) => a.contacto_id);
-  if (idsMenores.length) {
-    const { data: rels } = await supabase
-      .from("contacto_relaciones")
-      .select("hacia_id, tutor:contactos!contacto_relaciones_desde_id_fkey(*)")
-      .eq("tipo", "tutor_de")
-      .in("hacia_id", idsMenores);
-    const tutorPorHijo = new Map<number, Contacto>();
-    for (const r of (rels as unknown as { hacia_id: number; tutor: Contacto }[]) ?? [])
-      tutorPorHijo.set(r.hacia_id, r.tutor);
-    for (const a of padronAlumnos) a.tutor = tutorPorHijo.get(a.contacto_id) ?? null;
+  // El titular de una venta es un contacto: lo que se sabe de cada alumno
+  // (deuda, cursos, bono, crédito) se entrega por contacto, no por alumno.
+  const contactoDeAlumno = new Map<number, number>(
+    ((alumnos as { id: number; contacto_id: number }[]) ?? []).map((a) => [a.id, a.contacto_id])
+  );
+  function porContacto<T>(m: Record<number, T>, combinar: (x: T, y: T) => T = (_x, y) => y): Record<number, T> {
+    const out: Record<number, T> = {};
+    for (const [alumnoId, v] of Object.entries(m)) {
+      const cid = contactoDeAlumno.get(Number(alumnoId));
+      if (cid == null) continue;
+      out[cid] = cid in out ? combinar(out[cid], v) : v;
+    }
+    return out;
   }
 
   const cursosById = new Map<number, Curso>(((cursos as Curso[]) ?? []).map((c) => [c.id, c]));
@@ -139,18 +138,6 @@ export default async function PaginaInscribir() {
       })),
     }))
     .filter((p) => p.cursos.length > 0);
-
-  // Canales de captación (alta rápida de alumno).
-  let canales: { valor: string; etiqueta: string }[] = [];
-  if (catCanal?.id) {
-    const { data: valores } = await supabase
-      .from("catalogo_valores")
-      .select("valor, etiqueta")
-      .eq("catalogo_id", catCanal.id)
-      .eq("activo", true)
-      .order("orden");
-    canales = (valores as { valor: string; etiqueta: string }[]) ?? [];
-  }
 
   // Panel del alumno: cursos activos y deuda pendiente + planes activos (dup).
   const [{ data: inscripciones }, { data: cuotas }, { data: pagos }] = await Promise.all([
@@ -467,17 +454,15 @@ export default async function PaginaInscribir() {
 
   return (
     <MostradorVenta
-      alumnos={padronAlumnos}
       planes={planesVenta}
       diasCompromiso={Math.max(1, Number(diasCompromisoParam) || 30)}
       medios={medios}
-      canales={canales}
-      cursosPorAlumno={cursosPorAlumno}
-      deudaPorAlumno={deudaPorAlumno}
-      planesActivosPorAlumno={planesActivosPorAlumno}
-      bonoPorAlumnoPlan={bonoPorAlumnoPlan}
+      cursosPorContacto={porContacto(cursosPorAlumno)}
+      deudaPorContacto={porContacto(deudaPorAlumno)}
+      planesActivosPorContacto={porContacto(planesActivosPorAlumno)}
+      bonoPorContactoPlan={porContacto(bonoPorAlumnoPlan)}
       suspendidas={suspendidas}
-      creditoPruebaPorAlumnoPlan={creditoPruebaPorAlumnoPlan}
+      creditoPruebaPorContactoPlan={porContacto(creditoPruebaPorAlumnoPlan)}
       matriz={contactoListas.matriz}
       listasContacto={contactoListas.listas}
       puedeVerPrivados={contactoListas.puedeVerPrivados}

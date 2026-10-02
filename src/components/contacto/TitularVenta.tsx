@@ -25,6 +25,8 @@ export default function TitularVenta({
   permiteOrganizacion = false,
   rolQueAdquiere = null,
   puedeCrear = true,
+  permiteMenor = false,
+  enPrueba = false,
   titularId,
   onElegido,
 }: {
@@ -35,6 +37,10 @@ export default function TitularVenta({
   permiteOrganizacion?: boolean;
   rolQueAdquiere?: "alumno" | null;
   puedeCrear?: boolean;
+  /** Ventas de cursos: el alumno nuevo puede ser un menor con su tutor. */
+  permiteMenor?: boolean;
+  /** Alta desde una clase de prueba. */
+  enPrueba?: boolean;
   /** El contacto elegido hoy (null = ninguno). */
   titularId: number | null;
   /** Avisa el cambio: `detalle` es null cuando se vuelve a elegir. */
@@ -148,6 +154,8 @@ export default function TitularVenta({
         puedeVerPrivados={puedeVerPrivados}
         permiteOrganizacion={permiteOrganizacion}
         rolQueAdquiere={rolQueAdquiere}
+        permiteMenor={permiteMenor}
+        enPrueba={enPrueba}
         onCancelar={() => setModoAlta(false)}
         onListo={elegir}
       />

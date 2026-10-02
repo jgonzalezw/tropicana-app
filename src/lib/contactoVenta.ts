@@ -46,9 +46,31 @@ export function contextoTercero(tipo: TipoContacto): ContextoMinimo {
   return tipo === "organizacion" ? "tercero_org" : "tercero_persona";
 }
 
-/** El contexto de un alta: quien nace como alumno se pide con las reglas de alumno adulto. */
-export function contextoAlta(tipo: TipoContacto, rol: "alumno" | null | undefined): ContextoMinimo {
-  return tipo === "persona" && rol === "alumno" ? "alumno_adulto" : contextoTercero(tipo);
+/**
+ * El contexto de un alta: quien nace como alumno se pide con las reglas de
+ * alumno adulto; un menor, con las de alumno menor (tutor obligatorio, incluso
+ * viniendo de una prueba); una prueba de un adulto, con las de prueba.
+ */
+export function contextoAlta(
+  tipo: TipoContacto,
+  rol: "alumno" | null | undefined,
+  opc?: { esMenor?: boolean; enPrueba?: boolean }
+): ContextoMinimo {
+  if (tipo !== "persona" || rol !== "alumno") return contextoTercero(tipo);
+  if (opc?.esMenor) return "alumno_menor";
+  return opc?.enPrueba ? "prueba" : "alumno_adulto";
+}
+
+/** El tutor de un menor: un contacto que ya existe, o uno nuevo con nombre y WhatsApp. */
+export type TutorAlta = { contactoId: number } | { nombre: string; whatsapp: string };
+
+/** Falta el tutor de un menor — `null` si está completo. Una sola función para pantalla y servidor. */
+export function faltaTutor(t: TutorAlta | null): string | null {
+  if (!t) return "Falta el tutor del menor.";
+  if ("contactoId" in t) return null;
+  if (!t.nombre.trim()) return "Falta el nombre del tutor.";
+  if (soloDigitos(t.whatsapp).length < 6) return "Falta el WhatsApp del tutor.";
+  return null;
 }
 
 /** Lo que el formulario de alta arma antes de guardar. */

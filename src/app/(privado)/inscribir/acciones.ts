@@ -3,20 +3,12 @@
 import { asegurarRolAlumno } from "@/app/(privado)/contactos/accionesVenta";
 import { planificarSesiones } from "@/lib/venta/agenda";
 import { faltaParaParticular } from "@/lib/venta/faltantes";
+import { destinatarioAviso } from "@/lib/venta/destinatarioAviso";
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { tienePermiso, obtenerParametro, obtenerPerfilActual, alcancePropioDe } from "@/lib/sesion";
-import { validarIdentidadAlumno, validarFechaNacimiento } from "@/lib/contactos";
-import { contextoAlumno, presenteDesdeExtra } from "@/lib/matrizMinimos";
-import type { Alumno, CobroInscripcion, Contacto, DatosAlumno, EntradaInscripcion, TipoProfesor } from "@/lib/tipos";
-import {
-  crearOReusarContactoPersona,
-  resolverTutor,
-  vincularTutor,
-  guardarDatosExtra,
-  validarContraMatriz,
-} from "@/app/(privado)/contactos/acciones";
+import type { CobroInscripcion, EntradaInscripcion, TipoProfesor } from "@/lib/tipos";
 import {
   fechaClaseN,
   fechaLarga,
@@ -67,67 +59,55 @@ function admin() {
   return a;
 }
 
-// ── Alta rápida de alumno desde la inscripción ──────────────────────────
-// Mismo camino que `alumnos/acciones.ts:crearAlumno` — un contacto por
-// persona, creado o reusado antes que la fila de alumno — para no repetir
-// la validación ni la normalización del WhatsApp (estaba duplicada acá).
+// ── El titular de una venta de cursos ───────────────────────────────────
+// Es un contacto (regla 21): puede ser alumno, profesor o solo contacto. La
+// venta le agrega el rol alumno al confirmar. El alta se hace con el mismo
+// formulario que el resto de las ventas (`contactos/accionesVenta.ts`).
 
-export async function crearAlumnoDesdeInscripcion(
-  d: DatosAlumno
-): Promise<{ alumno?: Alumno; error?: string }> {
-  if (!(await tienePermiso("alumnos", "crear"))) return { error: "Sin permiso para crear alumnos." };
-  const err = validarIdentidadAlumno(d);
-  if (err) return { error: err };
-  const errEdad = validarFechaNacimiento(d.fecha_nacimiento, d.es_menor);
-  if (errEdad) return { error: errEdad };
+type TitularCurso = {
+  contactoId: number;
+  alumnoId: number | null;
+  esMenor: boolean;
+  alumno: { nombre: string; apellido: string };
+  whatsapp: string | null;
+};
 
-  const contexto = contextoAlumno({ esMenor: d.es_menor, enPrueba: d.enPrueba ?? false });
-  const errMatriz = await validarContraMatriz(contexto, {
-    nombre: !!d.nombre.trim(),
-    apellido: !!d.apellido.trim(),
-    canal_captacion: !!d.canal_captacion,
-    ...presenteDesdeExtra(d),
-  });
-  if (errMatriz) return { error: errMatriz };
-
-  const { contacto, error: errContacto } = await crearOReusarContactoPersona({
-    nombre: d.nombre,
-    apellido: d.apellido,
-    whatsapp: d.es_menor ? null : d.whatsapp,
-    canal_captacion: d.canal_captacion,
-    sexo: d.sexo,
-    email: d.email,
-    reusarSiExiste: false,
-  });
-  if (errContacto || !contacto) return { error: errContacto ?? "No se pudo crear el contacto." };
-
-  let tutor: Contacto | null = null;
-  if (d.es_menor) {
-    const r = await resolverTutor(d);
-    if (r.error || !r.contacto) return { error: r.error ?? "No se pudo resolver el tutor." };
-    tutor = r.contacto;
-    const errRel = await vincularTutor(tutor.id, contacto.id);
-    if (errRel.error) return { error: errRel.error };
-  }
-
-  const { data, error } = await admin()
-    .from("alumnos")
-    .insert({ contacto_id: contacto.id, es_menor: d.es_menor })
-    .select("id, contacto_id, es_menor, activo, creado_en, actualizado_en")
-    .single();
-
-  if (error) return { error: error.message };
-
-  const errExtra = await guardarDatosExtra(contacto.id, d);
-  if (errExtra.error) return { error: errExtra.error };
-
-  revalidatePath("/inscribir");
-  return { alumno: { ...(data as Omit<Alumno, "contacto" | "tutor">), contacto, tutor } };
+async function cargarTitularCurso(
+  a: ReturnType<typeof admin>,
+  contactoId: number
+): Promise<TitularCurso | { error: string }> {
+  const { data, error } = await a
+    .from("contactos")
+    .select("id, tipo, nombre, apellido, whatsapp, activo, alumno:alumnos(id, es_menor)")
+    .eq("id", contactoId)
+    .maybeSingle();
+  if (error) return { error: `No se pudo leer el titular: ${error.message}` };
+  const c = data as unknown as {
+    id: number;
+    tipo: string;
+    nombre: string | null;
+    apellido: string | null;
+    whatsapp: string | null;
+    activo: boolean;
+    alumno: { id: number; es_menor: boolean }[] | { id: number; es_menor: boolean } | null;
+  } | null;
+  if (!c || !c.activo) return { error: "El titular no existe o está inactivo." };
+  if (c.tipo !== "persona") return { error: "El titular de un curso tiene que ser una persona." };
+  const al = Array.isArray(c.alumno) ? (c.alumno[0] ?? null) : c.alumno;
+  return {
+    contactoId: c.id,
+    alumnoId: al?.id ?? null,
+    esMenor: al?.es_menor ?? false,
+    alumno: { nombre: c.nombre ?? "", apellido: c.apellido ?? "" },
+    whatsapp: c.whatsapp,
+  };
 }
 
 // ── Vender plan y cobrar ────────────────────────────────────────────────
 
-type ResultadoInscripcion = { ok?: true; resumen?: string; error?: string };
+type DatoVenta = { etiqueta: string; valor: string };
+type AvisoCurso = { nombre: string; whatsapp: string | null; mensaje: string };
+type ResultadoInscripcion = { ok?: true; resumen?: string; datos?: DatoVenta[]; avisoAlumno?: AvisoCurso; error?: string };
 
 export async function inscribirYCobrar(e: EntradaInscripcion): Promise<ResultadoInscripcion> {
   if (!(await tienePermiso("inscripciones", "crear")))
@@ -148,14 +128,12 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
   // prorrateo ya pagado — eso vive en Asistencia, donde se toca la clase.
 
   // 1. Alumno y plan (datos autoritativos del servidor).
-  const { data: alumnoRowRaw } = await sb
-    .from("alumnos")
-    .select("id, contacto_id, contacto:contactos(nombre, apellido)")
-    .eq("id", e.alumnoId)
-    .maybeSingle();
-  const alumnoRow = alumnoRowRaw as unknown as { id: number; contacto_id: number; contacto: { nombre: string | null; apellido: string | null } | null } | null;
-  if (!alumnoRow) return { error: "El alumno no existe." };
-  const alumno = { nombre: alumnoRow.contacto?.nombre ?? "", apellido: alumnoRow.contacto?.apellido ?? "" };
+  const titular = await cargarTitularCurso(a, e.contactoId);
+  if ("error" in titular) return { error: titular.error };
+  const alumno = titular.alumno;
+  // Si el titular todavía no es alumno, la venta le agrega el rol (regla 21) —
+  // pero recién después de validar todo, para no dejar un rol por una venta caída.
+  const alumnoExistenteId = titular.alumnoId;
 
   const { data: plan } = await sb
     .from("planes")
@@ -179,11 +157,11 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
   // mismo plan aun no redimidas. Suma clases al nuevo ciclo (solo planes con N).
   let bono = 0;
   let bonoOrigenIds: number[] = [];
-  if (!ilimitado) {
+  if (!ilimitado && alumnoExistenteId != null) {
     const { data: previos } = await sb
       .from("membresias")
       .select("id, bono_generado")
-      .eq("alumno_id", e.alumnoId)
+      .eq("alumno_id", alumnoExistenteId)
       .eq("plan_id", e.planId)
       .eq("estado", "completada")
       .eq("bono_redimido", false)
@@ -194,13 +172,16 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
   }
   // Conversión: si el alumno probó este mismo plan y el plan acredita el fee,
   // lo que pagó por la prueba se le descuenta de la membresía (regla 11).
-  const conversion = await pruebaConvertible(sb, {
-    alumnoId: e.alumnoId,
-    planId: e.planId,
-    acredita: plan.prueba_acredita !== false,
-    plazoDias: (plan.prueba_plazo_dias as number | null) ?? null,
-    fechaVentaISO: e.fechaInicio,
-  });
+  const conversion =
+    alumnoExistenteId != null
+      ? await pruebaConvertible(sb, {
+          alumnoId: alumnoExistenteId,
+          planId: e.planId,
+          acredita: plan.prueba_acredita !== false,
+          plazoDias: (plan.prueba_plazo_dias as number | null) ?? null,
+          fechaVentaISO: e.fechaInicio,
+        })
+      : null;
 
   const clasesPlan = clasesPlanBase != null ? clasesPlanBase + bono : null;
   const precioUnit = Number(plan.precio);
@@ -269,19 +250,23 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
   }
 
   // 4. No repetir una membresía activa del mismo plan para el alumno.
-  const { data: dup } = await sb
-    .from("membresias")
-    .select("id")
-    .eq("alumno_id", e.alumnoId)
-    .eq("plan_id", e.planId)
-    .eq("estado", "activa")
-    .maybeSingle();
+  const { data: dup } =
+    alumnoExistenteId != null
+      ? await sb
+          .from("membresias")
+          .select("id")
+          .eq("alumno_id", alumnoExistenteId)
+          .eq("plan_id", e.planId)
+          .eq("estado", "activa")
+          .maybeSingle()
+      : { data: null };
   if (dup) return { error: "Este alumno ya tiene una membresía activa de este plan." };
 
   // 5. Movimiento de dinero (recomputado): lo que se mueve = total − saldo.
   const c = e.cobro;
   const glosa = medioGlosa(c);
-  const mueveBruto = c.modo === "sin" ? 0 : Math.max(0, (Number(c.total) || 0) - (Number(c.saldo) || 0));
+  // `monto` es lo que se mueve de verdad (`cobroParaServidor`): igual que la prueba y la particular.
+  const mueveBruto = c.modo === "sin" ? 0 : Math.max(0, Number(c.monto) || 0);
   const mueve = Math.min(referencia, Math.max(0, Math.round(mueveBruto)));
   const descManual = Math.min(referencia, Math.max(0, Math.round(Number(c.ajuste) || 0)));
   if (mueve > 0 && !c.medio) return { error: "Elegí el medio de pago." };
@@ -307,14 +292,17 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
     fechaCompromiso = isoFecha(fc);
   }
 
-  // 7. Membresía.
+  // 7. Membresía. El titular adquiere el rol alumno si todavía no lo tiene.
+  const rol = await asegurarRolAlumno(titular.contactoId);
+  if (rol.error || rol.alumnoId == null) return { error: rol.error ?? "No se pudo dar el rol de alumno al titular." };
+  const alumnoId = rol.alumnoId;
   const { data: insc, error: errInsc } = await a
     .from("membresias")
     .insert({
-      alumno_id: e.alumnoId,
+      alumno_id: alumnoId,
       // El titular de la membresía es un contacto (0053, regla 21): la
       // columna es obligatoria y nada la completa sola.
-      contacto_id: alumnoRow.contacto_id,
+      contacto_id: titular.contactoId,
       curso_id: cursoPrincipal,
       modalidad: "mensual",
       fecha_inicio: isoFecha(inicio),
@@ -390,7 +378,7 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
     const { error: errPago } = await a.from("pagos").insert({
       tipo: "cobro",
       motivo: "membresia",
-      alumno_id: e.alumnoId,
+      alumno_id: alumnoId,
       membresia_id: inscripcionId,
       cuota_id: cuota.id,
       monto: porPlata,
@@ -406,7 +394,7 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
     const { error: errCred } = await a.from("pagos").insert({
       tipo: "cobro",
       motivo: "membresia",
-      alumno_id: e.alumnoId,
+      alumno_id: alumnoId,
       membresia_id: inscripcionId,
       cuota_id: cuota.id,
       monto: 0,
@@ -425,11 +413,29 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
   }
 
   revalidatePath("/inscribir");
+  const dest = await destinatarioAviso(a, { contactoId: titular.contactoId, esMenor: titular.esMenor, nombre: `${alumno.nombre} ${alumno.apellido}`.trim(), whatsapp: titular.whatsapp });
+  const quienEs = `${alumno.nombre} ${alumno.apellido}`.trim();
+  const sujeto = titular.esMenor ? `la inscripción de ${quienEs}` : "tu inscripción";
   return {
     ok: true,
     resumen:
       armarResumen(alumno, plan.nombre, inicio, porPlata, c.medio, bono) +
       (credito > 0 ? ` Se acreditó ${gs(credito)} de su clase de prueba.` : ""),
+    datos: [
+      { etiqueta: "Plan", valor: plan.nombre },
+      { etiqueta: ilimitado ? "Ciclo" : "Clases", valor: ilimitado ? `ilimitado, ${cicloDias} días` : `${clasesPlan}${bono > 0 ? ` (${clasesPlanBase} + ${bono} de bono)` : ""}` },
+      { etiqueta: "Empieza", valor: fechaLarga(inicio) },
+      ...(fechaFin ? [{ etiqueta: "Termina aprox.", valor: fechaLarga(parseFechaISO(fechaFin) ?? inicio) }] : []),
+      { etiqueta: "Precio", valor: gs(referencia) },
+      { etiqueta: "Cobrado", valor: porPlata > 0 ? `${gs(porPlata)}${c.medio ? ` (${c.medio})` : ""}` : "sin cobro por ahora" },
+      ...(credito > 0 ? [{ etiqueta: "Crédito de prueba", valor: gs(credito) }] : []),
+      ...(saldo > 0 && fechaCompromiso ? [{ etiqueta: "Saldo", valor: `${gs(saldo)} hasta el ${fechaLarga(parseFechaISO(fechaCompromiso) ?? inicio)}` }] : []),
+    ],
+    avisoAlumno: {
+      nombre: dest.nombre,
+      whatsapp: dest.whatsapp,
+      mensaje: `Hola! Confirmamos ${sujeto} en ${plan.nombre}: empieza el ${fechaLarga(inicio)}${fechaFin ? ` y el ciclo termina aprox. el ${fechaLarga(parseFechaISO(fechaFin) ?? inicio)}` : ""}. ¡Te esperamos!`,
+    },
   };
 }
 
@@ -533,7 +539,8 @@ function sumarDias(iso: string, n: number): string {
 
 /** Lo que la pantalla manda para vender una prueba. */
 export type EntradaPrueba = {
-  alumnoId: number;
+  /** Quien viene a probar, como contacto: si no es alumno todavía, la venta le agrega el rol. */
+  contactoId: number;
   planId: number;
   /**
    * Cursos que va a probar, **con la fecha de su clase**: una clase en cada
@@ -559,7 +566,7 @@ export type EntradaPrueba = {
  */
 export async function venderPrueba(
   e: EntradaPrueba
-): Promise<{ ok?: true; error?: string; resumen?: string }> {
+): Promise<{ ok?: true; error?: string; resumen?: string; datos?: DatoVenta[]; avisoAlumno?: AvisoCurso }> {
   if (!(await tienePermiso("inscripciones", "crear")))
     return { error: "No tenés permiso para vender." };
 
@@ -585,14 +592,11 @@ export async function venderPrueba(
   // membresía ya liquidada da otro número, la diferencia sale como un ajuste al
   // liquidar (0044) sin reescribir lo pagado. Una venta retroactiva no se traba.
 
-  const { data: alumnoRowRaw } = await sb
-    .from("alumnos")
-    .select("id, contacto_id, contacto:contactos(nombre, apellido)")
-    .eq("id", e.alumnoId)
-    .maybeSingle();
-  const alumnoRow = alumnoRowRaw as unknown as { id: number; contacto_id: number; contacto: { nombre: string | null; apellido: string | null } | null } | null;
-  if (!alumnoRow) return { error: "El alumno no existe." };
-  const alumno = { nombre: alumnoRow.contacto?.nombre ?? "", apellido: alumnoRow.contacto?.apellido ?? "" };
+  const titular = await cargarTitularCurso(a, e.contactoId);
+  if ("error" in titular) return { error: titular.error };
+  const alumno = titular.alumno;
+  // Si el titular todavía no es alumno, la venta le agrega el rol (regla 21) —
+  // pero recién después de validar todo, para no dejar un rol por una venta caída.
 
   const { data: plan } = await sb
     .from("planes")
@@ -623,12 +627,15 @@ export async function venderPrueba(
   // 11: la prueba es preliminar de un plan regular, no algo que conviva con
   // uno ya vendido). La prueba existe para decidir si alguien se inscribe, no
   // para alguien que ya decidió y ya paga.
-  const { data: yaSocioRows } = await sb
-    .from("membresias")
-    .select("id, curso_id, membresia_cursos(curso_id)")
-    .eq("alumno_id", e.alumnoId)
-    .eq("es_prueba", false)
-    .neq("estado", "baja");
+  const { data: yaSocioRows } =
+    titular.alumnoId != null
+      ? await sb
+          .from("membresias")
+          .select("id, curso_id, membresia_cursos(curso_id)")
+          .eq("alumno_id", titular.alumnoId)
+          .eq("es_prueba", false)
+          .neq("estado", "baja")
+      : { data: [] };
   const cursosYaSocio = new Set(
     ((yaSocioRows as { curso_id: number | null; membresia_cursos: { curso_id: number }[] }[]) ?? []).flatMap(
       (r) => [r.curso_id, ...r.membresia_cursos.map((ic) => ic.curso_id)].filter((x): x is number => x != null)
@@ -724,11 +731,15 @@ export async function venderPrueba(
   }
 
   // La membresía preliminar. Sin tolerancia: una prueba no genera bono.
+  // Quien viene a probar adquiere el rol alumno (regla 21), ya validado todo.
+  const rol = await asegurarRolAlumno(titular.contactoId);
+  if (rol.error || rol.alumnoId == null) return { error: rol.error ?? "No se pudo dar el rol de alumno al titular." };
+  const alumnoId = rol.alumnoId;
   const { data: insc, error: errInsc } = await a
     .from("membresias")
     .insert({
-      alumno_id: e.alumnoId,
-      contacto_id: alumnoRow.contacto_id,
+      alumno_id: alumnoId,
+      contacto_id: titular.contactoId,
       curso_id: cursoIds[0],
       modalidad: "clase",
       fecha_inicio: isoFecha(inicio),
@@ -794,12 +805,12 @@ export async function venderPrueba(
       .from("asistencias")
       .select("id")
       .eq("sesion_id", ses.id)
-      .eq("alumno_id", e.alumnoId)
+      .eq("alumno_id", alumnoId)
       .maybeSingle();
     if (ya) continue;
     const { error: errAsis } = await a.from("asistencias").insert({
       sesion_id: ses.id,
-      alumno_id: e.alumnoId,
+      alumno_id: alumnoId,
       membresia_id: inscripcionId,
       estado: "presente",
       con_licencia: false,
@@ -839,7 +850,7 @@ export async function venderPrueba(
     const { error: errPago } = await a.from("pagos").insert({
       tipo: "cobro",
       motivo: "membresia",
-      alumno_id: e.alumnoId,
+      alumno_id: alumnoId,
       membresia_id: inscripcionId,
       cuota_id: cuota.id,
       monto: porPlata,
@@ -884,8 +895,23 @@ export async function venderPrueba(
     ? ` Asistencia confirmada en ${confirmadas === 1 ? "la clase ya dictada" : `${confirmadas} clases ya dictadas`}.`
     : "";
 
+  const dest = await destinatarioAviso(a, { contactoId: titular.contactoId, esMenor: titular.esMenor, nombre: quien.trim(), whatsapp: titular.whatsapp });
+  const sujetoP = titular.esMenor ? `la clase de prueba de ${quien.trim()}` : "tu clase de prueba";
   return {
     ok: true,
+    datos: [
+      { etiqueta: "Plan", valor: plan.nombre },
+      { etiqueta: "Cursos", valor: clases.length ? clases.join(" · ") : cursosTxt },
+      { etiqueta: "Personas", valor: gente },
+      { etiqueta: "Total", valor: gs(referencia) },
+      { etiqueta: "Cobrado", valor: porPlata > 0 ? `${gs(porPlata)}${c.medio ? ` (${c.medio})` : ""}` : "sin cobro por ahora" },
+      ...(saldo > 0 && fechaCompromiso ? [{ etiqueta: "Saldo", valor: `${gs(saldo)} hasta el ${fechaLarga(parseFechaISO(fechaCompromiso) ?? inicio)}` }] : []),
+    ],
+    avisoAlumno: {
+      nombre: dest.nombre,
+      whatsapp: dest.whatsapp,
+      mensaje: `Hola! Confirmamos ${sujetoP} (${plan.nombre}, ${gente}):${clases.length ? ` ${clases.join(" y ")}` : ""}. ¡Te esperamos!`,
+    },
     resumen:
       `Clase de prueba de ${quien} — ${cursosTxt}, ${gente}, ${gs(referencia)}.${asiste} ` +
       (porPlata > 0 ? `Cobrado ${gs(porPlata)}${c.medio ? ` (${c.medio})` : ""}.` : "Sin cobro por ahora.") +
@@ -1374,7 +1400,8 @@ export async function venderParticular(e: EntradaParticular): Promise<ResultadoP
   // ── Cobro (mismo cálculo que inscribirYCobrar) ─────────────────────────
   const c = e.cobro;
   const glosa = medioGlosa(c);
-  const mueveBruto = c.modo === "sin" ? 0 : Math.max(0, (Number(c.total) || 0) - (Number(c.saldo) || 0));
+  // `monto` es lo que se mueve de verdad (`cobroParaServidor`): igual que la prueba y la particular.
+  const mueveBruto = c.modo === "sin" ? 0 : Math.max(0, Number(c.monto) || 0);
   const mueve = Math.min(precio, Math.max(0, Math.round(mueveBruto)));
   const descManual = Math.min(precio, Math.max(0, Math.round(Number(c.ajuste) || 0)));
   if (mueve > 0 && !c.medio) return { error: "Elegí el medio de pago." };

@@ -4772,3 +4772,14 @@ tutor desde esta pantalla no está; se hace en Alumnos hasta E4 (un alumno menor
 ya existente sí se elige y el aviso va a su tutor). Probado en dev: contacto
 "solo contacto" (Lucia Prueba) → rol alumno agregado, choque con Zumba detectado,
 venta, dos avisos. Pendiente: 375 px, cortesía y agenda fija en navegador.
+
+
+## E3 — Inscripción regular y clase de prueba con las piezas comunes (2026-10-01, dev)
+
+Mismo esqueleto que alquiler y particular: `TitularVenta` (contacto que adquiere el rol alumno al vender), `BloqueVenta`, `Cobro` con `FechaCompromiso`, `BarraVenta` con faltantes puros compartidos con el servidor (`faltaParaInscripcion`, `faltaParaPrueba`) y `ConfirmacionVenta` con `AvisoWhatsapp` (regla de proceso 12).
+
+**Funcionalidad conservada:** menor con tutor (`AltaContacto` con `permiteMenor`; en prueba rige `alumno_menor`, y el aviso va al tutor vía `destinatarioAviso`), deuda anterior, "ya inscripto en", días por curso, fecha de inicio y retroactiva, bono, crédito de prueba, acompañantes, un curso por fecha en la prueba, cursos auto-elegidos si caben en el tope.
+
+**Se retira:** `crearAlumnoDesdeInscripcion` (el alta pasa por `crearContacto`, que ya crea el rol alumno). `page.tsx` entrega lo del alumno por contacto (`...PorContacto`).
+
+**Verificado en dev:** tsc, lint y 261 tests; en el navegador, prueba de Zumba a un profesor existente (Angel Caceres): se le agregó el rol alumno, membresía 54 (prueba, activa), confirmación con WhatsApp. **Falta:** menor con tutor en el navegador, inscripción completa, 375 px.

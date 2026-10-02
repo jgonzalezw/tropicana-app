@@ -565,7 +565,8 @@ export type DiasCursoVenta = { cursoId: number; dias: number[] };
 
 /** Entrada de la server action que vende un plan y cobra en un solo paso. */
 export type EntradaInscripcion = {
-  alumnoId: number;
+  /** El titular, como contacto: si no es alumno todavía, la venta le agrega el rol. */
+  contactoId: number;
   /** Plan que se vende (motor). El servidor recomputa N y precio. */
   planId: number;
   /** Fecha de inicio, ISO local YYYY-MM-DD. */
