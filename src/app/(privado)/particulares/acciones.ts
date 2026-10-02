@@ -93,7 +93,6 @@ function revalidarReservas(tipo: TipoMembresiaReservas, membresiaId: number) {
   const base = tipo === "alquiler" ? "/alquileres" : "/particulares";
   revalidatePath(`${base}/${membresiaId}`);
   revalidatePath(base);
-  revalidatePath("/sala");
 }
 
 /**
@@ -1337,7 +1336,6 @@ export async function revertirSuspension(reservaId: number): Promise<ResultadoAc
 
   revalidatePath(`/particulares/${rRow.membresia_id}`);
   revalidatePath("/particulares");
-  revalidatePath("/sala");
   revalidatePath("/administracion/sala");
 
   const c = await contextoAviso(a, sb, rRow.membresia_id);

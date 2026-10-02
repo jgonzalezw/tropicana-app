@@ -635,7 +635,6 @@ export async function crearBloqueoSala(
     await a.from("reservas_sala").update({ suspendida_por_bloqueo_id: nuevo.id }).in("id", suspendidasOk);
   }
 
-  revalidatePath("/sala");
   revalidatePath("/particulares");
   revalidatePath("/administracion/sala");
   const mensaje =
@@ -715,7 +714,6 @@ export async function cancelarReservaSala(
     if (fallidas.length) mensaje += ` No se pudo restablecer: ${fallidas.join("; ")}.`;
   }
 
-  revalidatePath("/sala");
   revalidatePath("/particulares");
   revalidatePath("/administracion/sala");
   return { ok: true, mensaje, avisos: avisos.length ? avisos : undefined };
