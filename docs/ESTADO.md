@@ -4783,3 +4783,16 @@ Mismo esqueleto que alquiler y particular: `TitularVenta` (contacto que adquiere
 **Se retira:** `crearAlumnoDesdeInscripcion` (el alta pasa por `crearContacto`, que ya crea el rol alumno). `page.tsx` entrega lo del alumno por contacto (`...PorContacto`).
 
 **Verificado en dev:** tsc, lint y 261 tests; en el navegador, prueba de Zumba a un profesor existente (Angel Caceres): se le agregó el rol alumno, membresía 54 (prueba, activa), confirmación con WhatsApp. **Falta:** menor con tutor en el navegador, inscripción completa, 375 px.
+
+
+## E4 — Agregar un rol a un contacto existente desde Alumnos y Profesores (2026-10-02, dev)
+
+Cargar un alumno o un profesor cuyo WhatsApp ya es de otro contacto (que todavía no tiene ese rol) ya no se rechaza: aparece `PanelDuplicado` con "Usar este contacto y agregarle el rol Alumno/Profesor". Al guardar solo se crea la fila del rol (`crearAlumno`/`crearProfesor` con `existenteId`); la identidad del contacto no se toca (regla 21) y se edita desde su ficha, con permiso.
+
+- `contactos/accionesRol.ts` (`contactoSinRol`) y `components/contacto/useContactoSinRol.ts` (comprobación con espera mientras se escribe el WhatsApp).
+- Si el contacto ya tiene ese rol, sigue valiendo el aviso del padrón propio.
+- Alcance acotado: solo adultos con WhatsApp (un menor se carga con su tutor, como contacto nuevo).
+
+**Verificado en dev:** alumno nuevo con el WhatsApp de un profesor (Inamsai De Dazan) → ahora es profesor y alumno, sin contacto duplicado; profesor nuevo con el WhatsApp de una alumna (Mariana Claure) → igual. Bug encontrado y corregido en la prueba: con `contacto_id` UNIQUE, PostgREST devuelve un objeto y no un arreglo al anidar `alumnos`/`profesores`, y el rol salía mal.
+
+**E3 verificado en el navegador:** inscripción completa (membresía con cobro, aviso al tutor de una menor), menor nuevo con tutor en prueba (sin WhatsApp propio, `alumno_menor`, aviso a la tutora). Observación: cambiar la fecha de inicio reinicia el medio de pago (la clave de la cuenta del cobro incluye la fecha).

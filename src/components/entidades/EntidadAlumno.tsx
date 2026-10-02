@@ -19,6 +19,8 @@ import CamposContacto, { DATOS_CONTACTO_EXTRA_VACIO, type ListasContacto } from 
 import VistaContacto, { Dato, type ModoFicha } from "./VistaContacto";
 import EnlaceWhatsapp from "./EnlaceWhatsapp";
 import { detalleContacto } from "@/app/(privado)/contactos/acciones";
+import PanelDuplicado from "@/components/contacto/PanelDuplicado";
+import { useContactoSinRol, comoResumen } from "@/components/contacto/useContactoSinRol";
 
 type Canal = { valor: string; etiqueta: string };
 
@@ -65,7 +67,7 @@ export default function EntidadAlumno({
   /** Si el rol puede editar un alumno existente (`alumnos` · `editar`). */
   puedeEditar?: boolean;
   depsDe?: (id: number) => number | undefined;
-  onGuardar?: (datos: DatosAlumno, id: number | null) => Promise<{ error?: string }>;
+  onGuardar?: (datos: DatosAlumno, id: number | null, existenteId?: number | null) => Promise<{ error?: string }>;
   onBaja?: (id: number) => Promise<{ error?: string; accion?: string }>;
   onActivar?: (id: number) => Promise<{ error?: string }>;
   onSelect?: (a: Alumno) => void;
@@ -208,7 +210,7 @@ function FichaAlumno({
   deps?: number;
   onAbrir: (a: Alumno) => void;
   onEditar: () => void;
-  onGuardar?: (datos: DatosAlumno, id: number | null) => Promise<{ error?: string }>;
+  onGuardar?: (datos: DatosAlumno, id: number | null, existenteId?: number | null) => Promise<{ error?: string }>;
   onBaja?: (id: number) => Promise<{ error?: string; accion?: string }>;
   onActivar?: (id: number) => Promise<{ error?: string }>;
   onCancelar: () => void;
@@ -302,8 +304,14 @@ function FichaAlumno({
       ? padron.find((a) => a.id !== curId && documentoComparable(a.contacto.privados?.numero) === docTipeado)
       : undefined;
 
+  // El WhatsApp es de un contacto que todavía no es alumno (un profesor, o solo
+  // un contacto): se le agrega el rol en vez de rechazar (regla 21).
+  const existente = useContactoSinRol("alumno", wa, !inicial && !esMenor && !dupAdulto);
+  const [usarExistente, setUsarExistente] = useState(false);
+  const usando = usarExistente && !!existente;
+
   const identidadOk = esMenor ? tutWaDig.length >= 6 && !!nombre.trim() : waDig.length >= 6;
-  const panelAbierto = !!dupAdulto || !!dupMenor || !!tutorEsAlumno || !!dupDocumento;
+  const panelAbierto = !!dupAdulto || !!dupMenor || !!tutorEsAlumno || !!dupDocumento || (!!existente && !usando);
   const faltanExtra = faltantes(niveles, {
     apellido: !!apellido.trim(),
     canal_captacion: !!canal,
@@ -312,8 +320,9 @@ function FichaAlumno({
   // Misma regla que el servidor (`validarFechaNacimiento`): una fecha de
   // nacimiento que da menor de edad exige el camino de menor, con tutor.
   const errEdad = validarFechaNacimiento(extra.fecha_nacimiento, esMenor);
-  const puedeGuardar =
-    !pendiente && !!nombre.trim() && identidadOk && !panelAbierto && faltanExtra.length === 0 && !errEdad;
+  const puedeGuardar = usando
+    ? !pendiente
+    : !pendiente && !!nombre.trim() && identidadOk && !panelAbierto && faltanExtra.length === 0 && !errEdad;
 
   function guardar() {
     setError(null);
@@ -331,7 +340,8 @@ function FichaAlumno({
           enPrueba,
           ...extra,
         },
-        inicial?.id ?? null
+        inicial?.id ?? null,
+        usando && existente ? existente.contactoId : null
       );
       if (res?.error) setError(res.error);
       else onCerrar();
@@ -487,6 +497,19 @@ function FichaAlumno({
           onUsar={() => onAbrir(dupAdulto)}
           onOtra={() => setDescAdulto(true)}
         />
+      )}
+      {existente && !usando && (
+        <PanelDuplicado
+          por="whatsapp"
+          contacto={comoResumen(existente)}
+          textoUsar="Usar este contacto y agregarle el rol Alumno"
+          onUsar={() => setUsarExistente(true)}
+        />
+      )}
+      {usando && (
+        <p className="text-sm text-[var(--texto-tenue)]">
+          Se le agrega el rol de alumno a {existente.nombre}. Sus datos de contacto no cambian: se editan desde su ficha.
+        </p>
       )}
 
       {/* Tutor (menor) */}

@@ -38,8 +38,8 @@ export default function ClienteAlumnos({
   const etiquetaCanal = (v: string | null) =>
     v ? canales.find((c) => c.valor === v)?.etiqueta ?? v : "—";
 
-  async function onGuardar(datos: DatosAlumno, id: number | null) {
-    const res = id ? await actualizarAlumno(id, datos) : await crearAlumno(datos);
+  async function onGuardar(datos: DatosAlumno, id: number | null, existenteId?: number | null) {
+    const res = id ? await actualizarAlumno(id, datos) : await crearAlumno(datos, existenteId);
     if (!res?.error) {
       setEditSel(null);
       setRemount((n) => n + 1);
