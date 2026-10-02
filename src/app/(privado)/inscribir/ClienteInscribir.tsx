@@ -234,10 +234,8 @@ export default function ClienteInscribir({
     const diasPorCursoOut = plan.cursos
       .map((cu) => ({ cursoId: cu.id, dias: diasPorCurso[cu.id] ?? [] }))
       .filter((x) => x.dias.length > 0);
-    const resumenLocal = [
-      { etiqueta: "Alumno", valor: titularNombre },
-      { etiqueta: "Plan", valor: plan.nombre },
-    ];
+    // El plan ya viene en `res.datos`: acá solo va lo que el servidor no devuelve.
+    const resumenLocal = [{ etiqueta: "Alumno", valor: titularNombre }];
     startTransition(async () => {
       const res = await inscribirYCobrar({
         contactoId: titularId,
