@@ -1225,7 +1225,17 @@ async function errorHorarioOcupado(a: Admin, cursoId: number, fecha: string): Pr
       const ct = r.membresia?.alumno?.contacto;
       return { ...r, alumnoNombre: ct ? `${ct.nombre ?? ""} ${ct.apellido ?? ""}`.trim() : null };
     });
-  const choques = choquesCon(ocupacionDeReservas(reservas), c.hora.slice(0, 5), Number(c.duracion_min));
+  // El motivo de un bloqueo se dice con su etiqueta del catálogo, nunca con la clave.
+  const { data: cat } = await a.from("catalogos").select("id").eq("clave", "motivo_bloqueo_sala").maybeSingle();
+  const { data: vals } = cat
+    ? await a.from("catalogo_valores").select("valor, etiqueta").eq("catalogo_id", (cat as { id: number }).id)
+    : { data: [] as { valor: string; etiqueta: string }[] };
+  const etiquetas = new Map(((vals as { valor: string; etiqueta: string }[]) ?? []).map((v) => [v.valor, v.etiqueta]));
+  const choques = choquesCon(
+    ocupacionDeReservas(reservas, (v) => etiquetas.get(v) ?? v),
+    c.hora.slice(0, 5),
+    Number(c.duracion_min)
+  );
   if (!choques.length) return null;
   const b = choques[0];
   return `No se puede reabrir: el horario está ocupado por ${b.etiqueta} (${b.hora}, ${b.duracionMin} min). Resolvé esa reserva primero.`;

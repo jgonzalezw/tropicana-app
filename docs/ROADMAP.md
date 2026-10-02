@@ -113,6 +113,21 @@ la primera entrega (H1–H9) vive en `docs/relevamientos/2026-09-25-C3-plan-cons
 
 ---
 
+## /sala y Gestionar — diferidos de la estandarización (2026-10-02)
+
+Del plan S1–S4; las decisiones están en `DECISIONES.md` (fila «Estandarización de /sala y Gestionar»).
+
+- **«Asistencia incompleta» en la fila de un curso**: necesita el padrón de cada clase; solo entra si se deriva con una consulta agregada del día.
+- **Umbral de urgencia como parámetro**: hoy es la constante `UMBRAL_URGENCIA_HORAS` (24) en `src/lib/slotSala.ts`; pasarlo a parámetro exige migración (regla de calidad 7).
+- **Editar un bloqueo** desde el panel: no existe (hoy se quita y se crea otro).
+- **Registrar cobro de un alquiler desde el panel**: hoy enlaza a Caja; falta abrir directo la cuota con saldo (`?linea=cuota:<id>`) y mostrarlo solo si hay saldo.
+- **Rechazar con «proponer otro horario»**: hoy «Rechazar solicitud» suspende; falta el flujo de contraoferta.
+- **Sustituto desde `/sala`**: fuera de alcance (se registra al tomar asistencia, regla 20).
+- **Grilla/calendario (C4) y conflicto bloqueo vs. agendado (C5, lado reservas)**, **notificaciones**: siguen donde estaban.
+- **Taller en la agenda (H8)**: `TipoSlot` ya admite `taller` con `planId`; falta leer las reservas del plan.
+
+---
+
 ## Rendimiento de /sala — pendiente tras el Hito B
 
 Del diagnóstico del 2026-10-02, lo que no se tocó:

@@ -4852,3 +4852,29 @@ memoria de `sesion.ts` es `cache` de React, de alcance de petición (no variable
 de módulo). Recorrido en el navegador contra dev: `/sala` carga, Gestionar abre
 con sus acciones e historial, y cambiar la fecha a 03/10 recarga la agenda. `npm test`
 261/261 y `tsc` en verde.
+
+
+## Hito B — estandarización de /sala y panel Gestionar (2026-10-02, dev; sin push)
+
+Sin migración ni cambio de reglas de negocio. Un commit por fase:
+
+1. **S1** — `errorAccesoCurso` / `cursosDeProfesor` (`src/lib/sesion.ts`): con alcance `propio`
+   sobre asistencia, `cargarPadron`, `guardarAsistencia`, `suspenderClase` y `reabrirSesion`
+   exigen que el curso sea del profesor (titular vigente); la lista de `/asistencia` usa el mismo helper.
+2. **S2** — `reabrirSesion` valida en el servidor que el horario siga libre (`errorHorarioOcupado`):
+   si no, «ocupado por [reserva]» sin tocar la otra reserva; vale también en Tomar asistencia.
+   `/asistencia?curso=&fecha=` llega preseleccionada. Prueba nueva en `sala.test.ts`: una clase
+   suspendida no ocupa.
+3. **S3** — `src/lib/slotSala.ts` (forma estándar, estados, resumen, filtros; admite `taller` con
+   `planId`), `SlotFila.tsx` y `consultarDisponibilidad` armando `slots` en la misma lectura
+   (sin consultas por fila). Resumen «N solicitudes por responder» / «N clases por cerrar» con filtro.
+4. **S4** — `PanelGestionar.tsx`: un panel (lateral en escritorio, hoja inferior en celular) por tipo,
+   sobre `GestionReserva` (acciones del Hito B) y, para cursos, `suspenderClase`/`reabrirSesion`/
+   enlace a Tomar asistencia. «Cancelar (lo pidió el cliente)» y «Suspender (lo decide la escuela)»
+   se ven distintos, y toda acción muestra su efecto antes de confirmar.
+
+**Probado en el navegador (dev):** filas nuevas y resumen; panel de una particular con sus acciones;
+curso suspendido (28/09, atenuado, horario libre); con un bloqueo creado en su horario, ambas filas
+a la vez y «Reabrir» deshabilitado con «ocupado por…»; bloqueo quitado después. `tsc`, `eslint`,
+`npm test` (269) en verde. **No probado:** el efecto de «Suspender» en un curso programado y el
+rol sin alcance (la sesión se cerró en medio de la prueba). Diferidos en `ROADMAP.md`.
