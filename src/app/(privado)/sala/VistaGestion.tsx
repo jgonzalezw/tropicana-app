@@ -77,7 +77,7 @@ export default function VistaGestion({
   // Hay un trabajo a medias (p. ej. asistencia sin guardar): Volver avisa.
   const [sinGuardar, setSinGuardar] = useState(false);
   const [confirmandoSalida, setConfirmandoSalida] = useState(false);
-  const [recarga, setRecarga] = useState(0);
+  const recarga = 0;
 
   // Modo enfoque: mientras esta vista está abierta el shell se atenúa (ver
   // globals.css) para que la barra de acciones sea lo único que pide atención.
@@ -85,26 +85,6 @@ export default function VistaGestion({
     document.documentElement.dataset.modoEnfoque = "1";
     return () => {
       delete document.documentElement.dataset.modoEnfoque;
-    };
-  }, []);
-
-  // Al volver el foco desde una pestaña que esta vista abrió (ficha, curso,
-  // cobro), el detalle se recarga: pudo cambiar allá.
-  const abrioExterno = useRef(false);
-  const marcarExterno = useCallback(() => {
-    abrioExterno.current = true;
-  }, []);
-  useEffect(() => {
-    function alVolver() {
-      if (!abrioExterno.current || document.visibilityState !== "visible") return;
-      abrioExterno.current = false;
-      setRecarga((n) => n + 1);
-    }
-    document.addEventListener("visibilitychange", alVolver);
-    window.addEventListener("focus", alVolver);
-    return () => {
-      document.removeEventListener("visibilitychange", alVolver);
-      window.removeEventListener("focus", alVolver);
     };
   }, []);
 
@@ -156,7 +136,6 @@ export default function VistaGestion({
           onAccion={setAccion}
           onSinGuardar={setSinGuardar}
           onCambio={onCambio}
-          onAbrirExterno={marcarExterno}
         />
       ) : slot.reservaId != null && slot.tipo !== "bloqueo" ? (
         <AccionesReserva
@@ -168,7 +147,6 @@ export default function VistaGestion({
           minimoMin={minimoMin}
           onAccion={setAccion}
           onCambio={onCambio}
-          onAbrirExterno={marcarExterno}
         />
       ) : (
         <p className="text-base text-[var(--texto-tenue)]">
@@ -316,7 +294,6 @@ function AccionesReserva({
   minimoMin,
   onAccion,
   onCambio,
-  onAbrirExterno,
 }: {
   slot: SlotSala;
   recarga: number;
@@ -326,7 +303,6 @@ function AccionesReserva({
   minimoMin: number;
   onAccion: (a: AccionPendiente | null) => void;
   onCambio: () => void;
-  onAbrirExterno: () => void;
 }) {
   const [detalle, setDetalle] = useState<DetalleGestionReserva | { error: string } | null>(null);
   // Tras una acción el detalle se pide de nuevo: no queda con datos viejos.
@@ -369,7 +345,6 @@ function AccionesReserva({
         puedeEditar
         mostrarLinkFicha
         onAccion={onAccion}
-        onAbrirExterno={onAbrirExterno}
         onCambio={() => {
           setPropia((n) => n + 1);
           onCambio();
@@ -378,8 +353,8 @@ function AccionesReserva({
       {detalle.tipo === "alquiler" && (
         // El saldo del alquiler no viaja en este detalle: se ofrece el enlace a
         // Caja, que ya registra el cobro (ROADMAP: abrir directo la cuota con saldo).
-        <Link href="/caja" target="_blank" rel="noopener noreferrer" onClick={onAbrirExterno} className={enlace}>
-          Registrar cobro en Caja ↗
+        <Link href="/caja" className={enlace}>
+          Registrar cobro en Caja
         </Link>
       )}
     </div>
@@ -394,7 +369,6 @@ function AccionesCurso({
   onAccion,
   onSinGuardar,
   onCambio,
-  onAbrirExterno,
 }: {
   slot: SlotSala;
   recarga: number;
@@ -402,7 +376,6 @@ function AccionesCurso({
   /** Para la asistencia embebida (paso 4): avisa que hay marcas sin guardar y Volver pide confirmación. */
   onSinGuardar: (hay: boolean) => void;
   onCambio: () => void;
-  onAbrirExterno: () => void;
 }) {
   const [clase, setClase] = useState<ClaseParaGestion | { error: string } | null>(null);
   const [propia, setPropia] = useState(0);
@@ -566,8 +539,8 @@ function AccionesCurso({
       )}
       <AvisosAfectados avisos={avisos} onCerrar={() => setAvisos([])} />
 
-      <Link href="/cursos" target="_blank" rel="noopener noreferrer" onClick={onAbrirExterno} className={enlace}>
-        Ver curso ↗
+      <Link href="/cursos" className={enlace}>
+        Ver curso
       </Link>
     </div>
   );

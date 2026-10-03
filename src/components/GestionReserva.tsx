@@ -173,7 +173,6 @@ export default function GestionReserva({
   onCambio,
   mostrarLinkFicha,
   onAccion,
-  onAbrirExterno,
 }: {
   reserva: ReservaConHistorial;
   membresiaId: number;
@@ -193,14 +192,12 @@ export default function GestionReserva({
    *  el panel enfocado y recargar la disponibilidad — decide quien lo monta. */
   onCambio: () => void;
   /** Link secundario "Ver ficha completa" — solo desde el panel enfocado de `/sala`.
-   *  Se abre en una pestaña nueva, para no perder el punto de partida. */
+   *  Navega en la misma pestaña: Atrás vuelve a la vista de trabajo. */
   mostrarLinkFicha?: boolean;
   /** Modo barra fija (vista de trabajo de `/sala`): la pieza deja de dibujar sus
    *  propios botones de confirmar/volver y le cuenta a la barra cuál es la acción
    *  elegida. Sin esto (ficha de la membresía) se comporta como siempre. */
   onAccion?: (a: AccionPendiente | null) => void;
-  /** Se abrió un enlace en otra pestaña: quien monta recarga al volver el foco. */
-  onAbrirExterno?: () => void;
 }) {
   const [pendiente, startTransition] = useTransition();
   const [resultado, setResultado] = useState<Resultado | null>(null);
@@ -534,12 +531,9 @@ export default function GestionReserva({
         <div className="mt-3">
           <Link
             href={`/${tipo === "alquiler" ? "alquileres" : "particulares"}/${membresiaId}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={onAbrirExterno}
             className="text-sm text-[var(--primario)] underline hover:no-underline"
           >
-            Ver ficha completa de la membresía ↗
+            Ver ficha completa de la membresía
           </Link>
         </div>
       )}
