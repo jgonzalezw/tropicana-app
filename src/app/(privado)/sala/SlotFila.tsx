@@ -72,11 +72,11 @@ export default function SlotFila({
 
   return (
     <div
-      className={`flex items-start gap-3 py-2 ${abierto ? "bg-[color-mix(in_srgb,var(--primario)_10%,transparent)] rounded-[var(--radio-control)] px-2 -mx-2 " : ""}${solicitada ? "border-l-4 border-[var(--advertencia-texto)] pl-3" : ""} ${
+      className={`flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-3 py-3 sm:py-2 ${abierto ? "bg-[color-mix(in_srgb,var(--primario)_10%,transparent)] rounded-[var(--radio-control)] px-2 -mx-2 " : ""}${solicitada ? "border-l-4 border-[var(--advertencia-texto)] pl-3" : ""} ${
         slot.atenuado ? "opacity-60" : ""
       }`}
     >
-      <span className={`text-xs font-semibold px-2 py-1 rounded-full shrink-0 ${CLASE_TIPO[slot.tipo]}`}>
+      <span className={`text-xs font-semibold px-2 py-1 rounded-full shrink-0 self-start ${CLASE_TIPO[slot.tipo]}`}>
         {ETIQUETA_TIPO_SLOT[slot.tipo]}
       </span>
       <div className="flex-1 min-w-0">
@@ -102,19 +102,19 @@ export default function SlotFila({
           </div>
         )}
       </div>
-      <div className="flex items-center gap-3 shrink-0">
+      <div className="flex items-center gap-3 sm:shrink-0">
         {extra}
         {slot.gestionable &&
           (pendiente ? (
             <button
               onClick={onGestionar}
-              className="px-3 py-1.5 text-sm font-semibold rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)]"
+              className="w-full sm:w-auto min-h-11 sm:min-h-0 px-3 py-1.5 text-base sm:text-sm font-semibold rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)]"
               aria-label={`Gestionar: ${pendiente}`}
             >
               Gestionar · {pendiente}
             </button>
           ) : (
-            <button onClick={onGestionar} className="text-sm text-[var(--primario)] hover:underline">
+            <button onClick={onGestionar} className="w-full sm:w-auto min-h-11 sm:min-h-0 px-3 sm:px-0 text-base sm:text-sm text-[var(--primario)] border border-[var(--borde)] rounded-[var(--radio-control)] sm:border-0 hover:underline">
               Gestionar
             </button>
           ))}

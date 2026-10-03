@@ -247,8 +247,8 @@ function BarraGestion({
       }}
     >
       <div>
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex-1 min-w-[12rem] text-base" aria-live="polite">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="sm:flex-1 text-base" aria-live="polite">
             {confirmandoSalida ? (
               <span className="text-[var(--advertencia-texto)]" role="alert">
                 Hay asistencia sin guardar. Si salís ahora se pierde.
@@ -262,21 +262,28 @@ function BarraGestion({
             )}
           </div>
           {confirmandoSalida ? (
-            <>
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:gap-3">
               <button type="button" onClick={onSeguir} className={botonTenue}>
                 Seguir acá
               </button>
               <button type="button" onClick={onSalir} className={botonPeligro}>
                 Salir sin guardar
               </button>
-            </>
+            </div>
           ) : (
-            <>
-              <button type="button" onClick={onVolver} className={botonTenue}>
+            // En celular: la acción primaria arriba y a todo el ancho (el pulgar la alcanza),
+            // y debajo Volver | Cancelar a mitades. En pantalla ancha, todo en una fila.
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-3">
+              <button type="button" onClick={onVolver} className={`${botonTenue} order-2 sm:order-1 ${accion ? "" : "col-span-2 sm:col-span-1"}`}>
                 ← Volver
               </button>
               {accion && (
-                <button type="button" onClick={accion.cancelar} disabled={accion.ejecutando} className={botonTenue}>
+                <button
+                  type="button"
+                  onClick={accion.cancelar}
+                  disabled={accion.ejecutando}
+                  className={`${botonTenue} order-3 sm:order-2`}
+                >
                   Cancelar
                 </button>
               )}
@@ -284,13 +291,13 @@ function BarraGestion({
                 type="button"
                 onClick={accion?.confirmar}
                 disabled={!accion || !accion.puede || accion.ejecutando}
-                className={`px-5 py-3 text-lg font-semibold rounded-[var(--radio-control)] text-[var(--primario-texto)] disabled:opacity-40 ${
+                className={`order-1 sm:order-3 col-span-2 sm:col-span-1 px-5 py-3 text-lg font-semibold rounded-[var(--radio-control)] text-[var(--primario-texto)] disabled:opacity-40 ${
                   accion?.peligro ? "bg-[var(--peligro)] hover:opacity-90" : "bg-[var(--primario)] hover:bg-[var(--primario-hover)]"
                 }`}
               >
                 {accion?.ejecutando ? "Guardando…" : (accion?.etiqueta ?? "Elegí una acción")}
               </button>
-            </>
+            </div>
           )}
         </div>
       </div>
