@@ -120,11 +120,9 @@ export default function VistaGestion({
     slot.tipo === "curso" ? "Aplica solo a esta clase, fecha y hora" : "Aplica solo a esta reserva, fecha y hora";
 
   return (
-    <div className="space-y-5">
-      <button type="button" onClick={volver} className={enlace}>
-        ← Volver a la agenda
-      </button>
-
+    // Una columna angosta (lectura cómoda) cuyo alto llena la pantalla: la barra
+    // de acciones queda al pie de la columna aunque haya poco contenido.
+    <div className="max-w-3xl min-h-[calc(100dvh-12rem)] flex flex-col gap-5">
       <header className="space-y-1">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm font-semibold px-2.5 py-1 rounded-full border border-[var(--borde)]">
@@ -242,14 +240,14 @@ function BarraGestion({
     // ancho de la pantalla y se apoya sobre la barra inferior del shell, sea la
     // que sea (`--shell-barra-inferior`, hoy 0). Sin medidas escritas a mano.
     <div
-      className="sticky -mx-6 sm:-mx-8 mt-6 bg-[var(--fondo-panel)] border-t border-[var(--borde)] pt-3 z-10"
+      className="sticky mt-auto bg-[var(--fondo-panel)] border border-[var(--borde)] rounded-[var(--radio-tarjeta)] shadow-lg p-3 z-10"
       style={{
-        bottom: `calc(var(--shell-barra-inferior) + ${teclado}px)`,
+        bottom: `calc(var(--shell-barra-inferior) + ${teclado}px + 0.5rem)`,
         paddingBottom: teclado > 0 ? "0.75rem" : "calc(0.75rem + env(safe-area-inset-bottom))",
       }}
     >
       <div>
-        <div className="px-6 sm:px-8 flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-3 flex-wrap">
           <div className="flex-1 min-w-[12rem] text-base" aria-live="polite">
             {confirmandoSalida ? (
               <span className="text-[var(--advertencia-texto)]" role="alert">
@@ -609,9 +607,11 @@ function AsistenciaEmbebida({
     },
     [onSinGuardar]
   );
+  // Cancelar (en la barra) vuelve a las acciones, pidiendo confirmar si hay marcas.
+  const salir = useCallback(() => (hayMarcas ? setConfirmandoVolver(true) : alTerminar()), [hayMarcas, alTerminar]);
   const embebido = useMemo(
-    () => ({ onAccion, onSinGuardar: alSinGuardar, alTerminar, alCambiar }),
-    [onAccion, alSinGuardar, alTerminar, alCambiar]
+    () => ({ onAccion, onSinGuardar: alSinGuardar, alTerminar: salir, alCambiar }),
+    [onAccion, alSinGuardar, salir, alCambiar]
   );
 
   return (
@@ -626,11 +626,7 @@ function AsistenciaEmbebida({
             Salir sin guardar
           </button>
         </div>
-      ) : (
-        <button type="button" onClick={() => (hayMarcas ? setConfirmandoVolver(true) : alTerminar())} className={enlace}>
-          ← Volver a las acciones de la clase
-        </button>
-      )}
+      ) : null}
       {!ctx ? (
         <p className="text-base text-[var(--texto-tenue)]">Cargando…</p>
       ) : "error" in ctx ? (
