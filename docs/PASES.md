@@ -4,6 +4,8 @@ Movido desde `DECISIONES.md` §4 el 2026-10-02 para que no se cargue en cada ses
 
 ## 4. Registro de pases a producción
 
+- **Hito B + estandarización de /sala + gestión sin salir de la pantalla — PASADO A PRODUCCIÓN el 2026-10-02**, con el OK explícito de Javier (*"pasa producción hasta acá. Te lo solicito explícitamente"*). **Sin migraciones**: producción sigue en 0001–0062. PR #10, `main` `86a812b` (30 commits), un solo push de código; Javier confirmó el chip PROD. Incluye reservas de alquiler gestionables desde `/sala` (corrige el "Esa reserva no existe"), vista de trabajo con barra fija, asistencia embebida, avisos de WhatsApp al suspender/reabrir y navegación interna en la misma pestaña. Control nuevo en `control_migracion.sql` (no corrido en producción). Detalle en `docs/ESTADO.md`.
+
 - **Cierre de cuentas al desasignar + fecha de inicio al asignar (migración 0062;
   D30) — PASADO A PRODUCCIÓN el 2026-10-01**, con el OK explícito de Javier
   (*"sube cierre de cuentas a producción. OK"*). **Independiente de H7**: rama
