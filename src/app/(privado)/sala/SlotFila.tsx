@@ -93,6 +93,9 @@ export default function SlotFila({
           </span>
         </div>
         {linea2.length > 0 && <div className="text-sm text-[var(--texto-tenue)]">{linea2.join(" · ")}</div>}
+        {pendiente && slot.gestionable && (
+          <div className="text-sm font-semibold text-[var(--advertencia-texto)]">Pendiente: {pendiente}</div>
+        )}
         {(slot.sustituto || slot.lugar || slot.detalle || slot.notas) && (
           <div className="flex gap-2 flex-wrap mt-1">
             {slot.sustituto && <Chip>Relevo: {slot.sustituto}</Chip>}
@@ -104,20 +107,21 @@ export default function SlotFila({
       </div>
       <div className="flex items-center gap-3 sm:shrink-0">
         {extra}
-        {slot.gestionable &&
-          (pendiente ? (
-            <button
-              onClick={onGestionar}
-              className="w-full sm:w-auto min-h-11 sm:min-h-0 px-3 py-1.5 text-base sm:text-sm font-semibold rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)]"
-              aria-label={`Gestionar: ${pendiente}`}
-            >
-              Gestionar · {pendiente}
-            </button>
-          ) : (
-            <button onClick={onGestionar} className="w-full sm:w-auto min-h-11 sm:min-h-0 px-3 sm:px-0 text-base sm:text-sm text-[var(--primario)] border border-[var(--borde)] rounded-[var(--radio-control)] sm:border-0 hover:underline">
-              Gestionar
-            </button>
-          ))}
+        {slot.gestionable && (
+          // Un solo control, igual en todas las filas: lo pendiente se dice en
+          // el texto de la fila y solo cambia el relleno del botón.
+          <button
+            onClick={onGestionar}
+            aria-label={pendiente ? `Gestionar: ${pendiente}` : "Gestionar"}
+            className={`w-full sm:w-28 min-h-11 sm:min-h-9 px-3 text-base sm:text-sm font-semibold rounded-[var(--radio-control)] border ${
+              pendiente
+                ? "bg-[var(--primario)] border-[var(--primario)] text-[var(--primario-texto)]"
+                : "border-[var(--borde)] text-[var(--primario)] hover:border-[var(--primario)]"
+            }`}
+          >
+            Gestionar
+          </button>
+        )}
       </div>
     </div>
   );
