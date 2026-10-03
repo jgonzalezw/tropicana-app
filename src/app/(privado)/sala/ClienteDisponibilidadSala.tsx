@@ -16,15 +16,14 @@
  * el mismo día — el selector de fecha vive una sola vez, en `ClientePanelSala`.
  */
 
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
+import { filtrarSlots, type FiltroAgenda, type SlotSala } from "@/lib/slotSala";
+import SlotFila from "./SlotFila";
 import { describirTramos, describirVentanas } from "@/lib/sala";
 import { etiquetaDuracion } from "@/lib/horarios";
 import AvisoWhatsapp from "@/components/AvisoWhatsapp";
-import GestionReserva from "@/components/GestionReserva";
-import { obtenerReservaParaGestion, type DetalleGestionReserva } from "@/app/(privado)/particulares/acciones";
 import {
   cancelarReservaSala,
-  consultarDisponibilidad,
   crearBloqueoSala,
   type AvisoOperativo,
   type BloqueDisponibilidad,
@@ -40,25 +39,12 @@ function diaLargo(iso: string): string {
 const control =
   "px-3 py-2 rounded-[var(--radio-control)] border border-[var(--borde)] bg-[var(--fondo)] text-base";
 
-const ETIQUETA_TIPO: Record<BloqueDisponibilidad["tipo"], string> = {
-  curso: "Curso",
-  particular: "Particular",
-  alquiler: "Alquiler",
-  bloqueo: "Bloqueo",
-};
-
-const CLASE_TAG: Record<BloqueDisponibilidad["tipo"], string> = {
-  curso: "bg-[color-mix(in_srgb,var(--primario)_16%,transparent)] text-[var(--primario)]",
-  particular: "bg-[color-mix(in_srgb,var(--exito)_16%,transparent)] text-[var(--exito)]",
-  alquiler: "bg-[color-mix(in_srgb,var(--exito)_16%,transparent)] text-[var(--exito)]",
-  bloqueo: "bg-[color-mix(in_srgb,var(--peligro)_14%,transparent)] text-[var(--peligro)]",
-};
-
 const vacia: DisponibilidadDia = {
   ventanas: [],
   excepcion: null,
   excepcionMotivoTexto: null,
   ocupados: [],
+  slots: [],
   tramosLibres: [],
   error: null,
 };
@@ -67,30 +53,38 @@ export default function ClienteDisponibilidadSala({
   salaId,
   salaNombre,
   fecha,
+  datos: datosProp,
+  cargando,
+  onRecargar: recargar,
   motivos,
   opcionesDuracionMin,
   puedeEditar,
-  salasPropias,
-  motivosSuspension,
-  incrementoMin,
-  minimoMin,
+  ahora,
+  filtro,
+  enfocadoClave,
+  onGestionar,
 }: {
   salaId: number;
   salaNombre: string;
   fecha: string;
+  /** La agenda la carga `ClientePanelSala` una sola vez para todas las salas;
+   *  `null` = todavía no llegó la primera lectura. */
+  datos: DisponibilidadDia | null;
+  cargando: boolean;
+  onRecargar: () => void;
   motivos: { valor: string; etiqueta: string }[];
   opcionesDuracionMin: number[];
   puedeEditar: boolean;
-  /** H4 — para el panel de gestión de una reserva (`GestionReserva`): todas
-   *  las salas propias (no solo esta tarjeta, por si se reprograma a otra) y
-   *  los mismos motivos/tiempos que usa `/particulares/[id]`. */
-  salasPropias: { id: number; nombre: string }[];
-  motivosSuspension: { valor: string; etiqueta: string }[];
-  incrementoMin: number;
-  minimoMin: number;
+  /** Hora de la última lectura de la agenda (para "por cerrar"). */
+  ahora: Date;
+  /** Filtro del resumen de arriba (solicitudes / por cerrar / todo). */
+  filtro: FiltroAgenda;
+  /** El slot cuyo panel Gestionar está abierto (lo maneja `ClientePanelSala`). */
+  enfocadoClave: string | null;
+  onGestionar: (slot: SlotSala) => void;
 }) {
-  const [datos, setDatos] = useState<DisponibilidadDia>(vacia);
-  const [cargando, startCarga] = useTransition();
+  const datos = datosProp ?? vacia;
+  const slotsVisibles = filtrarSlots(datos.slots, filtro, ahora);
   const [pendiente, startTransition] = useTransition();
 
   const [mostrarForm, setMostrarForm] = useState(false);
@@ -111,26 +105,6 @@ export default function ClienteDisponibilidadSala({
   } | null>(null);
   const [avisosOperativos, setAvisosOperativos] = useState<AvisoOperativo[] | null>(null);
 
-  // H4: panel de gestión de UNA reserva puntual, enfocado — reemplaza el
-  // salto directo a la ficha completa de la membresía (Javier, 26/09).
-  const [enfoqueId, setEnfoqueId] = useState<number | null>(null);
-  const [detalleGestion, setDetalleGestion] = useState<DetalleGestionReserva | { error: string } | null>(null);
-  const [pendienteGestion, startGestion] = useTransition();
-
-  function abrirGestion(reservaId: number) {
-    setEnfoqueId(reservaId);
-    setDetalleGestion(null);
-    startGestion(async () => {
-      const r = await obtenerReservaParaGestion(reservaId);
-      setDetalleGestion(r);
-    });
-  }
-
-  function cerrarGestion() {
-    setEnfoqueId(null);
-    setDetalleGestion(null);
-  }
-
   // **Un solo aviso para toda la tarjeta**, no uno por acción. Antes había
   // `errForm/msgForm` (bloquear) y `errCancelar/msgCancelar` (cancelar) por
   // separado, y ninguno se limpiaba cuando arrancaba la OTRA acción: el
@@ -142,30 +116,6 @@ export default function ClienteDisponibilidadSala({
   // confirmar cancelación) y vive fuera de `mostrarForm` para que el mensaje
   // de éxito se siga viendo aunque el formulario se colapse.
   const [aviso, setAviso] = useState<{ ok: boolean; texto: string } | null>(null);
-
-  function recargar() {
-    startCarga(async () => {
-      const r = await consultarDisponibilidad(salaId, fecha);
-      setDatos(r);
-    });
-  }
-
-  useEffect(() => {
-    recargar();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [salaId, fecha]);
-
-  // Cambiar de sala o de fecha cierra el panel de gestión: la reserva
-  // enfocada puede ya no estar en la lista nueva. Ajustado durante el render
-  // (no en el efecto de arriba, que ya dispara `recargar`) — mismo patrón que
-  // `BarraLateral` usa para resetear estado cuando cambia el pathname.
-  const claveDia = `${salaId}|${fecha}`;
-  const [claveDiaAnterior, setClaveDiaAnterior] = useState(claveDia);
-  if (claveDia !== claveDiaAnterior) {
-    setClaveDiaAnterior(claveDia);
-    setEnfoqueId(null);
-    setDetalleGestion(null);
-  }
 
   function abrirFormulario() {
     setAviso(null);
@@ -261,85 +211,34 @@ export default function ClienteDisponibilidadSala({
           </div>
         ) : (
           <div className="space-y-2">
-            {datos.ocupados.length === 0 ? (
-              <p className="text-base text-[var(--texto-tenue)]">Sin nada ocupado todavía.</p>
+            {slotsVisibles.length === 0 ? (
+              <p className="text-base text-[var(--texto-tenue)]">
+                {filtro === "todo" ? "Sin nada ocupado todavía." : "Nada pendiente en esta sala."}
+              </p>
             ) : (
-              datos.ocupados.map((b, i) => {
-                const ini = b.hora;
-                const finMin = Number(ini.slice(0, 2)) * 60 + Number(ini.slice(3, 5)) + b.duracionMin;
-                const fin = `${String(Math.floor(finMin / 60) % 24).padStart(2, "0")}:${String(finMin % 60).padStart(2, "0")}`;
-                const id = b.id;
+              slotsVisibles.map((sl) => {
+                const id = sl.reservaId;
                 return (
-                  <div key={b.id ?? `curso-${i}`} className="border-t border-[var(--borde)] first:border-t-0">
-                    <div className="flex items-start gap-3 py-2">
-                      <span className={`text-xs font-semibold px-2 py-1 rounded-full shrink-0 ${CLASE_TAG[b.tipo]}`}>
-                        {ETIQUETA_TIPO[b.tipo]}
-                      </span>
-                      <div className="flex-1">
-                        <div className="text-base">
-                          <strong>
-                            {ini}–{fin}
-                          </strong>{" "}
-                          {b.etiqueta}
-                        </div>
-                        {b.detalle && <div className="text-sm text-[var(--texto-tenue)]">{b.detalle}</div>}
-                        {b.notas && (
-                          <div className="text-sm text-[var(--texto-tenue)] mt-0.5">📝 {b.notas}</div>
-                        )}
-                      </div>
-                      {/* H4: reemplaza el link directo a la ficha completa — la
-                          intención acá es actuar sobre ESTA reserva, no ver
-                          todas las de la membresía (Javier, 26/09). */}
-                      {b.gestionable && id != null && (
-                        <button
-                          onClick={() => (enfoqueId === id ? cerrarGestion() : abrirGestion(id))}
-                          className="text-sm text-[var(--primario)] hover:underline shrink-0"
-                        >
-                          {enfoqueId === id ? "Cerrar" : "Gestionar"}
-                        </button>
-                      )}
-                      {puedeEditar && b.id != null && b.tipo === "bloqueo" && (
-                        <button
-                          onClick={() => pedirCancelacion(b)}
-                          className="text-sm text-[var(--texto-tenue)] hover:text-[var(--peligro)]"
-                        >
-                          Cancelar
-                        </button>
-                      )}
-                    </div>
-                    {enfoqueId === b.id && (
-                      <div className="mb-3 ml-1 pl-3 border-l-2 border-[var(--primario)]">
-                        {pendienteGestion && !detalleGestion ? (
-                          <p className="text-sm text-[var(--texto-tenue)]">Cargando…</p>
-                        ) : detalleGestion && "error" in detalleGestion ? (
-                          <p className="text-[var(--peligro)]" role="alert">
-                            {detalleGestion.error}
-                          </p>
-                        ) : detalleGestion ? (
-                          <GestionReserva
-                            reserva={detalleGestion.reserva}
-                            membresiaId={detalleGestion.membresiaId}
-                            disponibleMin={detalleGestion.disponibleMin}
-                            fechaInicioMembresia={detalleGestion.fechaInicioMembresia}
-                            fechaFinMembresia={detalleGestion.fechaFinMembresia}
-                            salasPropias={salasPropias}
-                            salaExternaDeLaMembresia={(() => {
-                              const ext = detalleGestion.salasDeLaMembresia.find((s) => s.esExterna);
-                              return ext ? { salaId: ext.salaId, nombre: ext.nombre } : null;
-                            })()}
-                            motivosSuspension={motivosSuspension}
-                            incrementoMin={incrementoMin}
-                            minimoMin={minimoMin}
-                            puedeEditar
-                            mostrarLinkFicha
-                            onCambio={() => {
-                              cerrarGestion();
-                              recargar();
+                  <div key={sl.clave} className="border-t border-[var(--borde)] first:border-t-0">
+                    <SlotFila
+                      slot={sl}
+                      ahora={ahora}
+                      abierto={enfocadoClave === sl.clave}
+                      onGestionar={() => onGestionar(sl)}
+                      extra={
+                        puedeEditar && id != null && sl.tipo === "bloqueo" ? (
+                          <button
+                            onClick={() => {
+                              const b = datos.ocupados.find((o) => o.id === id);
+                              if (b) pedirCancelacion(b);
                             }}
-                          />
-                        ) : null}
-                      </div>
-                    )}
+                            className="text-sm text-[var(--texto-tenue)] hover:text-[var(--peligro)]"
+                          >
+                            Quitar bloqueo
+                          </button>
+                        ) : null
+                      }
+                    />
                   </div>
                 );
               })

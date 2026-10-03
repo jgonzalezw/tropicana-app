@@ -4,7 +4,7 @@
  * Panel de gestión de UNA reserva de particular (H4, 2026-09-26).
  *
  * Extraído del bloque por-reserva que vivía inline en
- * `particulares/[id]/ClienteMembresiaParticular.tsx` (regla de proceso 4:
+ * `src/components/ReservasDeMembresia.tsx` (regla de proceso 4:
  * una pieza por entidad, montada igual en todos lados — acá la entidad es
  * "una reserva"). Se monta en dos lugares:
  *   - `/particulares/[id]`: una tarjeta por cada reserva de la membresía,
@@ -18,11 +18,12 @@
  *     para cuando de verdad hace falta ver todo.
  */
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { formatearHoras, opcionesDuracionReserva } from "@/lib/horarios";
 import { ETIQUETA_ESTADO_RESERVA, validarTiempoReserva, type EstadoReserva } from "@/lib/reservas";
 import AvisoWhatsapp from "@/components/AvisoWhatsapp";
+import type { AccionPendiente } from "@/lib/accionPendiente";
 import {
   cambiarEstadoReserva,
   reprogramarReserva,
@@ -51,6 +52,55 @@ const ETIQUETA_DESTINO: Record<EstadoReserva, string> = {
   realizada: "Marcar Realizada",
 };
 
+/** Cómo se llama cada acción según desde dónde se la pide. Cancelar (lo inicia
+ *  el cliente) y Suspender (lo inicia la escuela) se ven distintos a propósito. */
+function etiquetaDestino(destino: EstadoReserva, actual: EstadoReserva, tipo: "particular" | "alquiler"): string {
+  if (destino === "suspendida") return actual === "solicitada" ? "Rechazar solicitud" : "Suspender (lo decide la escuela)";
+  if (destino === "reagendar") return "Cancelar (lo pidió el cliente)";
+  if (destino === "ausente" && tipo === "alquiler") return "No se presentó";
+  return ETIQUETA_DESTINO[destino];
+}
+
+/** El nombre de la acción en el botón primario de la barra fija: dice qué se va a hacer. */
+function etiquetaPrimaria(destino: EstadoReserva, actual: EstadoReserva, tipo: "particular" | "alquiler"): string {
+  switch (destino) {
+    case "confirmada":
+      return "Confirmar reserva";
+    case "reprogramada":
+      return "Reprogramar reserva";
+    case "reagendar":
+      return "Confirmar cancelación del cliente";
+    case "suspendida":
+      return actual === "solicitada" ? "Rechazar solicitud" : "Suspender reserva";
+    case "ausente":
+      return tipo === "alquiler" ? "Marcar: no se presentó" : "Marcar ausente";
+    case "realizada":
+      return "Marcar realizada";
+    default:
+      return "Confirmar";
+  }
+}
+
+/** Qué pasa si se confirma — se muestra ANTES de confirmar (Hito B, S4). */
+function efectoDestino(destino: EstadoReserva, actual: EstadoReserva): string {
+  switch (destino) {
+    case "confirmada":
+      return "Se confirma: descuenta la hora del saldo y mantiene la sala y el profesor ocupados.";
+    case "reagendar":
+      return "Lo pidió el cliente: la hora vuelve al saldo y se libera la sala y el profesor. Si es fuera de plazo, queda como Ausente y consume la hora.";
+    case "suspendida":
+      return actual === "solicitada"
+        ? "Se rechaza la solicitud: se libera la sala y el profesor, sin tocar el saldo. Se arma un aviso para el cliente."
+        : "Lo decide la escuela: la hora vuelve al saldo (no consume) y se libera la sala y el profesor. Se arman avisos.";
+    case "ausente":
+      return "El cliente no vino: la hora se consume del saldo.";
+    case "realizada":
+      return "La clase se dio: la hora se consume del saldo.";
+    default:
+      return "";
+  }
+}
+
 const COLOR_ESTADO: Record<EstadoReserva, string> = {
   solicitada: "text-[var(--advertencia)]",
   confirmada: "text-[var(--exito)]",
@@ -75,7 +125,7 @@ function fechaHoraCorta(fecha: string, hora: string): string {
 }
 
 /** "26/09/2026 01:22", siempre en hora de Bolivia — ver la nota de
- *  `ClienteMembresiaParticular.tsx` sobre por qué hace falta `timeZone`
+ *  `ReservasDeMembresia.tsx` sobre por qué hace falta `timeZone`
  *  explícito y 24 h para no romper la hidratación entre server y cliente. */
 const FORMATO_FECHA_HORA = new Intl.DateTimeFormat("es-BO", {
   timeZone: "America/La_Paz",
@@ -110,6 +160,7 @@ function PanelResultado({ r }: { r: Resultado }) {
 export default function GestionReserva({
   reserva,
   membresiaId,
+  tipo = "particular",
   disponibleMin,
   fechaInicioMembresia,
   fechaFinMembresia,
@@ -121,9 +172,12 @@ export default function GestionReserva({
   puedeEditar,
   onCambio,
   mostrarLinkFicha,
+  onAccion,
 }: {
   reserva: ReservaConHistorial;
   membresiaId: number;
+  /** Decide a qué ficha lleva el link: `/particulares/[id]` o `/alquileres/[id]`. */
+  tipo?: "particular" | "alquiler";
   /** Saldo actual del paquete — gobierna cuánto se puede alargar al reprogramar. */
   disponibleMin: number;
   fechaInicioMembresia: string;
@@ -137,8 +191,13 @@ export default function GestionReserva({
   /** Qué hacer tras una acción exitosa: refrescar la ficha completa, o cerrar
    *  el panel enfocado y recargar la disponibilidad — decide quien lo monta. */
   onCambio: () => void;
-  /** Link secundario "Ver ficha completa" — solo desde el panel enfocado de `/sala`. */
+  /** Link secundario "Ver ficha completa" — solo desde el panel enfocado de `/sala`.
+   *  Navega en la misma pestaña: Atrás vuelve a la vista de trabajo. */
   mostrarLinkFicha?: boolean;
+  /** Modo barra fija (vista de trabajo de `/sala`): la pieza deja de dibujar sus
+   *  propios botones de confirmar/volver y le cuenta a la barra cuál es la acción
+   *  elegida. Sin esto (ficha de la membresía) se comporta como siempre. */
+  onAccion?: (a: AccionPendiente | null) => void;
 }) {
   const [pendiente, startTransition] = useTransition();
   const [resultado, setResultado] = useState<Resultado | null>(null);
@@ -235,6 +294,60 @@ export default function GestionReserva({
           : (validarTiempoReserva({ hora: rHora, duracionMin: rDuracion, incrementoMin, minimoMin }) ?? (rSalaId == null ? "Elegí la sala." : null))
       : null;
 
+  // ── Modo barra fija ────────────────────────────────────────────────────────
+  const enBarra = !!onAccion;
+  const etiquetaBarra = accion ? etiquetaPrimaria(accion, reserva.estado, tipo) : abrirCortesia ? "Guardar cortesía" : null;
+  const faltaBarra = accion
+    ? accion === "suspendida"
+      ? motivoSuspension
+        ? null
+        : "Elegí el motivo de la suspensión."
+      : accion === "reprogramada"
+        ? faltaReprogramar
+        : null
+    : abrirCortesia && !motivoCortesia.trim()
+      ? "Escribí el motivo de la cortesía."
+      : null;
+  const peligroBarra = accion === "reagendar" || accion === "suspendida";
+  // La barra llama siempre a la última versión de estas funciones, sin que
+  // cada tecla vuelva a publicar la acción.
+  const ultima = useRef({ confirmar: () => {}, cancelar: () => {} });
+  useEffect(() => {
+    ultima.current = {
+      confirmar: () => {
+        if (accion === "reprogramada") confirmarReprogramar();
+        else if (accion === "suspendida") transicionar("suspendida", { motivo: motivoSuspension });
+        else if (accion) transicionar(accion);
+        else guardarCortesia(motivoCortesia);
+      },
+      cancelar: () => {
+        if (accion) setAccion(null);
+        else {
+          setAbrirCortesia(false);
+          setMotivoCortesia("");
+        }
+      },
+    };
+  });
+  useEffect(() => {
+    if (!onAccion) return;
+    onAccion(
+      etiquetaBarra
+        ? {
+            etiqueta: etiquetaBarra,
+            peligro: peligroBarra,
+            puede: !faltaBarra,
+            falta: faltaBarra,
+            ejecutando: pendiente,
+            confirmar: () => ultima.current.confirmar(),
+            cancelar: () => ultima.current.cancelar(),
+          }
+        : null
+    );
+  }, [onAccion, etiquetaBarra, peligroBarra, faltaBarra, pendiente]);
+  // Al desmontar (volver a la agenda) no queda ninguna acción colgada en la barra.
+  useEffect(() => () => onAccion?.(null), [onAccion]);
+
   return (
     <div>
       <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -255,6 +368,7 @@ export default function GestionReserva({
 
       {puedeEditar && accion === "suspendida" && (
         <div className="mt-3">
+          <p className="text-sm text-[var(--texto-tenue)] mb-2">{efectoDestino("suspendida", reserva.estado)}</p>
           <div className="max-w-sm">
             <label className={etiqueta}>Motivo de la suspensión</label>
             <select className={control} value={motivoSuspension} onChange={(e) => setMotivoSuspension(e.target.value)}>
@@ -266,14 +380,16 @@ export default function GestionReserva({
               ))}
             </select>
           </div>
-          <div className="mt-3 flex gap-2 flex-wrap">
-            <button className={botonPrimario} disabled={pendiente || !motivoSuspension} onClick={() => transicionar("suspendida", { motivo: motivoSuspension })}>
-              Confirmar suspensión
-            </button>
-            <button className={botonTenue} onClick={() => setAccion(null)}>
-              Volver
-            </button>
-          </div>
+          {!enBarra && (
+            <div className="mt-3 flex gap-2 flex-wrap">
+              <button className={botonPrimario} disabled={pendiente || !motivoSuspension} onClick={() => transicionar("suspendida", { motivo: motivoSuspension })}>
+                {reserva.estado === "solicitada" ? "Confirmar rechazo" : "Confirmar suspensión"}
+              </button>
+              <button className={botonTenue} onClick={() => setAccion(null)}>
+                Volver
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -316,15 +432,37 @@ export default function GestionReserva({
               </select>
             </div>
           </div>
-          <div className="mt-3 flex gap-2 flex-wrap items-center">
-            <button className={botonPrimario} disabled={pendiente || !!faltaReprogramar} onClick={confirmarReprogramar}>
-              Confirmar reprogramación
-            </button>
-            <button className={botonTenue} onClick={() => setAccion(null)}>
-              Volver
-            </button>
-            {faltaReprogramar && <span className="text-sm text-[var(--texto-tenue)]">{faltaReprogramar}</span>}
-          </div>
+          {!enBarra && (
+            <div className="mt-3 flex gap-2 flex-wrap items-center">
+              <button className={botonPrimario} disabled={pendiente || !!faltaReprogramar} onClick={confirmarReprogramar}>
+                Confirmar reprogramación
+              </button>
+              <button className={botonTenue} onClick={() => setAccion(null)}>
+                Volver
+              </button>
+              {faltaReprogramar && <span className="text-sm text-[var(--texto-tenue)]">{faltaReprogramar}</span>}
+            </div>
+          )}
+        </div>
+      )}
+
+      {puedeEditar && accion && accion !== "suspendida" && accion !== "reprogramada" && (
+        <div className="mt-3">
+          <p className="text-sm text-[var(--texto-tenue)] mb-2">{efectoDestino(accion, reserva.estado)}</p>
+          {!enBarra && (
+            <div className="flex gap-2 flex-wrap">
+              <button
+                className={accion === "reagendar" ? botonPeligro : botonPrimario}
+                disabled={pendiente}
+                onClick={() => transicionar(accion)}
+              >
+                Confirmar: {etiquetaDestino(accion, reserva.estado, tipo)}
+              </button>
+              <button className={botonTenue} onClick={() => setAccion(null)}>
+                Volver
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -337,12 +475,11 @@ export default function GestionReserva({
               className={destino === "reagendar" ? botonPeligro : botonTenue}
               onClick={() => {
                 setResultado(null);
-                if (destino === "suspendida") setAccion(destino);
-                else if (destino === "reprogramada") abrirReprogramar();
-                else transicionar(destino);
+                if (destino === "reprogramada") abrirReprogramar();
+                else setAccion(destino);
               }}
             >
-              {ETIQUETA_DESTINO[destino]}
+              {etiquetaDestino(destino, reserva.estado, tipo)}
             </button>
           ))}
         </div>
@@ -369,18 +506,20 @@ export default function GestionReserva({
             <div>
               <label className={etiqueta}>Motivo de la cortesía (quién la otorga, por qué)</label>
               <input className={control} value={motivoCortesia} onChange={(e) => setMotivoCortesia(e.target.value)} />
-              <div className="mt-2 flex gap-2 flex-wrap">
-                <button
-                  disabled={pendiente || !motivoCortesia.trim()}
-                  className={botonPrimario}
-                  onClick={() => guardarCortesia(motivoCortesia)}
-                >
-                  Guardar cortesía
-                </button>
-                <button disabled={pendiente} className={botonTenue} onClick={() => { setAbrirCortesia(false); setMotivoCortesia(""); }}>
-                  Cancelar
-                </button>
-              </div>
+              {!enBarra && (
+                <div className="mt-2 flex gap-2 flex-wrap">
+                  <button
+                    disabled={pendiente || !motivoCortesia.trim()}
+                    className={botonPrimario}
+                    onClick={() => guardarCortesia(motivoCortesia)}
+                  >
+                    Guardar cortesía
+                  </button>
+                  <button disabled={pendiente} className={botonTenue} onClick={() => { setAbrirCortesia(false); setMotivoCortesia(""); }}>
+                    Cancelar
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -390,8 +529,11 @@ export default function GestionReserva({
 
       {mostrarLinkFicha && (
         <div className="mt-3">
-          <Link href={`/particulares/${membresiaId}`} className="text-sm text-[var(--primario)] underline hover:no-underline">
-            Ver ficha completa de la membresía →
+          <Link
+            href={`/${tipo === "alquiler" ? "alquileres" : "particulares"}/${membresiaId}`}
+            className="text-sm text-[var(--primario)] underline hover:no-underline"
+          >
+            Ver ficha completa de la membresía
           </Link>
         </div>
       )}

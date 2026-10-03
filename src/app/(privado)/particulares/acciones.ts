@@ -23,7 +23,8 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { tienePermiso, obtenerParametro, obtenerPerfilActual, alcancePropioDe } from "@/lib/sesion";
-import { apellidoDe } from "@/lib/contactos";
+import { apellidoDe, nombreCompleto } from "@/lib/contactos";
+import { destinatarioDeTitular } from "@/lib/destinatarioTitular";
 import { recalcularMembresia } from "@/lib/membresias";
 import { formatearHoras, aMinutos, horaFin } from "@/lib/horarios";
 import {
@@ -54,6 +55,69 @@ type ResultadoAccion = {
   avisoAlumno?: AvisoPersona;
   avisoProfesor?: AvisoPersona;
 };
+
+// ── Qué tipo de membresía es, y quién puede tocarla ──────────────────────
+//
+// Las acciones de reserva (crear, cambiar de estado, reprogramar, cancelar)
+// sirven a las dos membresías de paquete de horas: la **particular** (módulo
+// `particulares`, dueño = su profesor) y el **alquiler** (módulo `alquileres`,
+// sin profesor; el dueño será el titular, Hito C). Una sola pieza, no una copia
+// por tipo (regla de proceso 4): este resolvedor dice cuál es y con qué permiso.
+
+type TipoMembresiaReservas = "particular" | "alquiler";
+type ContextoMembresia = {
+  tipo: TipoMembresiaReservas;
+  modulo: "particulares" | "alquileres";
+  /** El profesor de la membresía; `null` en un alquiler. */
+  profesorId: number | null;
+};
+
+async function contextoReservaMembresia(a: ReturnType<typeof admin>, membresiaId: number): Promise<ContextoMembresia | null> {
+  const { data } = await a
+    .from("membresias")
+    .select("profesor_id, categoria_aplicada, curso_id")
+    .eq("id", membresiaId)
+    .maybeSingle();
+  const m = data as { profesor_id: number | null; categoria_aplicada: string | null; curso_id: number | null } | null;
+  if (!m || m.curso_id != null) return null;
+  const tipo: TipoMembresiaReservas = m.categoria_aplicada != null ? "alquiler" : "particular";
+  return { tipo, modulo: tipo === "alquiler" ? "alquileres" : "particulares", profesorId: m.profesor_id };
+}
+
+/** Corte barato antes de leer nada: ¿tiene el permiso en alguno de los dos módulos? */
+async function permisoEnAlguno(accion: "ver" | "crear" | "editar"): Promise<boolean> {
+  const [enParticulares, enAlquileres] = await Promise.all([
+    tienePermiso("particulares", accion),
+    tienePermiso("alquileres", accion),
+  ]);
+  return enParticulares || enAlquileres;
+}
+
+function revalidarReservas(tipo: TipoMembresiaReservas, membresiaId: number) {
+  const base = tipo === "alquiler" ? "/alquileres" : "/particulares";
+  revalidatePath(`${base}/${membresiaId}`);
+  revalidatePath(base);
+}
+
+/**
+ * Permiso del módulo que corresponde al tipo + dueño. Devuelve el texto del
+ * error, o `null` si puede. `duenoProfesorId` es el profesor de la fila que se
+ * toca (la reserva o la membresía). En un alquiler el alcance "propio" todavía
+ * no existe (Hito C): si el rol lo tuviera configurado, se niega en vez de
+ * mostrar de más (falla cerrado).
+ */
+async function autorizarSobre(
+  ctx: ContextoMembresia,
+  accion: "ver" | "crear" | "editar",
+  mensajes: { sinPermiso: string; otroProfesor: string },
+  duenoProfesorId: number | null = ctx.profesorId
+): Promise<string | null> {
+  if (!(await tienePermiso(ctx.modulo, accion))) return mensajes.sinPermiso;
+  const { propio, profesorId } = await alcancePropioDe(ctx.modulo);
+  if (!propio) return null;
+  if (ctx.tipo === "alquiler") return "Tu rol ve solo los alquileres propios, y eso todavía no está habilitado.";
+  return duenoProfesorId !== profesorId ? mensajes.otroProfesor : null;
+}
 
 /**
  * A quién avisar por el alumno: a él mismo, o a su tutor si es menor — igual
@@ -119,6 +183,12 @@ const h = (min: number) => formatearHoras(min / 60);
  */
 type ContextoAviso = {
   destinatario: { nombre: string; whatsapp: string | null } | null;
+  /** "tu clase particular (Plan) con Prof" / "tu alquiler de sala (Plan)". */
+  tuClase: string;
+  /** Lo mismo sin el profesor: para "del vie 02/10 …". */
+  tuClaseCorta: string;
+  /** "paquete" o "alquiler": cómo se llama lo que se va gastando. */
+  paquete: string;
   alumnoNombre: string;
   profesor: { nombre: string; whatsapp: string | null };
   planNombre: string;
@@ -135,15 +205,19 @@ async function contextoAviso(
   const { data: mRow } = await a
     .from("membresias")
     .select(
-      "alumno_id, horas_contratadas, plan:planes(nombre), " +
+      "alumno_id, horas_contratadas, categoria_aplicada, contacto_id, plan:planes(nombre), " +
         "alumno:alumnos(contacto:contactos(nombre, apellido)), " +
+        "titular:contactos(tipo, nombre, apellido, razon_social, whatsapp), " +
         "profesor:profesores(contacto:contactos(nombre, apellido, whatsapp))"
     )
     .eq("id", membresiaId)
     .maybeSingle();
   const m = mRow as unknown as {
-    alumno_id: number;
+    alumno_id: number | null;
     horas_contratadas: number;
+    categoria_aplicada: string | null;
+    contacto_id: number | null;
+    titular: { tipo: "persona" | "organizacion"; nombre: string | null; apellido: string | null; razon_social: string | null; whatsapp: string | null } | null;
     plan: { nombre: string } | null;
     alumno: { contacto: { nombre: string | null; apellido: string | null } | null } | null;
     profesor: { contacto: { nombre: string | null; apellido: string | null; whatsapp: string | null } | null } | null;
@@ -154,7 +228,18 @@ async function contextoAviso(
     a.from("salas").select("id, nombre"),
     a.from("membresia_salas").select("sala_id, nombre_descriptivo").eq("membresia_id", membresiaId),
     a.from("reservas_sala").select("estado, duracion_min, solicitada_hasta, es_cortesia").eq("membresia_id", membresiaId),
-    destinatarioDeAlumno(sb, m.alumno_id),
+    // Alquiler: el aviso va al titular (o a su persona de contacto); no hay alumno.
+    m.categoria_aplicada != null
+      ? m.contacto_id != null
+        ? destinatarioDeTitular(a, {
+            id: m.contacto_id,
+            nombre: nombreCompleto(m.titular ? { tipo: m.titular.tipo, nombre: m.titular.nombre, apellido: m.titular.apellido, razon_social: m.titular.razon_social } : null),
+            whatsapp: m.titular?.whatsapp ?? null,
+          })
+        : Promise.resolve(null)
+      : m.alumno_id != null
+        ? destinatarioDeAlumno(sb, m.alumno_id)
+        : Promise.resolve(null),
   ]);
   const salas = (salasR.data as { id: number; nombre: string }[]) ?? [];
   const ms = (msR.data as { sala_id: number; nombre_descriptivo: string | null }[]) ?? [];
@@ -164,11 +249,21 @@ async function contextoAviso(
     ahora: new Date(),
   });
   const pc = m.profesor?.contacto;
+  const esAlquiler = m.categoria_aplicada != null;
+  const planNombre = m.plan?.nombre ?? (esAlquiler ? "alquiler de sala" : "clases particulares");
+  const profesorNombre = `${pc?.nombre ?? ""} ${pc?.apellido ?? ""}`.trim();
+  const alumnoNombre = esAlquiler
+    ? nombreCompleto(m.titular ? { tipo: m.titular.tipo, nombre: m.titular.nombre, apellido: m.titular.apellido, razon_social: m.titular.razon_social } : null)
+    : `${m.alumno?.contacto?.nombre ?? ""} ${m.alumno?.contacto?.apellido ?? ""}`.trim();
   return {
     destinatario,
-    alumnoNombre: `${m.alumno?.contacto?.nombre ?? ""} ${m.alumno?.contacto?.apellido ?? ""}`.trim() || "el alumno",
-    profesor: { nombre: `${pc?.nombre ?? ""} ${pc?.apellido ?? ""}`.trim(), whatsapp: pc?.whatsapp ?? null },
-    planNombre: m.plan?.nombre ?? "clases particulares",
+    tuClase: esAlquiler ? `tu alquiler de sala (${planNombre})` : `tu clase particular (${planNombre}) con ${profesorNombre}`,
+    tuClaseCorta: esAlquiler ? `tu alquiler de sala (${planNombre})` : `tu clase particular (${planNombre})`,
+    paquete: esAlquiler ? "alquiler" : "paquete",
+    alumnoNombre: alumnoNombre || (esAlquiler ? "el titular" : "el alumno"),
+    // Sin profesor (alquiler): `avisos()` no arma el aviso al profesor.
+    profesor: { nombre: profesorNombre, whatsapp: pc?.whatsapp ?? null },
+    planNombre,
     contratadasMin: saldo.contratadasMin,
     disponibleMin: saldo.disponibleMin,
     lugar: (salaId) => {
@@ -188,7 +283,7 @@ function avisos(c: ContextoAviso | null, alumno: string, profesor: string): Pick
   };
 }
 
-const saldoTexto = (c: ContextoAviso) => `Te quedan ${h(c.disponibleMin)} h de tu paquete de ${h(c.contratadasMin)} h.`;
+const saldoTexto = (c: ContextoAviso) => `Te quedan ${h(c.disponibleMin)} h de tu ${c.paquete} de ${h(c.contratadasMin)} h.`;
 
 // ── Datos para la pantalla ──────────────────────────────────────────────
 
@@ -221,12 +316,15 @@ export type ReservaConHistorial = {
 
 export type MembresiaParticularDetalle = {
   id: number;
+  /** Qué membresía es: decide el módulo de permisos y los textos de la pantalla. */
+  tipo: TipoMembresiaReservas;
+  /** El alumno (particular) o el titular del alquiler. */
   alumnoNombre: string;
-  alumnoId: number;
+  alumnoId: number | null;
   planNombre: string;
   estilo: string;
   profesorNombre: string;
-  profesorId: number;
+  profesorId: number | null;
   fechaInicio: string;
   fechaFin: string;
   estado: string;
@@ -443,41 +541,61 @@ function armarReservaConHistorial(
   };
 }
 
-/** El detalle de una membresía y sus reservas, para `/particulares/[id]`. */
+/** El detalle de una membresía de particulares y sus reservas, para `/particulares/[id]`. */
 export async function obtenerMembresiaParticular(membresiaId: number): Promise<MembresiaParticularDetalle | { error: string }> {
-  if (!(await tienePermiso("particulares", "ver"))) return { error: "Sin permiso para ver clases particulares." };
+  return obtenerDetalleReservas(membresiaId, "particular");
+}
+
+/** Lo mismo para un alquiler, para `/alquileres/[id]` (Hito B). */
+export async function obtenerMembresiaAlquiler(membresiaId: number): Promise<MembresiaParticularDetalle | { error: string }> {
+  return obtenerDetalleReservas(membresiaId, "alquiler");
+}
+
+async function obtenerDetalleReservas(
+  membresiaId: number,
+  tipoEsperado: TipoMembresiaReservas
+): Promise<MembresiaParticularDetalle | { error: string }> {
+  const modulo = tipoEsperado === "alquiler" ? "alquileres" : "particulares";
+  const queEs = tipoEsperado === "alquiler" ? "alquileres" : "clases particulares";
+  if (!(await tienePermiso(modulo, "ver"))) return { error: `Sin permiso para ver ${queEs}.` };
 
   // Alcance Propio/Todo (H4): el chequeo real es después de leer la membresía
   // (hace falta su profesor_id) — acá solo se corta el caso sin profesor
-  // vinculado, igual que en `listarMembresiasParticulares`.
-  const { propio, profesorId } = await alcancePropioDe("particulares");
+  // vinculado, igual que en `listarMembresiasParticulares`. En un alquiler
+  // "propio" todavía no existe (Hito C): se niega en vez de mostrar de más.
+  const { propio, profesorId } = await alcancePropioDe(modulo);
+  if (propio && tipoEsperado === "alquiler") return { error: "Tu rol ve solo los alquileres propios, y eso todavía no está habilitado." };
   if (propio && !profesorId)
     return { error: "Tu cuenta no está vinculada a ningún profesor: no podés ver clases particulares." };
 
   const sb = await createClient();
-  const { data: m, error } = await sb
+  // El titular de un alquiler es un contacto: el select de `contactos` exige el
+  // permiso de ese módulo, así que esa lectura va por el cliente admin.
+  const lector = tipoEsperado === "alquiler" ? admin() : sb;
+  const q = lector
     .from("membresias")
     .select(
       "id, fecha_inicio, fecha_fin, estado, horas_contratadas, alumno_id, profesor_id, " +
         "alumno:alumnos(contacto:contactos(nombre, apellido)), " +
+        "titular:contactos(tipo, nombre, apellido, razon_social), " +
         "plan:planes(nombre, estilo, permite_sala_externa, permite_cortesia), " +
         "profesor:profesores(contacto:contactos(nombre, apellido))"
     )
     .eq("id", membresiaId)
-    .is("curso_id", null)
-    .is("categoria_aplicada", null)
-    .maybeSingle();
+    .is("curso_id", null);
+  const { data: m, error } = await (tipoEsperado === "alquiler" ? q.not("categoria_aplicada", "is", null) : q.is("categoria_aplicada", null)).maybeSingle();
   if (error) return { error: `No se pudo leer la membresía: ${error.message}` };
-  if (!m) return { error: "Esa membresía de particulares no existe." };
+  if (!m) return { error: tipoEsperado === "alquiler" ? "Ese alquiler no existe." : "Esa membresía de particulares no existe." };
   type M = {
     id: number;
     fecha_inicio: string;
     fecha_fin: string;
     estado: string;
     horas_contratadas: number;
-    alumno_id: number;
-    profesor_id: number;
+    alumno_id: number | null;
+    profesor_id: number | null;
     alumno: { contacto: { nombre: string | null; apellido: string | null } | null } | null;
+    titular: { tipo: "persona" | "organizacion"; nombre: string | null; apellido: string | null; razon_social: string | null } | null;
     plan: { nombre: string; estilo: string | null; permite_sala_externa: boolean; permite_cortesia: boolean } | null;
     profesor: { contacto: { nombre: string | null; apellido: string | null } | null } | null;
   };
@@ -488,8 +606,8 @@ export async function obtenerMembresiaParticular(membresiaId: number): Promise<M
     : { data: null };
 
   const [salasR, reservasR] = await Promise.all([
-    sb.from("membresia_salas").select("sala_id, nombre_descriptivo, sala:salas(nombre, es_externa)").eq("membresia_id", membresiaId),
-    sb
+    lector.from("membresia_salas").select("sala_id, nombre_descriptivo, sala:salas(nombre, es_externa)").eq("membresia_id", membresiaId),
+    lector
       .from("reservas_sala")
       .select("id, fecha, hora, duracion_min, estado, solicitada_hasta, sala_id, es_cortesia, cortesia_motivo, sala:salas(nombre)")
       .eq("membresia_id", membresiaId)
@@ -501,7 +619,7 @@ export async function obtenerMembresiaParticular(membresiaId: number): Promise<M
 
   const reservaIds = ((reservasR.data as { id: number }[]) ?? []).map((r) => r.id);
   const historialR = reservaIds.length
-    ? await sb
+    ? await lector
         .from("reservas_historial")
         .select("reserva_id, estado_nuevo, fecha_nueva, hora_nueva, motivo, glosa, fuera_de_plazo, creado_en")
         .in("reserva_id", reservaIds)
@@ -529,7 +647,7 @@ export async function obtenerMembresiaParticular(membresiaId: number): Promise<M
       salasResueltas,
       etiquetaMotivo,
       ahora,
-      !!mm.plan?.permite_cortesia
+      tipoEsperado === "particular" && !!mm.plan?.permite_cortesia
     )
   );
 
@@ -541,8 +659,12 @@ export async function obtenerMembresiaParticular(membresiaId: number): Promise<M
 
   return {
     id: mm.id,
+    tipo: tipoEsperado,
     alumnoId: mm.alumno_id,
-    alumnoNombre: `${mm.alumno?.contacto?.nombre ?? ""} ${mm.alumno?.contacto?.apellido ?? ""}`.trim(),
+    alumnoNombre:
+      tipoEsperado === "alquiler"
+        ? nombreCompleto(mm.titular ? { tipo: mm.titular.tipo, nombre: mm.titular.nombre, apellido: mm.titular.apellido, razon_social: mm.titular.razon_social } : null)
+        : `${mm.alumno?.contacto?.nombre ?? ""} ${mm.alumno?.contacto?.apellido ?? ""}`.trim(),
     planNombre: mm.plan?.nombre ?? "—",
     estilo: (estRow as { nombre: string } | null)?.nombre ?? mm.plan?.estilo ?? "—",
     profesorId: mm.profesor_id,
@@ -569,6 +691,7 @@ export async function obtenerMembresiaParticular(membresiaId: number): Promise<M
 export type DetalleGestionReserva = {
   reserva: ReservaConHistorial;
   membresiaId: number;
+  tipo: TipoMembresiaReservas;
   alumnoNombre: string;
   disponibleMin: number;
   fechaInicioMembresia: string;
@@ -577,42 +700,59 @@ export type DetalleGestionReserva = {
 };
 
 export async function obtenerReservaParaGestion(reservaId: number): Promise<DetalleGestionReserva | { error: string }> {
-  if (!(await tienePermiso("particulares", "ver"))) return { error: "Sin permiso para ver clases particulares." };
+  // El permiso y la lectura de la reserva no dependen entre sí: van juntos,
+  // pero nada de lo leído se usa hasta que el permiso responda que sí.
+  const a = admin();
+  const [puedeVer, { data: rRow, error: errR }] = await Promise.all([
+    permisoEnAlguno("ver"),
+    a
+      .from("reservas_sala")
+      .select("id, fecha, hora, duracion_min, estado, solicitada_hasta, sala_id, tipo, membresia_id, es_cortesia, cortesia_motivo, sala:salas(nombre)")
+      .eq("id", reservaId)
+      .maybeSingle(),
+  ]);
+  if (!puedeVer) return { error: "Sin permiso para ver reservas." };
+  if (errR) return { error: `No se pudo leer la reserva: ${errR.message}` };
+  if (!rRow || (rRow.tipo !== "particular" && rRow.tipo !== "alquiler") || rRow.membresia_id == null) return { error: "Esa reserva no existe." };
+  const tipo = rRow.tipo as TipoMembresiaReservas;
+  const modulo = tipo === "alquiler" ? "alquileres" : "particulares";
 
-  const { propio, profesorId } = await alcancePropioDe("particulares");
+  // Todo se lee con el cliente admin, ya autorizado abajo: el titular de un
+  // alquiler es un contacto y su select exige el permiso de ese módulo. La
+  // membresía y las comprobaciones de permiso/alcance no dependen entre sí.
+  const sb = a;
+  const [puedeVerModulo, { propio, profesorId }, { data: m, error: errM }] = await Promise.all([
+    tienePermiso(modulo, "ver"),
+    alcancePropioDe(modulo),
+    sb
+      .from("membresias")
+      .select(
+        "fecha_inicio, fecha_fin, horas_contratadas, profesor_id, plan:planes(permite_cortesia), alumno:alumnos(contacto:contactos(nombre, apellido)), " +
+          "titular:contactos(tipo, nombre, apellido, razon_social)"
+      )
+      .eq("id", rRow.membresia_id)
+      .maybeSingle(),
+  ]);
+  if (!puedeVerModulo) return { error: `Sin permiso para ver ${tipo === "alquiler" ? "alquileres" : "clases particulares"}.` };
+  if (propio && tipo === "alquiler") return { error: "Tu rol ve solo los alquileres propios, y eso todavía no está habilitado." };
   if (propio && !profesorId)
     return { error: "Tu cuenta no está vinculada a ningún profesor: no podés ver clases particulares." };
 
-  const sb = await createClient();
-  const { data: rRow, error: errR } = await sb
-    .from("reservas_sala")
-    .select("id, fecha, hora, duracion_min, estado, solicitada_hasta, sala_id, tipo, membresia_id, es_cortesia, cortesia_motivo, sala:salas(nombre)")
-    .eq("id", reservaId)
-    .maybeSingle();
-  if (errR) return { error: `No se pudo leer la reserva: ${errR.message}` };
-  if (!rRow || rRow.tipo !== "particular" || rRow.membresia_id == null) return { error: "Esa reserva no existe." };
-
-  const { data: m, error: errM } = await sb
-    .from("membresias")
-    .select(
-      "fecha_inicio, fecha_fin, horas_contratadas, profesor_id, plan:planes(permite_cortesia), alumno:alumnos(contacto:contactos(nombre, apellido))"
-    )
-    .eq("id", rRow.membresia_id)
-    .maybeSingle();
   if (errM) return { error: `No se pudo leer la membresía: ${errM.message}` };
   if (!m) return { error: "La membresía de esta reserva ya no existe." };
   type M = {
     fecha_inicio: string;
     fecha_fin: string;
     horas_contratadas: number;
-    profesor_id: number;
+    profesor_id: number | null;
     plan: { permite_cortesia: boolean } | null;
     alumno: { contacto: { nombre: string | null; apellido: string | null } | null } | null;
+    titular: { tipo: "persona" | "organizacion"; nombre: string | null; apellido: string | null; razon_social: string | null } | null;
   };
   const mm = m as unknown as M;
   if (propio && mm.profesor_id !== profesorId) return { error: "Esta reserva es de otro profesor: no tenés acceso a ella." };
 
-  const [salasR, reservasR, historialR] = await Promise.all([
+  const [salasR, reservasR, historialR, etiquetaMotivo] = await Promise.all([
     sb.from("membresia_salas").select("sala_id, nombre_descriptivo, sala:salas(nombre, es_externa)").eq("membresia_id", rRow.membresia_id),
     sb.from("reservas_sala").select("estado, duracion_min, solicitada_hasta, es_cortesia").eq("membresia_id", rRow.membresia_id),
     sb
@@ -620,6 +760,7 @@ export async function obtenerReservaParaGestion(reservaId: number): Promise<Deta
       .select("reserva_id, estado_nuevo, fecha_nueva, hora_nueva, motivo, glosa, fuera_de_plazo, creado_en")
       .eq("reserva_id", reservaId)
       .order("creado_en", { ascending: true }),
+    mapaEtiquetaMotivoSuspension(sb),
   ]);
   if (salasR.error) return { error: `No se pudieron leer las salas de la membresía: ${salasR.error.message}` };
   if (reservasR.error) return { error: `No se pudo leer el saldo de la membresía: ${reservasR.error.message}` };
@@ -638,20 +779,23 @@ export async function obtenerReservaParaGestion(reservaId: number): Promise<Deta
     reservas: (reservasR.data as { estado: string; duracion_min: number; solicitada_hasta: string | null }[]) ?? [],
     ahora,
   });
-  const etiquetaMotivo = await mapaEtiquetaMotivoSuspension(sb);
   const reserva = armarReservaConHistorial(
     rRow as unknown as FilaReservaConSala,
     (historialR.data as unknown as FilaHistorialReserva[]) ?? [],
     salasResueltas,
     etiquetaMotivo,
     ahora,
-    !!mm.plan?.permite_cortesia
+    tipo === "particular" && !!mm.plan?.permite_cortesia
   );
 
   return {
     reserva,
     membresiaId: rRow.membresia_id,
-    alumnoNombre: `${mm.alumno?.contacto?.nombre ?? ""} ${mm.alumno?.contacto?.apellido ?? ""}`.trim(),
+    tipo,
+    alumnoNombre:
+      tipo === "alquiler"
+        ? nombreCompleto(mm.titular ? { tipo: mm.titular.tipo, nombre: mm.titular.nombre, apellido: mm.titular.apellido, razon_social: mm.titular.razon_social } : null)
+        : `${mm.alumno?.contacto?.nombre ?? ""} ${mm.alumno?.contacto?.apellido ?? ""}`.trim(),
     disponibleMin: saldo.disponibleMin,
     fechaInicioMembresia: mm.fecha_inicio,
     fechaFinMembresia: mm.fecha_fin,
@@ -672,7 +816,7 @@ export async function guardarLugarExterno(
   membresiaId: number,
   nombreDescriptivo: string
 ): Promise<ResultadoAccion> {
-  if (!(await tienePermiso("particulares", "editar"))) return { error: "No tenés permiso para editar esta membresía." };
+  if (!(await permisoEnAlguno("editar"))) return { error: "No tenés permiso para editar esta membresía." };
   const nombre = nombreDescriptivo.trim();
   if (!nombre) return { error: "Cargá el nombre del lugar externo." };
 
@@ -682,12 +826,16 @@ export async function guardarLugarExterno(
     .select("id, profesor_id, plan:planes(permite_sala_externa)")
     .eq("id", membresiaId)
     .is("curso_id", null)
-    .is("categoria_aplicada", null)
     .maybeSingle();
   if (errM) return { error: `No se pudo leer la membresía: ${errM.message}` };
-  if (!mRow) return { error: "Esa membresía de particulares no existe." };
-  const { propio, profesorId } = await alcancePropioDe("particulares");
-  if (propio && mRow.profesor_id !== profesorId) return { error: "Esta membresía es de otro profesor: no podés editarla." };
+  if (!mRow) return { error: "Esa membresía no existe." };
+  const ctxM = await contextoReservaMembresia(a, membresiaId);
+  if (!ctxM) return { error: "Esa membresía no existe." };
+  const errAut = await autorizarSobre(ctxM, "editar", {
+    sinPermiso: "No tenés permiso para editar esta membresía.",
+    otroProfesor: "Esta membresía es de otro profesor: no podés editarla.",
+  });
+  if (errAut) return { error: errAut };
   const plan = mRow.plan as unknown as { permite_sala_externa: boolean } | null;
   if (!plan?.permite_sala_externa) return { error: "El plan de esta membresía no permite sala externa. Se activa en Planes." };
 
@@ -702,7 +850,7 @@ export async function guardarLugarExterno(
     );
   if (errUpsert) return { error: `No se pudo guardar el lugar externo: ${errUpsert.message}` };
 
-  revalidatePath(`/particulares/${membresiaId}`);
+  revalidarReservas(ctxM.tipo, membresiaId);
   return { ok: true };
 }
 
@@ -776,7 +924,7 @@ export type EntradaNuevaReserva = {
 };
 
 export async function crearReserva(e: EntradaNuevaReserva): Promise<ResultadoAccion> {
-  if (!(await tienePermiso("particulares", "crear"))) return { error: "No tenés permiso para crear reservas." };
+  if (!(await permisoEnAlguno("crear"))) return { error: "No tenés permiso para crear reservas." };
   if (!ISO_FECHA.test(e.fecha)) return { error: "La fecha no es válida." };
   if (aMinutos(e.hora) == null) return { error: "La hora no es válida." };
 
@@ -786,15 +934,19 @@ export async function crearReserva(e: EntradaNuevaReserva): Promise<ResultadoAcc
 
   const { data: mRow, error: errM } = await a
     .from("membresias")
-    .select("id, estado, fecha_inicio, fecha_fin, horas_contratadas, alumno_id, profesor_id, plan_id, acompanantes")
+    .select("id, estado, fecha_inicio, fecha_fin, horas_contratadas, alumno_id, profesor_id, plan_id, acompanantes, alquiler_personas")
     .eq("id", e.membresiaId)
     .is("curso_id", null)
-    .is("categoria_aplicada", null)
     .maybeSingle();
   if (errM) return { error: `No se pudo leer la membresía: ${errM.message}` };
-  if (!mRow) return { error: "Esa membresía de particulares no existe." };
-  const { propio, profesorId } = await alcancePropioDe("particulares");
-  if (propio && mRow.profesor_id !== profesorId) return { error: "Esta membresía es de otro profesor: no podés crear reservas en ella." };
+  if (!mRow) return { error: "Esa membresía no existe." };
+  const ctxM = await contextoReservaMembresia(a, e.membresiaId);
+  if (!ctxM) return { error: "Esa membresía no existe." };
+  const errAut = await autorizarSobre(ctxM, "crear", {
+    sinPermiso: "No tenés permiso para crear reservas.",
+    otroProfesor: "Esta membresía es de otro profesor: no podés crear reservas en ella.",
+  });
+  if (errAut) return { error: errAut };
   if (mRow.estado !== "activa") return { error: "Esta membresía no está activa." };
   if (e.fecha < mRow.fecha_inicio || e.fecha > mRow.fecha_fin)
     return { error: `La fecha queda fuera de la vigencia de la membresía (${mRow.fecha_inicio} a ${mRow.fecha_fin}).` };
@@ -863,7 +1015,10 @@ export async function crearReserva(e: EntradaNuevaReserva): Promise<ResultadoAcc
 
   // ── Validar sala y profesor ────────────────────────────────────────────
   const ctx = await cargarContextoValidacion(a, esExterna ? null : salaId, mRow.profesor_id, e.fecha);
-  const personas = 1 + Math.max(0, Math.trunc(mRow.acompanantes ?? 0));
+  const personas =
+    ctxM.tipo === "alquiler"
+      ? (mRow.alquiler_personas ?? undefined)
+      : 1 + Math.max(0, Math.trunc(mRow.acompanantes ?? 0));
   const validacion = validarFranja(ctx, e.fecha, e.hora, e.duracionMin, esExterna, personas, ahora);
   if (!validacion.ok) return { error: validacion.motivo };
 
@@ -873,9 +1028,9 @@ export async function crearReserva(e: EntradaNuevaReserva): Promise<ResultadoAcc
 
   const { error: errIns } = await a.from("reservas_sala").insert({
     sala_id: salaId,
-    tipo: "particular",
+    tipo: ctxM.tipo,
     membresia_id: e.membresiaId,
-    profesor_id: mRow.profesor_id,
+    profesor_id: ctxM.tipo === "alquiler" ? null : mRow.profesor_id,
     fecha: e.fecha,
     hora: e.hora,
     duracion_min: e.duracionMin,
@@ -889,9 +1044,7 @@ export async function crearReserva(e: EntradaNuevaReserva): Promise<ResultadoAcc
     return { error: `No se pudo crear la reserva: ${errIns.message}` };
   }
 
-  revalidatePath(`/particulares/${e.membresiaId}`);
-  revalidatePath("/particulares");
-  revalidatePath("/sala");
+  revalidarReservas(ctxM.tipo, e.membresiaId);
 
   const c = await contextoAviso(a, sb, e.membresiaId);
   const cuando = horario(e.fecha, e.hora, e.duracionMin);
@@ -902,7 +1055,7 @@ export async function crearReserva(e: EntradaNuevaReserva): Promise<ResultadoAcc
       mensaje: `Solicitada para el ${cuando}. Ocupa la sala y al profesor hasta que se confirme (o vence en ${validezHoras} h).`,
       ...avisos(
         c,
-        `Hola! Estamos coordinando tu clase particular (${c?.planNombre}) con ${c?.profesor.nombre} para el ${cuando}, en ${lugar}. Te la confirmamos a la brevedad.`,
+        `Hola! Estamos coordinando ${c?.tuClase} para el ${cuando}, en ${lugar}. Te la confirmamos a la brevedad.`,
         `Hola! Estamos coordinando una clase particular (${c?.planNombre}) con ${c?.alumnoNombre} para el ${cuando}, en ${lugar}. ¿Te queda bien? Te confirmamos.`
       ),
     };
@@ -911,7 +1064,7 @@ export async function crearReserva(e: EntradaNuevaReserva): Promise<ResultadoAcc
     mensaje: `Confirmada para el ${cuando}.`,
     ...avisos(
       c,
-      `Hola! Confirmamos tu clase particular (${c?.planNombre}) con ${c?.profesor.nombre}: ${cuando}, en ${lugar}. ${c ? saldoTexto(c) : ""} ¡Te esperamos!`,
+      `Hola! Confirmamos ${c?.tuClase}: ${cuando}, en ${lugar}. ${c ? saldoTexto(c) : ""} ¡Te esperamos!`,
       `Hola! Se te confirmó una clase particular (${c?.planNombre}) con ${c?.alumnoNombre}: ${cuando}, en ${lugar}.`
     ),
   };
@@ -924,7 +1077,7 @@ export async function cambiarEstadoReserva(
   destino: EstadoReserva,
   opciones?: { motivo?: string; glosa?: string }
 ): Promise<ResultadoAccion> {
-  if (!(await tienePermiso("particulares", "editar"))) return { error: "No tenés permiso para cambiar una reserva." };
+  if (!(await permisoEnAlguno("editar"))) return { error: "No tenés permiso para cambiar una reserva." };
 
   const perfil = await obtenerPerfilActual();
   const a = admin();
@@ -937,9 +1090,16 @@ export async function cambiarEstadoReserva(
     .maybeSingle();
   if (errR) return { error: `No se pudo leer la reserva: ${errR.message}` };
   if (!rRow) return { error: "Esa reserva no existe." };
-  const { propio, profesorId } = await alcancePropioDe("particulares");
-  if (propio && rRow.profesor_id !== profesorId) return { error: "Esta reserva es de otro profesor: no podés cambiarla." };
   if (rRow.tipo === "bloqueo") return { error: "Un bloqueo se cancela desde Sala, no desde acá." };
+  const ctxM = await contextoReservaMembresia(a, rRow.membresia_id);
+  if (!ctxM) return { error: "La membresía de esta reserva ya no existe." };
+  const errAut = await autorizarSobre(
+    ctxM,
+    "editar",
+    { sinPermiso: "No tenés permiso para cambiar una reserva.", otroProfesor: "Esta reserva es de otro profesor: no podés cambiarla." },
+    rRow.profesor_id
+  );
+  if (errAut) return { error: errAut };
   const actual = rRow.estado as EstadoReserva;
   if (!puedeTransicionar(actual, destino))
     return { error: `No se puede pasar de ${ETIQUETA_ESTADO_RESERVA[actual]} a ${ETIQUETA_ESTADO_RESERVA[destino]}.` };
@@ -1000,9 +1160,7 @@ export async function cambiarEstadoReserva(
   // Las horas dadas cambiaron: la membresía puede agotarse (y cerrarse, si
   // está cobrada) o reabrirse (regla 1, H5).
   await recalcularMembresia(a, rRow.membresia_id);
-  revalidatePath(`/particulares/${rRow.membresia_id}`);
-  revalidatePath("/particulares");
-  revalidatePath("/sala");
+  revalidarReservas(ctxM.tipo, rRow.membresia_id);
 
   // Aviso solo en los cambios que le importan a alguien afuera del sistema
   // (proceso 12): confirmar y suspender. Ausente/Realizada son registro
@@ -1019,16 +1177,16 @@ export async function cambiarEstadoReserva(
       mensaje: `Confirmada: ${cuando}.`,
       ...avisos(
         c,
-        `Hola! Confirmamos tu clase particular (${c?.planNombre}) con ${c?.profesor.nombre}: ${cuando}, en ${lugar}. ${c ? saldoTexto(c) : ""} ¡Te esperamos!`,
+        `Hola! Confirmamos ${c?.tuClase}: ${cuando}, en ${lugar}. ${c ? saldoTexto(c) : ""} ¡Te esperamos!`,
         `Hola! Se te confirmó una clase particular (${c?.planNombre}) con ${c?.alumnoNombre}: ${cuando}, en ${lugar}.`
       ),
     };
   return {
     ok: true,
-    mensaje: `Suspendida (${etiquetaMotivoSuspension}). La hora vuelve al paquete.`,
+    mensaje: `Suspendida (${etiquetaMotivoSuspension}). La hora vuelve al ${c?.paquete ?? "paquete"}.`,
     ...avisos(
       c,
-      `Hola! Tu clase particular (${c?.planNombre}) del ${cuando} quedó suspendida (${etiquetaMotivoSuspension}). Esa hora vuelve a tu paquete: ${c ? saldoTexto(c) : ""} Coordinamos una nueva fecha.`,
+      `Hola! ${c ? c.tuClaseCorta.charAt(0).toUpperCase() + c.tuClaseCorta.slice(1) : "Tu reserva"} del ${cuando} quedó suspendida (${etiquetaMotivoSuspension}). Esa hora vuelve a tu ${c?.paquete ?? "paquete"}: ${c ? saldoTexto(c) : ""} Coordinamos una nueva fecha.`,
       `Hola! La clase particular (${c?.planNombre}) con ${c?.alumnoNombre} del ${cuando}, en ${lugar}, quedó suspendida (${etiquetaMotivoSuspension}).`
     ),
   };
@@ -1094,7 +1252,7 @@ export async function suspenderReservaOperativa(
     ok: true,
     ...avisos(
       c,
-      `Hola! Tu clase particular (${c?.planNombre}) del ${cuando} quedó suspendida (${campos.motivoTexto}). Esa hora vuelve a tu paquete: ${c ? saldoTexto(c) : ""} Coordinamos una nueva fecha.`,
+      `Hola! ${c ? c.tuClaseCorta.charAt(0).toUpperCase() + c.tuClaseCorta.slice(1) : "Tu reserva"} del ${cuando} quedó suspendida (${campos.motivoTexto}). Esa hora vuelve a tu ${c?.paquete ?? "paquete"}: ${c ? saldoTexto(c) : ""} Coordinamos una nueva fecha.`,
       `Hola! La clase particular (${c?.planNombre}) con ${c?.alumnoNombre} del ${cuando}, en ${lugar}, quedó suspendida (${campos.motivoTexto}).`
     ),
   };
@@ -1114,7 +1272,7 @@ export async function revertirSuspension(reservaId: number): Promise<ResultadoAc
   // desde el horario base) — es un revertido disparado por un cierre o un
   // bloqueo, no una decisión puntual de un profesor sobre SU reserva.
   const puede =
-    (await tienePermiso("particulares", "editar")) ||
+    (await permisoEnAlguno("editar")) ||
     (await tienePermiso("sala", "editar")) ||
     (await tienePermiso("disponibilidad_sala", "editar"));
   if (!puede) return { error: "No tenés permiso para revertir esta suspensión." };
@@ -1170,7 +1328,7 @@ export async function revertirSuspension(reservaId: number): Promise<ResultadoAc
     .from("reservas_sala")
     .insert({
       sala_id: rRow.sala_id,
-      tipo: "particular",
+      tipo: rRow.tipo,
       membresia_id: rRow.membresia_id,
       profesor_id: rRow.profesor_id,
       fecha: rRow.fecha,
@@ -1190,7 +1348,6 @@ export async function revertirSuspension(reservaId: number): Promise<ResultadoAc
 
   revalidatePath(`/particulares/${rRow.membresia_id}`);
   revalidatePath("/particulares");
-  revalidatePath("/sala");
   revalidatePath("/administracion/sala");
 
   const c = await contextoAviso(a, sb, rRow.membresia_id);
@@ -1201,7 +1358,7 @@ export async function revertirSuspension(reservaId: number): Promise<ResultadoAc
     mensaje: `Restablecida: ${cuando} (reserva #${nueva.id}).`,
     ...avisos(
       c,
-      `Hola! Se restableció tu clase particular (${c?.planNombre}) con ${c?.profesor.nombre}: ${cuando}, en ${lugar}. ${c ? saldoTexto(c) : ""} ¡Te esperamos!`,
+      `Hola! Se restableció ${c?.tuClase}: ${cuando}, en ${lugar}. ${c ? saldoTexto(c) : ""} ¡Te esperamos!`,
       `Hola! Se restableció una clase particular (${c?.planNombre}) con ${c?.alumnoNombre}: ${cuando}, en ${lugar}.`
     ),
   };
@@ -1218,7 +1375,7 @@ export type EntradaReprogramar = {
 };
 
 export async function reprogramarReserva(e: EntradaReprogramar): Promise<ResultadoAccion> {
-  if (!(await tienePermiso("particulares", "editar"))) return { error: "No tenés permiso para reprogramar una reserva." };
+  if (!(await permisoEnAlguno("editar"))) return { error: "No tenés permiso para reprogramar una reserva." };
   if (!ISO_FECHA.test(e.fecha)) return { error: "La fecha no es válida." };
   if (aMinutos(e.hora) == null) return { error: "La hora no es válida." };
 
@@ -1233,9 +1390,16 @@ export async function reprogramarReserva(e: EntradaReprogramar): Promise<Resulta
     .maybeSingle();
   if (errR) return { error: `No se pudo leer la reserva: ${errR.message}` };
   if (!rRow) return { error: "Esa reserva no existe." };
-  const { propio, profesorId } = await alcancePropioDe("particulares");
-  if (propio && rRow.profesor_id !== profesorId) return { error: "Esta reserva es de otro profesor: no podés reprogramarla." };
   if (rRow.tipo === "bloqueo") return { error: "Un bloqueo no se reprograma: se cancela y se crea uno nuevo." };
+  const ctxM = await contextoReservaMembresia(a, rRow.membresia_id);
+  if (!ctxM) return { error: "La membresía de esta reserva ya no existe." };
+  const errAut = await autorizarSobre(
+    ctxM,
+    "editar",
+    { sinPermiso: "No tenés permiso para reprogramar una reserva.", otroProfesor: "Esta reserva es de otro profesor: no podés reprogramarla." },
+    rRow.profesor_id
+  );
+  if (errAut) return { error: errAut };
   const actual = rRow.estado as EstadoReserva;
   if (!puedeTransicionar(actual, "reprogramada"))
     return { error: `Una reserva ${ETIQUETA_ESTADO_RESERVA[actual]} no se puede reprogramar.` };
@@ -1328,9 +1492,7 @@ export async function reprogramarReserva(e: EntradaReprogramar): Promise<Resulta
   // Las horas dadas cambiaron: la membresía puede agotarse (y cerrarse, si
   // está cobrada) o reabrirse (regla 1, H5).
   await recalcularMembresia(a, rRow.membresia_id);
-  revalidatePath(`/particulares/${rRow.membresia_id}`);
-  revalidatePath("/particulares");
-  revalidatePath("/sala");
+  revalidarReservas(ctxM.tipo, rRow.membresia_id);
 
   const c = await contextoAviso(a, sb, rRow.membresia_id);
   const antes = horario(rRow.fecha, rRow.hora, rRow.duracion_min);
@@ -1341,7 +1503,7 @@ export async function reprogramarReserva(e: EntradaReprogramar): Promise<Resulta
     mensaje: `Reprogramada: ${antes} → ${ahoraEs}, en ${lugar}.`,
     ...avisos(
       c,
-      `Hola! Reprogramamos tu clase particular (${c?.planNombre}) con ${c?.profesor.nombre}: pasa del ${antes} al ${ahoraEs}, en ${lugar}. ${c ? saldoTexto(c) : ""} ¡Te esperamos!`,
+      `Hola! Reprogramamos ${c?.tuClase}: pasa del ${antes} al ${ahoraEs}, en ${lugar}. ${c ? saldoTexto(c) : ""} ¡Te esperamos!`,
       `Hola! Se reprogramó la clase particular (${c?.planNombre}) con ${c?.alumnoNombre}: pasa del ${antes} al ${ahoraEs}, en ${lugar}.`
     ),
   };
@@ -1350,7 +1512,7 @@ export async function reprogramarReserva(e: EntradaReprogramar): Promise<Resulta
 // ── Cancelar a pedido del alumno ─────────────────────────────────────────
 
 export async function cancelarAPedido(reservaId: number): Promise<ResultadoAccion> {
-  if (!(await tienePermiso("particulares", "editar"))) return { error: "No tenés permiso para cancelar una reserva." };
+  if (!(await permisoEnAlguno("editar"))) return { error: "No tenés permiso para cancelar una reserva." };
 
   const perfil = await obtenerPerfilActual();
   const a = admin();
@@ -1363,9 +1525,16 @@ export async function cancelarAPedido(reservaId: number): Promise<ResultadoAccio
     .maybeSingle();
   if (errR) return { error: `No se pudo leer la reserva: ${errR.message}` };
   if (!rRow) return { error: "Esa reserva no existe." };
-  const { propio, profesorId } = await alcancePropioDe("particulares");
-  if (propio && rRow.profesor_id !== profesorId) return { error: "Esta reserva es de otro profesor: no podés cancelarla." };
   if (rRow.tipo === "bloqueo") return { error: "Un bloqueo se cancela desde Sala." };
+  const ctxM = await contextoReservaMembresia(a, rRow.membresia_id);
+  if (!ctxM) return { error: "La membresía de esta reserva ya no existe." };
+  const errAut = await autorizarSobre(
+    ctxM,
+    "editar",
+    { sinPermiso: "No tenés permiso para cancelar una reserva.", otroProfesor: "Esta reserva es de otro profesor: no podés cancelarla." },
+    rRow.profesor_id
+  );
+  if (errAut) return { error: errAut };
   const actual = rRow.estado as EstadoReserva;
 
   let destino: "reagendar" | "ausente";
@@ -1407,9 +1576,7 @@ export async function cancelarAPedido(reservaId: number): Promise<ResultadoAccio
   // Las horas dadas cambiaron: la membresía puede agotarse (y cerrarse, si
   // está cobrada) o reabrirse (regla 1, H5).
   await recalcularMembresia(a, rRow.membresia_id);
-  revalidatePath(`/particulares/${rRow.membresia_id}`);
-  revalidatePath("/particulares");
-  revalidatePath("/sala");
+  revalidarReservas(ctxM.tipo, rRow.membresia_id);
 
   const c = await contextoAviso(a, sb, rRow.membresia_id);
   const cuando = horario(rRow.fecha, rRow.hora, rRow.duracion_min);
@@ -1417,19 +1584,19 @@ export async function cancelarAPedido(reservaId: number): Promise<ResultadoAccio
   if (fueraDePlazo)
     return {
       ok: true,
-      mensaje: `Cancelada fuera de plazo (menos de ${plazoHoras} h antes): queda Ausente y la hora se descuenta del paquete.`,
+      mensaje: `Cancelada fuera de plazo (menos de ${plazoHoras} h antes): queda Ausente y la hora se descuenta del ${c?.paquete ?? "paquete"}.`,
       ...avisos(
         c,
-        `Hola! Registramos la cancelación de tu clase particular (${c?.planNombre}) del ${cuando}. Como fue con menos de ${plazoHoras} h de anticipación, esa hora se descuenta del paquete. ${c ? saldoTexto(c) : ""}`,
+        `Hola! Registramos la cancelación de ${c?.tuClaseCorta} del ${cuando}. Como fue con menos de ${plazoHoras} h de anticipación, esa hora se descuenta del ${c?.paquete ?? "paquete"}. ${c ? saldoTexto(c) : ""}`,
         `Hola! ${c?.alumnoNombre} canceló fuera de plazo la clase particular (${c?.planNombre}) del ${cuando}, en ${lugar}. Ya no hace falta que vayas.`
       ),
     };
   return {
     ok: true,
-    mensaje: "Cancelada: la hora vuelve al paquete.",
+    mensaje: `Cancelada: la hora vuelve al ${c?.paquete ?? "paquete"}.`,
     ...avisos(
       c,
-      `Hola! Cancelamos tu clase particular (${c?.planNombre}) del ${cuando}, como pediste. Esa hora vuelve a tu paquete: ${c ? saldoTexto(c) : ""} Coordinamos una nueva fecha.`,
+      `Hola! Cancelamos ${c?.tuClaseCorta} del ${cuando}, como pediste. Esa hora vuelve a tu ${c?.paquete ?? "paquete"}: ${c ? saldoTexto(c) : ""} Coordinamos una nueva fecha.`,
       `Hola! Se canceló a pedido del alumno la clase particular (${c?.planNombre}) con ${c?.alumnoNombre} del ${cuando}, en ${lugar}.`
     ),
   };

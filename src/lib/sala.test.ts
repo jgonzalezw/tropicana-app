@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { costoSalaDeVenta, type TarifaSala, type TamanoSala } from "./sala.ts";
+import { costoSalaDeVenta, ocupacionDeCursos, choquesCon, type TarifaSala, type TamanoSala, type CursoOcupa } from "./sala.ts";
 
 const PAREJA: TamanoSala = { clave: "pareja", etiqueta: "Pareja", max_personas: 2, orden: 2 };
 
@@ -59,4 +59,18 @@ test("costoSalaDeVenta: celda vacía (fila existe, precio null) -> falta, con mo
 test("costoSalaDeVenta: sin tamaño (nadie cubre la cantidad de personas) -> falta", () => {
   const r = costoSalaDeVenta({ ...base, tamano: null });
   assert.equal(r.estado, "falta");
+});
+
+// ── Una clase suspendida libera su horario (S2, 2026-10-02) ─────────────────
+
+test("ocupacionDeCursos: una clase suspendida no ocupa y su horario queda libre para otra reserva", () => {
+  // 2026-10-05 es lunes.
+  const curso = { id: 7, nombre: "Salsa", dias_semana: [1], hora: "19:00", duracion_min: 60, sala_id: 1 } as unknown as CursoOcupa;
+  const normal = ocupacionDeCursos([curso], "2026-10-05", new Set(), 1);
+  assert.equal(normal.length, 1);
+  assert.equal(choquesCon(normal, "19:00", 60).length, 1);
+
+  const suspendida = ocupacionDeCursos([curso], "2026-10-05", new Set([7]), 1);
+  assert.equal(suspendida.length, 0);
+  assert.equal(choquesCon(suspendida, "19:00", 60).length, 0);
 });

@@ -72,7 +72,7 @@ Tamaño: **S** = un rato · **M** = un hito chico · **L** = un hito propio.
 
 | # | Qué es | Rebanada | Tamaño |
 | --- | --- | --- | --- |
-| R14 | **App Shell a 7 grupos.** La barra lateral tiene 3 grupos (General · Gestión · Administración); el App Shell diseñado tiene 7. Es el **Paso 3**. | Paso 3 | M |
+| R14 | **App Shell a 7 grupos.** La barra lateral tiene 3 grupos (General · Gestión · Administración); el App Shell diseñado tiene 7. Es el **Paso 3**. **Interacción a resolver (2026-10-02):** la barra inferior de navegación y el «+» flotante previstos en `PLAN_UX_DANZE` chocarían con la barra fija de acciones de la vista de trabajo de `/sala` (y de toda venta). Ya quedó la puerta abierta: la barra de acciones se ancla al contenedor de contenido y apoya en `--shell-barra-inferior`; las medidas del shell son variables CSS en `globals.css`; en **modo enfoque el shell se atenúa** (`DECISIONES.md` §1.b). Al construir el App Shell: usar esas variables y las clases `shell-cabecera` / `shell-nav-inferior`, y no poner un «+» flotante donde haya barra de acciones. | Paso 3 | M |
 | R15 | **Alineación UX del resto de pantallas.** Cursos, Profesores, Dashboard y navegación siguen en el backlog de `docs/PLAN_UX_DANZE.md`. | Paso 6 | L |
 
 ## 5. Datos pendientes
@@ -112,6 +112,33 @@ la primera entrega (H1–H9) vive en `docs/relevamientos/2026-09-25-C3-plan-cons
 | R32 | **Recordatorios automáticos.** Enviar el recordatorio (10 horas hábiles antes, sobre el horario hábil de H9) y los avisos de vencimiento de paquete sin intervención. Depende del esquema de notificaciones (**R20**); mientras tanto, cada aviso se copia a mano (regla de proceso 12). | C3+ | M |
 
 ---
+
+## /sala y Gestionar — diferidos de la estandarización (2026-10-02)
+
+Del plan S1–S4; las decisiones están en `DECISIONES.md` (fila «Estandarización de /sala y Gestionar»).
+
+- **«Asistencia incompleta» en la fila de un curso**: necesita el padrón de cada clase; solo entra si se deriva con una consulta agregada del día.
+- **Umbral de urgencia como parámetro**: hoy es la constante `UMBRAL_URGENCIA_HORAS` (24) en `src/lib/slotSala.ts`; pasarlo a parámetro exige migración (regla de calidad 7).
+- **Editar un bloqueo** desde el panel: no existe (hoy se quita y se crea otro).
+- **Registrar cobro de un alquiler desde el panel**: hoy enlaza a Caja; falta abrir directo la cuota con saldo (`?linea=cuota:<id>`) y mostrarlo solo si hay saldo.
+- **Rechazar con «proponer otro horario»**: hoy «Rechazar solicitud» suspende; falta el flujo de contraoferta.
+- **Sustituto desde `/sala`**: fuera de alcance (se registra al tomar asistencia, regla 20).
+- **Grilla/calendario (C4) y conflicto bloqueo vs. agendado (C5, lado reservas)**, **notificaciones**: siguen donde estaban.
+- **Taller en la agenda (H8)**: `TipoSlot` ya admite `taller` con `planId`; falta leer las reservas del plan.
+
+---
+
+## Rendimiento de /sala — pendiente tras el Hito B
+
+Del diagnóstico del 2026-10-02, lo que no se tocó:
+
+- **Catálogos releídos en cada acción** (estilos, motivos, horario base): casi
+  no cambian; leerlos una vez o cachearlos.
+- **Tamaño del JS** (3,7 MB sin minificar en dev): revisar qué pesa en producción.
+- **Tabla de sesiones**: revisar su volumen e índices a medida que crezca.
+- **Tabla de sesiones para reportes** (decisión 2026-10-02, no por rendimiento):
+  diseñar la tabla/vista de sesiones pensada para reportes.
+- Verificar en producción (Vercel Observability / Supabase logs) el efecto real.
 
 ## Decisiones postergadas que además son trabajo
 

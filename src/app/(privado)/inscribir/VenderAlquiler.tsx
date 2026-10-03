@@ -433,7 +433,7 @@ export default function VenderAlquiler({
                   {tamano && paquetes.every((p) => precioDe(p.horas).precio == null) && (
                     <p className="text-sm text-[var(--peligro)]">
                       Ninguna celda de {etiquetasCategoria[categoria]} × {tamano.etiqueta} tiene precio. Se carga en{" "}
-                      <a href="/precios" target="_blank" rel="noreferrer" className="underline">
+                      <a href="/precios" className="underline">
                         Precios y paquetes
                       </a>
                       .

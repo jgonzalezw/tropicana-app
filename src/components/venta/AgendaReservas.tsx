@@ -235,7 +235,7 @@ export default function AgendaReservas({
             ) : (
               <p className="text-sm text-[var(--peligro)]">
                 Hay franjas que chocan con la sala o el horario. Cambiá el día, la hora o la sala — en{" "}
-                <a href="/sala" target="_blank" rel="noreferrer" className="underline">
+                <a href="/sala" className="underline">
                   Disponibilidad de sala
                 </a>{" "}
                 se ve qué la ocupa.

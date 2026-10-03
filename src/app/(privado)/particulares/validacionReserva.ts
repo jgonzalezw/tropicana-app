@@ -51,7 +51,8 @@ export type ContextoValidacion = {
 export async function cargarContextoValidacion(
   a: Admin,
   salaId: number | null,
-  profesorId: number,
+  /** `null` en un alquiler: no tiene profesor, solo se valida la sala. */
+  profesorId: number | null,
   fecha: string,
   excluirReservaId?: number
 ): Promise<ContextoValidacion> {
@@ -102,35 +103,40 @@ export async function cargarContextoValidacion(
     }
   }
 
-  const { data: asigRows } = await a.from("asignaciones").select(COLUMNAS_ASIGNACION).eq("profesor_id", profesorId).is("hasta", null);
-  const cursoIdsProfesor = ((asigRows as { curso_id: number }[]) ?? []).map((r) => r.curso_id);
-  let resProfQ = a
-    .from("reservas_sala")
-    .select("id, tipo, motivo, glosa, hora, duracion_min, estado, solicitada_hasta")
-    .eq("profesor_id", profesorId)
-    .eq("fecha", fecha)
-    .not("estado", "in", filtroLibera);
-  if (excluirReservaId) resProfQ = resProfQ.neq("id", excluirReservaId);
-
-  const [cursosProfR, reservasProfR] = await Promise.all([
-    cursoIdsProfesor.length
-      ? a.from("cursos").select(`id, nombre, dias_semana, hora, duracion_min, sala_id, ${COLS_VIGENCIA}`).in("id", cursoIdsProfesor)
-      : Promise.resolve({ data: [] as unknown[] }),
-    resProfQ,
-  ]);
-  const cursosProfesor = (cursosProfR.data as unknown as CursoOcupa[]) ?? [];
-  const reservasProfesor = (reservasProfR.data as unknown as ReservaConEstado[]) ?? [];
-
+  let cursosProfesor: CursoOcupa[] = [];
+  let reservasProfesor: ReservaConEstado[] = [];
   let suspendidasProfesor = new Set<number>();
-  const cursoIdsSusProf = cursosProfesor.map((c) => c.id);
-  if (cursoIdsSusProf.length) {
-    const { data: susRows } = await a
-      .from("sesiones")
-      .select("curso_id")
-      .in("curso_id", cursoIdsSusProf)
-      .eq("estado", "suspendida")
-      .eq("fecha", fecha);
-    suspendidasProfesor = new Set(((susRows as { curso_id: number }[]) ?? []).map((s) => s.curso_id));
+
+  if (profesorId != null) {
+    const { data: asigRows } = await a.from("asignaciones").select(COLUMNAS_ASIGNACION).eq("profesor_id", profesorId).is("hasta", null);
+    const cursoIdsProfesor = ((asigRows as { curso_id: number }[]) ?? []).map((r) => r.curso_id);
+    let resProfQ = a
+      .from("reservas_sala")
+      .select("id, tipo, motivo, glosa, hora, duracion_min, estado, solicitada_hasta")
+      .eq("profesor_id", profesorId)
+      .eq("fecha", fecha)
+      .not("estado", "in", filtroLibera);
+    if (excluirReservaId) resProfQ = resProfQ.neq("id", excluirReservaId);
+
+    const [cursosProfR, reservasProfR] = await Promise.all([
+      cursoIdsProfesor.length
+        ? a.from("cursos").select(`id, nombre, dias_semana, hora, duracion_min, sala_id, ${COLS_VIGENCIA}`).in("id", cursoIdsProfesor)
+        : Promise.resolve({ data: [] as unknown[] }),
+      resProfQ,
+    ]);
+    cursosProfesor = (cursosProfR.data as unknown as CursoOcupa[]) ?? [];
+    reservasProfesor = (reservasProfR.data as unknown as ReservaConEstado[]) ?? [];
+
+    const cursoIdsSusProf = cursosProfesor.map((c) => c.id);
+    if (cursoIdsSusProf.length) {
+      const { data: susRows } = await a
+        .from("sesiones")
+        .select("curso_id")
+        .in("curso_id", cursoIdsSusProf)
+        .eq("estado", "suspendida")
+        .eq("fecha", fecha);
+      suspendidasProfesor = new Set(((susRows as { curso_id: number }[]) ?? []).map((s) => s.curso_id));
+    }
   }
 
   return {

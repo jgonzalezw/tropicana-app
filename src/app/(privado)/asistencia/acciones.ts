@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { tienePermiso, obtenerParametro, obtenerPerfilActual } from "@/lib/sesion";
+import { tienePermiso, obtenerParametro, obtenerPerfilActual, errorAccesoCurso } from "@/lib/sesion";
 import { compararPorApellido } from "@/lib/texto";
 import { diaIso } from "@/lib/inscripcion";
 import { cargarImpacto, liquidacionesTocadas, avisoDeImpacto } from "@/lib/periodos";
@@ -19,9 +19,20 @@ import {
   asignacionEnFecha,
   type AsignacionVigencia,
 } from "@/lib/asignaciones";
-import type { EntradaAsistencia, FilaAsistencia } from "@/lib/tipos";
+import type { Curso, EntradaAsistencia, FilaAsistencia } from "@/lib/tipos";
+import { cargarContextoAsistencia } from "@/lib/contextoAsistencia";
 import { recalcularFinDeCiclo, recalcularMembresia } from "@/lib/membresias";
 import { revertirDevengosAbiertos } from "../liquidaciones/acciones";
+import { choquesCon, ocupacionDeReservas, type ReservaSalaOcupa } from "@/lib/sala";
+import { FILTRO_ESTADOS_QUE_LIBERAN, ocupaAhora } from "@/lib/reservas";
+import {
+  avisoProfesorTitular,
+  avisosSuspensionAlumnos,
+  contactosDeAlumnos,
+  mensajeReapertura,
+  type AvisoAlumno,
+  type ClaseSuspendida,
+} from "@/lib/avisosClase";
 
 function admin() {
   const a = createAdminClient();
@@ -244,6 +255,8 @@ export async function cargarPadron(
   };
   if (!(await tienePermiso("asistencia", "ver"))) return vacio;
   if (!ISO.test(fecha)) return vacio;
+  const sinAcceso = await errorAccesoCurso(cursoId);
+  if (sinAcceso) return { ...vacio, error: sinAcceso };
 
   const sb = await createClient();
 
@@ -806,6 +819,8 @@ export async function guardarAsistencia(
   if (!(await tienePermiso("asistencia", "crear")))
     return { error: "No tenés permiso para registrar asistencia." };
   if (!e.marcas.length) return { error: "No hay nada marcado." };
+  const sinAcceso = await errorAccesoCurso(e.cursoId);
+  if (sinAcceso) return { error: sinAcceso };
   const errFecha = await validarFecha(e.cursoId, e.fecha);
   if (errFecha) return { error: errFecha };
 
@@ -1116,29 +1131,50 @@ export async function suspenderClase(args: {
   cursoId: number;
   fecha: string;
   motivo: string;
-}): Promise<{ ok?: true; resumen?: string; error?: string }> {
+}): Promise<{ ok?: true; resumen?: string; avisos?: AvisoAlumno[]; error?: string }> {
   if (!(await tienePermiso("asistencia", "crear")))
     return { error: "No tenés permiso para suspender clases." };
+  const sinAcceso = await errorAccesoCurso(args.cursoId);
+  if (sinAcceso) return { error: sinAcceso };
   const errFecha = await validarFecha(args.cursoId, args.fecha);
   if (errFecha) return { error: errFecha };
 
   const { data: curso } = await admin()
     .from("cursos")
-    .select("id")
+    .select("id, nombre")
     .eq("id", args.cursoId)
     .maybeSingle();
   if (!curso) return { error: "El curso no existe." };
 
   const perfil = await obtenerPerfilActual();
-  const { corridos } = await ejecutarSuspension(admin(), {
+  const { corridos, alumnosCorridos, alumnosAfectados } = await ejecutarSuspension(admin(), {
     cursoId: args.cursoId,
     fecha: args.fecha,
     motivo: args.motivo,
     registradoPor: perfil?.id ?? null,
   });
 
+  // Los avisos de WhatsApp (regla de proceso 12): a cada alumno que tomaba la
+  // clase, con su nuevo fin de ciclo si se le corrió, y al profesor titular.
+  const cursoNombre = (curso as { nombre: string }).nombre;
+  const motivoTexto = args.motivo.trim() || "una decisión de la escuela";
+  const finPorAlumno = new Map(alumnosCorridos.map((x) => [x.alumnoId, x.finCicloNuevo]));
+  const porAlumno = new Map<number, ClaseSuspendida[]>(
+    alumnosAfectados.map((id) => [
+      id,
+      [{ curso: cursoNombre, fecha: args.fecha, finCicloNuevo: finPorAlumno.get(id) ?? null, motivoTexto }],
+    ])
+  );
+  const { data: asigs } = await admin().from("asignaciones").select(COLUMNAS_ASIGNACION).eq("curso_id", args.cursoId);
+  const titular = asignacionEnFecha((asigs as AsignacionVigencia[]) ?? [], args.fecha);
+  const [avisosAlumnos, avisoProfesor] = await Promise.all([
+    avisosSuspensionAlumnos(admin(), porAlumno),
+    avisoProfesorTitular(admin(), titular?.profesor_id ?? null, { curso: cursoNombre, fecha: args.fecha, motivoTexto }),
+  ]);
+
   const plu = (n: number, s: string, p: string) => `${n} ${n === 1 ? s : p}`;
   revalidatePath("/asistencia");
+  revalidatePath("/sala");
   return {
     ok: true,
     resumen: `Clase suspendida. Se corrió el fin de ciclo de ${plu(
@@ -1146,6 +1182,7 @@ export async function suspenderClase(args: {
       "alumno mensual",
       "alumnos mensuales"
     )}. Los paquetes por clase se difieren solos.`,
+    avisos: [...avisosAlumnos, ...(avisoProfesor ? [avisoProfesor] : [])],
   };
 }
 
@@ -1159,32 +1196,244 @@ export async function suspenderClase(args: {
 export async function ejecutarReapertura(
   a: Admin,
   args: { cursoId: number; fecha: string }
-): Promise<{ ok: true; huboSesion: boolean }> {
+): Promise<{
+  ok: true;
+  huboSesion: boolean;
+  /** Alumnos a quienes la suspensión les había corrido el ciclo, con el fin de ciclo que les quedó. */
+  alumnosRestablecidos: { alumnoId: number; finCiclo: string | null }[];
+}> {
   const { data: sesion } = await a
     .from("sesiones")
     .select("id")
     .eq("curso_id", args.cursoId)
     .eq("fecha", args.fecha)
     .maybeSingle();
-  if (!sesion) return { ok: true, huboSesion: false };
+  if (!sesion) return { ok: true, huboSesion: false, alumnosRestablecidos: [] };
   // Reabrir tambien cambia el conteo de clases dictadas: mismo tratamiento.
   await revertirDevengosAbiertos(a, args.cursoId, args.fecha);
+  // Quiénes tenían el ciclo corrido por esta sesión, para avisarles.
+  const { data: corridos } = await a
+    .from("corrimientos_ciclo")
+    .select("alumno_id, membresia_id")
+    .eq("sesion_id", sesion.id);
+  const afectados = (corridos as { alumno_id: number; membresia_id: number }[]) ?? [];
   await revertirCorrimientos(a, sesion.id);
   await a
     .from("sesiones")
     .update({ estado: "dictada", motivo: null, excepcion_id: null, actualizado_en: new Date().toISOString() })
     .eq("id", sesion.id);
-  return { ok: true, huboSesion: true };
+  let alumnosRestablecidos: { alumnoId: number; finCiclo: string | null }[] = [];
+  if (afectados.length) {
+    const { data: ms } = await a
+      .from("membresias")
+      .select("id, fecha_fin")
+      .in("id", afectados.map((x) => x.membresia_id));
+    const fin = new Map(((ms as { id: number; fecha_fin: string | null }[]) ?? []).map((m) => [m.id, m.fecha_fin]));
+    alumnosRestablecidos = afectados.map((x) => ({ alumnoId: x.alumno_id, finCiclo: fin.get(x.membresia_id) ?? null }));
+  }
+  return { ok: true, huboSesion: true, alumnosRestablecidos };
+}
+
+/**
+ * Reabrir una clase suspendida vuelve a ocupar su franja: el horario tiene que
+ * seguir libre (decisión de Javier, 2026-10-02). `null` = libre; si no, el
+ * mensaje "Ocupado por [reserva]". **Nunca** toca la otra reserva: quien opera
+ * decide qué hace con ella. Una clase suspendida no ocupaba (regla 19), así que
+ * en el medio otra reserva pudo tomar su lugar. Solo mira salas propias: un curso
+ * sin sala u hora no genera bloque (igual que `ocupacionDeCursos`).
+ */
+async function errorHorarioOcupado(a: Admin, cursoId: number, fecha: string): Promise<string | null> {
+  const { data: curso } = await a
+    .from("cursos")
+    .select("sala_id, hora, duracion_min")
+    .eq("id", cursoId)
+    .maybeSingle();
+  const c = curso as { sala_id: number | null; hora: string | null; duracion_min: number | null } | null;
+  if (!c || c.sala_id == null || !c.hora || !(Number(c.duracion_min) > 0)) return null;
+
+  const { data, error } = await a
+    .from("reservas_sala")
+    .select(
+      "id, tipo, motivo, glosa, hora, duracion_min, estado, solicitada_hasta, " +
+        "membresia:membresias(alumno:alumnos(contacto:contactos(nombre, apellido)))"
+    )
+    .eq("sala_id", c.sala_id)
+    .eq("fecha", fecha)
+    .not("estado", "in", FILTRO_ESTADOS_QUE_LIBERAN);
+  if (error) return `No se pudo comprobar si el horario sigue libre: ${error.message}`;
+
+  type Fila = ReservaSalaOcupa & {
+    estado: string;
+    solicitada_hasta: string | null;
+    membresia: { alumno: { contacto: { nombre: string | null; apellido: string | null } | null } | null } | null;
+  };
+  const ahora = new Date();
+  const reservas = ((data as unknown as Fila[]) ?? [])
+    .filter((r) => ocupaAhora({ tipo: r.tipo, estado: r.estado, solicitadaHasta: r.solicitada_hasta }, ahora))
+    .map((r) => {
+      const ct = r.membresia?.alumno?.contacto;
+      return { ...r, alumnoNombre: ct ? `${ct.nombre ?? ""} ${ct.apellido ?? ""}`.trim() : null };
+    });
+  // El motivo de un bloqueo se dice con su etiqueta del catálogo, nunca con la clave.
+  const { data: cat } = await a.from("catalogos").select("id").eq("clave", "motivo_bloqueo_sala").maybeSingle();
+  const { data: vals } = cat
+    ? await a.from("catalogo_valores").select("valor, etiqueta").eq("catalogo_id", (cat as { id: number }).id)
+    : { data: [] as { valor: string; etiqueta: string }[] };
+  const etiquetas = new Map(((vals as { valor: string; etiqueta: string }[]) ?? []).map((v) => [v.valor, v.etiqueta]));
+  const choques = choquesCon(
+    ocupacionDeReservas(reservas, (v) => etiquetas.get(v) ?? v),
+    c.hora.slice(0, 5),
+    Number(c.duracion_min)
+  );
+  if (!choques.length) return null;
+  const b = choques[0];
+  return `No se puede reabrir: el horario está ocupado por ${b.etiqueta} (${b.hora}, ${b.duracionMin} min). Resolvé esa reserva primero.`;
+}
+
+/**
+ * Lo que el panel Gestionar de /sala necesita saber de UNA clase (curso + fecha)
+ * para ofrecer sus acciones y mostrar su efecto antes de confirmar: si ya está
+ * suspendida o con asistencia, a cuántos alumnos mensuales les correría el
+ * ciclo si se suspende, y si reabrirla es posible (horario libre). Lectura pura;
+ * las acciones en sí son `suspenderClase`, `reabrirSesion` y la pantalla de
+ * Tomar asistencia — una sola implementación para los dos lugares.
+ */
+export type ClaseParaGestion = {
+  cursoNombre: string;
+  suspendida: boolean;
+  motivoSuspension: string | null;
+  /** Ya hay asistencia registrada (la clase se dictó). */
+  tomada: boolean;
+  /** Alumnos mensuales con ciclo activo en este curso: a quienes una suspensión les corre el fin de ciclo. */
+  alumnosMensuales: number;
+  /** Solo si está suspendida: `null` = se puede reabrir; si no, por qué no. */
+  noSePuedeReabrir: string | null;
+  /** Puede operar (suspender/reabrir/tomar asistencia): permiso + alcance + fecha válida. */
+  puedeOperar: boolean;
+  motivoNoOperar: string | null;
+};
+
+export async function obtenerClaseParaGestion(
+  cursoId: number,
+  fecha: string
+): Promise<ClaseParaGestion | { error: string }> {
+  if (!(await tienePermiso("asistencia", "ver"))) return { error: "Sin permiso para ver la asistencia." };
+  if (!ISO.test(fecha)) return { error: "Fecha inválida." };
+  const sinAcceso = await errorAccesoCurso(cursoId);
+  if (sinAcceso) return { error: sinAcceso };
+
+  const a = admin();
+  const [{ data: curso }, { data: ses }, { data: icRows }, puedeCrear] = await Promise.all([
+    a.from("cursos").select("nombre").eq("id", cursoId).maybeSingle(),
+    a.from("sesiones").select("id, estado, motivo").eq("curso_id", cursoId).eq("fecha", fecha).maybeSingle(),
+    a
+      .from("membresia_cursos")
+      .select("membresia:membresias!inner(id, modalidad, estado, fecha_inicio)")
+      .eq("curso_id", cursoId),
+    tienePermiso("asistencia", "crear"),
+  ]);
+  if (!curso) return { error: "El curso no existe." };
+  const sesion = ses as { id: number; estado: string; motivo: string | null } | null;
+  const suspendida = sesion?.estado === "suspendida";
+
+  let tomada = false;
+  if (sesion && !suspendida) {
+    const { count } = await a.from("asistencias").select("id", { count: "exact", head: true }).eq("sesion_id", sesion.id);
+    tomada = (count ?? 0) > 0;
+  }
+  const alumnosMensuales = (
+    (icRows as unknown as { membresia: { modalidad: string; estado: string; fecha_inicio: string } }[]) ?? []
+  ).filter((r) => r.membresia.estado === "activa" && r.membresia.modalidad === "mensual" && r.membresia.fecha_inicio <= fecha).length;
+
+  const errFecha = puedeCrear ? await validarFecha(cursoId, fecha) : "No tenés permiso para operar clases.";
+  return {
+    cursoNombre: (curso as { nombre: string }).nombre,
+    suspendida,
+    motivoSuspension: suspendida ? (sesion?.motivo ?? null) : null,
+    tomada,
+    alumnosMensuales,
+    noSePuedeReabrir: suspendida ? await errorHorarioOcupado(a, cursoId, fecha) : null,
+    puedeOperar: !errFecha,
+    motivoNoOperar: errFecha,
+  };
 }
 
 export async function reabrirSesion(args: {
   cursoId: number;
   fecha: string;
-}): Promise<{ ok?: true; error?: string }> {
+}): Promise<{ ok?: true; avisos?: AvisoAlumno[]; error?: string }> {
   if (!(await tienePermiso("asistencia", "crear")))
     return { error: "No tenés permiso." };
+  const sinAcceso = await errorAccesoCurso(args.cursoId);
+  if (sinAcceso) return { error: sinAcceso };
   const a = admin();
-  await ejecutarReapertura(a, args);
+  const { data: sus } = await a
+    .from("sesiones")
+    .select("estado")
+    .eq("curso_id", args.cursoId)
+    .eq("fecha", args.fecha)
+    .maybeSingle();
+  const estabaSuspendida = (sus as { estado: string } | null)?.estado === "suspendida";
+  if (estabaSuspendida) {
+    const ocupado = await errorHorarioOcupado(a, args.cursoId, args.fecha);
+    if (ocupado) return { error: ocupado };
+  }
+  const r = await ejecutarReapertura(a, args);
+
+  // Aviso de "tu clase se restableció", con la fecha de fin que les quedó.
+  let avisos: AvisoAlumno[] = [];
+  if (estabaSuspendida && r.alumnosRestablecidos.length) {
+    const { data: curso } = await a.from("cursos").select("nombre").eq("id", args.cursoId).maybeSingle();
+    const cursoNombre = (curso as { nombre: string } | null)?.nombre ?? "tu curso";
+    const datos = await contactosDeAlumnos(a, r.alumnosRestablecidos.map((x) => x.alumnoId));
+    avisos = r.alumnosRestablecidos
+      .map((x): AvisoAlumno => {
+        const c = datos.get(x.alumnoId);
+        const nombre = c?.nombre ?? `Alumno #${x.alumnoId}`;
+        return {
+          id: `curso-${x.alumnoId}`,
+          nombre,
+          whatsapp: c?.whatsapp ?? null,
+          mensaje: mensajeReapertura({ nombrePila: c?.nombrePila ?? nombre, curso: cursoNombre, fecha: args.fecha, finCiclo: x.finCiclo }),
+        };
+      })
+      .sort((x, y) => x.nombre.localeCompare(y.nombre, "es"));
+  }
   revalidatePath("/asistencia");
-  return { ok: true };
+  revalidatePath("/sala");
+  return { ok: true, avisos };
+}
+
+/**
+ * Lo que la asistencia embebida en /sala necesita para un curso: el mismo
+ * contexto que arma `/asistencia`, acotado a ese curso. Se pide recién al abrir
+ * "Tomar asistencia" (el detalle no viaja con la agenda). El alcance lo decide
+ * el servidor: un curso ajeno para un rol "propio" se rechaza igual que allá.
+ */
+export async function contextoAsistenciaCurso(
+  cursoId: number
+): Promise<
+  | { error: string }
+  | {
+      cursos: Curso[];
+      alumnosPorCurso: Record<number, number>;
+      mostrarDeuda: boolean;
+      minRetroIso: string;
+      puedeEditar: boolean;
+    }
+> {
+  if (!(await tienePermiso("asistencia", "ver"))) return { error: "Sin permiso para ver la asistencia." };
+  const sinAcceso = await errorAccesoCurso(cursoId);
+  if (sinAcceso) return { error: sinAcceso };
+  const ctx = await cargarContextoAsistencia();
+  if (ctx.tipo === "sin_perfil") return { error: "Tu cuenta no está vinculada a un profesor." };
+  const curso = ctx.cursos.find((c) => c.id === cursoId);
+  if (!curso) return { error: "Ese curso no está disponible para tomar asistencia." };
+  return {
+    cursos: [curso],
+    alumnosPorCurso: { [cursoId]: ctx.alumnosPorCurso[cursoId] ?? 0 },
+    mostrarDeuda: ctx.mostrarDeuda,
+    minRetroIso: ctx.minRetroIso,
+    puedeEditar: ctx.puedeEditar,
+  };
 }

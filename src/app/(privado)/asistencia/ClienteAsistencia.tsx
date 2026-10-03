@@ -6,7 +6,10 @@ import type { Curso, FilaAsistencia, MarcaAsistencia } from "@/lib/tipos";
 import { ETIQUETA_MODALIDAD, diaIso, fechaLarga, gs, isoFecha } from "@/lib/inscripcion";
 import { enVigencia, etiquetaVigencia } from "@/lib/vigencia";
 import { cargarPadron, guardarAsistencia, suspenderClase, reabrirSesion } from "./acciones";
+import AvisosAfectados from "@/components/AvisosAfectados";
+import type { AvisoAlumno } from "@/lib/avisosClase";
 import Pagina from "@/components/Pagina";
+import type { AccionPendiente } from "@/lib/accionPendiente";
 
 type Estado = "presente" | "ausente";
 type EstadoSesion = "completada" | "incompleta" | "suspendida" | "sin_alumnos";
@@ -17,6 +20,9 @@ export default function ClienteAsistencia({
   mostrarDeuda,
   minRetroIso,
   puedeEditar,
+  cursoInicialId,
+  fechaInicial,
+  embebido,
 }: {
   cursos: Curso[];
   alumnosPorCurso: Record<number, number>;
@@ -25,6 +31,25 @@ export default function ClienteAsistencia({
   minRetroIso: string;
   /** Puede cargar fechas pasadas y reabrir clases ya tomadas. */
   puedeEditar: boolean;
+  /** Entrada directa (`?curso=&fecha=`, p. ej. desde Gestionar en /sala). Solo
+   *  preselecciona: lo que se puede operar lo sigue decidiendo el servidor. */
+  cursoInicialId: number | null;
+  fechaInicial: string | null;
+  /**
+   * Modo embebido (vista de trabajo de /sala): el curso y la fecha vienen fijos
+   * —no hay selectores ni título—, y el botón de guardar lo lleva la barra
+   * fija de la vista (`onAccion`) en vez de un pie propio. Es el MISMO
+   * componente que `/asistencia`: ninguna regla se copia.
+   */
+  embebido?: {
+    onAccion: (a: AccionPendiente | null) => void;
+    /** Hay marcas tocadas sin guardar: la vista pide confirmación al volver. */
+    onSinGuardar: (hay: boolean) => void;
+    /** Se descartó el trabajo: volver a las acciones de la clase. */
+    alTerminar: () => void;
+    /** Se guardó o se cambió el estado de la clase: refrescar la agenda. */
+    alCambiar: () => void;
+  };
 }) {
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
@@ -52,9 +77,13 @@ export default function ClienteAsistencia({
     return out;
   };
 
-  const cursoInicial = cursos[0]?.id ?? null;
+  const cursoInicial = cursos.some((c) => c.id === cursoInicialId) ? cursoInicialId : (cursos[0]?.id ?? null);
   const [cursoId, setCursoId] = useState<number | null>(cursoInicial);
-  const [fecha, setFecha] = useState(fechasDelCurso(cursoInicial)[0]?.iso ?? hoyIso);
+  const [fecha, setFecha] = useState(() => {
+    if (embebido && fechaInicial) return fechaInicial;
+    const ofrecidas = fechasDelCurso(cursoInicial);
+    return ofrecidas.find((f) => f.iso === fechaInicial)?.iso ?? ofrecidas[0]?.iso ?? hoyIso;
+  });
   const [selectorAbierto, setSelectorAbierto] = useState(false);
   const [filas, setFilas] = useState<FilaAsistencia[]>([]);
   const [marcas, setMarcas] = useState<Record<number, Estado>>({});
@@ -62,6 +91,8 @@ export default function ClienteAsistencia({
   const [cargando, setCargando] = useState(false);
   const [errorPadron, setErrorPadron] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
+  /** Avisos de WhatsApp de la última suspensión o reapertura de ESTA clase. */
+  const [avisosWa, setAvisosWa] = useState<AvisoAlumno[]>([]);
   const [error, setError] = useState<string | null>(null);
   /** Texto del aviso de impacto en liquidaciones ya cobradas, a confirmar. */
   const [impacto, setImpacto] = useState<string | null>(null);
@@ -85,6 +116,9 @@ export default function ClienteAsistencia({
 
   const curso = cursos.find((c) => c.id === cursoId) ?? null;
   const fechas = fechasDelCurso(cursoId);
+  // Embebido: la fecha viene dada; si no cae en la ventana, el servidor decide.
+  const hayFechas = embebido ? true : fechas.length > 0;
+  const [tocado, setTocado] = useState(false);
 
   const pedido = useRef(0);
   useEffect(() => {
@@ -105,6 +139,7 @@ export default function ClienteAsistencia({
         setEstadosPorFecha(r.estadosPorFecha);
         setErrorPadron(r.error);
         setEditando(false);
+        setTocado(false);
         setFormSusp(false);
         setMotivoInput("");
         setTitular(r.titular);
@@ -148,6 +183,7 @@ export default function ClienteAsistencia({
 
   function cambiarCurso(id: number) {
     setCursoId(id);
+    setAvisosWa([]);
     setSelectorAbierto(false);
     // Un aviso o un error son de la clase/fecha que se estaba mirando: al
     // cambiar de curso o fecha dejan de aplicar y se limpian los dos, o el
@@ -161,6 +197,7 @@ export default function ClienteAsistencia({
   function toggle(alumnoId: number) {
     if (!editable) return;
     setAviso(null);
+    setTocado(true);
     setMarcas((prev) => {
       const siguiente = prev[alumnoId] === "presente" ? "ausente" : "presente";
       // Al volver a presente, la licencia deja de aplicar.
@@ -171,10 +208,12 @@ export default function ClienteAsistencia({
   function toggleLicencia(alumnoId: number) {
     if (!editable) return;
     setAviso(null);
+    setTocado(true);
     setLicencias((prev) => ({ ...prev, [alumnoId]: !prev[alumnoId] }));
   }
   function todosPresentes() {
     setAviso(null);
+    setTocado(true);
     setLicencias({});
     setMarcas(() => {
       const m: Record<number, Estado> = {};
@@ -233,8 +272,10 @@ export default function ClienteAsistencia({
         scrollArriba();
       } else {
         setAviso(res.resumen ?? "Asistencia guardada.");
+        setTocado(false);
         setRecarga((n) => n + 1);
         router.refresh();
+        embebido?.alCambiar();
         scrollArriba();
       }
     });
@@ -251,8 +292,10 @@ export default function ClienteAsistencia({
       } else {
         setFormSusp(false);
         setAviso(res.resumen ?? "Clase suspendida.");
+        setAvisosWa(res.avisos ?? []);
         setRecarga((n) => n + 1);
         router.refresh();
+        embebido?.alCambiar();
         scrollArriba();
       }
     });
@@ -268,11 +311,45 @@ export default function ClienteAsistencia({
         scrollArriba();
       } else {
         setAviso("Clase reabierta. Podés tomar o corregir la asistencia.");
+        setAvisosWa(res.avisos ?? []);
         setRecarga((n) => n + 1);
         router.refresh();
+        embebido?.alCambiar();
       }
     });
   }
+
+  // Embebido: lo sin guardar y la acción de guardar se le cuentan a la vista.
+  const guardarRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    guardarRef.current = () => guardar();
+  });
+  const hayQueGuardar = !!embebido && editable && total > 0 && !cargando;
+  useEffect(() => {
+    embebido?.onSinGuardar(hayQueGuardar && tocado);
+  }, [embebido, hayQueGuardar, tocado]);
+  useEffect(() => {
+    if (!embebido) return;
+    embebido.onAccion(
+      hayQueGuardar
+        ? {
+            etiqueta: completada || incompleta ? "Guardar cambios" : "Guardar asistencia",
+            puede: marcados > 0,
+            falta: marcados > 0 ? null : "Marcá al menos a un alumno",
+            ejecutando: pendiente,
+            confirmar: () => guardarRef.current(),
+            cancelar: embebido.alTerminar,
+          }
+        : null
+    );
+  }, [embebido, hayQueGuardar, marcados, pendiente, completada, incompleta]);
+  useEffect(
+    () => () => {
+      embebido?.onAccion(null);
+      embebido?.onSinGuardar(false);
+    },
+    [embebido]
+  );
 
   const chipEstado = suspendida
     ? { t: "Clase suspendida", c: "bg-[var(--peligro-fill)] text-[var(--peligro-texto)]" }
@@ -283,10 +360,12 @@ export default function ClienteAsistencia({
     : { t: "Sin tomar", c: "bg-[var(--fondo-elevado)] text-[var(--texto-tenue)]" };
 
   return (
-    <Pagina ancho="3xl" className="pb-28">
-      <div className="mb-4">
-        <h1 className="text-3xl">Tomar asistencia</h1>
-      </div>
+    <Envoltorio embebido={!!embebido}>
+      {!embebido && (
+        <div className="mb-4">
+          <h1 className="text-3xl">Tomar asistencia</h1>
+        </div>
+      )}
 
       {aviso && (
         <div className="mb-4 flex items-start gap-3 rounded-[var(--radio-panel)] bg-[var(--exito-fill)] text-[var(--exito-texto)] p-4">
@@ -298,6 +377,13 @@ export default function ClienteAsistencia({
         </div>
       )}
 
+      {avisosWa.length > 0 && (
+        <div className="mb-4">
+          <AvisosAfectados avisos={avisosWa} onCerrar={() => setAvisosWa([])} />
+        </div>
+      )}
+
+      {!embebido && (<>
       {/* Selector de curso (todos los cursos activos) */}
       <div className="relative mb-3">
         <button
@@ -348,6 +434,7 @@ export default function ClienteAsistencia({
           value={fecha}
           onChange={(e) => {
             setFecha(e.target.value);
+            setAvisosWa([]);
             // Igual que al cambiar de curso: el aviso o el error eran de la
             // fecha anterior; al cambiar de fecha dejan de aplicar y se limpian
             // los dos, o el mensaje queda "pegado" sobre una clase que no lo generó.
@@ -377,8 +464,10 @@ export default function ClienteAsistencia({
         </select>
       </label>
 
+      </>)}
+
       {/* Estado de la clase elegida */}
-      {cursoId != null && fechas.length > 0 && (
+      {cursoId != null && hayFechas && (
         <div className="flex items-center gap-2 mb-4 px-1">
           <span className={`px-3 py-1 text-sm rounded-[var(--radio-control)] ${chipEstado.c}`}>{chipEstado.t}</span>
           {(completada || incompleta) && !suspendida && (
@@ -407,7 +496,7 @@ export default function ClienteAsistencia({
       {/* Sin fechas hay dos causas muy distintas y se dicen distinto: el curso
           no tiene días cargados, o la ventana no toca su vigencia. Un mensaje
           único mandaría a buscar el problema donde no está (calidad 1 y 5). */}
-      {cursoId != null && fechas.length === 0 && (
+      {cursoId != null && !hayFechas && (
         <p className="text-[var(--texto-tenue)]">
           {curso && (curso.dias_semana ?? []).length === 0
             ? "Este curso no tiene días de clase cargados."
@@ -418,7 +507,7 @@ export default function ClienteAsistencia({
       )}
 
       {/* Clase suspendida */}
-      {cursoId != null && fechas.length > 0 && suspendida && (
+      {cursoId != null && hayFechas && suspendida && (
         <div className="rounded-[var(--radio-tarjeta)] border border-[var(--peligro)] bg-[var(--peligro-fill)] p-5 mb-3">
           <div className="text-lg font-semibold text-[var(--peligro-texto)]">Clase suspendida</div>
           <p className="text-sm text-[var(--peligro-texto)] opacity-90 mt-1 leading-relaxed">
@@ -455,7 +544,7 @@ export default function ClienteAsistencia({
           siempre visible: quien toma asistencia tiene que saber a nombre de
           quién la está registrando, y si el curso quedó desasignado ese día,
           enterarse antes de marcar y no al intentar guardar. */}
-      {cursoId != null && fechas.length > 0 && !suspendida && (
+      {cursoId != null && hayFechas && !suspendida && (
         <div className="mb-4 p-4 rounded-[var(--radio-panel)] border border-[var(--borde)] bg-[var(--fondo-panel)]">
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-base">
             <span className="text-[var(--texto-tenue)]">Profesor titular esta fecha:</span>
@@ -612,7 +701,7 @@ export default function ClienteAsistencia({
       )}
 
       {/* Cuerpo de asistencia */}
-      {cursoId != null && fechas.length > 0 && !suspendida && (
+      {cursoId != null && hayFechas && !suspendida && (
         <>
           {editable && (
             <div className="flex items-center gap-3 mb-3 px-1">
@@ -768,7 +857,7 @@ export default function ClienteAsistencia({
       )}
 
       {/* Pie fijo: guardar (solo en modo editable) */}
-      {cursoId != null && fechas.length > 0 && editable && total > 0 && (
+      {!embebido && cursoId != null && hayFechas && editable && total > 0 && (
         <div className="sticky bottom-0 -mx-6 sm:-mx-8 mt-6 px-6 sm:px-8 py-4 bg-[var(--fondo-panel)] border-t border-[var(--borde)]">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-2 text-sm">
             <span className="flex items-center gap-1.5">
@@ -790,6 +879,16 @@ export default function ClienteAsistencia({
           </button>
         </div>
       )}
+    </Envoltorio>
+  );
+}
+
+/** `/asistencia` arma su propia página; embebida, la página es la de /sala. */
+function Envoltorio({ embebido, children }: { embebido: boolean; children: React.ReactNode }) {
+  if (embebido) return <div className="space-y-0">{children}</div>;
+  return (
+    <Pagina ancho="3xl" className="pb-28">
+      {children}
     </Pagina>
   );
 }

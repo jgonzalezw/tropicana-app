@@ -4822,3 +4822,71 @@ Los alquileres se empiezan a vender y hoy **no se pueden gestionar sus reservas*
 2. **Hito B — gestión de reservas de alquiler, sin migración**: generalizar las acciones de H3 (`particulares/acciones.ts`: crear, cambiar estado, reprogramar, cancelar a pedido, detalle para gestión) con un resolvedor por tipo de membresía (módulo de permiso `particulares`/`alquileres`, dueño, personas, textos de aviso); pantalla `/alquileres/[id]` con el mismo componente de reservas de `/particulares/[id]` hecho neutro; aviso al titular o su persona de contacto.
    **Bug ya en producción que corrige:** `/sala` marca como gestionable una reserva de alquiler (con `particulares.editar`), pero `obtenerReservaParaGestion` solo acepta `tipo='particular'` y al abrirla dice "Esa reserva no existe".
 3. **Hito C — el profesor gestiona sus reservas: POSTERGADO** (Javier, 2026-10-02, hasta que suba la prioridad; ver `DECISIONES.md` §1, D31). Particulares ya lo tiene en dev y producción (ver/crear/editar con alcance `propio` desde la 0056).
+
+## Hito B — rendimiento de /sala (2026-10-02, dev; sin push)
+
+Diagnóstico medido (la lentitud era viajes seriales a la base + chequeos de
+permisos repetidos + 3 acciones en fila + doble refresco). Cambios, un commit
+cada uno, **sin migración ni cambio de reglas de negocio**:
+
+1. `BarraLateral`: `prefetch={false}` en los enlaces (sin precarga de pantallas).
+2. `consultarAgendaDia` (`sala/acciones.ts`): una sola acción trae todas las
+   salas propias y los agendamientos externos; `ClientePanelSala` la llama y
+   reparte los datos a las tarjetas (ya no cargan por su cuenta).
+3. Un solo refresco: se quitó `revalidatePath("/sala")` de las acciones de
+   reserva (`sala/acciones.ts`, `particulares/acciones.ts`); el cliente
+   recarga la agenda una vez.
+4. `sesion.ts`: `obtenerPerfilActual`, `tienePermiso`, `alcanceDe` y
+   `obtenerProfesorActual` memorizados por petición con `cache` de React
+   (nunca entre peticiones ni usuarios; la identidad se verifica igual).
+5. `obtenerReservaParaGestion` y `permisoEnAlguno`: lecturas independientes
+   en paralelo (el permiso sigue decidiendo antes de devolver nada).
+
+Probado en local: `/sala` carga, cambiar de fecha (1 acción de agenda), Gestionar
+abre el panel; `tsc`, `eslint` y `npm test` (261) en verde. En dev se ven 2
+cargas iniciales por el doble efecto de React en modo desarrollo.
+
+**Reverificación (2026-10-02, misma sesión de cierre):** el prefetch del menú ya
+estaba desactivado (único `Link` de `BarraLateral.tsx`, `prefetch={false}`); la
+memoria de `sesion.ts` es `cache` de React, de alcance de petición (no variable
+de módulo). Recorrido en el navegador contra dev: `/sala` carga, Gestionar abre
+con sus acciones e historial, y cambiar la fecha a 03/10 recarga la agenda. `npm test`
+261/261 y `tsc` en verde.
+
+
+## Hito B — estandarización de /sala y panel Gestionar (2026-10-02, dev; sin push)
+
+Sin migración ni cambio de reglas de negocio. Un commit por fase:
+
+1. **S1** — `errorAccesoCurso` / `cursosDeProfesor` (`src/lib/sesion.ts`): con alcance `propio`
+   sobre asistencia, `cargarPadron`, `guardarAsistencia`, `suspenderClase` y `reabrirSesion`
+   exigen que el curso sea del profesor (titular vigente); la lista de `/asistencia` usa el mismo helper.
+2. **S2** — `reabrirSesion` valida en el servidor que el horario siga libre (`errorHorarioOcupado`):
+   si no, «ocupado por [reserva]» sin tocar la otra reserva; vale también en Tomar asistencia.
+   `/asistencia?curso=&fecha=` llega preseleccionada. Prueba nueva en `sala.test.ts`: una clase
+   suspendida no ocupa.
+3. **S3** — `src/lib/slotSala.ts` (forma estándar, estados, resumen, filtros; admite `taller` con
+   `planId`), `SlotFila.tsx` y `consultarDisponibilidad` armando `slots` en la misma lectura
+   (sin consultas por fila). Resumen «N solicitudes por responder» / «N clases por cerrar» con filtro.
+4. **S4** — `PanelGestionar.tsx`: un panel (lateral en escritorio, hoja inferior en celular) por tipo,
+   sobre `GestionReserva` (acciones del Hito B) y, para cursos, `suspenderClase`/`reabrirSesion`/
+   enlace a Tomar asistencia. «Cancelar (lo pidió el cliente)» y «Suspender (lo decide la escuela)»
+   se ven distintos, y toda acción muestra su efecto antes de confirmar.
+
+**Probado en el navegador (dev):** filas nuevas y resumen; panel de una particular con sus acciones;
+curso suspendido (28/09, atenuado, horario libre); con un bloqueo creado en su horario, ambas filas
+a la vez y «Reabrir» deshabilitado con «ocupado por…»; bloqueo quitado después. `tsc`, `eslint`,
+`npm test` (269) en verde. **No probado:** el efecto de «Suspender» en un curso programado y el
+rol sin alcance (la sesión se cerró en medio de la prueba). Diferidos en `ROADMAP.md`.
+
+## /sala: gestionar sin salir de la pantalla (2026-10-02, dev; sin push)
+
+Cinco pasos, un commit cada uno, en `hito-b-reservas-alquiler`. Decisión en `DECISIONES.md` §1.b, «La gestión no saca de /sala».
+
+1. **Estado real de la clase** (`slotSala.ts`): una sesión sin marcas de asistencia es «Programada», no «Asistencia tomada» (arreglo de la etiqueta falsa tras reabrir).
+2. **Avisos** (`src/lib/avisosClase.ts`, `AvisosAfectados`): `suspenderClase` y `reabrirSesion` devuelven los avisos de WhatsApp; los muestran Tomar asistencia y /sala.
+3. **Vista de trabajo** (`sala/VistaGestion.tsx`, reemplaza a `PanelGestionar`): URL `?fecha=&gestionar=` con `push`, barra fija con la acción nombrada, recarga al recuperar el foco, `next/dynamic`. Ajuste del shell: barra `sticky` anclada al contenido, variables `--shell-*` y modo enfoque (`globals.css`).
+4. **Asistencia embebida**: `ClienteAsistencia` con prop `embebido` (sin selectores ni título; el guardar va a la barra fija; avisa lo sin guardar). El contexto sale de `src/lib/contextoAsistencia.ts`, compartido por `/asistencia` y la acción `contextoAsistenciaCurso`.
+5. **Pulido y docs**: objetivos táctiles de 44 px en la vista, documentación.
+
+**Verificado:** `tsc`, `lint`, `npm test` (274/274). **Sin verificar en navegador** (la sesión de prueba pedía login): Atrás, primario deshabilitado sin acción, ficha en pestaña nueva + recarga, suspender → avisos, reabrir → «Programada», barra a 375 px con teclado, rol Profesor sobre un curso ajeno. Pendiente medir la latencia de `router.push` (página `force-dynamic`); si pesa, alternativa `history.pushState`.

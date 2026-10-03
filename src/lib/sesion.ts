@@ -1,8 +1,14 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import type { Alcance, PerfilConRol } from "@/lib/tipos";
 
+// Todo lo de abajo se memoriza con `cache` de React: vive SOLO durante una
+// petición (página o acción) y se descarta al terminar; nunca se comparte entre
+// peticiones ni entre usuarios. La identidad se sigue verificando igual
+// (`auth.getUser()`), solo que una vez por petición en vez de una por chequeo.
+
 /** Devuelve el perfil (con su rol) del usuario autenticado, o null. */
-export async function obtenerPerfilActual(): Promise<PerfilConRol | null> {
+export const obtenerPerfilActual = cache(async (): Promise<PerfilConRol | null> => {
   const supabase = await createClient();
 
   const {
@@ -18,7 +24,7 @@ export async function obtenerPerfilActual(): Promise<PerfilConRol | null> {
     .single();
 
   return (data as PerfilConRol) ?? null;
-}
+});
 
 export async function esAdministrador(): Promise<boolean> {
   const perfil = await obtenerPerfilActual();
@@ -38,10 +44,10 @@ export async function obtenerParametro(clave: string): Promise<string | null> {
 
 /** ¿El usuario actual puede ejecutar `accion` sobre `modulo`? El
  *  Administrador siempre puede; el resto, según su matriz de permisos. */
-export async function tienePermiso(
+export const tienePermiso = cache(async (
   modulo: string,
   accion: string
-): Promise<boolean> {
+): Promise<boolean> => {
   const perfil = await obtenerPerfilActual();
   if (!perfil || !perfil.activo) return false;
   if (perfil.rol?.clave === "administrador") return true;
@@ -56,14 +62,14 @@ export async function tienePermiso(
     .maybeSingle();
 
   return data?.permitido === true;
-}
+});
 
 /**
  * El alcance del usuario actual sobre `modulo`. El Administrador siempre ve
  * todo. **Sin fila en `rol_visibilidad` → 'todo'**: es el default
  * retrocompatible (sin esta config, todo se ve como antes de la 0043).
  */
-export async function alcanceDe(modulo: string): Promise<Alcance> {
+export const alcanceDe = cache(async (modulo: string): Promise<Alcance> => {
   const perfil = await obtenerPerfilActual();
   if (!perfil || !perfil.activo) return "todo";
   if (perfil.rol?.clave === "administrador") return "todo";
@@ -77,7 +83,7 @@ export async function alcanceDe(modulo: string): Promise<Alcance> {
     .maybeSingle();
 
   return (data?.alcance as Alcance) === "propio" ? "propio" : "todo";
-}
+});
 
 /**
  * El profesor vinculado a la cuenta del usuario actual, o `null` si su cuenta
@@ -85,7 +91,7 @@ export async function alcanceDe(modulo: string): Promise<Alcance> {
  * filtrar a lo propio (asistencia, liquidaciones): el vínculo 1-a-1 vive en
  * `profesores.usuario_id` (0005) desde siempre, pero nada lo usaba.
  */
-export async function obtenerProfesorActual(): Promise<{ id: number } | null> {
+export const obtenerProfesorActual = cache(async (): Promise<{ id: number } | null> => {
   const perfil = await obtenerPerfilActual();
   if (!perfil) return null;
   const supabase = await createClient();
@@ -95,7 +101,7 @@ export async function obtenerProfesorActual(): Promise<{ id: number } | null> {
     .eq("usuario_id", perfil.id)
     .maybeSingle();
   return (data as { id: number } | null) ?? null;
-}
+});
 
 /**
  * Atajo de `alcanceDe` + `obtenerProfesorActual` para los módulos con dueño
@@ -110,4 +116,32 @@ export async function alcancePropioDe(modulo: string): Promise<{ propio: boolean
   if (alcance !== "propio") return { propio: false, profesorId: null };
   const profesor = await obtenerProfesorActual();
   return { propio: true, profesorId: profesor?.id ?? null };
+}
+
+/**
+ * Los cursos que un profesor tiene hoy como titular (asignación vigente). Es la
+ * regla de "propio" para cursos: la usan la lista de Asistencia y el guardia de
+ * servidor (`errorAccesoCurso`), para que las dos digan lo mismo.
+ */
+export async function cursosDeProfesor(profesorId: number): Promise<number[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("asignaciones")
+    .select("curso_id")
+    .eq("profesor_id", profesorId)
+    .is("hasta", null);
+  return ((data as { curso_id: number }[]) ?? []).map((a) => a.curso_id);
+}
+
+/**
+ * El guardia de servidor del alcance "propio" sobre un curso (módulo
+ * asistencia): que la pantalla filtre la lista no alcanza, quien decide es el
+ * servidor. `null` = puede operar el curso; si no, el mensaje para mostrar.
+ * Con alcance "todo" no consulta nada más.
+ */
+export async function errorAccesoCurso(cursoId: number): Promise<string | null> {
+  const { propio, profesorId } = await alcancePropioDe("asistencia");
+  if (!propio) return null;
+  if (profesorId == null) return "Tu cuenta no está vinculada a ningún profesor.";
+  return (await cursosDeProfesor(profesorId)).includes(cursoId) ? null : "Ese curso no es tuyo.";
 }

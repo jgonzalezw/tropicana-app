@@ -894,6 +894,36 @@ select '45. alquiler con categoria distinta de la propuesta y sin glosa' as cont
    and coalesce(trim(m.categoria_glosa), '') = '';
 
 -- ---------------------------------------------------------------------
+-- 46. CONTACTOS DUPLICADOS POR DOCUMENTO
+--     Lo que `buscarDuplicado` / `asegurarRolAlumno` tienen que impedir: una
+--     persona, un contacto. El WhatsApp ya es unico en la base (23505); el
+--     documento (mismo tipo, numero y complemento) se vigila aca.
+-- ---------------------------------------------------------------------
+select '46. documentos repetidos en mas de un contacto' as control,
+       count(*) as n,
+       case when count(*) = 0 then 'OK' else 'REVISAR' end as estado
+  from (
+    select tipo_documento, upper(trim(numero)) as numero, upper(coalesce(trim(complemento), '')) as complemento
+      from public.contactos_privados
+     where numero is not null and trim(numero) <> ''
+     group by 1, 2, 3
+    having count(distinct contacto_id) > 1
+  ) d;
+
+-- ---------------------------------------------------------------------
+-- 47. RESERVA DE ALQUILER CON PROFESOR O SIN MEMBRESIA DE ALQUILER
+--     Una reserva de alquiler cuelga de una membresia de alquiler (con
+--     categoria) y nunca lleva profesor (Hito B).
+-- ---------------------------------------------------------------------
+select '47. reserva de alquiler con profesor o sin membresia de alquiler' as control,
+       count(*) as n,
+       case when count(*) = 0 then 'OK' else 'REVISAR' end as estado
+  from public.reservas_sala r
+  left join public.membresias m on m.id = r.membresia_id
+ where r.tipo = 'alquiler'
+   and (r.profesor_id is not null or m.id is null or m.categoria_aplicada is null);
+
+-- ---------------------------------------------------------------------
 -- Detalle, por si algun control da REVISAR:
 -- ---------------------------------------------------------------------
 -- select id, alumno_id, curso_id, estado, fecha_inicio, fecha_fin,

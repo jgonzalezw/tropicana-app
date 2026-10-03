@@ -5,8 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import SinAcceso from "@/components/SinAcceso";
 import EncabezadoPagina from "@/components/EncabezadoPagina";
 import Pagina from "@/components/Pagina";
-import { obtenerMembresiaParticular } from "../acciones";
 import ReservasDeMembresia from "@/components/ReservasDeMembresia";
+import { obtenerMembresiaAlquiler } from "../../particulares/acciones";
 
 export const dynamic = "force-dynamic";
 
@@ -17,27 +17,30 @@ function fecha(iso: string): string {
 }
 
 /**
- * "Reservas de la membresía" (C3, hito H3) — reemplaza al viejo "Confirmar
- * sesión" del handoff: acá se solicita, confirma, reprograma, suspende y se
- * marca ausente/realizada, con los 7 estados de la regla de negocio 23.
+ * Reservas de un alquiler (C3, Hito B): el mismo componente que
+ * `/particulares/[id]` — solicitar, confirmar, reprogramar, cancelar a pedido,
+ * suspender y marcar Ausente/Realizada, con los 7 estados de la regla 23.
  */
-export default async function PaginaMembresiaParticular({ params }: { params: Promise<{ id: string }> }) {
-  if (!(await tienePermiso("particulares", "ver"))) return <SinAcceso />;
+export default async function PaginaAlquiler({ params }: { params: Promise<{ id: string }> }) {
+  if (!(await tienePermiso("alquileres", "ver"))) return <SinAcceso />;
 
   const { id } = await params;
   const membresiaId = Number(id);
   if (!Number.isFinite(membresiaId)) notFound();
 
-  const detalle = await obtenerMembresiaParticular(membresiaId);
+  const detalle = await obtenerMembresiaAlquiler(membresiaId);
+  const volver = (
+    <div className="mb-4">
+      <Link href="/alquileres" className="text-[var(--primario)] text-base">
+        ← Volver a Alquileres
+      </Link>
+    </div>
+  );
   if ("error" in detalle) {
     return (
       <Pagina ancho="4xl">
-        <div className="mb-4">
-          <Link href="/particulares" className="text-[var(--primario)] text-base">
-            ← Volver a Particulares
-          </Link>
-        </div>
-        <EncabezadoPagina titulo="Reservas de la membresía" />
+        {volver}
+        <EncabezadoPagina titulo="Reservas del alquiler" />
         <p className="text-[var(--peligro)]" role="alert">
           {detalle.error}
         </p>
@@ -46,8 +49,8 @@ export default async function PaginaMembresiaParticular({ params }: { params: Pr
   }
 
   const [puedeCrear, puedeEditar, sb] = await Promise.all([
-    tienePermiso("particulares", "crear"),
-    tienePermiso("particulares", "editar"),
+    tienePermiso("alquileres", "crear"),
+    tienePermiso("alquileres", "editar"),
     createClient(),
   ]);
 
@@ -65,24 +68,16 @@ export default async function PaginaMembresiaParticular({ params }: { params: Pr
     : [];
   const incrementoMin = Math.max(1, Number((incR.data as { valor: string } | null)?.valor) || 30);
   const minimoMin = Math.max(1, Number((minR.data as { valor: string } | null)?.valor) || 30);
-  const salas = ((salasR.data as { id: number; nombre: string; activa: boolean; es_externa: boolean }[]) ?? []).filter(
-    (s) => !s.es_externa
-  );
-  // Ofrecer "Lugar externo" depende del plan (0057), no solo de que exista
-  // una sala externa activa en el sistema (Javier, 26/09).
+  const salas = ((salasR.data as { id: number; nombre: string; activa: boolean; es_externa: boolean }[]) ?? []).filter((s) => !s.es_externa);
   const hayExternaActiva = ((salasR.data as { es_externa: boolean }[]) ?? []).some((s) => s.es_externa);
   const tieneExterna = detalle.permiteSalaExterna && hayExternaActiva;
 
   return (
     <Pagina ancho="4xl" className="pb-24">
-      <div className="mb-4">
-        <Link href="/particulares" className="text-[var(--primario)] text-base">
-          ← Volver a Particulares
-        </Link>
-      </div>
+      {volver}
       <EncabezadoPagina
-        titulo={detalle.alumnoNombre || `Membresía #${detalle.id}`}
-        descripcion={`${detalle.estilo} · ${detalle.profesorNombre || "—"} · vigente ${fecha(detalle.fechaInicio)} a ${fecha(detalle.fechaFin)} · ${detalle.planNombre}`}
+        titulo={detalle.alumnoNombre || `Alquiler #${detalle.id}`}
+        descripcion={`${detalle.planNombre} · vigente ${fecha(detalle.fechaInicio)} a ${fecha(detalle.fechaFin)}`}
       />
       <ReservasDeMembresia
         detalle={detalle}

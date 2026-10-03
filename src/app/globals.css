@@ -197,3 +197,35 @@ h1, h2, h3, h4, .titulo {
 @media (prefers-reduced-motion: reduce) {
   .aparecer { animation: none; }
 }
+
+/* =====================================================================
+   MEDIDAS DEL SHELL (R14 / App Shell, Paso 3 — todavía sin construir)
+   ---------------------------------------------------------------------
+   Lo que mide el armazón de la aplicación vive acá, no escrito a mano en
+   cada pantalla. Los valores son los de HOY (cabecera y barra inferior
+   no existen todavía; el lateral es w-64). Cuando el App Shell nuevo los
+   cambie, se cambian en este bloque y todo lo que se ancla a ellos —por
+   ejemplo la barra de acciones de la vista de trabajo de /sala— se
+   acomoda solo.
+   ===================================================================== */
+:root {
+  --shell-cabecera: 0px;
+  --shell-barra-inferior: 0px;
+  --shell-lateral: 16rem;
+}
+
+/* Modo enfoque (decisión de Javier, 2026-10-02): mientras se trabaja un slot
+   en /sala el shell se ATENÚA —no desaparece— para que la barra de acciones
+   sea lo único que pide atención. Las piezas del shell se marcan con estas
+   clases cuando existan. */
+html[data-modo-enfoque="1"] .shell-cabecera,
+html[data-modo-enfoque="1"] .shell-nav-inferior {
+  opacity: 0.4;
+  transition: opacity 150ms ease;
+}
+html[data-modo-enfoque="1"] .shell-cabecera:hover,
+html[data-modo-enfoque="1"] .shell-cabecera:focus-within,
+html[data-modo-enfoque="1"] .shell-nav-inferior:hover,
+html[data-modo-enfoque="1"] .shell-nav-inferior:focus-within {
+  opacity: 1;
+}

@@ -21,7 +21,9 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { tienePermiso, obtenerParametro, obtenerPerfilActual, alcancePropioDe } from "@/lib/sesion";
+import { tienePermiso, obtenerParametro, obtenerPerfilActual, alcancePropioDe, cursosDeProfesor } from "@/lib/sesion";
+import { COLUMNAS_ASIGNACION, asignacionEnFecha, type AsignacionVigencia } from "@/lib/asignaciones";
+import { slotDeCurso, slotDeReserva, slotExterno, nombreTitular, type ContactoSlot, type SlotSala } from "@/lib/slotSala";
 import { aMinutos } from "@/lib/horarios";
 import { COLS_VIGENCIA } from "@/lib/vigencia";
 import {
@@ -76,6 +78,9 @@ export type DisponibilidadDia = {
    *  la etiqueta, la clave es solo lo que se guarda. */
   excepcionMotivoTexto: string | null;
   ocupados: BloqueDisponibilidad[];
+  /** La agenda del día en la forma estándar (S3): lo que pinta la pantalla.
+   *  Incluye las clases suspendidas (atenuadas), que NO están en `ocupados`. */
+  slots: SlotSala[];
   tramosLibres: Tramo[];
   /** Falló una lectura necesaria. Nunca se disfraza de "día libre" (regla de calidad 1). */
   error: string | null;
@@ -88,6 +93,7 @@ export async function consultarDisponibilidad(salaId: number, fechaISO: string):
     excepcion: null,
     excepcionMotivoTexto: null,
     ocupados: [],
+    slots: [],
     tramosLibres: [],
     error: null,
   };
@@ -103,7 +109,7 @@ export async function consultarDisponibilidad(salaId: number, fechaISO: string):
   // `reservas_sala`, para no encadenar una ronda más). Antes esto eran hasta
   // 6 round-trips secuenciales; Javier lo marcó lento al cambiar de fecha
   // (26/09) — con 2 rondas en paralelo alcanza.
-  const [patronR, excR, cursosR, catR, catExcR, resR, estR] = await Promise.all([
+  const [patronR, excR, cursosR, catR, catExcR, resR, estR, profR] = await Promise.all([
     sb.from("sala_horario_patron").select("dia_semana, desde, hasta").eq("sala_id", salaId),
     sb
       .from("sala_horario_excepciones")
@@ -120,13 +126,15 @@ export async function consultarDisponibilidad(salaId: number, fechaISO: string):
       .from("reservas_sala")
       .select(
         "id, tipo, motivo, glosa, notas, hora, duracion_min, estado, solicitada_hasta, membresia_id, profesor_id, " +
-          "membresia:membresias(alumno:alumnos(contacto:contactos(nombre, apellido)), plan:planes(estilo)), " +
+          "membresia:membresias(acompanantes, alquiler_personas, contacto:contactos(tipo, nombre, apellido, razon_social), " +
+          "alumno:alumnos(contacto:contactos(nombre, apellido)), plan:planes(estilo)), " +
           "profesor:profesores(contacto:contactos(nombre, apellido))"
       )
       .eq("sala_id", salaId)
       .eq("fecha", fechaISO)
       .not("estado", "in", FILTRO_ESTADOS_QUE_LIBERAN),
     sb.from("estilos").select("clave, nombre"),
+    sb.from("profesores").select("id, contacto:contactos(nombre, apellido)"),
   ]);
   if (patronR.error) return { ...vacio, error: `No se pudo leer el horario de la sala: ${patronR.error.message}` };
   if (excR.error) return { ...vacio, error: `No se pudieron leer las excepciones: ${excR.error.message}` };
@@ -144,10 +152,27 @@ export async function consultarDisponibilidad(salaId: number, fechaISO: string):
 
   // Ronda 2: lo que sí depende de la ronda 1 (cursoIds, o si hace falta el
   // catálogo de motivos), también en paralelo entre sí.
-  const [susR, valR, valExcR] = await Promise.all([
+  const [sesR, marcasR, asigR, valR, valExcR] = await Promise.all([
     cursoIds.length
-      ? sb.from("sesiones").select("curso_id").in("curso_id", cursoIds).eq("estado", "suspendida").eq("fecha", fechaISO)
-      : Promise.resolve({ data: [] as { curso_id: number }[], error: null }),
+      ? sb
+          .from("sesiones")
+          .select("curso_id, estado, profesor_id, titular_id")
+          .in("curso_id", cursoIds)
+          .eq("fecha", fechaISO)
+      : Promise.resolve({ data: [] as unknown[], error: null }),
+    // UNA consulta agregada para todo el día: qué cursos tienen alguna
+    // asistencia marcada. Una sesión `dictada` sin marcas (p. ej. reabierta)
+    // no es una asistencia tomada.
+    cursoIds.length
+      ? sb
+          .from("asistencias")
+          .select("sesion:sesiones!inner(curso_id, fecha)")
+          .in("sesion.curso_id", cursoIds)
+          .eq("sesion.fecha", fechaISO)
+      : Promise.resolve({ data: [] as unknown[], error: null }),
+    cursoIds.length
+      ? sb.from("asignaciones").select(COLUMNAS_ASIGNACION).in("curso_id", cursoIds)
+      : Promise.resolve({ data: [] as unknown[], error: null }),
     catalogo
       ? sb.from("catalogo_valores").select("valor, etiqueta").eq("catalogo_id", catalogo.id)
       : Promise.resolve({ data: [] as { valor: string; etiqueta: string }[], error: null }),
@@ -155,10 +180,20 @@ export async function consultarDisponibilidad(salaId: number, fechaISO: string):
       ? sb.from("catalogo_valores").select("valor, etiqueta").eq("catalogo_id", catalogoExc.id)
       : Promise.resolve({ data: [] as { valor: string; etiqueta: string }[], error: null }),
   ]);
-  if (susR.error) return { ...vacio, error: `No se pudieron leer las clases suspendidas: ${susR.error.message}` };
+  if (sesR.error) return { ...vacio, error: `No se pudieron leer las sesiones del día: ${sesR.error.message}` };
+  if (marcasR.error) return { ...vacio, error: `No se pudieron leer las asistencias del día: ${marcasR.error.message}` };
+  if (asigR.error) return { ...vacio, error: `No se pudieron leer los titulares de los cursos: ${asigR.error.message}` };
+  if (profR.error) return { ...vacio, error: `No se pudieron leer los profesores: ${profR.error.message}` };
   if (valR.error) return { ...vacio, error: `No se pudieron leer los motivos de bloqueo: ${valR.error.message}` };
   if (valExcR.error) return { ...vacio, error: `No se pudieron leer los motivos de excepción: ${valExcR.error.message}` };
-  const suspendidos = new Set(((susR.data as { curso_id: number }[]) ?? []).map((s) => s.curso_id));
+  type SesionDia = { curso_id: number; estado: string; profesor_id: number | null; titular_id: number | null };
+  const sesionesDia = (sesR.data as unknown as SesionDia[]) ?? [];
+  const suspendidos = new Set(sesionesDia.filter((s) => s.estado === "suspendida").map((s) => s.curso_id));
+  const cursosConAsistencia = new Set(
+    ((marcasR.data as unknown as { sesion: { curso_id: number } | { curso_id: number }[] | null }[]) ?? []).flatMap((m) =>
+      (Array.isArray(m.sesion) ? m.sesion : m.sesion ? [m.sesion] : []).map((s) => s.curso_id)
+    )
+  );
 
   type ReservaConJoins = {
     id: number;
@@ -173,6 +208,9 @@ export async function consultarDisponibilidad(salaId: number, fechaISO: string):
     membresia_id: number | null;
     profesor_id: number | null;
     membresia: {
+      acompanantes: number | null;
+      alquiler_personas: number | null;
+      contacto: ContactoSlot;
       alumno: { contacto: { nombre: string | null; apellido: string | null } | null } | null;
       plan: { estilo: string | null } | null;
     } | null;
@@ -194,10 +232,17 @@ export async function consultarDisponibilidad(salaId: number, fechaISO: string):
   // Gestionable desde acá (H4): particulares.editar, y si el alcance es
   // Propio, solo las de este profesor — mismo criterio que ya aplican las
   // acciones de `particulares/acciones.ts` al escribir.
-  const [puedeEditarParticulares, { propio: alcancePropio, profesorId: profesorPropioId }] = await Promise.all([
-    tienePermiso("particulares", "editar"),
-    alcancePropioDe("particulares"),
-  ]);
+  const [puedeEditarParticulares, { propio: alcancePropio, profesorId: profesorPropioId }, puedeEditarAlquileres, alcanceAlquiler] =
+    await Promise.all([
+      tienePermiso("particulares", "editar"),
+      alcancePropioDe("particulares"),
+      tienePermiso("alquileres", "editar"),
+      alcancePropioDe("alquileres"),
+    ]);
+  // Un alquiler se gestiona con el permiso de Alquileres (no el de
+  // Particulares). El alcance "propio" de alquileres llega con el Hito C:
+  // mientras tanto, un rol que lo tenga no los gestiona desde acá.
+  const gestionaAlquiler = puedeEditarAlquileres && !alcanceAlquiler.propio;
 
   const reservas: (ReservaSalaOcupa & { notas: string | null; membresiaId: number | null; gestionable: boolean })[] = resRaw.map(
     (r) => {
@@ -219,9 +264,9 @@ export async function consultarDisponibilidad(salaId: number, fechaISO: string):
         estilo: claveEstilo ? nombreEstilo(claveEstilo) : null,
         membresiaId: r.membresia_id,
         gestionable:
-          (r.tipo === "particular" || r.tipo === "alquiler") &&
-          puedeEditarParticulares &&
-          (!alcancePropio || r.profesor_id === profesorPropioId),
+          r.tipo === "alquiler"
+            ? gestionaAlquiler
+            : r.tipo === "particular" && puedeEditarParticulares && (!alcancePropio || r.profesor_id === profesorPropioId),
       };
     }
   );
@@ -265,14 +310,97 @@ export async function consultarDisponibilidad(salaId: number, fechaISO: string):
   }));
   const ocupados = [...deCursos, ...deReservas].sort((a, b) => (aMinutos(a.hora) ?? 0) - (aMinutos(b.hora) ?? 0));
 
+  // ── La agenda en la forma estándar (S3) ────────────────────────────────────
+  // Todo sale de las lecturas de arriba: nada se consulta por fila. Los cursos
+  // se arman SIN descontar los suspendidos (se ven atenuados, "sala liberada");
+  // `ocupados` y `tramosLibres` siguen contándolos como libres.
+  const [puedeAsistencia, alcAsistencia] = await Promise.all([
+    tienePermiso("asistencia", "crear"),
+    alcancePropioDe("asistencia"),
+  ]);
+  const cursosPropios = alcAsistencia.propio && alcAsistencia.profesorId != null ? await cursosDeProfesor(alcAsistencia.profesorId) : [];
+  const nombreProfesor = new Map(
+    ((profR.data as unknown as { id: number; contacto: { nombre: string | null; apellido: string | null } | null }[]) ?? []).map(
+      (p) => [p.id, `${p.contacto?.nombre ?? ""} ${p.contacto?.apellido ?? ""}`.trim() || null]
+    )
+  );
+  const asignaciones = (asigR.data as unknown as AsignacionVigencia[]) ?? [];
+  const slotsCurso = ocupacionDeCursos(cursos, fechaISO, new Set(), salaId).map((b) => {
+    const cursoId = b.cursoId as number;
+    const sesion = sesionesDia.find((x) => x.curso_id === cursoId) ?? null;
+    const titularId = asignacionEnFecha(asignaciones.filter((a) => a.curso_id === cursoId), fechaISO)?.profesor_id ?? null;
+    const dicto = sesion?.profesor_id ?? null;
+    return slotDeCurso({
+      cursoId,
+      fecha: fechaISO,
+      hora: b.hora,
+      duracionMin: b.duracionMin,
+      cursoNombre: b.etiqueta,
+      titularNombre: titularId != null ? (nombreProfesor.get(titularId) ?? null) : null,
+      suspendida: suspendidos.has(cursoId),
+      sesion: sesion
+        ? { estado: sesion.estado, profesorId: dicto, titularId: sesion.titular_id, conAsistencia: cursosConAsistencia.has(cursoId) }
+        : null,
+      sustitutoNombre: dicto != null && dicto !== (sesion?.titular_id ?? titularId) ? (nombreProfesor.get(dicto) ?? null) : null,
+      gestionable: puedeAsistencia && (!alcAsistencia.propio || cursosPropios.includes(cursoId)),
+    });
+  });
+  const slotsReserva = resRaw.map((r, i) => {
+    const m = r.membresia;
+    const personas = r.tipo === "alquiler" ? (m?.alquiler_personas ?? null) : 1 + Math.max(0, Number(m?.acompanantes) || 0);
+    const bloque = deReservas[i];
+    return slotDeReserva({
+      reservaId: r.id,
+      tipo: r.tipo as "particular" | "alquiler" | "bloqueo",
+      fecha: fechaISO,
+      hora: r.hora,
+      duracionMin: r.duracion_min,
+      estado: r.estado,
+      titulo: r.tipo === "particular" ? (reservas[i].estilo ?? "Clase particular") : bloque.etiqueta,
+      titular: nombreTitular(m?.contacto),
+      profesor: reservas[i].profesorNombre ?? null,
+      personas: r.tipo === "bloqueo" ? null : personas,
+      notas: r.notas,
+      detalle: r.tipo === "bloqueo" ? r.glosa : null,
+      membresiaId: r.membresia_id,
+      gestionable: reservas[i].gestionable,
+    });
+  });
+  const slots = [...slotsCurso, ...slotsReserva].sort((a, b) => (aMinutos(a.hora) ?? 0) - (aMinutos(b.hora) ?? 0));
+
   return {
     ventanas,
     excepcion,
     excepcionMotivoTexto,
     ocupados,
+    slots,
     tramosLibres: tramosLibres(ventanas, ocupados),
     error: null,
   };
+}
+
+/**
+ * Toda la agenda del día en UNA sola acción: una entrada por sala propia más
+ * los agendamientos externos. Antes eran N+1 acciones (una por sala y una para
+ * las externas) y Next las ejecuta de a una desde el cliente, así que cada
+ * cambio de fecha esperaba la suma de todas. Acá corren juntas en el servidor.
+ */
+export async function consultarAgendaDia(
+  salaIds: number[],
+  fechaISO: string
+): Promise<{
+  salas: Record<number, DisponibilidadDia>;
+  externos: { reservas: AgendamientoExterno[]; error: string | null };
+}> {
+  const [lista, externos] = await Promise.all([
+    Promise.all(salaIds.map((id) => consultarDisponibilidad(id, fechaISO))),
+    consultarAgendamientosExternos(fechaISO),
+  ]);
+  const salas: Record<number, DisponibilidadDia> = {};
+  salaIds.forEach((id, i) => {
+    salas[id] = lista[i];
+  });
+  return { salas, externos };
 }
 
 // ── Agendamientos del día en salas externas ─────────────────────────────────
@@ -285,6 +413,8 @@ export type AgendamientoExterno = {
   lugar: string;
   alumnoNombre: string | null;
   profesorNombre: string | null;
+  /** El mismo agendamiento en la forma estándar de la agenda (S3). */
+  slot: SlotSala;
   /** Mismo criterio de `consultarDisponibilidad`: particulares.editar +
    *  alcance propio/todo. */
   gestionable: boolean;
@@ -326,14 +456,20 @@ export async function consultarAgendamientosExternos(
     solicitada_hasta: string | null;
     membresia_id: number | null;
     profesor_id: number | null;
-    membresia: { alumno: { contacto: { nombre: string | null; apellido: string | null } | null } | null } | null;
+    membresia: {
+      acompanantes: number | null;
+      alquiler_personas: number | null;
+      contacto: ContactoSlot;
+      alumno: { contacto: { nombre: string | null; apellido: string | null } | null } | null;
+    } | null;
     profesor: { contacto: { nombre: string | null; apellido: string | null } | null } | null;
   };
   const { data: resRows, error: errRes } = await sb
     .from("reservas_sala")
     .select(
       "id, tipo, hora, duracion_min, estado, solicitada_hasta, membresia_id, profesor_id, " +
-        "membresia:membresias(alumno:alumnos(contacto:contactos(nombre, apellido))), " +
+        "membresia:membresias(acompanantes, alquiler_personas, contacto:contactos(tipo, nombre, apellido, razon_social), " +
+        "alumno:alumnos(contacto:contactos(nombre, apellido))), " +
         "profesor:profesores(contacto:contactos(nombre, apellido))"
     )
     .eq("sala_id", salaExternaId)
@@ -365,25 +501,49 @@ export async function consultarAgendamientosExternos(
     ])
   );
 
-  const [puedeEditarParticulares, { propio: alcancePropio, profesorId: profesorPropioId }] = await Promise.all([
-    tienePermiso("particulares", "editar"),
-    alcancePropioDe("particulares"),
-  ]);
+  const [puedeEditarParticulares, { propio: alcancePropio, profesorId: profesorPropioId }, puedeEditarAlquileres, alcanceAlquiler] =
+    await Promise.all([
+      tienePermiso("particulares", "editar"),
+      alcancePropioDe("particulares"),
+      tienePermiso("alquileres", "editar"),
+      alcancePropioDe("alquileres"),
+    ]);
+  const gestionaAlquiler = puedeEditarAlquileres && !alcanceAlquiler.propio;
 
   const reservas: AgendamientoExterno[] = vivas.map((r) => {
     const contactoAlumno = r.membresia?.alumno?.contacto;
     const contactoProfesor = r.profesor?.contacto;
+    const lugar = (r.membresia_id != null ? lugarPorMembresia.get(r.membresia_id) : null) || "Sala externa";
+    const profesorNombre = contactoProfesor
+      ? `${contactoProfesor.nombre ?? ""} ${contactoProfesor.apellido ?? ""}`.trim() || null
+      : null;
+    const gestionable =
+      r.tipo === "alquiler" ? gestionaAlquiler : puedeEditarParticulares && (!alcancePropio || r.profesor_id === profesorPropioId);
+    const personas =
+      r.tipo === "alquiler" ? (r.membresia?.alquiler_personas ?? null) : 1 + Math.max(0, Number(r.membresia?.acompanantes) || 0);
     return {
       id: r.id,
       tipo: r.tipo,
       hora: r.hora,
       duracionMin: r.duracion_min,
-      lugar: (r.membresia_id != null ? lugarPorMembresia.get(r.membresia_id) : null) || "Sala externa",
+      lugar,
       alumnoNombre: contactoAlumno ? `${contactoAlumno.nombre ?? ""} ${contactoAlumno.apellido ?? ""}`.trim() || null : null,
-      profesorNombre: contactoProfesor
-        ? `${contactoProfesor.nombre ?? ""} ${contactoProfesor.apellido ?? ""}`.trim() || null
-        : null,
-      gestionable: puedeEditarParticulares && (!alcancePropio || r.profesor_id === profesorPropioId),
+      profesorNombre,
+      slot: slotExterno({
+        reservaId: r.id,
+        tipo: r.tipo,
+        fecha: fechaISO,
+        hora: r.hora,
+        duracionMin: r.duracion_min,
+        estado: r.estado,
+        lugar,
+        titular: nombreTitular(r.membresia?.contacto),
+        profesor: profesorNombre,
+        personas,
+        membresiaId: r.membresia_id,
+        gestionable,
+      }),
+      gestionable,
     };
   });
 
@@ -599,7 +759,6 @@ export async function crearBloqueoSala(
     await a.from("reservas_sala").update({ suspendida_por_bloqueo_id: nuevo.id }).in("id", suspendidasOk);
   }
 
-  revalidatePath("/sala");
   revalidatePath("/particulares");
   revalidatePath("/administracion/sala");
   const mensaje =
@@ -679,7 +838,6 @@ export async function cancelarReservaSala(
     if (fallidas.length) mensaje += ` No se pudo restablecer: ${fallidas.join("; ")}.`;
   }
 
-  revalidatePath("/sala");
   revalidatePath("/particulares");
   revalidatePath("/administracion/sala");
   return { ok: true, mensaje, avisos: avisos.length ? avisos : undefined };

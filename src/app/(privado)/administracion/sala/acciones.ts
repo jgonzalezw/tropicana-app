@@ -32,12 +32,12 @@ import {
 import { reservasAfectadasPorExcepciones, type ReservaAfectadaPorExcepcion, type ReservaOcupanteExcepcion } from "@/lib/reservas";
 import { ejecutarSuspension, ejecutarReapertura, validarFecha } from "../../asistencia/acciones";
 import { suspenderReservaOperativa, revertirSuspension } from "../../particulares/acciones";
-import { fechaLarga } from "@/lib/inscripcion";
+import { avisosSuspensionAlumnos, type AvisoAlumno, type ClaseSuspendida } from "@/lib/avisosClase";
 
 /** Un aviso listo para mandar a un alumno afectado por el cierre. `id` es
  *  solo la clave de React (no siempre es un alumno de curso: una reserva de
  *  particular suma su alumno Y su profesor, cada uno con su propio aviso). */
-export type AvisoAlumno = { id: string; nombre: string; whatsapp: string | null; mensaje: string };
+export type { AvisoAlumno };
 
 /** Qué se suspendió y quedaría atado a una excepción que se está por borrar
  *  (R22): se muestra antes de borrar, para poder ofrecer revertirlo. */
@@ -525,10 +525,7 @@ export async function guardarHorarioSala(
   // motivo tal como lo va a leer (etiqueta del catálogo + la glosa entre
   // paréntesis) y a qué fecha le quedó el ciclo si se corrió. Un alumno con
   // dos clases dentro del mismo feriado recibe un solo aviso con las dos.
-  const porAlumno = new Map<
-    number,
-    { curso: string; fecha: string; finCicloNuevo: string | null; motivoTexto: string }[]
-  >();
+  const porAlumno = new Map<number, ClaseSuspendida[]>();
   const avisos: AvisoAlumno[] = [];
 
   for (const c of impacto.clases) {
@@ -595,60 +592,9 @@ export async function guardarHorarioSala(
   // El aviso, listo para copiar y pegar por WhatsApp — pedido de Javier
   // (2026-09-16): mientras no haya envío automático, al menos poder pasarlo a
   // mano a cada alumno hoy mismo.
-  if (porAlumno.size) {
-    const { data: alRows } = await a
-      .from("alumnos")
-      .select("id, contacto_id, es_menor, contacto:contactos(nombre, apellido, whatsapp)")
-      .in("id", [...porAlumno.keys()]);
-    type AlumnoAviso = {
-      id: number;
-      contacto_id: number;
-      es_menor: boolean;
-      contacto: { nombre: string | null; apellido: string | null; whatsapp: string | null } | null;
-    };
-    const filas = (alRows as unknown as AlumnoAviso[]) ?? [];
-    const datos = new Map(filas.map((x) => [x.id, x]));
-
-    // Un menor sin WhatsApp propio: se usa el del tutor (contacto_relaciones
-    // tipo tutor_de), si tiene uno cargado.
-    const idsMenoresSinWa = filas.filter((x) => x.es_menor && !x.contacto?.whatsapp).map((x) => x.contacto_id);
-    const waTutorPorContacto = new Map<number, string>();
-    if (idsMenoresSinWa.length) {
-      const { data: rels } = await a
-        .from("contacto_relaciones")
-        .select("hacia_id, tutor:contactos!contacto_relaciones_desde_id_fkey(whatsapp)")
-        .eq("tipo", "tutor_de")
-        .in("hacia_id", idsMenoresSinWa);
-      for (const r of (rels as unknown as { hacia_id: number; tutor: { whatsapp: string | null } | null }[]) ?? [])
-        if (r.tutor?.whatsapp) waTutorPorContacto.set(r.hacia_id, r.tutor.whatsapp);
-    }
-
-    const avisosCurso: AvisoAlumno[] = [];
-    for (const [alumnoId, clases] of porAlumno) {
-      const al = datos.get(alumnoId);
-      const nombre = al?.contacto ? `${al.contacto.nombre ?? ""} ${al.contacto.apellido ?? ""}`.trim() : `Alumno #${alumnoId}`;
-      const detalle = clases
-        .map((cl) => `${cl.curso} del ${fmtLarga(cl.fecha)}`)
-        .join(clases.length > 1 ? ", " : "");
-      const finCiclo = clases.find((cl) => cl.finCicloNuevo)?.finCicloNuevo;
-      // El motivo que se lee es el de la primera clase: en el uso real se
-      // guarda una excepción por vez, así que las clases de un mismo aviso
-      // comparten motivo. Si alguna vez difieren, queda pendiente mostrar más
-      // de uno — anotado en el ROADMAP junto con el resto de notificaciones.
-      const motivoTexto = clases[0].motivoTexto;
-      const partesMsg = [
-        `Hola ${al?.contacto?.nombre ?? nombre}! Te avisamos que tu clase de ${detalle} qued${
-          clases.length > 1 ? "aron suspendidas" : "ó suspendida"
-        } por ${motivoTexto}.`,
-      ];
-      if (finCiclo) partesMsg.push(`Tu ciclo se corrió: ahora vence el ${fmtLarga(finCiclo)}.`);
-      partesMsg.push("Cualquier duda, escribinos por acá. ¡Gracias!");
-      const whatsapp = al?.contacto?.whatsapp ?? (al ? waTutorPorContacto.get(al.contacto_id) ?? null : null);
-      avisosCurso.push({ id: `curso-${alumnoId}`, nombre, whatsapp, mensaje: partesMsg.join(" ") });
-    }
-    avisosCurso.sort((x, y) => x.nombre.localeCompare(y.nombre, "es"));
-    avisos.push(...avisosCurso);
-  }
+  // (El armado vive en `src/lib/avisosClase.ts`, compartido con la suspensión
+  // manual de /sala y Tomar asistencia.)
+  if (porAlumno.size) avisos.push(...(await avisosSuspensionAlumnos(a, porAlumno)));
 
   revalidatePath("/administracion/sala");
   revalidatePath("/asistencia");
@@ -666,8 +612,4 @@ export async function guardarHorarioSala(
     );
 
   return { ok: true, mensaje: partes.join(" "), avisos };
-}
-
-function fmtLarga(iso: string): string {
-  return fechaLarga(new Date(iso.slice(0, 10) + "T00:00:00"));
 }

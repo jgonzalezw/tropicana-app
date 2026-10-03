@@ -216,6 +216,7 @@ export default function BarraLateral({
                     <li key={item.href}>
                       <Link
                         href={item.href}
+                        prefetch={false}
                         className={`block px-4 py-2.5 rounded-[var(--radio-control)] text-base transition-colors ${
                           activo
                             ? "bg-[var(--primario)] text-[var(--primario-texto)] font-semibold"
