@@ -335,3 +335,15 @@ pasa a ser la fecha de compromiso de pago del saldo. La traza `corrimientos_cicl
 se conserva re-apuntada al nuevo efecto (se ajusta en el sub-hito 1B).
 
 ---
+
+---
+
+## Limpieza de ramas (2026-10-04)
+
+Sin código ni migraciones. Se borraron las 19 ramas ya mergeadas en `main`
+(14 locales, 17 en GitHub; `git branch --merged main`). Ninguna quedó sin
+mergear ni con trabajo sin subir; `claude/modest-hypatia-qymr45` local tenía 3
+commits que su remota no tenía, verificados como ancestros de `main` antes del
+`-D`. Hoy existen solo `main` y `h6-extension-membresia` (local y remota).
+Las ramas `hito-b-reservas-alquiler`, `h7-alquiler` y similares de RETOMAR
+ya no existen: se trabaja desde `main`.
