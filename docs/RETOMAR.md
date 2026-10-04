@@ -5,6 +5,7 @@ hito ni gastar tokens reconstruyéndolo (pedido de Javier, 2026-09-26): esto
 se actualiza en el mismo commit que cierra cada hito, y una sesión nueva lo
 lee **antes** de mirar ramas.
 
+- H6 extensión de membresía: plan escrito, esperando aprobación de Javier (docs/relevamientos/2026-10-04-plan-h6-extension-membresia.md). Rama h6-extension-membresia, sin código.
 - **Recorte del contexto de arranque: EN `main` desde el 2026-10-04** (PR #13, `9e4c884`; sin migraciones ni cambio de código de la app). El arranque pasó de 115 KB a 15,7 KB: reglas en `docs/reglas/`, decisiones vigentes en `docs/decisiones/`, historial en `docs/archivo/`.
 - **Método adoptado (kit de skills): EN `main` desde el 2026-10-04** (PR #11, `1dd2abf`; sin migraciones ni cambio de código de la app). Equivalencias en `CLAUDE.md`; incidentes en `docs/INCIDENTES.md`. "Dónde retomar" es este archivo, `docs/RETOMAR.md`.
 - **Cierre de cuentas: EN PRODUCCIÓN desde el 2026-10-01** (PR #6, `main` `95a0edb`, migración 0062; ver §4). Isabel Góngora desasignada con corte 10/09, avance liquidado y pagado en Caja, verificado por Javier.
