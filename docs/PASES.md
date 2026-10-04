@@ -1,6 +1,6 @@
 # Tropicana — registro de pases a producción
 
-Movido desde `DECISIONES.md` §4 el 2026-10-02 para que no se cargue en cada sesión. Historial; el estado vigente está en `DECISIONES.md` ("Dónde retomar").
+Movido desde `DECISIONES.md` §4 el 2026-10-02 para que no se cargue en cada sesión. Historial; el estado vigente está en `docs/RETOMAR.md`.
 
 ## 4. Registro de pases a producción
 

@@ -20,7 +20,7 @@ Claude Design ──export (zip)──▶  BUZÓN (carpeta Windows)  ──sync-
   **no editar a mano**: se reemplaza entero en cada sync. `docs/design/.synced.json`
   registra origen, fecha y archivos.
 - Los documentos **vivos nuestros** (que sí editamos) viven en `docs/`, fuera del
-  mirror: `docs/ESTADO.md`, `docs/PLAN_ETAPA1.md`, `docs/CONTEXTO_AVANCE.md`,
+  mirror: `docs/ESTADO.md`, `docs/archivo/PLAN_ETAPA1.md`, `docs/archivo/CONTEXTO_AVANCE.md`,
   este `docs/DESIGN_SYNC.md`.
 
 ## Depositar un avance (paso manual mínimo)

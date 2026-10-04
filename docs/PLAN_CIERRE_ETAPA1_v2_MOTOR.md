@@ -2,7 +2,7 @@
 
 > Creado 2026-09-05 (paso 0, reencuadre). Fuente: "Diseño del Motor de Planes y
 > Membresías" v1.3 (complementa Requerimientos v5.3). **Supersede** a
-> `docs/PLAN_ETAPA1_CIERRE.md` (v1, modelo viejo de inscripción-a-curso).
+> `docs/archivo/PLAN_ETAPA1_CIERRE.md` (v1, modelo viejo de inscripción-a-curso).
 > **Estado: plan para validar. NO construir hasta OK explícito de Javier.**
 
 ## 0. Confirmación de entendimiento (paso 0)
