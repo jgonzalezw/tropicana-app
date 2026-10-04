@@ -13,7 +13,7 @@ Las skills del método se usan en este repo con estos nombres. **El proyecto man
 | Incidentes | `docs/INCIDENTES.md` |
 | `docs/ENTORNOS.md` | `docs/ENTORNOS_CLAUDE.md` |
 | Control de migración | `scripts/control_migracion.sql` |
-| Proyecto dev / producción | ver docs/ENTORNOS_CLAUDE.md / `pnvhpbxjbdmbktpwebtx` |
+| Proyecto dev / producción | tropicana-dev = `hyhijzuomqpylcmrzdvw` / producción = `pnvhpbxjbdmbktpwebtx` |
 | Pase a producción | Igual que siempre: reglas de proceso de REGLAS + guardia de `.claude/hooks`. Las skills no lo reemplazan |
 
 ### Principios
