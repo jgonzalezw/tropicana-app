@@ -31,7 +31,7 @@ El plan de alquiler en prod lo crea Natalia cuando decida: sale de pendientes.
 ## Paso 0 — Commit del fix de Edge + cierre de docs (lo pedido ya)
 - Commit en `h7-alquiler` de `src/app/globals.css` (`color-scheme: dark`).
 - `docs/ESTADO.md`: cierre del pase H7 (0060/0061 en prod 2026-10-02, PR #8, `aa47824`) y el fix.
-- `docs/DECISIONES.md`, "Dónde retomar": rama activa `main`, prod 0001–0062, H7 en prod, sacar
+- `docs/RETOMAR.md`: rama activa `main`, prod 0001–0062, H7 en prod, sacar
   "cargar precios/crear plan en prod" de pendientes (lo hace Natalia), y **qué sigue = este plan**
   (Hitos A–C). 
 - Memorias: actualizar `project_h7_alquiler_estado.md` y `project_cierre_cuentas_prod.md`.
