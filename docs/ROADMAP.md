@@ -125,6 +125,7 @@ Del plan S1–S4; las decisiones están en `DECISIONES.md` (fila «Estandarizaci
 - **Sustituto desde `/sala`**: fuera de alcance (se registra al tomar asistencia, regla 20).
 - **Grilla/calendario (C4) y conflicto bloqueo vs. agendado (C5, lado reservas)**, **notificaciones**: siguen donde estaban.
 - **Taller en la agenda (H8)**: `TipoSlot` ya admite `taller` con `planId`; falta leer las reservas del plan.
+- **Reprogramar una clase de un curso regular** (pedido de Javier, 2026-10-04): una clase planificada para un día y hora puede necesitar pasar a otra hora, fecha o sala, **solo esa clase** (el calendario del curso no cambia). Debería sumarse a las opciones de Gestionar. Sin construir: al hacerlo, definir cómo se relaciona con suspender y con el corrimiento del ciclo (reglas 4 y 19), que el nuevo horario valide choque de sala y profesor, y que avise a los alumnos (regla de proceso 12).
 
 ---
 
