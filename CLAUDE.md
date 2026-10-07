@@ -107,7 +107,7 @@ Cómo se usan, el backlog completo y el orden del pase (§3: leelo antes de un p
 - D26 verificar WhatsApp — volumen de números mal cargados, o C3-0b.
 - D27 el suplente carga su asistencia — decidido «no» por ahora.
 - D28 anular una venta cobrada — caso real con la cuota saldada.
-- D29 simular la pre-liquidación — cuando haga falta anticipar correcciones dentro del mes.
+- D29 simular la pre-liquidación — **activada 2026-10-07, va con I-005**.
 - D31 el profesor gestiona sus alquileres — si sube la prioridad.
 - D32 la grilla de sala como entrada de la venta (C4) — mockup de C4; todo paso de agenda nuevo recibe el slot.
 - D33 asistencia al inscribir con fecha pasada — primer caso real.
