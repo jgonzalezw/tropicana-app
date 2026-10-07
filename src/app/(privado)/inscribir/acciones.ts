@@ -17,7 +17,8 @@ import {
   primerDiaDelMes,
   sumarMeses,
 } from "@/lib/inscripcion";
-import { recalcularFinDeCiclo, recalcularMembresia, registrarCorrimientosPendientes } from "@/lib/membresias";
+import { recalcularFinDeCiclo, recalcularMembresia, registrarCorrimientosPendientes, toleranciaDe } from "@/lib/membresias";
+import { mensajeConfirmacionInscripcion, mensajeReciboPago } from "@/lib/venta/mensajeInscripcion";
 import { exigir } from "@/lib/datos";
 import {
   COLS_VIGENCIA,
@@ -107,7 +108,17 @@ async function cargarTitularCurso(
 
 type DatoVenta = { etiqueta: string; valor: string };
 type AvisoCurso = { nombre: string; whatsapp: string | null; mensaje: string };
-type ResultadoInscripcion = { ok?: true; resumen?: string; datos?: DatoVenta[]; avisoAlumno?: AvisoCurso; error?: string };
+type ResultadoInscripcion = {
+  ok?: true;
+  resumen?: string;
+  datos?: DatoVenta[];
+  avisoAlumno?: AvisoCurso;
+  /** Recibo del cobro como texto, para mandarlo aparte (I-001). */
+  avisoRecibo?: AvisoCurso;
+  /** Pago asentado: de ahí sale el enlace al recibo imprimible. */
+  reciboId?: number;
+  error?: string;
+};
 
 export async function inscribirYCobrar(e: EntradaInscripcion): Promise<ResultadoInscripcion> {
   if (!(await tienePermiso("inscripciones", "crear")))
@@ -195,8 +206,8 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
     .eq("plan_id", e.planId);
   const seleccionados = new Set(((pcRows as { curso_id: number }[]) ?? []).map((r) => r.curso_id));
 
-  type CursoVenta = { id: number; nombre: string; dias_semana: number[] } & VigenciaCurso;
-  const COLS_CURSO = `id, nombre, dias_semana, ${COLS_VIGENCIA}`;
+  type CursoVenta = { id: number; nombre: string; dias_semana: number[]; hora: string | null; duracion_min: number | null } & VigenciaCurso;
+  const COLS_CURSO = `id, nombre, dias_semana, hora, duracion_min, ${COLS_VIGENCIA}`;
   const diasValidos = new Map<number, number[]>();
   const cursoDeVenta = new Map<number, CursoVenta>();
   if (acceso === "todas" || acceso === "excepto") {
@@ -374,8 +385,9 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
     referencia === 0 || saldado >= referencia ? "pagada" : saldado > 0 ? "parcial" : "pendiente";
   if (estadoCuota !== "pendiente")
     await a.from("cuotas").update({ estado: estadoCuota }).eq("id", cuota.id);
+  let reciboId: number | undefined;
   if (porPlata > 0 || porDesc > 0) {
-    const { error: errPago } = await a.from("pagos").insert({
+    const { data: pagoIns, error: errPago } = await a.from("pagos").insert({
       tipo: "cobro",
       motivo: "membresia",
       alumno_id: alumnoId,
@@ -387,8 +399,9 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
       descuento_motivo: porDesc > 0 ? c.ajusteMotivo.trim() : null,
       glosa,
       registrado_por: perfil?.id ?? null,
-    });
+    }).select("id").single();
     if (errPago) return { error: "Se inscribió, pero falló registrar el cobro: " + errPago.message };
+    reciboId = pagoIns?.id as number | undefined;
   }
   if (credito > 0 && conversion) {
     const { error: errCred } = await a.from("pagos").insert({
@@ -415,7 +428,33 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
   revalidatePath("/inscribir");
   const dest = await destinatarioAviso(a, { contactoId: titular.contactoId, esMenor: titular.esMenor, nombre: `${alumno.nombre} ${alumno.apellido}`.trim(), whatsapp: titular.whatsapp });
   const quienEs = `${alumno.nombre} ${alumno.apellido}`.trim();
-  const sujeto = titular.esMenor ? `la inscripción de ${quienEs}` : "tu inscripción";
+  const tolerancia = ilimitado ? 0 : await toleranciaDe(a, plan.id as number, null);
+  const fin = fechaFin ? fechaLarga(parseFechaISO(fechaFin) ?? inicio) : null;
+  const compromisoTxt = fechaCompromiso ? fechaLarga(parseFechaISO(fechaCompromiso) ?? inicio) : null;
+  const mensaje = mensajeConfirmacionInscripcion(
+    {
+      alumno: quienEs,
+      esMenor: titular.esMenor,
+      plan: plan.nombre,
+      cursos: seleccion.map((s) => {
+        const cv = cursoDeVenta.get(s.cursoId);
+        return { nombre: cv?.nombre ?? "Curso", dias: s.dias, hora: cv?.hora ?? null, duracionMin: cv?.duracion_min ?? null };
+      }),
+      clasesPlan,
+      bono,
+      cicloDias,
+      inicio: fechaLarga(inicio),
+      fin,
+      tolerancia,
+      precio: referencia,
+      credito,
+      cobrado: porPlata,
+      medio: c.medio,
+      saldo,
+      compromiso: compromisoTxt,
+    },
+    gs
+  );
   return {
     ok: true,
     resumen:
@@ -431,11 +470,20 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
       ...(credito > 0 ? [{ etiqueta: "Crédito de prueba", valor: gs(credito) }] : []),
       ...(saldo > 0 && fechaCompromiso ? [{ etiqueta: "Saldo", valor: `${gs(saldo)} hasta el ${fechaLarga(parseFechaISO(fechaCompromiso) ?? inicio)}` }] : []),
     ],
-    avisoAlumno: {
-      nombre: dest.nombre,
-      whatsapp: dest.whatsapp,
-      mensaje: `Hola! Confirmamos ${sujeto} en ${plan.nombre}: empieza el ${fechaLarga(inicio)}${fechaFin ? ` y el ciclo termina aprox. el ${fechaLarga(parseFechaISO(fechaFin) ?? inicio)}` : ""}. ¡Te esperamos!`,
-    },
+    avisoAlumno: { nombre: dest.nombre, whatsapp: dest.whatsapp, mensaje },
+    ...(porPlata > 0
+      ? {
+          avisoRecibo: {
+            nombre: dest.nombre,
+            whatsapp: dest.whatsapp,
+            mensaje: mensajeReciboPago(
+              { alumno: quienEs, plan: plan.nombre, fecha: fechaLarga(hoyLocal()), monto: porPlata, medio: c.medio, saldo, compromiso: compromisoTxt },
+              gs
+            ),
+          },
+          reciboId,
+        }
+      : {}),
   };
 }
 
