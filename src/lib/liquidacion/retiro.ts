@@ -12,6 +12,7 @@
  * servidor (calidad 9).
  */
 import { diaSiguiente, validarDesasignacion, type DatosSustituto } from "../desasignacion.ts";
+import { fechaCorta } from "./formatoPre.ts";
 import type { DevengoPendiente, MembresiaBloqueada } from "./motor.ts";
 import type { DevengoParticular, ParticularBloqueada } from "./particulares.ts";
 import type { DescuentoPre } from "./preliquidacion.ts";
@@ -263,9 +264,9 @@ function excepcionesDelCierre(e: EntradaRetiro): Traba[] {
   return [
     ...e.regular.bloqueadas.map((b) => ({
       clave: `bloq-${b.membresiaId}`,
-      texto: `${b.alumno}: clases sin registrar en más de un curso (${b.cursos
-        .map((c) => c.curso)
-        .join(", ")}). Su parte no entra al cierre hasta registrarlas (regla 17).`,
+      texto: `${b.alumno} (varios cursos): faltan registrar ${b.cursos
+        .map((c) => `${c.curso} (${c.fechas.map(fechaCorta).join(", ")})`)
+        .join("; ")}. Sin eso no se puede repartir su pago entre cursos y profesores, y su parte no entra al cierre (regla 17).`,
       href: HREF.asistencia,
       accion: "Registrar clases",
     })),
