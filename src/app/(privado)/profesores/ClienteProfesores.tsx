@@ -2,6 +2,7 @@
 
 import { Fragment, useState, useTransition } from "react";
 import { validarAsignacionNueva, validarDesasignacion, type DatosSustituto } from "@/lib/desasignacion";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Profesor, Curso, Asignacion, DepsProfesor, DatosProfesor, Estilo, ListasContacto, MatrizMinimo } from "@/lib/tipos";
 import { nombreCompleto, apellidoNombre, compararContactosPorApellido } from "@/lib/contactos";
@@ -77,6 +78,8 @@ export default function ClienteProfesores({
           listasContacto={listasContacto}
           puedeVerPrivados={puedeVerPrivados}
           puedeEditar={puedeEditar}
+          puedeRetirar={puedeEditar && puedeLiquidar}
+          conAsignacionAbierta={asignaciones.filter((a) => a.hasta === null).map((a) => a.profesor_id)}
         />
       ) : (
         <TabAsignacion padron={padron} cursos={cursos} asignaciones={asignaciones} estilos={estilos} puedeLiquidar={puedeLiquidar} />
@@ -99,6 +102,8 @@ function TabListado({
   listasContacto,
   puedeVerPrivados,
   puedeEditar,
+  puedeRetirar,
+  conAsignacionAbierta,
 }: {
   padron: Profesor[];
   cuentas: Cuenta[];
@@ -108,6 +113,8 @@ function TabListado({
   listasContacto: ListasContacto;
   puedeVerPrivados: boolean;
   puedeEditar: boolean;
+  puedeRetirar: boolean;
+  conAsignacionAbierta: number[];
 }) {
   const router = useRouter();
   const [editSel, setEditSel] = useState<Profesor | null>(null);
@@ -232,6 +239,14 @@ function TabListado({
                       >
                         {puedeEditar ? "Editar" : "Ver"}
                       </button>
+                      {puedeRetirar && (p.activo || conAsignacionAbierta.includes(p.id)) && (
+                        <Link
+                          href={`/profesores/retirar/${p.id}`}
+                          className="px-4 py-1.5 text-sm rounded-[var(--radio-control)] border border-[var(--primario)] text-[var(--primario)]"
+                        >
+                          Retirar…
+                        </Link>
+                      )}
                       {p.activo ? (
                         <button
                           disabled={pendiente}

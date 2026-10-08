@@ -100,6 +100,12 @@ export type VistaRetiro = {
   };
   /** Cosas que no traban pero se explican. */
   avisos: string[];
+  /**
+   * Membresías que **no entran al cierre** y por qué (regla 17: bloquea esa
+   * membresía, no al profesor). No traban el retiro: se liquidan después, con
+   * la liquidación final, cuando se corrija lo que falta.
+   */
+  quedanAfuera: Traba[];
   trabas: Traba[];
   puedeConfirmar: boolean;
 };
@@ -117,7 +123,9 @@ export function abiertasDe(asignaciones: AsignacionRetiro[]): AsignacionRetiro[]
  */
 export function validarRetiro(e: EntradaRetiro): Traba[] {
   const trabas: Traba[] = [];
-  if (!e.activo) trabas.push({ clave: "inactivo", texto: "El profesor ya está inactivo." });
+  // Un inactivo con asignaciones abiertas sí se puede retirar: quedó a medias.
+  if (!e.activo && abiertasDe(e.asignaciones).length === 0)
+    trabas.push({ clave: "inactivo", texto: "El profesor ya está inactivo y no tiene asignaciones abiertas: no hay nada que retirar." });
 
   for (const a of abiertasDe(e.asignaciones)) {
     const falta = validarDesasignacion({
@@ -147,20 +155,25 @@ export function validarRetiro(e: EntradaRetiro): Traba[] {
       accion: "Ir a la sala",
     });
 
-  for (const b of e.regular.bloqueadas)
-    trabas.push({
+  return trabas;
+}
+
+/** Lo que el cierre deja afuera: no traba, se explica y lleva a donde se arregla. */
+export function quedanAfueraDe(e: EntradaRetiro): Traba[] {
+  return [
+    ...e.regular.bloqueadas.map((b) => ({
       clave: `bloq-${b.membresiaId}`,
-      texto: `${b.alumno}: tiene clases sin registrar en más de un curso (${b.cursos
+      texto: `${b.alumno}: clases sin registrar en más de un curso (${b.cursos
         .map((c) => c.curso)
-        .join(", ")}). No se puede calcular su parte hasta registrarlas (regla 17).`,
+        .join(", ")}). Su parte no entra al cierre hasta registrarlas (regla 17).`,
       href: HREF.asistencia,
       accion: "Registrar clases",
-    });
-
-  for (const b of e.particulares.bloqueadas)
-    trabas.push({ clave: `part-${b.membresiaId}`, texto: `${b.alumno} (particular): ${b.motivo}` });
-
-  return trabas;
+    })),
+    ...e.particulares.bloqueadas.map((b) => ({
+      clave: `part-${b.membresiaId}`,
+      texto: `${b.alumno} (particular): ${b.motivo} No entra al cierre.`,
+    })),
+  ];
 }
 
 export function armarRetiro(e: EntradaRetiro): VistaRetiro {
@@ -230,6 +243,7 @@ export function armarRetiro(e: EntradaRetiro): VistaRetiro {
       aPagar: r2(cierre + e.saldoPrevio),
     },
     avisos,
+    quedanAfuera: quedanAfueraDe(e),
     trabas,
     puedeConfirmar: trabas.length === 0,
   };

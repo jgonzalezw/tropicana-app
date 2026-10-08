@@ -65,11 +65,20 @@ test("reservas particulares futuras traban y llevan a la sala", () => {
   assert.equal(v.trabas[0].href, "/sala");
 });
 
-test("una multi-curso con clases sin registrar traba (regla 17), con dónde registrarlas", () => {
+test("una multi-curso con clases sin registrar no traba: queda afuera del cierre (regla 17), con dónde registrarlas", () => {
   const b = { membresiaId: 4, alumno: "Ruiz, Mar", cursos: [{ cursoId: 1, curso: "Salsa", fechas: ["2026-10-01"] }], profesorIds: [7] };
   const v = armarRetiro(entrada({ regular: { pendientes: [], bloqueadas: [b] } }));
-  assert.equal(v.puedeConfirmar, false);
-  assert.equal(v.trabas[0].href, "/asistencia");
+  assert.equal(v.puedeConfirmar, true);
+  assert.equal(v.quedanAfuera.length, 1);
+  assert.equal(v.quedanAfuera[0].href, "/asistencia");
+  assert.match(v.quedanAfuera[0].texto, /regla 17/);
+});
+
+test("una particular sin la foto de pago queda afuera y se explica", () => {
+  const b = { membresiaId: 9, profesorId: 7, alumno: "Gómez, Eva", motivo: "La venta no guardó el fee por hora del profesor." };
+  const v = armarRetiro(entrada({ particulares: { pendientes: [], bloqueadas: [b] } }));
+  assert.equal(v.puedeConfirmar, true);
+  assert.match(v.quedanAfuera[0].texto, /No entra al cierre/);
 });
 
 test("un sustituto igual al profesor o una fecha anterior al inicio traban", () => {
@@ -79,8 +88,9 @@ test("un sustituto igual al profesor o una fecha anterior al inicio traban", () 
   assert.match(antes[0].texto, /anterior al inicio/);
 });
 
-test("un profesor ya inactivo no se puede retirar de nuevo", () => {
-  assert.equal(armarRetiro(entrada({ activo: false })).puedeConfirmar, false);
+test("un inactivo sin asignaciones abiertas no se retira de nuevo; con asignaciones abiertas sí", () => {
+  assert.equal(armarRetiro(entrada({ activo: false, asignaciones: [] })).puedeConfirmar, false);
+  assert.equal(armarRetiro(entrada({ activo: false })).puedeConfirmar, true);
 });
 
 test("los descuentos por reemplazo se avisan y no entran al cierre", () => {

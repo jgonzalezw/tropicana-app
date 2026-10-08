@@ -359,3 +359,18 @@ Cierra I-009; **solo dev, sin migración**. Rama `fix/i-009` (sale de `fix/i-001
 - Código: `src/lib/ordinalClase.ts` (puro, 6 pruebas), `cargarPadron`, `FilaAsistencia.ordinal` y `ClienteAsistencia`.
 - Límite: un alumno con dos cursos el mismo día ve el mismo número en los dos.
 - **Verificado:** `tsc`, `lint`, `npm test` (286/286) y prueba en pantalla de Javier en dev.
+
+---
+
+## I-005 — Retiro del profesor y pre-liquidación simulada (2026-10-07)
+
+D34 (`docs/decisiones/vigentes.md`) y D29 activada. **Migración 0063 aplicada solo en dev (2026-10-07); producción sin tocar.**
+
+- **Pre-liquidación simulada (D29):** botón «Simular cierre del período» en Liquidaciones → `/liquidaciones/pre-liquidacion?modo=simulacion`. El período en curso sale de `periodicidad_liquidacion` (`rangoEnCurso`: mes o semana). Capa pura `simulacion.ts`: las activas con fin dentro del período y saldo 0 pasan a completadas, las clases y reservas futuras cuentan como dadas; el motor no se tocó. Rótulo «Simulación al <fecha>» y los 3 límites, también en el impreso.
+- **Cierre de particulares:** `calcularDevengosParticulares` acepta `cierre` (avance de horas al corte, solo positivo, tipo `cierre`).
+- **Retiro:** `/profesores/retirar/[id]` (botón «Retirar…» en el listado). Vista simulada (`retiro.ts`, puro) con acciones, liquidación final (regulares + particulares + saldo previo) y trabas; las membresías que la regla 17 deja afuera no traban, se explican. `vistaRetiro` solo lee; `retirarProfesor` recalcula y llama a la función SQL `retirar_profesor` (0063): asignaciones, sustitutos, cierre, ítems, totales e inactivación en una transacción.
+- **Se puede retirar a un profesor ya inactivo con asignaciones abiertas** (dev tenía uno: Caceres).
+- **Control 48** nuevo: profesor inactivo con asignación abierta.
+- **Verificado en dev:** `tsc`, `lint`, `npm test` (312). Simulación mostrada en pantalla sin escribir nada. Función: camino feliz y falla a mitad revertidos en SQL (nada queda escrito). Retiro real de Caceres: coincide con la simulación (Bs. 150, 3 líneas, liquidación 2026-10-01 abierta), control 43 y 48 en 0.
+- **No hecho:** la cifra de liquidez con el saldo adeudado en la simulación; el valor `semana` no está en el catálogo del parámetro (la liquidación real solo sabe `mes`); el botón del retiro está en el listado, no en la ficha.
+
