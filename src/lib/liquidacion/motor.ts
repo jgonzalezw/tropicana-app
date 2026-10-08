@@ -153,6 +153,8 @@ export type ComisionPrevia = {
   tipo: string;
   /** El período en que entró: el ajuste va al mismo, como complemento. */
   periodo: string | null;
+  /** La liquidación en que quedó devengada (para decir «ya liquidado en N° 3»). */
+  liquidacion_id?: number | null;
 };
 
 export type CuotaLiq = {

@@ -87,6 +87,7 @@ El texto completo **manda** y está en `docs/reglas/` (`docs/REGLAS.md` es el ma
 7. Todo parámetro o catálogo que lea el código nace en una migración.
 8. Toda pantalla se arma con `<Pagina>`, nunca con `mx-auto`.
 9. Botón de guardar deshabilitado si falta algo, con una sola función de validación compartida.
+10. Una definición de liquidación (criterio, avance, cuenta, devengo) vive en un solo lugar y todo flujo la usa; el flujo solo cambia el objetivo.
 - Controles: `scripts/control_migracion.sql`.
 
 ## Decisiones — índice

@@ -53,6 +53,7 @@ export type ComisionPreviaParticular = {
   monto: number;
   tipo: string;
   periodo: string | null;
+  liquidacion_id?: number | null;
 };
 
 export type DatosParticulares = {

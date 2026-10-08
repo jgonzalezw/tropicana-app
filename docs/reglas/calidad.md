@@ -103,6 +103,19 @@
    relajado la calidad." Corregido el mismo día; queda como regla general,
    no solo para esas dos pantallas.*
 
+10. **Una definición de liquidación vive en un solo lugar, y todo flujo la usa.**
+    Criterios de liquidación (sigla, texto), avance de una membresía, cuenta del
+    alumno (precio, descuento, pagado, saldo) y el cálculo del devengo salen de
+    una pieza compartida; el flujo (cierre normal, retiro, simulación) solo
+    cambia el objetivo y qué se hace con el resultado. Antes de definir algo
+    de esto, buscar si ya existe y reutilizarlo; si no sirve tal cual, se
+    ajusta la pieza, no se escribe otra al lado. *Costó I-011 (2026-10-08): el
+    retiro medía el avance con `clases_hechas` (solo presentes) mientras
+    Asistencia contaba clases dictadas, y los criterios tenían cuatro
+    catálogos distintos. Javier: "todos los cálculos de liquidación deben ser
+    realizados por un solo proceso estandarizado, independientemente del
+    flujo."*
+
 ## 5. Controles
 
 `scripts/control_migracion.sql` — controles de solo lectura que verifican

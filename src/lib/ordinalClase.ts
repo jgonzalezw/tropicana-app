@@ -34,11 +34,29 @@ export type EntradaOrdinal = {
   fecha: string;
 };
 
+/** Qué fechas consumen el ciclo (la regla es una sola): dictadas en un plan de N, presentes en un paquete. */
+function fechasQueConsumen(e: Omit<EntradaOrdinal, "fecha">): string[] {
+  return e.clasesPlan != null ? e.fechasDictadas : e.fechasPresentes;
+}
+
+/**
+ * Cuánto lleva consumido el ciclo **hasta una fecha inclusive** (p. ej. el corte
+ * de un retiro) y de cuánto es el total (`null` = ilimitado: se cuentan las
+ * presentes). Una falta cuenta en un plan de N: la clase se dio.
+ */
+export function avanceAlCorte(
+  e: Omit<EntradaOrdinal, "fecha">,
+  corte: string
+): { hechas: number; total: number | null } {
+  const total = e.clasesPlan ?? e.clasesTotal;
+  return { hechas: fechasQueConsumen(e).filter((x) => x <= corte).length, total: total != null && total > 0 ? total : null };
+}
+
 export function ordinalDeClase(e: EntradaOrdinal): OrdinalClase | null {
   const porPlan = e.clasesPlan != null;
   const total = porPlan ? e.clasesPlan : e.clasesTotal;
   if (total == null || total <= 0) return null;
-  const previas = (porPlan ? e.fechasDictadas : e.fechasPresentes).filter((x) => x < e.fecha).length;
+  const previas = fechasQueConsumen(e).filter((x) => x < e.fecha).length;
   const numero = previas + 1;
   return { numero, total, quedan: Math.max(0, total - numero), ultima: numero >= total };
 }

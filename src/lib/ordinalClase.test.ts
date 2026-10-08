@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ordinalDeClase, type EntradaOrdinal } from "./ordinalClase.ts";
+import { avanceAlCorte, ordinalDeClase, type EntradaOrdinal } from "./ordinalClase.ts";
 
 const dictadas = ["2026-09-01", "2026-09-03", "2026-09-08", "2026-09-10"];
 
@@ -47,4 +47,27 @@ test("un paquete por clase cuenta las presentes: una falta no consume", () => {
 
 test("ilimitado o legado sin N no tiene número", () => {
   assert.equal(ordinalDeClase({ ...plan, clasesPlan: null, clasesTotal: null }), null);
+});
+
+test("avance al corte: en un plan de N cuenta la clase dictada a la que faltó (la falta también es clase)", () => {
+  // Luz Marina: 01/10 presente, 06/10 ausente. Antes salía 1 de 8 por contar solo presentes.
+  const e = {
+    clasesPlan: 8, clasesTotal: null,
+    fechasDictadas: ["2026-10-01", "2026-10-06"], fechasPresentes: ["2026-10-01"],
+  };
+  assert.deepEqual(avanceAlCorte(e, "2026-10-06"), { hechas: 2, total: 8 });
+  assert.deepEqual(avanceAlCorte(e, "2026-10-05"), { hechas: 1, total: 8 }); // el corte es inclusive, no más
+});
+
+test("avance al corte: un paquete cuenta solo las presentes y un ilimitado no inventa total", () => {
+  const paquete = { clasesPlan: null, clasesTotal: 4, fechasDictadas: ["2026-10-01", "2026-10-06"], fechasPresentes: ["2026-10-01"] };
+  assert.deepEqual(avanceAlCorte(paquete, "2026-10-31"), { hechas: 1, total: 4 });
+  const ilimitado = { clasesPlan: null, clasesTotal: null, fechasDictadas: ["2026-10-01"], fechasPresentes: ["2026-10-01"] };
+  assert.deepEqual(avanceAlCorte(ilimitado, "2026-10-31"), { hechas: 1, total: null });
+});
+
+test("el avance al corte y el número de clase usan la misma regla", () => {
+  const e = { clasesPlan: 8, clasesTotal: null, fechasDictadas: ["2026-10-01", "2026-10-06"], fechasPresentes: ["2026-10-01"] };
+  // La clase 3 es la del 08/10: antes de ella hay 2 consumidas = lo que el avance cuenta al 06/10.
+  assert.equal(ordinalDeClase({ ...e, fecha: "2026-10-08" })!.numero, avanceAlCorte(e, "2026-10-06").hechas + 1);
 });

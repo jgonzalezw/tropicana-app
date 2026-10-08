@@ -5,6 +5,7 @@ import Link from "next/link";
 import { gs } from "@/lib/inscripcion";
 import Pagina from "@/components/Pagina";
 import { textoRetiroEfectivo } from "@/lib/liquidacion/formatoPre";
+import { siglaCriterio, textoCriterio } from "@/lib/liquidacion/criterios";
 
 /** Lo que el comprobante necesita para explicar una comisión de clase particular (H5). */
 export type ParticularItem = {
@@ -368,15 +369,9 @@ export type DatosComprobante = {
 
 const horasTxt = (n: number) => String(Math.round(n * 100) / 100).replace(".", ",");
 
-const CRITERIO_TXT: Record<number, string> = {
-  1: "Criterio 1: al completarse la membresía, período vencido",
-  2: "Criterio 2: proporcional al avance, período vencido",
-  3: "Criterio 3: al completarse la membresía, inmediato",
-};
-
 /** El plan con el criterio con que se liquidó, en una sola línea: "Plan X - C1". */
 function planConCriterio(plan: string, criterio: number | null | undefined): string {
-  return criterio != null ? `${plan} - C${criterio}` : plan;
+  return criterio != null ? `${plan} - ${siglaCriterio(criterio)}` : plan;
 }
 
 
@@ -667,7 +662,7 @@ export default function Comprobante({ datos }: { datos: DatosComprobante }) {
             <ul className="space-y-0.5">
               {sumarioPorCriterio(datos.items).map((r) => (
                 <li key={r.criterio} className="flex justify-between">
-                  <span>{CRITERIO_TXT[r.criterio] ?? `Criterio ${r.criterio}`}</span>
+                  <span>{textoCriterio(r.criterio)}</span>
                   <span className="font-semibold">{r.membresias}</span>
                 </li>
               ))}
@@ -924,7 +919,7 @@ function construirHTMLImpresion(d: DatosComprobante): string {
       <table><tbody>${sumarioPorCriterio(d.items)
         .map(
           (r) =>
-            `<tr><td>${esc(CRITERIO_TXT[r.criterio] ?? `Criterio ${r.criterio}`)}</td><td class="r">${r.membresias}</td></tr>`
+            `<tr><td>${esc(textoCriterio(r.criterio))}</td><td class="r">${r.membresias}</td></tr>`
         )
         .join("")}<tr><td class="muted">Total de membresías</td><td class="r b">${membresiasDelPeriodo(d.items)}</td></tr></tbody></table>`
           : ""

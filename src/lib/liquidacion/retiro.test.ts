@@ -29,6 +29,7 @@ function entrada(o: Partial<EntradaRetiro> = {}): EntradaRetiro {
     regular: { pendientes: [regular()], bloqueadas: [] },
     particulares: { pendientes: [particular()], bloqueadas: [] },
     descuentos: [], saldoPrevio: 0, posteriores: [], reservasFuturas: [], inconclusas: [],
+    cuentas: {}, bonos: {}, criterios: {}, ciclos: {}, previas: [],
     ...o,
   };
 }
@@ -94,7 +95,7 @@ test("un inactivo sin asignaciones abiertas no se retira de nuevo; con asignacio
 });
 
 test("las inconclusas salen una por membresía, por alumno, y se avisan", () => {
-  const base = { tipo: "regular" as const, detalle: "Salsa", plan: "Plan", inicio: "2026-10-01", fin: "2026-10-29", unidad: "clases" as const, estado: "activa", saldo: 0 };
+  const base = { tipo: "regular" as const, detalle: "Salsa", plan: "Plan", inicio: "2026-10-01", fin: "2026-10-29", unidad: "clases" as const, estado: "activa", criterio: 1 };
   const v = armarRetiro(
     entrada({
       inconclusas: [
@@ -112,5 +113,71 @@ test("los descuentos por reemplazo se avisan y no entran al cierre", () => {
   const v = armarRetiro(entrada({ descuentos: d }));
   assert.equal(v.totales.cierre, 150);
   assert.equal(v.totales.descuentos, 20);
-  assert.ok(v.avisos.some((a) => /regla 20a/.test(a)));
+  assert.ok(v.avisosLiquidacion.some((a) => /regla 20a/.test(a)));
+  assert.ok(!v.avisos.some((a) => /regla 20a/.test(a)));
+});
+
+test("una línea dice cuánto le toca a la fecha, cuánto ya está liquidado (y dónde) y cuánto es este cierre", () => {
+  // Yubinca: 5 h × Bs. 50 = 250 a la fecha; 150 ya devengados en la liquidación N° 3; el cierre es la diferencia.
+  const p = particular({
+    membresiaId: 43, alumno: "?? , Yubinca", monto: 100,
+    detalle: { ...particular().detalle, horasContratadas: 6, horasDadas: 5, objetivo: 250, yaDevengado: 150 },
+  });
+  const v = armarRetiro(
+    entrada({
+      regular: { pendientes: [], bloqueadas: [] },
+      particulares: { pendientes: [p], bloqueadas: [] },
+      previas: [{ membresiaId: 43, cursoId: null, monto: 150, liquidacionId: 3 }],
+      cuentas: { 43: { precio: 1000, descuento: 0, pagado: 1000, saldo: 0 } },
+      criterios: { 43: 2 },
+    })
+  );
+  const l = v.particulares[0];
+  assert.equal(l.aLaFecha, 250);
+  assert.equal(l.yaLiquidado, 150);
+  assert.deepEqual(l.liquidaciones, [3]);
+  assert.equal(l.monto, 100);
+  assert.equal(l.aLaFecha, l.yaLiquidado + l.monto);
+  assert.equal(l.cuenta.pagado, 1000);
+  assert.equal(v.totales.cierre, 100); // los totales no cambian: solo se explican
+});
+
+test("una regular suma lo ya devengado de su curso y muestra su bono aplicado y su criterio", () => {
+  const v = armarRetiro(
+    entrada({
+      particulares: { pendientes: [], bloqueadas: [] },
+      previas: [
+        { membresiaId: 1, cursoId: 1, monto: 20, liquidacionId: 2 },
+        { membresiaId: 1, cursoId: 99, monto: 500, liquidacionId: 9 }, // otro curso: no cuenta
+      ],
+      bonos: { 1: { aplicado: 1, generado: 0, vence: null } },
+      criterios: { 1: 3 },
+    })
+  );
+  const l = v.regulares[0];
+  assert.equal(l.yaLiquidado, 20);
+  assert.equal(l.aLaFecha, 70);
+  assert.equal(l.bonoAplicado, 1);
+  assert.equal(l.criterio, 3);
+});
+
+test("la sigla de una particular es la de la venta, no el 2 con que el cierre mide el avance", () => {
+  const v = armarRetiro(entrada({ criterios: { 9: 1 } }));
+  assert.equal(v.particulares[0].criterio, 1);
+});
+
+test("las inconclusas llevan su cuenta y sus bonos", () => {
+  const base = { tipo: "regular" as const, detalle: "Salsa", plan: "Plan", inicio: "2026-10-01", fin: "2026-10-29", unidad: "clases" as const, estado: "activa", criterio: 1, hechas: 2, total: 8 };
+  const v = armarRetiro(
+    entrada({
+      inconclusas: [{ ...base, membresiaId: 5, alumno: "Araujo, Luz" }],
+      cuentas: { 5: { precio: 400, descuento: 40, pagado: 360, saldo: 0 } },
+      bonos: { 5: { aplicado: 1, generado: 1, vence: "2026-11-03" } },
+    })
+  );
+  const m = v.inconclusas[0];
+  assert.deepEqual(m.cuenta, { precio: 400, descuento: 40, pagado: 360, saldo: 0 });
+  assert.equal(m.bonoAplicado, 1);
+  assert.equal(m.bonoGenerado, 1);
+  assert.equal(m.bonoVence, "2026-11-03");
 });

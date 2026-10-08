@@ -20,6 +20,10 @@ export type CobroPorMembresia = {
   saldo: Record<number, number>;
   /** La plata que efectivamente entró (sin contar el descuento). */
   cobrado: Record<number, number>;
+  /** Lo vendido: Σ de las cuotas devengadas (antes de descuentos). */
+  precio: Record<number, number>;
+  /** Lo que se perdonó: descuento por adelanto + descuento en los pagos. */
+  descuento: Record<number, number>;
 };
 
 export function cobroPorMembresia(cuotas: CuotaCobro[], pagos: PagoCobro[]): CobroPorMembresia {
@@ -32,11 +36,18 @@ export function cobroPorMembresia(cuotas: CuotaCobro[], pagos: PagoCobro[]): Cob
   }
   const saldo: Record<number, number> = {};
   const cobrado: Record<number, number> = {};
+  const precio: Record<number, number> = {};
+  const descuento: Record<number, number> = {};
+  const descPagos: Record<number, number> = {};
+  for (const p of pagos) if (p.cuota_id != null) descPagos[p.cuota_id] = (descPagos[p.cuota_id] ?? 0) + Number(p.descuento);
   for (const c of cuotas) {
+    precio[c.membresia_id] = (precio[c.membresia_id] ?? 0) + Number(c.monto_devengado);
+    descuento[c.membresia_id] =
+      (descuento[c.membresia_id] ?? 0) + Number(c.descuento_adelanto) + (descPagos[c.id] ?? 0);
     const efectivo = Math.max(0, Number(c.monto_devengado) - Number(c.descuento_adelanto));
     saldo[c.membresia_id] =
       (saldo[c.membresia_id] ?? 0) + Math.max(0, efectivo - (pagadoPorCuota[c.id] ?? 0));
     cobrado[c.membresia_id] = (cobrado[c.membresia_id] ?? 0) + (plataPorCuota[c.id] ?? 0);
   }
-  return { saldo, cobrado };
+  return { saldo, cobrado, precio, descuento };
 }
