@@ -22,7 +22,7 @@ export default async function PaginaLiquidaciones() {
     .filter(Boolean);
 
   return (
-    <Pagina ancho="5xl">
+    <Pagina ancho="6xl">
       <EncabezadoPagina
         titulo="Liquidaciones"
         descripcion="Comisiones devengadas por membresías cobradas, según el criterio de liquidación de cada una (1, 2 o 3). Generá la liquidación del profesor, pagá y descargá el comprobante."

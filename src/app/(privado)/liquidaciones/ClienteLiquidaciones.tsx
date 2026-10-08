@@ -1,10 +1,11 @@
 "use client";
 
 import { fechaCorta } from "@/lib/liquidacion/formatoPre";
-import { useState, useTransition } from "react";
+import { Fragment, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { fechaLarga, gs } from "@/lib/inscripcion";
+import { TablaParticulares, TablaRegulares } from "@/components/liquidacion/TablasLineas";
 import {
   eliminarLiquidacionVacia,
   generarLiquidacion,
@@ -94,6 +95,15 @@ export default function ClienteLiquidaciones({
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
+  // Los profesores cuyo detalle (las líneas que componen el devengado) está abierto.
+  const [detalle, setDetalle] = useState<Set<number>>(new Set());
+  const alternarDetalle = (id: number) =>
+    setDetalle((s) => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
   const [error, setError] = useState<string | null>(null);
 
   // Estado del pago inline por liquidación.
@@ -157,10 +167,35 @@ export default function ClienteLiquidaciones({
     });
   }
 
+  const conExcepcion = profesores.filter((p) => p.sinRegistrar.length > 0 || p.particularesBloqueadas.length > 0);
+
   return (
     <div className="space-y-8">
       {msg && <p className="text-[var(--exito)] text-base">{msg}</p>}
       {error && <p className="text-[var(--peligro)] text-base" role="alert">{error}</p>}
+
+      {/* Lo que no entra: al principio, no escondido en la fila de cada profesor. */}
+      {conExcepcion.length > 0 && (
+        <section className="rounded-[var(--radio-tarjeta)] border border-[var(--peligro)] p-4" role="alert">
+          <h2 className="text-lg titulo mb-1">Hay que resolver: lo que no entra en esta liquidación</h2>
+          <p className="text-base text-[var(--texto-tenue)] mb-2">
+            No impide liquidar el resto: lo que espera se cobra después, cuando se corrija.
+          </p>
+          <ul className="flex flex-col gap-3">
+            {conExcepcion.map((p) => (
+              <li key={p.profesorId} className="text-base">
+                <span className="font-medium">{p.nombre}</span>
+                <SinRegistrar cursos={p.sinRegistrar} ventas={p.ventasEsperando} />
+                {p.particularesBloqueadas.map((b, i) => (
+                  <p key={i} className="mt-1.5 text-sm text-[var(--peligro-texto)]">
+                    Particular sin liquidar · {b.alumno}: {b.motivo}
+                  </p>
+                ))}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* Devengado pendiente por profesor */}
       <section>
@@ -177,19 +212,20 @@ export default function ClienteLiquidaciones({
             </thead>
             <tbody>
               {profesores.map((p) => (
-                <tr key={p.profesorId} className="border-t border-[var(--borde)] align-top">
+                <Fragment key={p.profesorId}>
+                <tr className="border-t border-[var(--borde)] align-top">
                   <td className="py-3 px-4 font-medium">
                     {p.nombre}
-                    {/* Regla 17: lo que espera son las ventas multi-curso con
-                        clases sin registrar. El resto se liquida igual, así que
-                        esto informa, no traba. Colapsado por default: la lista
-                        abierta ocupaba trece líneas por profesor. */}
-                    <SinRegistrar cursos={p.sinRegistrar} ventas={p.ventasEsperando} />
-                    {p.particularesBloqueadas.map((b, i) => (
-                      <p key={i} className="mt-1.5 text-sm font-normal text-[var(--peligro-texto)]">
-                        Particular sin liquidar · {b.alumno}: {b.motivo}
-                      </p>
-                    ))}
+                    {p.pendienteCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => alternarDetalle(p.profesorId)}
+                        aria-expanded={detalle.has(p.profesorId)}
+                        className="mt-1 block text-sm font-normal underline text-[var(--texto-tenue)] hover:text-[var(--texto)]"
+                      >
+                        {detalle.has(p.profesorId) ? "▾ Ocultar detalle" : "▸ Ver qué compone el monto"}
+                      </button>
+                    )}
                   </td>
                   <td className="py-3 px-4 text-right">{p.pendienteCount}</td>
                   <td className="py-3 px-4 text-right font-bold">{gs(p.pendienteMonto)}</td>
@@ -205,6 +241,25 @@ export default function ClienteLiquidaciones({
                     )}
                   </td>
                 </tr>
+                {detalle.has(p.profesorId) && (
+                  <tr>
+                    <td colSpan={4} className="px-4 pb-4">
+                      {p.regulares.length > 0 && (
+                        <>
+                          <h3 className="text-base font-semibold">Cursos regulares</h3>
+                          <TablaRegulares lineas={p.regulares} etiquetaMonto="Este período" />
+                        </>
+                      )}
+                      {p.particulares.length > 0 && (
+                        <>
+                          <h3 className="text-base font-semibold mt-4">Clases particulares</h3>
+                          <TablaParticulares lineas={p.particulares} etiquetaMonto="Este período" />
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
               {profesores.length === 0 && (
                 <tr>

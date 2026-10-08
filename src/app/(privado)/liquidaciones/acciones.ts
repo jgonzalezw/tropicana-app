@@ -13,6 +13,8 @@ import {
 } from "@/lib/liquidacion/lecturas";
 import { type MembresiaBloqueada } from "@/lib/liquidacion/motor";
 import { liquidar, SIN_LIMITE } from "@/lib/liquidacion/liquidar";
+import { armarLineas, type ContextoLineas, type LineaParticular, type LineaRegular } from "@/lib/liquidacion/lineas";
+import { criteriosYCiclos, leerCuentasYBonos, previasDe } from "@/lib/liquidacion/lecturaContexto";
 
 // El cálculo del reparto vive en `@/lib/liquidacion/motor`, sin base de datos,
 // para poder fijarlo con pruebas deterministas. Acá quedan las lecturas.
@@ -83,6 +85,9 @@ export type FilaProfesor = {
   ventasEsperando: number;
   /** Particulares que no se pueden liquidar, con su motivo (calidad 5: se dice, no se esconde). */
   particularesBloqueadas: { alumno: string; motivo: string }[];
+  /** Las líneas estándar que componen el devengado (`lineas.ts`): lo que se inspecciona antes de generar. */
+  regulares: LineaRegular[];
+  particulares: LineaParticular[];
 };
 
 export type FilaLiquidacion = {
@@ -163,6 +168,24 @@ export async function cargarLiquidaciones(): Promise<{
       else trabadasPorProf.set(id, [b]);
     }
 
+  // Las líneas estándar de cada profesor: la misma función y los mismos datos
+  // que usan el retiro y la pre-liquidación (calidad 10).
+  const lineasDe = (profesorId: number) =>
+    armarLineas(
+      pendientes.filter((p) => p.profesorId === profesorId && p.tipo !== "ajuste"),
+      particulares.pendientes.filter((p) => p.profesorId === profesorId && p.tipo !== "ajuste"),
+      contexto
+    );
+  const idsLineas = [
+    ...new Set([...pendientes, ...particulares.pendientes].filter((p) => p.tipo !== "ajuste").map((p) => p.membresiaId)),
+  ];
+  const contexto: ContextoLineas = {
+    ...(await leerCuentasYBonos(sb, idsLineas)),
+    ...criteriosYCiclos(calculo.datos.regular, calculo.datos.particulares),
+    previas: previasDe(calculo.datos.regular, calculo.datos.particulares),
+    yaLiquidadas: [],
+  };
+
   const { data: profs } = await sb.from("profesores").select("id, contacto:contactos(nombre, apellido)");
   const profesores: FilaProfesor[] = (
     (profs as unknown as { id: number; contacto: { nombre: string | null; apellido: string | null } | null }[]) ?? []
@@ -177,6 +200,10 @@ export async function cargarLiquidaciones(): Promise<{
       particularesBloqueadas: particulares.bloqueadas
         .filter((b) => b.profesorId === p.id)
         .map((b) => ({ alumno: b.alumno, motivo: b.motivo })),
+      ...(() => {
+        const l = lineasDe(p.id);
+        return { regulares: l.regulares, particulares: l.particulares };
+      })(),
     }))
     .filter((p) => p.pendienteCount > 0 || p.ventasEsperando > 0 || p.particularesBloqueadas.length > 0)
     .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));

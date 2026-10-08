@@ -13,7 +13,7 @@ import { exigir } from "@/lib/datos";
 import type { Curso } from "@/lib/tipos";
 import { COLUMNAS_ASIGNACION, type AsignacionVigencia } from "@/lib/asignaciones";
 import { cobroPorMembresia } from "@/lib/liquidacion/cobro";
-import { liquidar, parametrosMotores, type ModoLiquidacion, type ResultadoLiquidacion } from "@/lib/liquidacion/liquidar";
+import { liquidar, parametrosMotores, type DatosLiquidacion, type ModoLiquidacion, type ResultadoLiquidacion } from "@/lib/liquidacion/liquidar";
 import {
   type DatosParticulares,
   type ModoVencida,
@@ -122,11 +122,14 @@ export async function calcularDescuentos(
 export async function calcularLiquidacion(
   sb: Awaited<ReturnType<typeof createClient>>,
   modo: ModoLiquidacion
-): Promise<ResultadoLiquidacion> {
+): Promise<ResultadoLiquidacion & { datos: DatosLiquidacion }> {
   const p = parametrosMotores(modo);
   const regular = await leerDatosMotor(sb, p.regular.hastaISO);
   const particulares = p.particulares ? await leerDatosParticulares(sb) : null;
-  return liquidar({ regular, particulares }, modo);
+  const datos = { regular, particulares };
+  // Las filas que se leyeron viajan con el resultado: la exposición las usa para
+  // decorar las líneas (cuenta, bonos, ciclo) sin volver a leer.
+  return { ...liquidar(datos, modo), datos };
 }
 
 /**
