@@ -36,12 +36,6 @@ export function conSigno(n: number): string {
   return n < 0 ? `− ${gs(-n)}` : `+ ${gs(n)}`;
 }
 
-export const TEXTO_CRITERIO: Record<number, string> = {
-  1: "Criterio 1: al completarse la membresía, a período vencido",
-  2: "Criterio 2: proporcional al avance de la membresía",
-  3: "Criterio 3: al completarse la membresía, sin esperar el cierre",
-};
-
 export const LEYENDA_PRE =
   "Informe preliminar: no se ha generado ninguna liquidación ni se ha devengado nada.";
 

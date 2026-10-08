@@ -17,8 +17,8 @@ import {
   notaLiquidez,
   subtituloPre,
   tituloPre,
-  TEXTO_CRITERIO,
 } from "@/lib/liquidacion/formatoPre";
+import { siglaCriterio, textoCriterio } from "@/lib/liquidacion/criterios";
 
 const BOTON_SECUNDARIO =
   "inline-flex items-center justify-center min-h-[44px] px-5 text-base font-semibold rounded-[var(--radio-control)] border border-[var(--borde)] hover:border-[var(--primario)]";
@@ -287,10 +287,10 @@ function Profesores({ profesores, periodo }: { profesores: ProfesorPre[]; period
 function CriterioPill({ criterio }: { criterio: number }) {
   return (
     <span
-      title={TEXTO_CRITERIO[criterio] ?? ""}
+      title={textoCriterio(criterio)}
       className="inline-block px-2 py-0.5 text-xs font-bold rounded-[var(--radio-control)] bg-[var(--exito-fill)] text-[var(--exito-texto)]"
     >
-      C{criterio}
+      {siglaCriterio(criterio)}
     </span>
   );
 }

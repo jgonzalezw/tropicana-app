@@ -16,9 +16,11 @@ import { calcularDescuentos, leerDatosMotor, leerDatosParticulares } from "@/lib
 import { cobroPorMembresia } from "@/lib/liquidacion/cobro";
 import { calcularDevengosParticulares, horasDadas, situacionParticular } from "@/lib/liquidacion/particulares";
 import type { EntradaRetiro, MembresiaInconclusa } from "@/lib/liquidacion/retiro";
+import { avanceAlCorte } from "@/lib/ordinalClase";
 import type { DatosSustituto } from "@/lib/desasignacion";
 
 type Persona = { nombre: string | null; apellido: string | null } | null;
+const r2 = (n: number) => Math.round(n * 100) / 100;
 const nombreDe = (c: Persona) => [c?.apellido, c?.nombre].filter(Boolean).join(", ") || "—";
 
 export type LecturaRetiro = { ok: true; entrada: EntradaRetiro } | { ok: false; error: string };
@@ -126,37 +128,67 @@ export async function leerEntradaRetiro(
 
     // Las membresías que quedan sin terminar: las de sus cursos (una línea por
     // membresía, con todos sus cursos) y sus particulares.
-    const saldoDe = datos ? cobroPorMembresia(datos.cuotas, datos.pagos).saldo : {};
     const cursoIds = [...new Set(asigs.filter((a) => a.hasta == null).map((a) => a.curso_id))];
     const mcs = cursoIds.length
       ? (exigir(
           await sb
             .from("membresia_cursos")
             .select(
-              "curso_id, membresia:membresias(id, estado, clases_plan, clases_hechas, fecha_inicio, fecha_fin, plan:planes(nombre), alumno:alumnos(contacto:contactos(nombre, apellido)))"
+              "curso_id, membresia:membresias(id, estado, clases_plan, clases_total, criterio_liquidacion, fecha_inicio, fecha_fin, plan:planes(nombre), alumno:alumnos(contacto:contactos(nombre, apellido)))"
             )
             .in("curso_id", cursoIds),
           "las membresías de sus cursos"
         ) as unknown as {
           curso_id: number;
           membresia: {
-            id: number; estado: string; clases_plan: number | null; clases_hechas: number;
+            id: number; estado: string; clases_plan: number | null; clases_total: number | null;
+            criterio_liquidacion: number | null;
             fecha_inicio: string | null; fecha_fin: string | null; plan: { nombre: string } | null;
             alumno: { contacto: Persona } | null;
           } | null;
         }[])
       : [];
+    const candidatas = new Map<number, NonNullable<(typeof mcs)[number]["membresia"]>>();
+    for (const r of mcs) if (r.membresia?.estado === "activa") candidatas.set(r.membresia.id, r.membresia);
+
+    // Avance de cada una **al corte**, con la misma regla que Asistencia
+    // (`ordinalClase`): en un plan de N cuentan las clases dictadas —una falta
+    // también—; en un paquete, las presentes. No `clases_hechas`, que solo suma
+    // presentes y subcuenta la clase a la que faltó.
+    const asisRaw = candidatas.size
+      ? await sb
+          .from("asistencias")
+          .select("membresia_id, estado, sesion:sesiones!inner(fecha, estado)", { count: "exact" })
+          .in("membresia_id", [...candidatas.keys()])
+      : null;
+    const asis = asisRaw
+      ? (exigir(asisRaw, "las asistencias de las membresías") as unknown as {
+          membresia_id: number; estado: string; sesion: { fecha: string; estado: string };
+        }[])
+      : [];
+    // El tope de filas de la API corta en silencio: un avance truncado subcontaría.
+    if (asisRaw?.count != null && asis.length < asisRaw.count)
+      throw new Error(`No se pudieron cargar las asistencias completas (${asis.length} de ${asisRaw.count}).`);
+    const fechasDe = (id: number, soloPresentes: boolean) =>
+      asis
+        .filter((a) => a.membresia_id === id && a.sesion.estado === "dictada" && (!soloPresentes || a.estado === "presente"))
+        .map((a) => a.sesion.fecha);
+
     const regulares = new Map<number, MembresiaInconclusa>();
     for (const r of mcs) {
       const m = r.membresia;
       if (!m || m.estado !== "activa") continue;
-      if (m.clases_plan != null && m.clases_hechas >= m.clases_plan) continue; // agotada: no queda inconclusa
       const curso = nombreCurso.get(r.curso_id) ?? `#${r.curso_id}`;
       const ya = regulares.get(m.id);
       if (ya) {
         if (!ya.detalle.split(", ").includes(curso)) ya.detalle += `, ${curso}`;
         continue;
       }
+      const av = avanceAlCorte(
+        { clasesPlan: m.clases_plan, clasesTotal: m.clases_total, fechasDictadas: fechasDe(m.id, false), fechasPresentes: fechasDe(m.id, true) },
+        corte
+      );
+      if (av.total != null && av.hechas >= av.total) continue; // agotada: no queda inconclusa
       regulares.set(m.id, {
         membresiaId: m.id,
         alumno: nombreDe(m.alumno?.contacto ?? null),
@@ -165,17 +197,18 @@ export async function leerEntradaRetiro(
         plan: m.plan?.nombre ?? "—",
         inicio: m.fecha_inicio,
         fin: m.fecha_fin,
-        hechas: m.clases_hechas,
-        total: m.clases_plan,
+        hechas: av.hechas,
+        total: av.total,
         unidad: "clases",
         estado: m.estado,
-        saldo: Math.round((saldoDe[m.id] ?? 0) * 100) / 100,
+        criterio: m.criterio_liquidacion,
       });
     }
+    // Las horas dadas se miden **al corte**, como el cierre de las particulares.
     const particularesInconclusas: MembresiaInconclusa[] = (datosPart?.membresias ?? [])
       .filter((m) => m.profesor_id === profesorId && !m.es_cortesia)
       .flatMap((m) => {
-        const reservasM = datosPart!.reservas.filter((r) => r.membresia_id === m.id);
+        const reservasM = datosPart!.reservas.filter((r) => r.membresia_id === m.id && r.fecha <= corte);
         const saldo = datosPart!.saldo[m.id] ?? 0;
         if (situacionParticular(m, reservasM, saldo, hoyISO).completa) return [];
         return [{
@@ -190,10 +223,75 @@ export async function leerEntradaRetiro(
           total: m.horas_contratadas,
           unidad: "horas" as const,
           estado: "activa",
-          saldo: Math.round(saldo * 100) / 100,
+          criterio: m.criterio_liquidacion,
         }];
       });
     const inconclusas = [...regulares.values(), ...particularesInconclusas];
+
+    // La cuenta (precio, descuento, pagado, saldo) y los bonos de todas las
+    // membresías que la vista nombra: las líneas del cierre y las inconclusas.
+    const ids = [
+      ...new Set([
+        ...reg.pendientes.map((p) => p.membresiaId),
+        ...par.pendientes.map((p) => p.membresiaId),
+        ...inconclusas.map((m) => m.membresiaId),
+      ]),
+    ];
+    const cuentas: EntradaRetiro["cuentas"] = {};
+    const bonos: EntradaRetiro["bonos"] = {};
+    if (ids.length) {
+      const cuotas = exigir(
+        await sb.from("cuotas").select("id, membresia_id, monto_devengado, descuento_adelanto").in("membresia_id", ids),
+        "las cuotas de las membresías"
+      ) as { id: number; membresia_id: number; monto_devengado: number; descuento_adelanto: number }[];
+      const pagos = cuotas.length
+        ? (exigir(
+            await sb.from("pagos").select("cuota_id, monto, descuento").eq("tipo", "cobro").in("cuota_id", cuotas.map((c) => c.id)),
+            "los pagos de las membresías"
+          ) as { cuota_id: number | null; monto: number; descuento: number }[])
+        : [];
+      const cobro = cobroPorMembresia(cuotas, pagos);
+      for (const id of ids)
+        cuentas[id] = {
+          precio: r2(cobro.precio[id] ?? 0),
+          descuento: r2(cobro.descuento[id] ?? 0),
+          pagado: r2(cobro.cobrado[id] ?? 0),
+          saldo: r2(cobro.saldo[id] ?? 0),
+        };
+
+      // Bono por curso (D35): el que recibió (`redimido_en_membresia_id`) y el que
+      // deja pendiente para su renovación (`aplicado` nulo).
+      const filas = exigir(
+        await sb
+          .from("membresia_bonos")
+          .select("membresia_id, clases, vence, aplicado, redimido_en_membresia_id")
+          .or(`membresia_id.in.(${ids.join(",")}),redimido_en_membresia_id.in.(${ids.join(",")})`),
+        "los bonos de tolerancia"
+      ) as { membresia_id: number; clases: number; vence: string | null; aplicado: string | null; redimido_en_membresia_id: number | null }[];
+      for (const id of ids) {
+        const generados = filas.filter((f) => f.membresia_id === id && f.aplicado == null);
+        bonos[id] = {
+          aplicado: filas
+            .filter((f) => f.redimido_en_membresia_id === id && f.aplicado != null)
+            .reduce((t, f) => t + f.clases, 0),
+          generado: generados.reduce((t, f) => t + f.clases, 0),
+          vence: generados.map((f) => f.vence).filter((v): v is string => v != null).sort()[0] ?? null,
+        };
+      }
+    }
+
+    // Lo ya devengado de las membresías de las líneas, y en qué liquidación.
+    const previas: EntradaRetiro["previas"] = [
+      ...(datos?.comisionesPrevias ?? [])
+        .filter((c) => c.profesor_id === profesorId && c.membresia_id != null)
+        .map((c) => ({ membresiaId: c.membresia_id as number, cursoId: c.curso_id, monto: Number(c.monto), liquidacionId: c.liquidacion_id ?? null })),
+      ...(datosPart?.previas ?? [])
+        .filter((c) => c.membresia_id != null)
+        .map((c) => ({ membresiaId: c.membresia_id as number, cursoId: null, monto: Number(c.monto), liquidacionId: c.liquidacion_id ?? null })),
+    ];
+    const criterios: EntradaRetiro["criterios"] = {};
+    for (const m of datos?.membresias ?? []) criterios[m.id] = m.criterio_liquidacion ?? null;
+    for (const m of datosPart?.membresias ?? []) criterios[m.id] = m.criterio_liquidacion;
 
     return {
       ok: true,
@@ -221,6 +319,10 @@ export async function leerEntradaRetiro(
           id: r.id, fecha: r.fecha, alumno: nombreDe(r.membresia?.alumno?.contacto ?? null),
         })),
         inconclusas,
+        cuentas,
+        bonos,
+        criterios,
+        previas,
       },
     };
   } catch (e) {

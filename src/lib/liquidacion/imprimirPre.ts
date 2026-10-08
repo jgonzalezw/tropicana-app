@@ -11,8 +11,9 @@ import { gs } from "../inscripcion.ts";
 import type { CasoExcepcion, ClaseSinRegistrar, InformePre } from "./preliquidacion.ts";
 import {
   conSigno, fechaCorta, fechaHora, LEYENDA_PRE, LEYENDA_SIMULACION, nombrePeriodoPre, notaLiquidez,
-  subtituloPre, tituloPre, TEXTO_CRITERIO,
+  subtituloPre, tituloPre,
 } from "./formatoPre.ts";
+import { siglaCriterio, textoCriterio } from "./criterios.ts";
 
 const esc = (s: string | number | null | undefined) =>
   String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
@@ -79,7 +80,7 @@ export function construirHTMLPreliquidacion(i: InformePre, generadoEn: string): 
         .map(
           (l) => `<tr>
         <td>${esc(l.alumno)}</td><td>${esc(l.curso)}</td><td>${esc(l.plan)}</td>
-        <td title="${esc(TEXTO_CRITERIO[l.criterio] ?? "")}">C${l.criterio}</td>
+        <td title="${esc(textoCriterio(l.criterio))}">${siglaCriterio(l.criterio)}</td>
         <td>${fechaCorta(l.cicloInicio)}<br>${fechaCorta(l.cicloFin)}</td>
         <td class="r">${esc(l.clases)}</td><td class="r">${gs(l.cobrado)}</td>
         <td class="r">${gs(l.base)}${l.notaBase ? `<br><span class="small">${esc(l.notaBase)}</span>` : ""}</td>

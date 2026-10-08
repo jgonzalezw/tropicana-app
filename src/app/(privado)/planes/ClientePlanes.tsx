@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { etiquetaCriterio } from "@/lib/liquidacion/criterios";
 import type {
   AccesoModo,
   Curso,
@@ -68,13 +69,9 @@ const ACCESO_LABEL: Record<AccesoModo, string> = {
   excepto: "Todas excepto las seleccionadas",
 };
 
-const CRITERIO_LABEL: Record<number, string> = {
-  1: "1 — Al completar la membresía, período vencido",
-  2: "2 — Proporcional al avance, período vencido",
-  3: "3 — Al completar la membresía, inmediato",
-  4: "4 — Taller: al completar, sobre lo cobrado",
-  5: "5 — Taller: monto fijo al completar",
-};
+const CRITERIO_LABEL: Record<number, string> = Object.fromEntries(
+  [1, 2, 3, 4, 5].map((n) => [n, etiquetaCriterio(n)])
+);
 
 const PESTANAS: { tipo: TipoServicioPlan; etiqueta: string; construido: boolean }[] = [
   { tipo: "curso_regular", etiqueta: "Cursos regulares", construido: true },

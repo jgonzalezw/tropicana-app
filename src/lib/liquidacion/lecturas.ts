@@ -188,7 +188,7 @@ export async function leerDatosMotor(
   const comisionesPrevias = exigir(
     await sb
       .from("comisiones_devengadas")
-      .select("id, membresia_id, curso_id, profesor_id, base, monto, tipo, periodo")
+      .select("id, membresia_id, curso_id, profesor_id, base, monto, tipo, periodo, liquidacion_id")
       .in("membresia_id", inscIds),
     "las comisiones ya devengadas"
   ) as DatosMotor["comisionesPrevias"];
@@ -365,7 +365,7 @@ export async function leerDatosParticulares(
   const { saldo, cobrado } = cobroPorMembresia(cuotas, pagos);
 
   const previas = exigir(
-    await sb.from("comisiones_devengadas").select("id, membresia_id, monto, tipo, periodo").in("membresia_id", ids),
+    await sb.from("comisiones_devengadas").select("id, membresia_id, monto, tipo, periodo, liquidacion_id").in("membresia_id", ids),
     "las comisiones ya devengadas de las particulares"
   ) as DatosParticulares["previas"];
 

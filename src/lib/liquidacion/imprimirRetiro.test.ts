@@ -5,14 +5,14 @@ import { armarRetiro, type EntradaRetiro, type MembresiaInconclusa } from "./ret
 
 const inc = (o: Partial<MembresiaInconclusa> = {}): MembresiaInconclusa => ({
   membresiaId: 1, alumno: "Pérez, Ana", tipo: "regular", detalle: "Salsa, Bachata", plan: "Plan Regular",
-  inicio: "2026-10-01", fin: "2026-10-29", hechas: 3, total: 8, unidad: "clases", estado: "activa", saldo: 0, ...o,
+  inicio: "2026-10-01", fin: "2026-10-29", hechas: 3, total: 8, unidad: "clases", estado: "activa", criterio: 1, ...o,
 });
-function vista(inconclusas: MembresiaInconclusa[]) {
+function vista(inconclusas: MembresiaInconclusa[], cuentas: EntradaRetiro["cuentas"] = {}, bonos: EntradaRetiro["bonos"] = {}) {
   const e: EntradaRetiro = {
     profesorId: 7, profesor: "Salek, Natalia", activo: true, corte: "2026-10-31", hoyISO: "2026-10-07",
     asignaciones: [], sustitutos: {}, regular: { pendientes: [], bloqueadas: [] },
     particulares: { pendientes: [], bloqueadas: [] }, descuentos: [], saldoPrevio: 0, posteriores: [],
-    reservasFuturas: [], inconclusas,
+    reservasFuturas: [], inconclusas, cuentas, bonos, criterios: {}, previas: [],
   };
   return armarRetiro(e);
 }
@@ -27,7 +27,7 @@ test("el impreso es papel blanco, no una foto de la pantalla", () => {
 
 test("una línea por membresía inconclusa, con fechas, avance y estado", () => {
   const html = construirHTMLRetiro(
-    vista([inc(), inc({ membresiaId: 2, alumno: "Ruiz, Mar", tipo: "particular", detalle: "Clase particular", plan: "Clase particular", hechas: 4, total: 6, unidad: "horas", saldo: 100 })]),
+    vista([inc(), inc({ membresiaId: 2, alumno: "Ruiz, Mar", tipo: "particular", detalle: "Clase particular", plan: "Clase particular", hechas: 4, total: 6, unidad: "horas" })], { 2: { precio: 600, descuento: 0, pagado: 500, saldo: 100 } }),
     ctx
   );
   assert.match(html, /Membresías que quedan inconclusas · 2/);
@@ -62,4 +62,44 @@ test("confirmado, el mismo informe es la liquidación por finalización con sus 
   assert.match(html, /Documento final/);
   assert.ok(!html.includes("Simulación: no se guardó nada. Ninguna"));
   assert.match(html, /Membresías que quedan inconclusas · 1/);
+});
+
+test("las inconclusas muestran la cuenta, el criterio y los bonos", () => {
+  const html = construirHTMLRetiro(
+    vista(
+      [inc({ criterio: 1 })],
+      { 1: { precio: 400, descuento: 40, pagado: 360, saldo: 0 } },
+      { 1: { aplicado: 1, generado: 2, vence: "2026-11-03" } }
+    ),
+    ctx
+  );
+  assert.match(html, /Bs\. 400,00/);
+  assert.match(html, /Bs\. 40,00/);
+  assert.match(html, /\+1/);
+  assert.match(html, /2 · hasta 03\/11\/2026/);
+  assert.match(html, /C1 = Al completar la membresía, período vencido/);
+});
+
+test("sin la liquidación del que se retira, quedan las membresías y no su plata", () => {
+  const v = vista([inc()]);
+  const con = construirHTMLRetiro(v, ctx);
+  const sin = construirHTMLRetiro(v, { ...ctx, incluirLiquidacion: false });
+  assert.match(con, /Total a pagarle/);
+  assert.match(con, /Se devenga su cierre de cuentas/);
+  assert.ok(!sin.includes("Liquidación final"));
+  assert.ok(!sin.includes("Total a pagarle"));
+  assert.ok(!sin.includes("Se devenga su cierre de cuentas"));
+  assert.match(sin, /<title>Membresías de los cursos de Salek, Natalia al 31\/10\/2026<\/title>/);
+  assert.match(sin, /Membresías que quedan inconclusas · 1/);
+});
+
+test("confirmado y sin su liquidación, el impreso no habla de lo devengado", () => {
+  const html = construirHTMLRetiro(vista([inc()]), {
+    ...ctx,
+    incluirLiquidacion: false,
+    confirmado: { liquidacionId: 12, confirmadoEn: "2026-10-07T21:00:00Z" },
+  });
+  assert.match(html, /Retiro confirmado el/);
+  assert.ok(!html.includes("liquidación N° 12"));
+  assert.ok(!html.includes("cierre de cuentas quedó devengado"));
 });

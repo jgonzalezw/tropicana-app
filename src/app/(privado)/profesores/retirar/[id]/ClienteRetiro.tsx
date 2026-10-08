@@ -8,6 +8,10 @@ import type { DatosSustituto } from "@/lib/desasignacion";
 import type { VistaRetiro } from "@/lib/liquidacion/retiro";
 import { construirHTMLRetiro } from "@/lib/liquidacion/imprimirRetiro";
 import { fechaCorta } from "@/lib/liquidacion/formatoPre";
+import { leyendaCriterios, siglaCriterio } from "@/lib/liquidacion/criterios";
+import {
+  cantidad, montoOGuion, textoAvance, textoBonoAplicado, textoBonoGenerado, textoYaLiquidado,
+} from "@/lib/liquidacion/formatoRetiro";
 import { retirarProfesor, vistaRetiro } from "../../acciones";
 
 export type CursoRetiro = { asignacionId: number; cursoId: number; curso: string; desde: string };
@@ -21,6 +25,37 @@ const CAMPO =
   "min-h-[44px] px-3 text-base rounded-[var(--radio-control)] border border-[var(--borde)] bg-[var(--fondo)]";
 
 type Eleccion = { profesorId: number | null; pct: string };
+
+const TH = "py-2 pr-3 font-medium";
+const THR = `${TH} text-right`;
+const TD = "py-2 pr-3";
+const TDR = `${TD} text-right tabular-nums whitespace-nowrap`;
+
+/** Las siglas que aparecen en una tabla, explicadas debajo. */
+function Leyenda({ criterios }: { criterios: (number | null)[] }) {
+  const t = leyendaCriterios(criterios);
+  return t ? <p className="mt-2 text-sm text-[var(--texto-tenue)]">{t}</p> : null;
+}
+
+/** Esconde solo la liquidación del que se retira; el resto sirve al profesor nuevo. */
+function InterruptorLiquidacion({ valor, onChange }: { valor: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <label className="inline-flex items-center gap-3 min-h-[44px] cursor-pointer text-base">
+      <input
+        type="checkbox"
+        checked={valor}
+        onChange={(e) => onChange(e.target.checked)}
+        className="w-5 h-5"
+      />
+      <span>
+        <span className="font-semibold">Incluir la liquidación del profesor que se retira</span>
+        <span className="block text-sm text-[var(--texto-tenue)]">
+          Apagado, se ve e imprime solo lo que necesita el profesor nuevo.
+        </span>
+      </span>
+    </label>
+  );
+}
 
 export default function ClienteRetiro({
   profesorId,
@@ -50,6 +85,7 @@ export default function ClienteRetiro({
     vista: VistaRetiro;
     confirmadoEn: string;
   } | null>(null);
+  const [incluirLiquidacion, setIncluirLiquidacion] = useState(true);
   const pedido = useRef(0);
 
   // Modo enfoque: mientras se revisa un retiro el shell se atenúa (globals.css).
@@ -102,8 +138,11 @@ export default function ClienteRetiro({
       construirHTMLRetiro(
         v,
         hecho
-          ? { profesor, corte, generadoEn, confirmado: { liquidacionId: hecho.liquidacionId, confirmadoEn: hecho.confirmadoEn } }
-          : { profesor, corte, generadoEn }
+          ? {
+              profesor, corte, generadoEn, incluirLiquidacion,
+              confirmado: { liquidacionId: hecho.liquidacionId, confirmadoEn: hecho.confirmadoEn },
+            }
+          : { profesor, corte, generadoEn, incluirLiquidacion }
       )
     );
     win.document.close();
@@ -138,6 +177,8 @@ export default function ClienteRetiro({
     });
   }
 
+  const avisosVisibles = vista ? (incluirLiquidacion ? [...vista.avisos, ...vista.avisosLiquidacion] : vista.avisos) : [];
+
   if (hecho)
     return (
       <div className="flex flex-col gap-5">
@@ -149,9 +190,10 @@ export default function ClienteRetiro({
             Por pagar.
           </p>
         </div>
+        <InterruptorLiquidacion valor={incluirLiquidacion} onChange={setIncluirLiquidacion} />
         <div className="flex flex-wrap gap-3">
           <button type="button" onClick={imprimir} className={BOTON_PRIMARIO}>
-            Imprimir liquidación por finalización
+            {incluirLiquidacion ? "Imprimir liquidación por finalización" : "Imprimir membresías para el profesor nuevo"}
           </button>
           <Link href="/caja" className={BOTON_SECUNDARIO}>
             Ir a Caja
@@ -189,6 +231,8 @@ export default function ClienteRetiro({
           </p>
         )}
       </div>
+
+      <InterruptorLiquidacion valor={incluirLiquidacion} onChange={setIncluirLiquidacion} />
 
       <section className="flex flex-col gap-4">
         <label className="flex flex-col gap-1 max-w-xs">
@@ -258,9 +302,11 @@ export default function ClienteRetiro({
           <section>
             <h2 className="text-xl font-bold mb-2">Qué pasará al confirmar</h2>
             <ul className="list-disc pl-6 text-base flex flex-col gap-1">
-              {vista.acciones.map((a) => (
-                <li key={a.clave}>{a.texto}</li>
-              ))}
+              {vista.acciones
+                .filter((a) => incluirLiquidacion || a.clave !== "cierre")
+                .map((a) => (
+                  <li key={a.clave}>{a.texto}</li>
+                ))}
             </ul>
           </section>
 
@@ -285,6 +331,7 @@ export default function ClienteRetiro({
             </section>
           )}
 
+          {incluirLiquidacion && (
           <section>
             <h2 className="text-xl font-bold mb-2">Liquidación final</h2>
             <h3 className="text-base font-semibold mt-3">Cursos regulares</h3>
@@ -294,30 +341,53 @@ export default function ClienteRetiro({
               <div className="overflow-x-auto">
                 <table className="w-full text-base">
                   <thead>
+                    <tr className="text-center text-xs text-[var(--texto-tenue)]">
+                      <th />
+                      <th colSpan={4} className="font-medium">Cuenta del alumno</th>
+                      <th colSpan={7} className="font-medium">Liquidación</th>
+                    </tr>
                     <tr className="text-left text-sm text-[var(--texto-tenue)]">
-                      <th className="py-2 pr-3 font-medium">Alumno</th>
-                      <th className="py-2 pr-3 font-medium">Curso</th>
-                      <th className="py-2 pr-3 font-medium">Clases</th>
-                      <th className="py-2 pr-3 font-medium text-right">Base</th>
-                      <th className="py-2 pr-3 font-medium text-right">%</th>
-                      <th className="py-2 font-medium text-right">Monto</th>
+                      <th className={TH}>Alumno</th>
+                      <th className={THR}>Precio</th>
+                      <th className={THR}>Desc.</th>
+                      <th className={THR}>Pagado</th>
+                      <th className={THR}>Saldo</th>
+                      <th className={TH}>Clases</th>
+                      <th className={TH}>Bono</th>
+                      <th className={THR}>Base</th>
+                      <th className={THR}>%</th>
+                      <th className={THR}>A la fecha</th>
+                      <th className={THR}>Ya liquidado</th>
+                      <th className="py-2 font-medium text-right">Este cierre</th>
                     </tr>
                   </thead>
                   <tbody>
                     {vista.regulares.map((l) => (
-                      <tr key={`${l.membresiaId}-${l.curso}`} className="border-t border-[var(--borde)]">
-                        <td className="py-2 pr-3">{l.alumno}</td>
-                        <td className="py-2 pr-3">{l.curso}</td>
-                        <td className="py-2 pr-3 tabular-nums">
+                      <tr key={`${l.membresiaId}-${l.curso}`} className="border-t border-[var(--borde)] align-top">
+                        <td className={TD}>
+                          {l.alumno}
+                          <div className="text-sm text-[var(--texto-tenue)]">
+                            {l.curso} · {siglaCriterio(l.criterio)}
+                          </div>
+                        </td>
+                        <td className={TDR}>{gs(l.cuenta.precio)}</td>
+                        <td className={TDR}>{montoOGuion(l.cuenta.descuento)}</td>
+                        <td className={TDR}>{gs(l.cuenta.pagado)}</td>
+                        <td className={TDR}>{montoOGuion(l.cuenta.saldo)}</td>
+                        <td className={`${TD} tabular-nums`}>
                           {l.clases}/{l.clasesDelCurso}
                         </td>
-                        <td className="py-2 pr-3 text-right tabular-nums">{gs(l.base)}</td>
-                        <td className="py-2 pr-3 text-right tabular-nums">{l.pct}%</td>
-                        <td className="py-2 text-right tabular-nums font-semibold">{gs(l.monto)}</td>
+                        <td className={`${TD} tabular-nums`}>{textoBonoAplicado(l.bonoAplicado)}</td>
+                        <td className={TDR}>{gs(l.base)}</td>
+                        <td className={TDR}>{l.pct}%</td>
+                        <td className={TDR}>{gs(l.aLaFecha)}</td>
+                        <td className={TDR}>{textoYaLiquidado(l)}</td>
+                        <td className="py-2 text-right tabular-nums whitespace-nowrap font-semibold">{gs(l.monto)}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+                <Leyenda criterios={vista.regulares.map((l) => l.criterio)} />
               </div>
             )}
 
@@ -328,28 +398,49 @@ export default function ClienteRetiro({
               <div className="overflow-x-auto">
                 <table className="w-full text-base">
                   <thead>
+                    <tr className="text-center text-xs text-[var(--texto-tenue)]">
+                      <th />
+                      <th colSpan={4} className="font-medium">Cuenta del alumno</th>
+                      <th colSpan={5} className="font-medium">Liquidación</th>
+                    </tr>
                     <tr className="text-left text-sm text-[var(--texto-tenue)]">
-                      <th className="py-2 pr-3 font-medium">Alumno</th>
-                      <th className="py-2 pr-3 font-medium">Horas</th>
-                      <th className="py-2 pr-3 font-medium">Forma de pago</th>
-                      <th className="py-2 pr-3 font-medium text-right">Cobrado</th>
-                      <th className="py-2 font-medium text-right">Monto</th>
+                      <th className={TH}>Alumno</th>
+                      <th className={THR}>Precio</th>
+                      <th className={THR}>Desc.</th>
+                      <th className={THR}>Pagado</th>
+                      <th className={THR}>Saldo</th>
+                      <th className={TH}>Horas</th>
+                      <th className={TH}>Forma de pago</th>
+                      <th className={THR}>A la fecha</th>
+                      <th className={THR}>Ya liquidado</th>
+                      <th className="py-2 font-medium text-right">Este cierre</th>
                     </tr>
                   </thead>
                   <tbody>
                     {vista.particulares.map((l) => (
-                      <tr key={l.membresiaId} className="border-t border-[var(--borde)]">
-                        <td className="py-2 pr-3">{l.alumno}</td>
-                        <td className="py-2 pr-3 tabular-nums">
-                          {l.horasDadas} de {l.horasContratadas} h
+                      <tr key={l.membresiaId} className="border-t border-[var(--borde)] align-top">
+                        <td className={TD}>
+                          {l.alumno}
+                          <div className="text-sm text-[var(--texto-tenue)]">
+                            Clase particular · {siglaCriterio(l.criterio)}
+                          </div>
                         </td>
-                        <td className="py-2 pr-3">{l.forma.replace("_", " ")}</td>
-                        <td className="py-2 pr-3 text-right tabular-nums">{gs(l.cobrado)}</td>
-                        <td className="py-2 text-right tabular-nums font-semibold">{gs(l.monto)}</td>
+                        <td className={TDR}>{gs(l.cuenta.precio)}</td>
+                        <td className={TDR}>{montoOGuion(l.cuenta.descuento)}</td>
+                        <td className={TDR}>{gs(l.cuenta.pagado)}</td>
+                        <td className={TDR}>{montoOGuion(l.cuenta.saldo)}</td>
+                        <td className={`${TD} tabular-nums`}>
+                          {cantidad(l.horasDadas)} de {cantidad(l.horasContratadas)} h
+                        </td>
+                        <td className={TD}>{l.forma.replace("_", " ")}</td>
+                        <td className={TDR}>{gs(l.aLaFecha)}</td>
+                        <td className={TDR}>{textoYaLiquidado(l)}</td>
+                        <td className="py-2 text-right tabular-nums whitespace-nowrap font-semibold">{gs(l.monto)}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+                <Leyenda criterios={vista.particulares.map((l) => l.criterio)} />
               </div>
             )}
 
@@ -368,6 +459,7 @@ export default function ClienteRetiro({
               </dd>
             </dl>
           </section>
+          )}
 
           <section>
             <h2 className="text-xl font-bold mb-1">Membresías que quedan inconclusas · {vista.inconclusas.length}</h2>
@@ -380,42 +472,56 @@ export default function ClienteRetiro({
               <div className="overflow-x-auto">
                 <table className="w-full text-base">
                   <thead>
+                    <tr className="text-center text-xs text-[var(--texto-tenue)]">
+                      <th colSpan={4} />
+                      <th colSpan={2} className="font-medium">Bono</th>
+                      <th colSpan={4} className="font-medium">Cuenta del alumno</th>
+                      <th />
+                    </tr>
                     <tr className="text-left text-sm text-[var(--texto-tenue)]">
-                      <th className="py-2 pr-3 font-medium">Alumno</th>
-                      <th className="py-2 pr-3 font-medium">Cursos / plan</th>
-                      <th className="py-2 pr-3 font-medium">Inicio</th>
-                      <th className="py-2 pr-3 font-medium">Fin</th>
-                      <th className="py-2 pr-3 font-medium">Avance</th>
-                      <th className="py-2 pr-3 font-medium">Estado</th>
-                      <th className="py-2 font-medium text-right">Saldo</th>
+                      <th className={TH}>Alumno</th>
+                      <th className={TH}>Cursos / plan</th>
+                      <th className={TH}>Inicio</th>
+                      <th className={TH}>Fin</th>
+                      <th className={TH}>Avance</th>
+                      <th className={TH}>Aplicado</th>
+                      <th className={TH}>Para renovar</th>
+                      <th className={THR}>Precio</th>
+                      <th className={THR}>Desc.</th>
+                      <th className={THR}>Pagado</th>
+                      <th className={THR}>Saldo</th>
+                      <th className="py-2 font-medium">Estado</th>
                     </tr>
                   </thead>
                   <tbody>
                     {vista.inconclusas.map((m) => (
-                      <tr key={`${m.tipo}-${m.membresiaId}`} className="border-t border-[var(--borde)]">
-                        <td className="py-2 pr-3">{m.alumno}</td>
-                        <td className="py-2 pr-3">
+                      <tr key={`${m.tipo}-${m.membresiaId}`} className="border-t border-[var(--borde)] align-top">
+                        <td className={TD}>{m.alumno}</td>
+                        <td className={TD}>
                           {m.detalle}
-                          {m.plan !== m.detalle && (
-                            <div className="text-sm text-[var(--texto-tenue)]">{m.plan}</div>
-                          )}
+                          <div className="text-sm text-[var(--texto-tenue)]">
+                            {m.plan !== m.detalle ? `${m.plan} · ` : ""}
+                            {siglaCriterio(m.criterio)}
+                          </div>
                         </td>
-                        <td className="py-2 pr-3 tabular-nums">{fechaCorta(m.inicio)}</td>
-                        <td className="py-2 pr-3 tabular-nums">{fechaCorta(m.fin)}</td>
-                        <td className="py-2 pr-3 tabular-nums">
-                          {m.total == null
-                            ? `${m.hechas} ${m.unidad} (ilimitado)`
-                            : `${m.hechas} de ${m.total} ${m.unidad} · faltan ${Math.max(0, m.total - m.hechas)}`}
-                        </td>
-                        <td className="py-2 pr-3">
+                        <td className={`${TD} tabular-nums`}>{fechaCorta(m.inicio)}</td>
+                        <td className={`${TD} tabular-nums`}>{fechaCorta(m.fin)}</td>
+                        <td className={`${TD} tabular-nums`}>{textoAvance(m)}</td>
+                        <td className={`${TD} tabular-nums`}>{textoBonoAplicado(m.bonoAplicado)}</td>
+                        <td className={`${TD} tabular-nums`}>{textoBonoGenerado(m)}</td>
+                        <td className={TDR}>{gs(m.cuenta.precio)}</td>
+                        <td className={TDR}>{montoOGuion(m.cuenta.descuento)}</td>
+                        <td className={TDR}>{gs(m.cuenta.pagado)}</td>
+                        <td className={TDR}>{montoOGuion(m.cuenta.saldo)}</td>
+                        <td className="py-2">
                           {m.estado}
-                          {m.saldo > 0 ? " · con saldo" : " · cobrada"}
+                          {m.cuenta.saldo > 0 ? " · con saldo" : " · cobrada"}
                         </td>
-                        <td className="py-2 text-right tabular-nums">{m.saldo > 0 ? gs(m.saldo) : "—"}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+                <Leyenda criterios={vista.inconclusas.map((m) => m.criterio)} />
               </div>
             )}
           </section>
@@ -444,11 +550,11 @@ export default function ClienteRetiro({
             </section>
           )}
 
-          {vista.avisos.length > 0 && (
+          {avisosVisibles.length > 0 && (
             <section>
               <h2 className="text-xl font-bold mb-2">A tener en cuenta</h2>
               <ul className="list-disc pl-6 text-base text-[var(--texto-tenue)] flex flex-col gap-1">
-                {vista.avisos.map((a) => (
+                {avisosVisibles.map((a) => (
                   <li key={a}>{a}</li>
                 ))}
               </ul>
