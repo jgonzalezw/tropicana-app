@@ -303,4 +303,6 @@
     inactivo con una asignación abierta es un titular que nadie puede elegir y
     a quien nadie liquida (control 48). Lo garantiza la base (migración 0065):
     no se inactiva con asignaciones abiertas ni se le abre una asignación
-    inactivo. *(I-006, 2026-10-08.)*
+    inactivo. *(I-006, 2026-10-08.)* **La liquidación de un retiro guarda su fecha
+    efectiva** (`liquidaciones.retiro_hasta`, migración 0066): es el último día
+    a cargo y se ve en el comprobante, el impreso y el listado. *(I-007.)*

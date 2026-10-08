@@ -76,6 +76,11 @@ export function subtituloPre(i: ConPeriodo): string {
   }`;
 }
 
+/** La fecha efectiva de un retiro, tal como la dice una liquidación (pantalla e impreso). */
+export function textoRetiroEfectivo(iso: string): string {
+  return `Retiro efectivo: hasta el ${fechaCorta(iso)} (último día a cargo)`;
+}
+
 /** El desglose de la cifra de liquidez (pantalla e impreso). */
 export function notaLiquidez(l: LiquidezPre): string {
   const partes = [`devengo ${gs(l.devengo)}`, `saldo anterior ${gs(l.saldoPrevio)}`, `suplentes ${gs(l.reemplazos)}`];

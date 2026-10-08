@@ -1,5 +1,6 @@
 "use client";
 
+import { fechaCorta } from "@/lib/liquidacion/formatoPre";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -279,6 +280,11 @@ export default function ClienteLiquidaciones({
                     </td>
                     <td className="py-3 px-4 text-[var(--texto-tenue)]">
                       {l.periodo} · {l.periodicidad}
+                      {l.retiroHasta && (
+                        <span className="block text-sm font-semibold text-[var(--texto)]">
+                          Retiro al {fechaCorta(l.retiroHasta)}
+                        </span>
+                      )}
                     </td>
                     <td className="py-3 px-4">{ESTADO_LABEL[l.estado] ?? l.estado}</td>
                     <td className="py-3 px-4 text-right">{gs(l.totalDevengado)}</td>

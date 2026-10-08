@@ -395,3 +395,9 @@ D35 (`docs/decisiones/vigentes.md`). **Migración 0064 aplicada en dev (2026-10-
 - **Prevención:** triggers en `profesores` (no se inactiva con asignaciones abiertas) y `asignaciones` (no se abre una a un inactivo); `eliminarODesactivarProfesor` y `crearAsignacion` lo validan antes; con cursos a cargo la ficha y el listado ofrecen solo «Retirar…». Regla 25 de negocio.
 - **Verificado:** triggers probados en dev en una transacción deshecha (baja con cursos y alta a inactivo se rechazan; tras cerrar la asignación, inactivar pasa). **Producción (2026-10-08):** Caceres, Angel retirado con la pantalla Retirar (corte 14/09, sin sustituto: Danza Comercial espera nuevo profesor). Antes/después contra respaldo: asignación 3 abierta → cerrada 14/09; membresías 25–27 sin cambios; cierre de 3 × Bs. 25 en la liquidación N° 4 (Bs. 75, abierta, por pagar en Caja); control 48: 1 → 0; triggers 0065 activos. Las tablas de respaldo `resp_i006_*` se borraron de producción con OK de Javier (2026-10-08): el rollback ya no tiene respaldo.
 
+### I-007 · Fecha efectiva del retiro en la liquidación — 2026-10-08
+
+- **Pedido de Javier:** la liquidación de retiro no decía hasta cuándo se calculó; esa fecha es la efectiva del retiro. **Migración 0066 aplicada en dev (2026-10-08); producción pendiente (OK de Javier).**
+- **Cambio:** columna `liquidaciones.retiro_hasta` (null = liquidación normal). `retirar_profesor` la escribe con el mismo corte con que cierra las asignaciones; lo ya retirado se rellena desde el «corte dd/mm» del cierre. Se ve en el comprobante (pantalla e impreso: «Retiro efectivo: hasta el dd/mm/aaaa (último día a cargo)»), en el listado y en el campo de la pantalla Retirar. Control 50 nuevo.
+- **Verificado en dev:** `tsc`, `lint`, `npm test` (339), relleno de las liquidaciones de retiro, control 50 en 0 y el comprobante N° 5 en pantalla (hasta el 07/10/2026).
+

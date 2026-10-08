@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { construirHTMLPreliquidacion, pantallaDe } from "./imprimirPre.ts";
-import { conSigno, fechaCorta, periodoLargo } from "./formatoPre.ts";
+import { conSigno, fechaCorta, periodoLargo, textoRetiroEfectivo } from "./formatoPre.ts";
 import type { InformePre } from "./preliquidacion.ts";
 
 const informe = (): InformePre => ({
@@ -103,4 +103,8 @@ test("la simulación imprime la cifra de liquidez y el saldo por profesor; el in
   assert.ok(html.includes("Liquidez a prever"));
   assert.ok(html.includes("incluye 1 profesor sin devengo"));
   assert.ok(html.includes("A pagar al cierre"));
+});
+
+test("la liquidación de un retiro dice hasta cuándo: la fecha efectiva, día/mes/año", () => {
+  assert.equal(textoRetiroEfectivo("2026-09-14"), "Retiro efectivo: hasta el 14/09/2026 (último día a cargo)");
 });

@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { gs } from "@/lib/inscripcion";
 import Pagina from "@/components/Pagina";
+import { textoRetiroEfectivo } from "@/lib/liquidacion/formatoPre";
 
 /** Lo que el comprobante necesita para explicar una comisión de clase particular (H5). */
 export type ParticularItem = {
@@ -343,6 +344,8 @@ export type DatosComprobante = {
   whatsapp: string | null;
   periodo: string;
   periodicidad: string;
+  /** Fecha efectiva del retiro, si esta liquidación incluye su cierre de cuentas. */
+  retiroHasta: string | null;
   estado: string;
   totalDevengado: number;
   /**
@@ -511,6 +514,7 @@ export default function Comprobante({ datos }: { datos: DatosComprobante }) {
           <div className="text-right">
             <div className="text-[var(--texto-tenue)]">Período liquidado</div>
             <div className="font-semibold text-base">{periodoLargo(datos.periodo)}</div>
+            {datos.retiroHasta && <div className="font-semibold">{textoRetiroEfectivo(datos.retiroHasta)}</div>}
           </div>
         </div>
 
@@ -909,6 +913,7 @@ function construirHTMLImpresion(d: DatosComprobante): string {
         <div class="r">
           <div class="muted small">Período liquidado</div>
           <div class="b">${periodoLargo(d.periodo)}</div>
+          ${d.retiroHasta ? `<div class="b">${esc(textoRetiroEfectivo(d.retiroHasta))}</div>` : ""}
         </div>
       </div>
       <div class="muted small">Detalle de comisiones</div>

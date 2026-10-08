@@ -968,3 +968,16 @@ select '49. bono por curso inconsistente' as control,
 -- select cu.id, cu.membresia_id, cu.periodo, cu.monto_devengado, cu.estado,
 --        coalesce((select sum(p.monto) from pagos p where p.cuota_id = cu.id and p.tipo='cobro'), 0) as cobrado
 --   from cuotas cu order by cu.membresia_id;
+
+-- ---------------------------------------------------------------------
+-- 50. FECHA EFECTIVA DEL RETIRO EN LA LIQUIDACION (migracion 0066)
+--     Una liquidacion con comisiones de cierre (retiro) tiene que traer
+--     `retiro_hasta`, y esa fecha cae dentro de su mes.
+-- ---------------------------------------------------------------------
+select '50. liquidacion de retiro sin fecha efectiva o fuera de su mes' as control,
+       count(*) as n,
+       case when count(*) = 0 then 'OK' else 'REVISAR' end as estado
+  from public.liquidaciones l
+ where (exists (select 1 from public.comisiones_devengadas d where d.liquidacion_id = l.id and d.tipo = 'cierre')
+        and l.retiro_hasta is null)
+    or (l.retiro_hasta is not null and date_trunc('month', l.retiro_hasta)::date <> l.periodo);
