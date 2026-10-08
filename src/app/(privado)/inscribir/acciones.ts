@@ -18,6 +18,7 @@ import {
   sumarMeses,
 } from "@/lib/inscripcion";
 import { recalcularFinDeCiclo, recalcularMembresia, registrarCorrimientosPendientes, toleranciaDe } from "@/lib/membresias";
+import { bonosAplicables, clasesDeBono, type BonoPendiente, type ResultadoBonos } from "@/lib/bono";
 import { mensajeConfirmacionInscripcion, mensajeReciboPago } from "@/lib/venta/mensajeInscripcion";
 import { exigir } from "@/lib/datos";
 import {
@@ -164,23 +165,6 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
     return { error: "El plan no tiene una cantidad de clases (N) cargada." };
   }
 
-  // Bono de tolerancia pendiente: faltas con licencia de ciclos completados del
-  // mismo plan aun no redimidas. Suma clases al nuevo ciclo (solo planes con N).
-  let bono = 0;
-  let bonoOrigenIds: number[] = [];
-  if (!ilimitado && alumnoExistenteId != null) {
-    const { data: previos } = await sb
-      .from("membresias")
-      .select("id, bono_generado")
-      .eq("alumno_id", alumnoExistenteId)
-      .eq("plan_id", e.planId)
-      .eq("estado", "completada")
-      .eq("bono_redimido", false)
-      .gt("bono_generado", 0);
-    const rows = (previos as { id: number; bono_generado: number }[]) ?? [];
-    bono = rows.reduce((s, r) => s + Math.max(0, Number(r.bono_generado)), 0);
-    bonoOrigenIds = rows.map((r) => r.id);
-  }
   // Conversión: si el alumno probó este mismo plan y el plan acredita el fee,
   // lo que pagó por la prueba se le descuenta de la membresía (regla 11).
   const conversion =
@@ -194,7 +178,6 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
         })
       : null;
 
-  const clasesPlan = clasesPlanBase != null ? clasesPlanBase + bono : null;
   const precioUnit = Number(plan.precio);
   const referencia = Math.max(0, precioUnit);
 
@@ -248,6 +231,36 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
     }
   }
   if (diasConteo.length === 0) return { error: "Elegí al menos un día de clase." };
+
+  // Bono de tolerancia pendiente POR CURSO (D35): el de un curso entra si ese
+  // curso está entre los elegidos y no venció (la fecha de inicio llega a tiempo
+  // a su renovación bonificada). En un plan con N suma clases; en un ilimitado
+  // se consume sin efecto. Lo que no entra se explica, no se esconde.
+  let bonos: ResultadoBonos = { aplican: [], sinEfecto: [], vencidos: [], noEntran: [] };
+  const nombreBono = new Map<number, string>();
+  if (alumnoExistenteId != null) {
+    const { data: origenes } = await sb
+      .from("membresias")
+      .select("id")
+      .eq("alumno_id", alumnoExistenteId)
+      .eq("estado", "completada");
+    const origenIds = ((origenes as { id: number }[]) ?? []).map((r) => r.id);
+    if (origenIds.length) {
+      const { data: pend } = await sb
+        .from("membresia_bonos")
+        .select("id, membresia_id, curso_id, clases, vence")
+        .in("membresia_id", origenIds)
+        .is("aplicado", null);
+      const pendientes = (pend as BonoPendiente[]) ?? [];
+      bonos = bonosAplicables(pendientes, seleccion.map((s) => s.cursoId), e.fechaInicio, ilimitado);
+      if (pendientes.length) {
+        const { data: cn } = await sb.from("cursos").select("id, nombre").in("id", [...new Set(pendientes.map((x) => x.curso_id))]);
+        for (const c of (cn as { id: number; nombre: string }[]) ?? []) nombreBono.set(c.id, c.nombre);
+      }
+    }
+  }
+  const bono = clasesDeBono(bonos);
+  const clasesPlan = clasesPlanBase != null ? clasesPlanBase + bono : null;
 
   const cursoPrincipal = seleccion[0].cursoId;
   let fechaFin: string | null = null;
@@ -336,9 +349,18 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
   if (errInsc) return { error: errInsc.message };
   const inscripcionId = insc.id as number;
 
-  // Marcar como redimidos los bonos que se aplicaron a este ciclo.
-  if (bono > 0 && bonoOrigenIds.length)
-    await a.from("membresias").update({ bono_redimido: true }).in("id", bonoOrigenIds);
+  // Los bonos que se aplicaron a este ciclo quedan consumidos, con su destino.
+  const marcar = async (ids: number[], aplicado: "clases" | "ilimitado") => {
+    if (!ids.length) return;
+    const { error } = await a
+      .from("membresia_bonos")
+      .update({ aplicado, redimido_en_membresia_id: inscripcionId })
+      .in("id", ids)
+      .is("aplicado", null);
+    if (error) throw new Error(`No se pudo marcar el bono como aplicado: ${error.message}`);
+  };
+  await marcar(bonos.aplican.map((x) => x.id), "clases");
+  await marcar(bonos.sinEfecto.map((x) => x.id), "ilimitado");
 
   // 8. Días elegidos por curso (membresia_cursos).
   const icRows = seleccion.map((s) => ({
@@ -442,6 +464,7 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
       }),
       clasesPlan,
       bono,
+      bonoCursos: bonos.aplican.map((b) => ({ curso: nombreBono.get(b.curso_id) ?? "un curso", clases: b.clases })),
       cicloDias,
       inicio: fechaLarga(inicio),
       fin,
@@ -459,10 +482,11 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
     ok: true,
     resumen:
       armarResumen(alumno, plan.nombre, inicio, porPlata, c.medio, bono) +
+      notaBonos(bonos, nombreBono) +
       (credito > 0 ? ` Se acreditó ${gs(credito)} de su clase de prueba.` : ""),
     datos: [
       { etiqueta: "Plan", valor: plan.nombre },
-      { etiqueta: ilimitado ? "Ciclo" : "Clases", valor: ilimitado ? `ilimitado, ${cicloDias} días` : `${clasesPlan}${bono > 0 ? ` (${clasesPlanBase} + ${bono} de bono)` : ""}` },
+      { etiqueta: ilimitado ? "Ciclo" : "Clases", valor: ilimitado ? `ilimitado, ${cicloDias} días` : `${clasesPlan}${bono > 0 ? ` (${clasesPlanBase} + ${bono} de bono de ${[...new Set(bonos.aplican.map((x) => nombreBono.get(x.curso_id) ?? "un curso"))].join(", ")})` : ""}` },
       { etiqueta: "Empieza", valor: fechaLarga(inicio) },
       ...(fechaFin ? [{ etiqueta: "Termina aprox.", valor: fechaLarga(parseFechaISO(fechaFin) ?? inicio) }] : []),
       { etiqueta: "Precio", valor: gs(referencia) },
@@ -988,6 +1012,19 @@ async function cursosDelPlan(
 function medioGlosa(c: EntradaInscripcion["cobro"]): string | null {
   if (c.medio && /otro/i.test(c.medio) && c.notaMedio.trim()) return c.notaMedio.trim();
   return null;
+}
+
+/** Lo que pasó con los bonos que no sumaron clases, para que no desaparezcan sin explicación. */
+function notaBonos(r: ResultadoBonos, nombre: Map<number, string>): string {
+  const n = (id: number) => nombre.get(id) ?? "un curso";
+  const partes: string[] = [];
+  for (const b of r.vencidos)
+    partes.push(`El bono de ${n(b.curso_id)} (${b.clases}) no se aplicó: venció${b.vence ? ` el ${b.vence}` : ""}.`);
+  for (const b of r.sinEfecto)
+    partes.push(`El bono de ${n(b.curso_id)} (${b.clases}) se consumió sin efecto: el plan es ilimitado.`);
+  const fuera = r.noEntran.map((b) => n(b.curso_id));
+  if (fuera.length) partes.push(`Sigue pendiente el bono de ${[...new Set(fuera)].join(", ")}: no está entre los cursos elegidos.`);
+  return partes.length ? " " + partes.join(" ") : "";
 }
 
 function armarResumen(

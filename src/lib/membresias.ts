@@ -1,6 +1,10 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { obtenerParametro } from "@/lib/sesion";
 import { situacionParticular, type ReservaParticular } from "@/lib/liquidacion/particulares";
+import { caminarClases, sumarDiasISO } from "@/lib/calendarioCiclo";
+import { bonosPorCurso, finConBono, venceBono, type AsistenciaDeCurso } from "@/lib/bono";
+
+export { caminarClases, sumarDiasISO };
 
 /**
  * Motor de membresías: el ciclo de vida de una membresía, compartido por todo
@@ -63,22 +67,21 @@ export async function recalcularMembresia(a: ClienteAdmin, inscripcionId: number
 
   let dictadas = 0; // sesiones de la membresía efectivamente dictadas
   let presentes = 0; // asistió
-  let faltasConLic = 0; // faltas justificadas
-  let faltasSinLic = 0; // faltas sin justificar: anulan el bono del ciclo
+  const dictadasPorCurso: AsistenciaDeCurso[] = []; // base del bono por curso (D35)
   if (rows.length) {
     const sesIds = [...new Set(rows.map((r) => r.sesion_id))];
-    const { data: ses } = await a.from("sesiones").select("id, estado").in("id", sesIds);
-    const dictadasSet = new Set(
-      ((ses as { id: number; estado: string }[]) ?? [])
+    const { data: ses } = await a.from("sesiones").select("id, estado, curso_id").in("id", sesIds);
+    const dictadasMap = new Map(
+      ((ses as { id: number; estado: string; curso_id: number }[]) ?? [])
         .filter((s) => s.estado === "dictada")
-        .map((s) => s.id)
+        .map((s) => [s.id, s.curso_id] as const)
     );
     for (const r of rows) {
-      if (!dictadasSet.has(r.sesion_id)) continue;
+      const cursoId = dictadasMap.get(r.sesion_id);
+      if (cursoId === undefined) continue;
       dictadas++;
       if (r.estado === "presente") presentes++;
-      else if (r.con_licencia) faltasConLic++;
-      else faltasSinLic++;
+      dictadasPorCurso.push({ curso_id: cursoId, estado: r.estado, con_licencia: r.con_licencia });
     }
   }
 
@@ -104,7 +107,8 @@ export async function recalcularMembresia(a: ClienteAdmin, inscripcionId: number
 
   const clasesPlan = insc.clases_plan as number;
   const tolerancia = await toleranciaDe(a, insc.plan_id as number, insc.tolerancia_faltas as number | null);
-  const bono = faltasSinLic > 0 ? 0 : Math.min(faltasConLic, Math.max(0, tolerancia));
+  // El bono es de cada curso (D35): se evalúa aparte, con el tope por curso.
+  const bono = await guardarBonosDeMembresia(a, inscripcionId, bonosPorCurso(dictadasPorCurso, tolerancia));
   // Se cierra solo si además está cobrada; el saldo se consulta únicamente
   // cuando el ciclo ya se agotó, que es cuando puede cambiar el estado.
   const completada = dictadas >= clasesPlan && (await saldoDeMembresia(a, inscripcionId)) <= 0;
@@ -118,6 +122,63 @@ export async function recalcularMembresia(a: ClienteAdmin, inscripcionId: number
     })
     .eq("id", inscripcionId);
   return completada;
+}
+
+/**
+ * Guarda el bono de tolerancia que generó una membresía, **por curso** (D35).
+ * Un bono ya aplicado a otra venta no se toca; el pendiente se actualiza con su
+ * vencimiento (la siguiente clase de su curso después del fin de ciclo) y el
+ * que dejó de corresponder se borra. Devuelve el total, que queda como resumen
+ * en `membresias.bono_generado`.
+ */
+async function guardarBonosDeMembresia(
+  a: ClienteAdmin,
+  membresiaId: number,
+  nuevos: { curso_id: number; clases: number }[]
+): Promise<number> {
+  const { data: previos } = await a
+    .from("membresia_bonos")
+    .select("id, curso_id, clases, aplicado")
+    .eq("membresia_id", membresiaId);
+  const filas = (previos as { id: number; curso_id: number; clases: number; aplicado: string | null }[]) ?? [];
+  const aplicados = new Map(filas.filter((f) => f.aplicado != null).map((f) => [f.curso_id, f]));
+  const pendientes = new Map(filas.filter((f) => f.aplicado == null).map((f) => [f.curso_id, f]));
+
+  const fin = nuevos.length ? await finDeCicloReal(a, membresiaId) : null;
+  const { data: ic } = nuevos.length
+    ? await a.from("membresia_cursos").select("curso_id, dias").eq("membresia_id", membresiaId)
+    : { data: [] as { curso_id: number; dias: number[] }[] };
+  const dias = new Map(((ic as { curso_id: number; dias: number[] }[]) ?? []).map((c) => [c.curso_id, c.dias ?? []]));
+  let suspendidas = new Set<string>();
+  if (fin && nuevos.length) {
+    const { data: ses } = await a
+      .from("sesiones")
+      .select("curso_id, fecha")
+      .in("curso_id", nuevos.map((n) => n.curso_id))
+      .eq("estado", "suspendida")
+      .gt("fecha", fin);
+    suspendidas = new Set(((ses as { curso_id: number; fecha: string }[]) ?? []).map((s) => `${s.curso_id}|${s.fecha}`));
+  }
+
+  let total = [...aplicados.values()].reduce((t, f) => t + f.clases, 0);
+  for (const n of nuevos) {
+    if (aplicados.has(n.curso_id)) continue;
+    const vence = fin ? venceBono({ curso_id: n.curso_id, dias: dias.get(n.curso_id) ?? [] }, fin, suspendidas) : null;
+    const previo = pendientes.get(n.curso_id);
+    const { error } = previo
+      ? await a.from("membresia_bonos").update({ clases: n.clases, vence }).eq("id", previo.id)
+      : await a.from("membresia_bonos").insert({ membresia_id: membresiaId, curso_id: n.curso_id, clases: n.clases, vence });
+    if (error) throw new Error(`No se pudo guardar el bono por curso: ${error.message}`);
+    total += n.clases;
+    pendientes.delete(n.curso_id);
+  }
+  // Lo que ya no corresponde (p. ej. se corrigió una falta a «sin licencia»).
+  const sobrantes = [...pendientes.values()].filter((f) => !nuevos.some((n) => n.curso_id === f.curso_id));
+  if (sobrantes.length) {
+    const { error } = await a.from("membresia_bonos").delete().in("id", sobrantes.map((f) => f.id));
+    if (error) throw new Error(`No se pudo quitar el bono por curso: ${error.message}`);
+  }
+  return total;
 }
 
 /**
@@ -204,7 +265,19 @@ export async function finDeCicloReal(
     ((ses as { curso_id: number; fecha: string }[]) ?? []).map((s) => `${s.curso_id}|${s.fecha}`)
   );
 
-  return caminarClases(insc.fecha_inicio as string, cursos, suspendidas, n);
+  // Bono recibido de ventas anteriores (D35): el plan base se camina en todos los
+  // cursos y cada bono, solo en los días de su curso.
+  const { data: rec } = await a
+    .from("membresia_bonos")
+    .select("curso_id, clases")
+    .eq("redimido_en_membresia_id", inscripcionId)
+    .eq("aplicado", "clases");
+  const bonoPorCurso = new Map<number, number>();
+  for (const r of (rec as { curso_id: number; clases: number }[]) ?? [])
+    bonoPorCurso.set(r.curso_id, (bonoPorCurso.get(r.curso_id) ?? 0) + r.clases);
+  const base = n - [...bonoPorCurso.values()].reduce((t, b) => t + b, 0);
+
+  return finConBono(insc.fecha_inicio as string, cursos, suspendidas, base, bonoPorCurso);
 }
 
 /**
@@ -290,54 +363,6 @@ async function finDeCicloDePrueba(
   }
   if (!fechas.length) return null;
   return fechas.sort()[fechas.length - 1];
-}
-
-/**
- * Recorre el calendario desde `desdeISO` juntando `n` clases que cuentan, y
- * devuelve la fecha de la n-ésima. Una membresía puede tener varios cursos: si
- * dos caen el mismo día, ese día aporta dos clases.
- *
- * Es pura a propósito: la comparten el motor (que lee con el cliente admin) y
- * el estado de cuenta (que lee con el de sesión), sin duplicar la regla.
- * `suspendidas` son claves `cursoId|YYYY-MM-DD`.
- */
-export function caminarClases(
-  desdeISO: string,
-  cursos: { curso_id: number; dias: number[] }[],
-  suspendidas: Set<string>,
-  n: number
-): string | null {
-  const d = parseISOLocal(desdeISO);
-  let acc = 0;
-  for (let i = 0; i < 800; i++) {
-    const dia = diaSemanaISO(d);
-    const iso = isoLocal(d);
-    for (const c of cursos) {
-      if (!c.dias.includes(dia)) continue;
-      if (suspendidas.has(`${c.curso_id}|${iso}`)) continue;
-      acc++;
-    }
-    if (acc >= n) return iso;
-    d.setDate(d.getDate() + 1);
-  }
-  return null;
-}
-
-function parseISOLocal(iso: string): Date {
-  const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
-  return new Date(y, m - 1, d);
-}
-function isoLocal(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-function diaSemanaISO(d: Date): number {
-  const wd = d.getDay();
-  return wd === 0 ? 7 : wd;
-}
-export function sumarDiasISO(iso: string, n: number): string {
-  const d = parseISOLocal(iso);
-  d.setDate(d.getDate() + n);
-  return isoLocal(d);
 }
 
 /**

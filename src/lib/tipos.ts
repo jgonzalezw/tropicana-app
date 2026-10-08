@@ -634,11 +634,13 @@ export type MembresiaCuenta = {
   reservas: { fecha: string; hora: string; duracionMin: number; estado: string; salaNombre: string | null }[] | null;
   faltasConLicencia: number;
   faltasSinLicencia: number;
-  /** Bono de tolerancia pendiente de redimir (0 si ya se usó). */
+  /** Bono de tolerancia pendiente de redimir, por curso (D35). Vacío si no hay. */
+  bonos: { cursoNombre: string; clases: number; vence: string | null }[];
+  /** Total de `bonos` (0 si ya se usaron). */
   bono: number;
   /**
-   * Hasta cuándo puede renovar sin perder el bono: la siguiente clase después
-   * del fin de ciclo. `null` si no hay bono o no aplica.
+   * Hasta cuándo vale el bono más próximo a vencer: la siguiente clase de su
+   * curso después del fin de ciclo. `null` si no hay bono o no aplica.
    */
   renovacionBonificada: string | null;
   cuotas: CuotaCuenta[];

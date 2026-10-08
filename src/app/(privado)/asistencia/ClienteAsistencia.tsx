@@ -1043,7 +1043,7 @@ function FilaRow({
           ) : sinTolerancia && !licencia ? (
             <span className="inline-block text-sm px-3 py-1.5 rounded-[var(--radio-control)] bg-[var(--peligro-fill)] text-[var(--peligro-texto)]">
               {fila.faltaSinLicenciaEnCiclo
-                ? "Sin bono: ya tiene una falta sin licencia en el ciclo"
+                ? "Sin bono en este curso: ya tiene una falta sin licencia en el ciclo"
                 : "Sin tolerancia"}
             </span>
           ) : (

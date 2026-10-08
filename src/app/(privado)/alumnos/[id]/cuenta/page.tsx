@@ -10,6 +10,7 @@ import SinAcceso from "@/components/SinAcceso";
 import ImprimirCuenta from "./ImprimirCuenta";
 import type { CuotaCuenta, MembresiaCuenta } from "@/lib/tipos";
 import Pagina from "@/components/Pagina";
+import { textoBonos } from "@/lib/bono";
 
 export const dynamic = "force-dynamic";
 
@@ -187,12 +188,12 @@ function Membresia({ m, puedeCobrar }: { m: MembresiaCuenta; puedeCobrar: boolea
       <div className="text-sm text-[var(--texto-tenue)] mt-2">
         {consumo}
         {faltas.length > 0 ? ` · faltas: ${faltas.join(", ")}` : ""}
-        {m.bono > 0 ? ` · ${m.bono} de bono de tolerancia por usar` : ""}
+        {m.bono > 0 ? ` · bono de tolerancia por usar: ${textoBonos(m.bonos)}` : ""}
       </div>
       {m.bono > 0 && m.renovacionBonificada && (
         <p className="text-sm text-[var(--primario-hover)] mt-1">
-          Para no perder el bono, tiene que renovar a más tardar el{" "}
-          {fechaCorta(m.renovacionBonificada)} (la siguiente clase después del fin de ciclo).
+          Para no perder el bono, tiene que inscribirse a más tardar el{" "}
+          {fechaCorta(m.renovacionBonificada)} (la siguiente clase de su curso después del fin de ciclo).
         </p>
       )}
 

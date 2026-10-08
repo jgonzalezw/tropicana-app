@@ -1,8 +1,6 @@
 import type { createClient } from "@/lib/supabase/server";
 import {
-  caminarClases,
   recalcularMembresia,
-  sumarDiasISO,
   type ClienteAdmin,
 } from "@/lib/membresias";
 import { fechaClaseN, gs } from "@/lib/inscripcion";
@@ -164,7 +162,7 @@ export async function estadoDeCuenta(sb: ClienteLectura, alumnoId: number): Prom
   const { data: inscRows } = await sb
     .from("membresias")
     .select(
-      "id, estado, fecha_inicio, fecha_fin, clases_plan, clases_total, bono_generado, bono_redimido, curso_id, " +
+      "id, estado, fecha_inicio, fecha_fin, clases_plan, clases_total, curso_id, " +
         "horas_contratadas, profesor:profesores(contacto:contactos(nombre, apellido)), " +
         "plan:planes(nombre, estilo), curso:cursos(nombre, dias_semana)"
     )
@@ -179,8 +177,6 @@ export async function estadoDeCuenta(sb: ClienteLectura, alumnoId: number): Prom
     fecha_fin: string | null;
     clases_plan: number | null;
     clases_total: number | null;
-    bono_generado: number;
-    bono_redimido: boolean;
     /** Resabio mono-curso (glosario `REGLAS.md`): respaldo cuando la
      *  membresía no tiene fila en `membresia_cursos`. */
     curso_id: number | null;
@@ -336,25 +332,19 @@ export async function estadoDeCuenta(sb: ClienteLectura, alumnoId: number): Prom
   // sin ningún curso.
   const cursosPorInsc = await cursosDeMembresias(sb, inscripciones);
 
-  // Renovación bonificada: la siguiente clase después del fin de ciclo. Solo
-  // interesa donde hay bono por redimir, así que se calcula para esas.
-  const conBono = inscripciones.filter((r) => !r.bono_redimido && num(r.bono_generado) > 0 && r.fecha_fin);
-  const renovacion: Record<number, string | null> = {};
-  if (conBono.length) {
-    const cursoIds = [...new Set(conBono.flatMap((r) => cursosPorInsc.get(r.id) ?? []).map((c) => c.cursoId))];
-    const { data: susRows } = cursoIds.length
-      ? await sb.from("sesiones").select("curso_id, fecha").eq("estado", "suspendida").in("curso_id", cursoIds)
-      : { data: [] };
-    const suspendidas = new Set(
-      ((susRows as { curso_id: number; fecha: string }[]) ?? []).map((x) => `${x.curso_id}|${x.fecha}`)
-    );
-    for (const r of conBono) {
-      const cursos = (cursosPorInsc.get(r.id) ?? [])
-        .filter((c) => c.dias.length)
-        .map((c) => ({ curso_id: c.cursoId, dias: c.dias }));
-      renovacion[r.id] = cursos.length
-        ? caminarClases(sumarDiasISO(r.fecha_fin as string, 1), cursos, suspendidas, 1)
-        : null;
+  // Bono de tolerancia pendiente, POR CURSO (D35): cada uno trae su vencimiento,
+  // que es la renovación bonificada de su curso (se guarda al generarlo).
+  const bonosPorInsc = new Map<number, { cursoNombre: string; clases: number; vence: string | null }[]>();
+  if (inscripciones.length) {
+    const { data: bonoRows } = await sb
+      .from("membresia_bonos")
+      .select("membresia_id, clases, vence, curso:cursos(nombre)")
+      .in("membresia_id", inscripciones.map((r) => r.id))
+      .is("aplicado", null);
+    for (const b of (bonoRows as unknown as { membresia_id: number; clases: number; vence: string | null; curso: { nombre: string } | null }[]) ?? []) {
+      const lista = bonosPorInsc.get(b.membresia_id) ?? [];
+      lista.push({ cursoNombre: b.curso?.nombre ?? "un curso", clases: b.clases, vence: b.vence });
+      bonosPorInsc.set(b.membresia_id, lista);
     }
   }
 
@@ -403,8 +393,10 @@ export async function estadoDeCuenta(sb: ClienteLectura, alumnoId: number): Prom
         : null,
       faltasConLicencia: conLic[r.id] ?? 0,
       faltasSinLicencia: sinLic[r.id] ?? 0,
-      bono: r.bono_redimido ? 0 : num(r.bono_generado),
-      renovacionBonificada: renovacion[r.id] ?? null,
+      bonos: bonosPorInsc.get(r.id) ?? [],
+      bono: (bonosPorInsc.get(r.id) ?? []).reduce((t, b) => t + b.clases, 0),
+      renovacionBonificada:
+        (bonosPorInsc.get(r.id) ?? []).map((b) => b.vence).filter((v): v is string => !!v).sort()[0] ?? null,
       cuotas: propias,
       saldo: propias.reduce((t, c) => t + c.saldo, 0),
     };

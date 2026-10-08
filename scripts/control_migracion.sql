@@ -937,6 +937,28 @@ select '48. profesor inactivo con asignacion abierta' as control,
  where a.hasta is null and p.activo = false;
 
 -- ---------------------------------------------------------------------
+-- 49. BONO POR CURSO (I-003, D35; el 48 es del retiro del profesor)
+--     (a) bono_generado de una membresia con plan y N = suma de sus bonos
+--         por curso; (b) todo bono aplicado cuelga de una membresia destino
+--         y de un curso que esa membresia habilita; (c) ningun bono se
+--         aplico despues de su vencimiento.
+-- ---------------------------------------------------------------------
+select '49. bono por curso inconsistente' as control,
+       count(*) as n,
+       case when count(*) = 0 then 'OK' else 'REVISAR' end as estado
+  from (
+    select m.id from public.membresias m
+     where m.plan_id is not null and m.clases_plan is not null and coalesce(m.es_prueba, false) = false
+       and coalesce(m.bono_generado, 0) <> coalesce((select sum(b.clases) from public.membresia_bonos b where b.membresia_id = m.id), 0)
+    union all
+    select b.membresia_id from public.membresia_bonos b
+      left join public.membresia_cursos mc on mc.membresia_id = b.redimido_en_membresia_id and mc.curso_id = b.curso_id
+      left join public.membresias d on d.id = b.redimido_en_membresia_id
+     where b.aplicado in ('clases', 'ilimitado')
+       and (b.redimido_en_membresia_id is null or mc.id is null or (b.vence is not null and d.fecha_inicio > b.vence))
+  ) x;
+
+-- ---------------------------------------------------------------------
 -- Detalle, por si algun control da REVISAR:
 -- ---------------------------------------------------------------------
 -- select id, alumno_id, curso_id, estado, fecha_inicio, fecha_fin,

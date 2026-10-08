@@ -71,3 +71,14 @@ test("el recibo dice monto, concepto y saldo", () => {
   assert.match(t, /Recibimos de Ana Pérez: Gs\. 100000 \(Efectivo\)/);
   assert.match(t, /Saldo pendiente: Gs\. 200000 hasta el vie 16 oct/);
 });
+
+test("el bono dice de qué curso es", () => {
+  assert.equal(
+    textoClases({ clasesPlan: 9, bono: 1, bonoCursos: [{ curso: "Salsa", clases: 1 }], cicloDias: null }),
+    "9 clases (incluye 1 clase de bono de Salsa)"
+  );
+  assert.equal(
+    textoClases({ clasesPlan: 10, bono: 2, bonoCursos: [{ curso: "Salsa", clases: 1 }, { curso: "Heels", clases: 1 }], cicloDias: null }),
+    "10 clases (incluye 2 clases de bono de Salsa (1) y Heels (1))"
+  );
+});
