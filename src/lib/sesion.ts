@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import type { Alcance, PerfilConRol } from "@/lib/tipos";
+import { seccionesVisibles, type SeccionesVisibles } from "@/lib/secciones";
 
 // Todo lo de abajo se memoriza con `cache` de React: vive SOLO durante una
 // petición (página o acción) y se descarta al terminar; nunca se comparte entre
@@ -145,3 +146,18 @@ export async function errorAccesoCurso(cursoId: number): Promise<string | null> 
   if (profesorId == null) return "Tu cuenta no está vinculada a ningún profesor.";
   return (await cursosDeProfesor(profesorId)).includes(cursoId) ? null : "Ese curso no es tuyo.";
 }
+
+/** Secciones del shell que ve el usuario actual: permisos (`tienePermiso`) +
+ *  interruptor `membresias_nuevas`. La lógica pura vive en `secciones.ts`. */
+export const obtenerSeccionesVisibles = cache(async (): Promise<SeccionesVisibles> => {
+  const [alumnos, particulares, alquileres, interruptor] = await Promise.all([
+    tienePermiso("alumnos", "ver"),
+    tienePermiso("particulares", "ver"),
+    tienePermiso("alquileres", "ver"),
+    obtenerParametro("membresias_nuevas"),
+  ]);
+  return seccionesVisibles(
+    { alumnos, particulares, alquileres },
+    { membresiasNuevas: interruptor === "true" }
+  );
+});

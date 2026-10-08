@@ -28,6 +28,7 @@ export default function BarraLateral({
   puedeDisponibilidadSala,
   puedeParticulares,
   puedeAlquileres,
+  puedeMembresias,
   temas,
   temaActual,
   infoRelease,
@@ -50,6 +51,8 @@ export default function BarraLateral({
   puedeDisponibilidadSala: boolean;
   puedeParticulares: boolean;
   puedeAlquileres: boolean;
+  /** Sección nueva Membresías (I-012): interruptor `membresias_nuevas` + permisos. */
+  puedeMembresias: boolean;
   temas: OpcionTema[];
   temaActual: string;
   infoRelease: InfoRelease;
@@ -104,6 +107,11 @@ export default function BarraLateral({
           href: "/sala",
           etiqueta: "Disponibilidad de sala",
           mostrar: puedeDisponibilidadSala,
+        },
+        {
+          href: "/membresias",
+          etiqueta: "Membresías",
+          mostrar: puedeMembresias,
         },
         {
           href: "/particulares",

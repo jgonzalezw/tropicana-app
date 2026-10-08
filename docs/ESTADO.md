@@ -200,3 +200,12 @@ D35 (`docs/decisiones/vigentes.md`). **Migración 0064 aplicada en dev (2026-10-
 - **Medido:** «por vencer» exige un ciclo de más de una clase: las 18 membresías de una sola clase (preventas y clase suelta) inflaban «por vencer» (24 contra 6). El interruptor `membresias_nuevas` nace en la fase 1a, con la primera pantalla; Playwright, también.
 - **Alineado con H6:** una extensión agranda la misma membresía y no es renovación; la ficha deja `extensiones: []`. La migración 0063 del plan de H6 ya no es el número libre (la próxima es la 0067) y su botón «Extender» iría en la ficha nueva (fase 5); se decide al retomar H6.
 - **Producción:** PR #34, merge `8abac17`, deploy `success` (2026-10-08); sin migración. I-014 abierto por PR #35 (`91823fc`), solo docs.
+
+### I-012 · Membresías, fase 1a (shell básico) — 2026-10-08
+
+- **Qué hay:** interruptor `membresias_nuevas` (migración **0067**, solo inserta el parámetro con `false`, grupo Sistema; en dev está en `true`); `src/lib/secciones.ts` (`seccionesVisibles`, pura, con pruebas) y su envoltorio `obtenerSeccionesVisibles()` en `sesion.ts`; entrada «Membresías» en `BarraLateral` (interruptor **y** `alumnos.ver` ∨ `particulares.ver` ∨ `alquileres.ver`); componentes en `src/components/nuevo/` con el tema `.ui-nuevo` (variables `--n-*` derivadas de la app, Geist solo ahí); `/membresias` con esqueleto (lista vacía + ficha «Elegí una membresía») y `/membresias/muestrario`.
+- **Gate:** `membresias/layout.tsx` da `notFound()` con el interruptor apagado o sin permiso. El muestrario además da 404 en producción (entorno por la base, como el chip PROD/DEV).
+- **Pieza compartida:** `AvisoWhatsapp` solo suma `onEnviado?` opcional; su aspecto dentro de `.ui-nuevo` se ajusta con CSS (`.n-wa`). `useCapa` lleva una pila de capas: Esc y Tab los atiende la de arriba (con una hoja con datos, el primer Esc cierra «¿Descartar?», no la hoja).
+- **Probado en dev:** `npm test` (391), `tsc`, `eslint`, Playwright 11/11 (`npm run e2e`: entrada, muestrario, celular a 390 px y «interruptor apagado», que solo corre contra dev y restaura el valor). Con el interruptor apagado, recorrido en Chrome de Particulares, Alquileres, Alumnos y su cuenta, Sala, Caja y Liquidaciones: sin entrada nueva en la barra, `/membresias` da 404 y el resto igual.
+- **Pendiente antes del pase:** el interruptor debe quedar en `false` en producción (la 0067 lo inserta así). Fuera de la 1a: lista, buscador, filtros y «+ Vender» son de la 1b.
+- **Anotado:** en dev hay nombres con `??` (p. ej. «Yubinca ??»): dato, no de esta fase.
