@@ -7,7 +7,7 @@ import { fechaClaseN, gs } from "@/lib/inscripcion";
 import { obtenerParametro } from "@/lib/sesion";
 import type { CuotaCuenta, EntradaCobro, EstadoCuenta, MembresiaCuenta, PagoCuenta } from "@/lib/tipos";
 import type { Bucket, LineaPendiente } from "@/lib/caja";
-import { exigir } from "@/lib/datos";
+import { exigir, exigirUno } from "@/lib/datos";
 import { saldoDeReemplazos, type ClaseReemplazo } from "@/lib/liquidacion/reemplazos";
 import { saldoMembresia } from "@/lib/reservas";
 
@@ -80,13 +80,16 @@ export async function cursosDeMembresias(
   const porInsc = new Map<number, CursoDeMembresia[]>();
   if (!inscripciones.length) return porInsc;
 
-  const { data: icRows } = await sb
-    .from("membresia_cursos")
-    .select("membresia_id, curso_id, dias, curso:cursos(nombre)")
-    .in(
-      "membresia_id",
-      inscripciones.map((r) => r.id)
-    );
+  const icRows = exigir(
+    await sb
+      .from("membresia_cursos")
+      .select("membresia_id, curso_id, dias, curso:cursos(nombre)")
+      .in(
+        "membresia_id",
+        inscripciones.map((r) => r.id)
+      ),
+    "los cursos de las membresías"
+  );
   for (const ic of (icRows as unknown as {
     membresia_id: number;
     curso_id: number;
@@ -149,46 +152,58 @@ export function finDeMembresia(
 
 // ── Lectura: el estado de cuenta ────────────────────────────────────────
 
-export async function estadoDeCuenta(sb: ClienteLectura, alumnoId: number): Promise<EstadoCuenta | null> {
-  const { data: al } = await sb
-    .from("alumnos")
-    .select("id, contacto:contactos(nombre, apellido)")
-    .eq("id", alumnoId)
-    .maybeSingle();
-  if (!al) return null;
-  const alRow = al as unknown as { id: number; contacto: { nombre: string | null; apellido: string | null } | null };
-  const alumno = { id: alRow.id, nombre: alRow.contacto?.nombre ?? "", apellido: alRow.contacto?.apellido ?? "" };
+/** Lo que `armarMembresiasCuenta` necesita de cada membresía (la consulta es de quien llama). */
+export type FilaParaCuenta = {
+  id: number;
+  estado: string;
+  fecha_inicio: string;
+  fecha_fin: string | null;
+  clases_plan: number | null;
+  clases_total: number | null;
+  /** Resabio mono-curso (glosario `REGLAS.md`): respaldo cuando la
+   *  membresía no tiene fila en `membresia_cursos`. */
+  curso_id: number | null;
+  /** Particular/alquiler (regla 21): no tiene curso, tiene horas. */
+  horas_contratadas: number | null;
+  profesor: { contacto: { nombre: string | null; apellido: string | null } | null } | null;
+  plan: { nombre: string; estilo: string | null } | null;
+  curso: { nombre: string; dias_semana: number[] | null } | null;
+};
 
-  const { data: inscRows } = await sb
-    .from("membresias")
-    .select(
-      "id, estado, fecha_inicio, fecha_fin, clases_plan, clases_total, curso_id, " +
-        "horas_contratadas, profesor:profesores(contacto:contactos(nombre, apellido)), " +
-        "plan:planes(nombre, estilo), curso:cursos(nombre, dias_semana)"
-    )
-    .eq("alumno_id", alumnoId)
-    .neq("estado", "baja")
-    .order("fecha_inicio", { ascending: false });
+/** Un cobro tal como sale de `pagos`. */
+export type PagoCobroCrudo = {
+  id: number;
+  cuota_id: number | null;
+  fecha: string;
+  monto: number;
+  descuento: number;
+  descuento_motivo: string | null;
+  medio: string | null;
+  motivo: string | null;
+};
 
-  type InscRow = {
-    id: number;
-    estado: string;
-    fecha_inicio: string;
-    fecha_fin: string | null;
-    clases_plan: number | null;
-    clases_total: number | null;
-    /** Resabio mono-curso (glosario `REGLAS.md`): respaldo cuando la
-     *  membresía no tiene fila en `membresia_cursos`. */
-    curso_id: number | null;
-    /** Particular/alquiler (regla 21): no tiene curso, tiene horas. */
-    horas_contratadas: number | null;
-    profesor: { contacto: { nombre: string | null; apellido: string | null } | null } | null;
-    plan: { nombre: string; estilo: string | null } | null;
-    curso: { nombre: string; dias_semana: number[] | null } | null;
-  };
-  const inscripciones = (inscRows as unknown as InscRow[]) ?? [];
-  if (!inscripciones.length)
-    return { alumno, membresias: [], pagos: [], deuda: 0 };
+/**
+ * La cuenta de cada membresía dada: cuotas con lo cobrado, saldo, consumo,
+ * faltas, bonos, cursos con sus días y, en particulares y alquileres, el
+ * saldo de horas. La comparten la cuenta del alumno (`estadoDeCuenta`) y la
+ * lista y ficha de Membresías (`membresiasLectura`), para que la plata y el
+ * consumo no se calculen cada uno por su lado. No filtra por estado: quien
+ * llama decide qué membresías pasa.
+ *
+ * `leerPagos` recibe los ids de las cuotas leídas y devuelve los cobros: la
+ * cuenta del alumno los trae por alumno (también los que no tienen cuota, que
+ * muestra aparte); la lista, por cuota.
+ */
+export async function armarMembresiasCuenta(
+  sb: ClienteLectura,
+  inscripciones: FilaParaCuenta[],
+  leerPagos: (cuotaIds: number[]) => Promise<PagoCobroCrudo[]>
+): Promise<{
+  membresias: MembresiaCuenta[];
+  cuotas: { id: number; membresia_id: number }[];
+  pagos: PagoCobroCrudo[];
+}> {
+  if (!inscripciones.length) return { membresias: [], cuotas: [], pagos: [] };
   const inscIds = inscripciones.map((r) => r.id);
 
   // Particular/alquiler (regla 21: no tiene curso, tiene horas): el estilo se
@@ -196,8 +211,8 @@ export async function estadoDeCuenta(sb: ClienteLectura, alumnoId: number): Prom
   const conHoras = inscripciones.filter((r) => r.curso_id == null && r.horas_contratadas != null);
   const estilos = new Map<string, string>();
   if (conHoras.length) {
-    const { data: estRows } = await sb.from("estilos").select("clave, nombre");
-    for (const e of (estRows as { clave: string; nombre: string }[]) ?? []) estilos.set(e.clave, e.nombre);
+    const estRows = exigir(await sb.from("estilos").select("clave, nombre"), "los estilos");
+    for (const e of estRows as { clave: string; nombre: string }[]) estilos.set(e.clave, e.nombre);
   }
   // El saldo de horas se calcula desde las reservas (regla de negocio 23),
   // igual que en `/particulares` — nunca se guarda paso a paso. Se trae
@@ -215,16 +230,19 @@ export async function estadoDeCuenta(sb: ClienteLectura, alumnoId: number): Prom
   };
   const reservasPorInsc = new Map<number, ReservaRow[]>();
   if (conHoras.length) {
-    const { data: resRows } = await sb
-      .from("reservas_sala")
-      .select("membresia_id, fecha, hora, duracion_min, estado, solicitada_hasta, es_cortesia, sala:salas(nombre)")
-      .in(
-        "membresia_id",
-        conHoras.map((r) => r.id)
-      )
-      .order("fecha", { ascending: true })
-      .order("hora", { ascending: true });
-    for (const r of (resRows as unknown as ReservaRow[]) ?? []) {
+    const resRows = exigir(
+      await sb
+        .from("reservas_sala")
+        .select("membresia_id, fecha, hora, duracion_min, estado, solicitada_hasta, es_cortesia, sala:salas(nombre)")
+        .in(
+          "membresia_id",
+          conHoras.map((r) => r.id)
+        )
+        .order("fecha", { ascending: true })
+        .order("hora", { ascending: true }),
+      "las reservas de las membresías"
+    );
+    for (const r of resRows as unknown as ReservaRow[]) {
       if (r.membresia_id == null) continue;
       const l = reservasPorInsc.get(r.membresia_id) ?? [];
       l.push(r);
@@ -236,20 +254,19 @@ export async function estadoDeCuenta(sb: ClienteLectura, alumnoId: number): Prom
   const presentes: Record<number, number> = {};
   const conLic: Record<number, number> = {};
   const sinLic: Record<number, number> = {};
-  const { data: asisRows } = await sb
-    .from("asistencias")
-    .select("membresia_id, sesion_id, estado, con_licencia")
-    .in("membresia_id", inscIds);
-  const asis =
-    (asisRows as { membresia_id: number | null; sesion_id: number; estado: string; con_licencia: boolean }[]) ?? [];
+  const asis = exigir(
+    await sb.from("asistencias").select("membresia_id, sesion_id, estado, con_licencia").in("membresia_id", inscIds),
+    "las asistencias de las membresías"
+  ) as { membresia_id: number | null; sesion_id: number; estado: string; con_licencia: boolean }[];
   if (asis.length) {
-    const { data: ses } = await sb
-      .from("sesiones")
-      .select("id, estado")
-      .in("id", [...new Set(asis.map((a) => a.sesion_id))]);
-    const dictadas = new Set(
-      ((ses as { id: number; estado: string }[]) ?? []).filter((s) => s.estado === "dictada").map((s) => s.id)
-    );
+    const ses = exigir(
+      await sb
+        .from("sesiones")
+        .select("id, estado")
+        .in("id", [...new Set(asis.map((a) => a.sesion_id))]),
+      "las sesiones de las asistencias"
+    ) as { id: number; estado: string }[];
+    const dictadas = new Set(ses.filter((s) => s.estado === "dictada").map((s) => s.id));
     for (const a of asis) {
       if (a.membresia_id == null || !dictadas.has(a.sesion_id)) continue;
       if (a.estado === "presente") presentes[a.membresia_id] = (presentes[a.membresia_id] ?? 0) + 1;
@@ -259,40 +276,25 @@ export async function estadoDeCuenta(sb: ClienteLectura, alumnoId: number): Prom
   }
 
   // Cuotas y lo cobrado contra cada una.
-  const { data: cuotaRows } = await sb
-    .from("cuotas")
-    .select("id, membresia_id, periodo, vencimiento, fecha_compromiso, monto_devengado, descuento_adelanto, estado")
-    .in("membresia_id", inscIds)
-    .order("periodo", { ascending: true });
-  const cuotas =
-    (cuotaRows as {
-      id: number;
-      membresia_id: number;
-      periodo: string;
-      vencimiento: string | null;
-      fecha_compromiso: string | null;
-      monto_devengado: number;
-      descuento_adelanto: number;
-      estado: string;
-    }[]) ?? [];
+  const cuotas = exigir(
+    await sb
+      .from("cuotas")
+      .select("id, membresia_id, periodo, vencimiento, fecha_compromiso, monto_devengado, descuento_adelanto, estado")
+      .in("membresia_id", inscIds)
+      .order("periodo", { ascending: true }),
+    "las cuotas de las membresías"
+  ) as {
+    id: number;
+    membresia_id: number;
+    periodo: string;
+    vencimiento: string | null;
+    fecha_compromiso: string | null;
+    monto_devengado: number;
+    descuento_adelanto: number;
+    estado: string;
+  }[];
 
-  const { data: pagoRows } = await sb
-    .from("pagos")
-    .select("id, cuota_id, fecha, monto, descuento, descuento_motivo, medio, motivo")
-    .eq("tipo", "cobro")
-    .eq("alumno_id", alumnoId)
-    .order("fecha", { ascending: false });
-  const pagosCrudos =
-    (pagoRows as {
-      id: number;
-      cuota_id: number | null;
-      fecha: string;
-      monto: number;
-      descuento: number;
-      descuento_motivo: string | null;
-      medio: string | null;
-      motivo: string | null;
-    }[]) ?? [];
+  const pagosCrudos = await leerPagos(cuotas.map((c) => c.id));
 
   const plataPorCuota: Record<number, number> = {};
   const cubiertoPorCuota: Record<number, number> = {};
@@ -335,17 +337,18 @@ export async function estadoDeCuenta(sb: ClienteLectura, alumnoId: number): Prom
   // Bono de tolerancia pendiente, POR CURSO (D35): cada uno trae su vencimiento,
   // que es la renovación bonificada de su curso (se guarda al generarlo).
   const bonosPorInsc = new Map<number, { cursoNombre: string; clases: number; vence: string | null }[]>();
-  if (inscripciones.length) {
-    const { data: bonoRows } = await sb
+  const bonoRows = exigir(
+    await sb
       .from("membresia_bonos")
       .select("membresia_id, clases, vence, curso:cursos(nombre)")
-      .in("membresia_id", inscripciones.map((r) => r.id))
-      .is("aplicado", null);
-    for (const b of (bonoRows as unknown as { membresia_id: number; clases: number; vence: string | null; curso: { nombre: string } | null }[]) ?? []) {
-      const lista = bonosPorInsc.get(b.membresia_id) ?? [];
-      lista.push({ cursoNombre: b.curso?.nombre ?? "un curso", clases: b.clases, vence: b.vence });
-      bonosPorInsc.set(b.membresia_id, lista);
-    }
+      .in("membresia_id", inscIds)
+      .is("aplicado", null),
+    "los bonos de las membresías"
+  );
+  for (const b of bonoRows as unknown as { membresia_id: number; clases: number; vence: string | null; curso: { nombre: string } | null }[]) {
+    const lista = bonosPorInsc.get(b.membresia_id) ?? [];
+    lista.push({ cursoNombre: b.curso?.nombre ?? "un curso", clases: b.clases, vence: b.vence });
+    bonosPorInsc.set(b.membresia_id, lista);
   }
 
   const ahoraSaldo = new Date();
@@ -401,6 +404,48 @@ export async function estadoDeCuenta(sb: ClienteLectura, alumnoId: number): Prom
       saldo: propias.reduce((t, c) => t + c.saldo, 0),
     };
   });
+
+  return { membresias, cuotas: cuotas.map((c) => ({ id: c.id, membresia_id: c.membresia_id })), pagos: pagosCrudos };
+}
+
+export async function estadoDeCuenta(sb: ClienteLectura, alumnoId: number): Promise<EstadoCuenta | null> {
+  const al = exigirUno(
+    await sb.from("alumnos").select("id, contacto:contactos(nombre, apellido)").eq("id", alumnoId).maybeSingle(),
+    "el alumno"
+  );
+  if (!al) return null;
+  const alRow = al as unknown as { id: number; contacto: { nombre: string | null; apellido: string | null } | null };
+  const alumno = { id: alRow.id, nombre: alRow.contacto?.nombre ?? "", apellido: alRow.contacto?.apellido ?? "" };
+
+  const inscripciones = exigir(
+    await sb
+      .from("membresias")
+      .select(
+        "id, estado, fecha_inicio, fecha_fin, clases_plan, clases_total, curso_id, " +
+          "horas_contratadas, profesor:profesores(contacto:contactos(nombre, apellido)), " +
+          "plan:planes(nombre, estilo), curso:cursos(nombre, dias_semana)"
+      )
+      .eq("alumno_id", alumnoId)
+      .neq("estado", "baja")
+      .order("fecha_inicio", { ascending: false }),
+    "las membresías del alumno"
+  ) as unknown as FilaParaCuenta[];
+  if (!inscripciones.length)
+    return { alumno, membresias: [], pagos: [], deuda: 0 };
+
+  // Los cobros se piden por alumno, no por cuota: la cuenta muestra también
+  // los que no están atados a una cuota.
+  const { membresias, cuotas, pagos: pagosCrudos } = await armarMembresiasCuenta(sb, inscripciones, async () =>
+    exigir(
+      await sb
+        .from("pagos")
+        .select("id, cuota_id, fecha, monto, descuento, descuento_motivo, medio, motivo")
+        .eq("tipo", "cobro")
+        .eq("alumno_id", alumnoId)
+        .order("fecha", { ascending: false }),
+      "los pagos del alumno"
+    ) as PagoCobroCrudo[]
+  );
 
   // A qué membresía corresponde cada pago (por su cuota) — un alumno con
   // varias membresías necesita distinguir a cuál se le aplicó cada pago, y el

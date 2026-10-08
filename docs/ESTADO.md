@@ -192,3 +192,10 @@ D35 (`docs/decisiones/vigentes.md`). **Migración 0064 aplicada en dev (2026-10-
 - **Probado:** `tsc`, `lint`, `npm test` (366); `/caja` en dev (Por cobrar 1.530, Por pagar 1.749,11, cuadran con sus líneas).
 - **Producción:** PR #32, `bf76d8a`, deploy `success`; sin migración; chip PROD confirmado por Javier.
 
+### I-012 · Membresías, fase 0 (datos, sin pantalla) — 2026-10-08
+
+- **Qué hay:** `src/lib/listaMembresias.ts` (puro: tipo, renovada, uso, banderas, chip, filtro y orden), `src/lib/membresiasLectura.ts` (lectura con `exigir`) y `src/app/(privado)/membresias/acciones.ts` (`listarMembresias`, `obtenerMembresia`; sin `page.tsx`, no crea ruta). Definiciones en D37 (`docs/decisiones/vigentes.md`).
+- **`cuentas.ts`:** `estadoDeCuenta` sigue con la misma consulta y salida; el armado por membresía pasó a `armarMembresiasCuenta`, que comparte con la lista, y todas sus lecturas usan `exigir()` (un fallo de lectura se muestra). Anotado sin carril: `registrarCobro` y el `restantes` de la cuenta (cuenta solo presentes, mismo defecto de I-011) siguen igual.
+- **Probado en dev:** `tsc`, `lint`, `npm test` (388); texto de `/alumnos/[id]/cuenta` (59) y `/caja/recibo/[id]` (71) antes y después: 0 diferencias; la lista da 73 membresías (48+15 regulares, 6 pruebas, 4 particulares), saldo total 1.530 y avance 108/225 · 110/116 · 6/6, igual que el SQL; 12 fichas de muestra (particulares con 6, 4, 3 y 2 reservas, una renovada 22→28).
+- **Medido:** «por vencer» exige un ciclo de más de una clase: las 18 membresías de una sola clase (preventas y clase suelta) inflaban «por vencer» (24 contra 6). El interruptor `membresias_nuevas` nace en la fase 1a, con la primera pantalla; Playwright, también.
+- **Alineado con H6:** una extensión agranda la misma membresía y no es renovación; la ficha deja `extensiones: []`. La migración 0063 del plan de H6 ya no es el número libre (la próxima es la 0067) y su botón «Extender» iría en la ficha nueva (fase 5); se decide al retomar H6.
