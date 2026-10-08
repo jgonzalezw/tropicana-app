@@ -177,6 +177,8 @@ function Informe({ informe, periodo }: { informe: InformePre; periodo: string })
         </div>
       )}
 
+      <Excepciones informe={informe} aResolver />
+
       {/* Resumen */}
       <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]">
         <Cifra etiqueta="Total a devengar" valor={gs(r.total)} nota={`Comisiones ${gs(r.comisiones)} · reemplazos y ajustes ${conSigno(r.extras)}`} />
@@ -195,7 +197,7 @@ function Informe({ informe, periodo }: { informe: InformePre; periodo: string })
       )}
 
       <Profesores profesores={informe.profesores} periodo={periodo} />
-      <Excepciones informe={informe} />
+      <Excepciones informe={informe} aResolver={false} />
       <Clases informe={informe} />
     </>
   );
@@ -353,16 +355,26 @@ function Fila({ texto, monto }: { texto: string; monto: string }) {
 
 // ── Excepciones ──────────────────────────────────────────────────────────
 
-function Excepciones({ informe }: { informe: InformePre }) {
+/**
+ * Lo que no entra en esta liquidación. Lo que hay que **resolver** (falta un
+ * plan, un titular, clases por registrar, un cobro) va arriba del informe y solo
+ * si hay casos: una excepción no se esconde al final. Lo que simplemente
+ * **todavía no toca** (el ciclo termina después del corte) va abajo.
+ */
+function Excepciones({ informe, aResolver }: { informe: InformePre; aResolver: boolean }) {
+  const motivos = informe.excepciones.filter((m) => (m.clave !== "ciclo_posterior") === aResolver);
+  if (aResolver && motivos.every((m) => m.casos.length === 0)) return null;
   return (
-    <section className="flex flex-col gap-3">
+    <section className={`flex flex-col gap-3 ${aResolver ? "rounded-[var(--radio-tarjeta)] border border-[var(--peligro)] p-4" : ""}`} role={aResolver ? "alert" : undefined}>
       <div>
-        <h2 className="text-2xl">Excepciones</h2>
+        <h2 className="text-2xl">{aResolver ? "Hay que resolver" : "Todavía no entran"}</h2>
         <p className="text-sm text-[var(--texto-tenue)] mt-1">
-          Lo que no entra en esta liquidación, y por qué. Cada caso lleva a donde se arregla.
+          {aResolver
+            ? "Lo que no entra en esta liquidación hasta que se corrija, y por qué. Cada caso lleva a donde se arregla."
+            : "Membresías cuyo ciclo termina después del corte: entran en el período siguiente."}
         </p>
       </div>
-      {informe.excepciones.map((m) => (
+      {motivos.filter((m) => !aResolver || m.casos.length > 0).map((m) => (
         <div key={m.clave} className="rounded-[22px] bg-[var(--fondo-panel)] border border-[var(--borde)] p-5">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <h3 className="text-[17px] titulo">{m.titulo}</h3>

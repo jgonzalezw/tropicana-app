@@ -107,22 +107,25 @@ export function construirHTMLPreliquidacion(i: InformePre, generadoEn: string): 
     })
     .join("");
 
-  const excepciones = i.excepciones
-    .map(
-      (m) => `<div class="bloque"><h3>${esc(m.titulo)} <span class="muted">· ${m.casos.length ? m.casos.length : "ninguna"}</span></h3>${
-        m.casos.length
-          ? `<table class="t"><tbody>${m.casos
-              .map(
-                (c) =>
-                  `<tr><td class="b">${esc(c.persona)}${c.curso ? ` · ${esc(c.curso)}` : ""}</td><td>${esc(c.detalle)}</td><td class="small">${
-                    c.accion === "Ver membresía" ? "Se mira en" : "Se resuelve en"
-                  }: ${esc(pantallaDe(c))}</td></tr>`
-              )
-              .join("")}</tbody></table>`
-          : `<p class="small">Ninguna en este período.</p>`
-      }</div>`
-    )
-    .join("");
+  // Lo que hay que resolver va en la primera hoja; lo demás (sin casos, o que todavía no toca) al final.
+  const aResolver = i.excepciones.filter((m) => m.clave !== "ciclo_posterior" && m.casos.length > 0);
+  const bloqueExcepcion = (m: InformePre["excepciones"][number]) =>
+    `<div class="bloque"><h3>${esc(m.titulo)} <span class="muted">· ${m.casos.length ? m.casos.length : "ninguna"}</span></h3>${
+      m.casos.length
+        ? `<table class="t"><tbody>${m.casos
+            .map(
+              (c) =>
+                `<tr><td class="b">${esc(c.persona)}${c.curso ? ` · ${esc(c.curso)}` : ""}</td><td>${esc(c.detalle)}</td><td class="small">${
+                  c.accion === "Ver membresía" ? "Se mira en" : "Se resuelve en"
+                }: ${esc(pantallaDe(c))}</td></tr>`
+            )
+            .join("")}</tbody></table>`
+        : `<p class="small">Ninguna en este período.</p>`
+    }</div>`;
+  const hayQueResolver = aResolver.length
+    ? `<div class="aviso"><b>Hay que resolver</b><br><span class="small">Lo que no entra en esta liquidación hasta que se corrija, y por qué.</span>${aResolver.map(bloqueExcepcion).join("")}</div>`
+    : "";
+  const excepciones = i.excepciones.filter((m) => !aResolver.includes(m)).map(bloqueExcepcion).join("");
 
   const clases = [
     bloqueClases(
@@ -169,6 +172,7 @@ export function construirHTMLPreliquidacion(i: InformePre, generadoEn: string): 
         : ""
     }
     ${existentes}
+    ${hayQueResolver}
     <div class="cifras">
       <div><div class="small muted">Total a devengar</div><div class="n">${gs(r.total)}</div><div class="small muted">Comisiones ${gs(r.comisiones)} · reemplazos y ajustes ${conSigno(r.extras)}</div></div>
       <div><div class="small muted">Profesores con devengo</div><div class="n">${r.profesoresConDevengo}</div></div>
