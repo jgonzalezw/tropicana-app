@@ -335,3 +335,15 @@ pasa a ser la fecha de compromiso de pago del saldo. La traza `corrimientos_cicl
 se conserva re-apuntada al nuevo efecto (se ajusta en el sub-hito 1B).
 
 ---
+
+---
+
+## I-001 — Confirmación de inscripción (2026-10-07)
+
+Registro de nueve pedidos (I-001 a I-009, `INCIDENTES.md`) y activación de D29 junto con I-005. Cierra I-001; **solo dev, sin migración**.
+
+- El texto de WhatsApp de una inscripción regular ahora trae cada curso con días y horario, clases (con bono) o ilimitado, inicio y fin de ciclo, tolerancia de faltas, precio, pagado y saldo con su fecha. Va al tutor si el alumno es menor.
+- Con cobro, la tarjeta suma un aviso «recibo de pago» por WhatsApp (copiable) y «Ver recibo», que abre el recibo imprimible en otra pestaña.
+- Código: `src/lib/venta/mensajeInscripcion.ts` (puro, 6 pruebas), `inscribirYCobrar` y `ConfirmacionVenta`.
+- **Verificado:** `tsc`, `lint`, `npm test` (280/280) y prueba en pantalla de Javier en dev.
+- Prueba, particular y alquiler conservan su texto anterior: reusar la función es seguimiento.
