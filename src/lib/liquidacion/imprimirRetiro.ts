@@ -72,12 +72,12 @@ export function construirHTMLRetiro(
 
   const particulares = v.particulares.length
     ? `<table class="t g"><thead>
-        <tr class="grupo"><th></th><th colspan="4" class="c">Cuenta del alumno</th><th colspan="6" class="c">Liquidación</th></tr>
-        <tr><th>Alumno</th><th class="r">Precio</th><th class="r">Desc.</th><th class="r">Pagado</th><th class="r">Saldo</th><th>Horas</th><th>Bono</th><th>Forma de pago</th><th class="r">A la fecha</th><th class="r">Ya liquidado</th><th class="r">Este cierre</th></tr>
+        <tr class="grupo"><th></th><th colspan="4" class="c">Cuenta del alumno</th><th colspan="5" class="c">Liquidación</th></tr>
+        <tr><th>Alumno</th><th class="r">Precio</th><th class="r">Desc.</th><th class="r">Pagado</th><th class="r">Saldo</th><th>Horas</th><th>Forma de pago</th><th class="r">A la fecha</th><th class="r">Ya liquidado</th><th class="r">Este cierre</th></tr>
       </thead><tbody>${v.particulares
         .map(
           (l) =>
-            `<tr><td>${esc(l.alumno)}${sub(`Clase particular · ${siglaCriterio(l.criterio)} · ${textoCiclo(l.inicio, l.fin)}`)}</td>${celdasCuenta(l.cuenta)}<td>${cantidad(l.horasDadas)} de ${cantidad(l.horasContratadas)} h</td><td>${textoBonoAplicado(l.bonoAplicado)}</td><td>${esc(l.forma.replace("_", " "))}</td><td class="r">${gs(l.aLaFecha)}</td><td class="r">${textoYaLiquidado(l)}</td><td class="r b">${gs(l.monto)}</td></tr>`
+            `<tr><td>${esc(l.alumno)}${sub(`Clase particular · ${siglaCriterio(l.criterio)} · ${textoCiclo(l.inicio, l.fin)}`)}</td>${celdasCuenta(l.cuenta)}<td class="nw">${cantidad(l.horasDadas)} de ${cantidad(l.horasContratadas)} h</td><td>${esc(l.forma.replace("_", " "))}</td><td class="r">${gs(l.aLaFecha)}</td><td class="r">${textoYaLiquidado(l)}</td><td class="r b">${gs(l.monto)}</td></tr>`
         )
         .join("")}</tbody></table>${leyenda(v.particulares.map((l) => l.criterio))}`
     : `<p class="small">Nada que devengar por clases particulares.</p>`;

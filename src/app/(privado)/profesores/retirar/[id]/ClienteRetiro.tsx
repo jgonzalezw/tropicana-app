@@ -401,7 +401,7 @@ export default function ClienteRetiro({
                     <tr className="text-center text-xs text-[var(--texto-tenue)]">
                       <th />
                       <th colSpan={4} className="font-medium">Cuenta del alumno</th>
-                      <th colSpan={6} className="font-medium">Liquidación</th>
+                      <th colSpan={5} className="font-medium">Liquidación</th>
                     </tr>
                     <tr className="text-left text-sm text-[var(--texto-tenue)]">
                       <th className={TH}>Alumno</th>
@@ -410,7 +410,6 @@ export default function ClienteRetiro({
                       <th className={THR}>Pagado</th>
                       <th className={THR}>Saldo</th>
                       <th className={TH}>Horas</th>
-                      <th className={TH}>Bono</th>
                       <th className={TH}>Forma de pago</th>
                       <th className={THR}>A la fecha</th>
                       <th className={THR}>Ya liquidado</th>
@@ -430,10 +429,9 @@ export default function ClienteRetiro({
                         <td className={TDR}>{montoOGuion(l.cuenta.descuento)}</td>
                         <td className={TDR}>{gs(l.cuenta.pagado)}</td>
                         <td className={TDR}>{montoOGuion(l.cuenta.saldo)}</td>
-                        <td className={`${TD} tabular-nums`}>
+                        <td className={`${TD} tabular-nums whitespace-nowrap`}>
                           {cantidad(l.horasDadas)} de {cantidad(l.horasContratadas)} h
                         </td>
-                        <td className={`${TD} tabular-nums`}>{textoBonoAplicado(l.bonoAplicado)}</td>
                         <td className={TD}>{l.forma.replace("_", " ")}</td>
                         <td className={TDR}>{gs(l.aLaFecha)}</td>
                         <td className={TDR}>{textoYaLiquidado(l)}</td>
