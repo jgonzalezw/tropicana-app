@@ -179,12 +179,13 @@ export function validarRetiro(e: EntradaRetiro): Traba[] {
     });
   }
 
-  if (e.reservasFuturas.length)
+  // Una traba por reserva: nombra al alumno y el día, y abre la sala en esa fecha.
+  for (const r of e.reservasFuturas)
     trabas.push({
-      clave: "reservas",
-      texto: `Tiene ${e.reservasFuturas.length} reserva(s) particular(es) futura(s) que quedarían sin profesor. Reasignalas o cancelalas antes.`,
-      href: HREF.reservas,
-      accion: "Ir a la sala",
+      clave: `reserva-${r.id}`,
+      texto: `${r.alumno} (particular): tiene una reserva el ${fechaCorta(r.fecha)} con ${e.profesor}, posterior al corte. Quedaría sin profesor: reasignala o cancelala antes de retirar.`,
+      href: `${HREF.reservas}?fecha=${r.fecha}`,
+      accion: `Ver el ${fechaCorta(r.fecha)} en la sala`,
     });
 
   trabas.push(...excepcionesDelCierre(e));

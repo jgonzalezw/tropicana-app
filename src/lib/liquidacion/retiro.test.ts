@@ -63,7 +63,8 @@ test("una clase dictada después del corte traba y dice qué hacer", () => {
 test("reservas particulares futuras traban y llevan a la sala", () => {
   const v = armarRetiro(entrada({ reservasFuturas: [{ id: 1, fecha: "2026-10-20", alumno: "Gómez, Eva" }] }));
   assert.equal(v.puedeConfirmar, false);
-  assert.equal(v.trabas[0].href, "/sala");
+  assert.equal(v.trabas[0].href, "/sala?fecha=2026-10-20");
+  assert.match(v.trabas[0].texto, /Gómez, Eva.*20\/10/);
 });
 
 test("una multi-curso con clases sin registrar es una traba (regla 17), con dónde registrarlas", () => {
