@@ -389,6 +389,12 @@ D35 (`docs/decisiones/vigentes.md`). **Migración 0064 aplicada en dev (2026-10-
 - **Verificado:** `tsc`, `lint`, `npm test` (333), venta real en dev, rollback de la 0064 y de la corrección fila por fila.
 - **Cierre (2026-10-08):** PR #19, `main` `5b3093d`, deploy Producción `success`; Javier confirmó el chip PROD y los bonos de los 3 alumnos. Tablas de respaldo `bono_previo_0064` y `bono_correccion_i003_previo` borradas de producción con su OK (sin respaldo de rollback en producción).
 
+### I-005b · Pendientes chicos de I-005 — 2026-10-08
+
+- **Cifra de liquidez** en la simulación (D29) y en el impreso: por profesor y con piso 0, devengo + saldo previo de liquidaciones anteriores + suplentes. Saldo previo cruzado contra SQL en dev. Sin migración.
+- **«Retirar…» en la ficha** del profesor (misma condición de permiso que el listado). **`semana`** no se agrega al catálogo: D36 postergada.
+- PR #21 en producción; `tsc`, `lint`, `npm test` (338).
+
 ### I-006 · Baja de profesor por Retirar (control 48) — 2026-10-08
 
 - **Causa:** «Desactivar» solo apagaba `activo`: dejaba un titular inactivo con la asignación abierta (en producción, Caceres, Angel desde el 14/09, curso Danza Comercial). **Migración 0065 aplicada en dev y en producción (2026-10-08).**
