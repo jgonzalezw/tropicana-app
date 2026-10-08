@@ -5,7 +5,7 @@ Se actualiza en el mismo commit que cierra cada carril; una sesión nueva lo lee
 - **Carriles cerrados y en producción (2026-10-08):** I-003 (bono por curso, 0064, PR #19) · I-005 (retiro del profesor y pre-liquidación simulada, 0063, PR #18; falta validar con Natalia) · I-005b (cifra de liquidez en la simulación y «Retirar…» en la ficha, PR #21) · I-006 (baja por Retirar, triggers 0065, PR #22) · I-007 (fecha efectiva del retiro en la liquidación, 0066, PR #23).
 - **Producción:** migraciones **0001–0066**; controles 48 y 50 en 0. Deploy Producción de `main` `343b4bd`: `success`.
 - **Caceres, Angel** retirado en producción (corte 14/09, liquidación N° 4 de Bs. 75 abierta, por pagar en Caja). **Danza Comercial y Zumba esperan nuevo profesor**; los 3 Vivancos esperan sus 2 clases. Avisarles y pagar la N° 4 quedan en manos de Javier.
-- **Espera de Javier:** OK para borrar las tablas `resp_i007_liquidaciones` y `resp_i007_funcion` de producción (respaldo de la 0066); qué carril sigue.
+- **Respaldos de la 0066 borrados de producción** (con OK de Javier, 2026-10-08): el rollback de la 0066 ya no tiene respaldo. **Espera de Javier:** qué carril sigue.
 - **Siguiente:** a elegir por Javier entre I-002 (corregir inscripciones, S3, D28) y los reportes I-004/I-006/I-007/I-008 (pasan por Design). Primer paso: plan en *plan mode*, abriendo con el backlog que toca. Postergadas nuevas: D36 (liquidación real por semana).
 - **Anotado, sin carril:** la lectura `lineasPorPagar` (`src/lib/cuentas.ts`) ignora el error de lectura (calidad 1).
 - **Datos de dev tocados por las pruebas:** Caceres y Nuñez retirados; la membresía 35 (Leidy Ortiz) quedó `completada` y existe la venta 65. La skill `refrescar-dev` lo repone si molesta.
