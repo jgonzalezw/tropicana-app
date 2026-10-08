@@ -26,9 +26,9 @@ const CAMPO =
 
 type Eleccion = { profesorId: number | null; pct: string };
 
-const TH = "py-2 pr-3 font-medium";
+const TH = "py-2 pr-2 font-medium";
 const THR = `${TH} text-right`;
-const TD = "py-2 pr-3";
+const TD = "py-2 pr-2";
 const TDR = `${TD} text-right tabular-nums whitespace-nowrap`;
 
 /** Las siglas que aparecen en una tabla, explicadas debajo. */
@@ -366,7 +366,7 @@ export default function ClienteRetiro({
                       <tr key={`${l.membresiaId}-${l.curso}`} className="border-t border-[var(--borde)] align-top">
                         <td className={TD}>
                           {l.alumno}
-                          <div className="text-sm text-[var(--texto-tenue)]">
+                          <div className="text-[11px] text-[var(--texto-tenue)] whitespace-nowrap">
                             {l.curso} · {siglaCriterio(l.criterio)} · {textoCiclo(l.inicio, l.fin)}
                           </div>
                         </td>
@@ -421,7 +421,7 @@ export default function ClienteRetiro({
                       <tr key={l.membresiaId} className="border-t border-[var(--borde)] align-top">
                         <td className={TD}>
                           {l.alumno}
-                          <div className="text-sm text-[var(--texto-tenue)]">
+                          <div className="text-[11px] text-[var(--texto-tenue)] whitespace-nowrap">
                             Clase particular · {siglaCriterio(l.criterio)} · {textoCiclo(l.inicio, l.fin)}
                           </div>
                         </td>

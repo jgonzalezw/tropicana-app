@@ -22,7 +22,7 @@ import type { VistaRetiro } from "./retiro.ts";
 const esc = (s: string | number | null | undefined) =>
   String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
-const sub = (t: string) => `<br><span class="small muted">${esc(t)}</span>`;
+const sub = (t: string, nw = false) => `<br><span class="small muted${nw ? " nw" : ""}">${esc(t)}</span>`;
 
 /** Las cuatro celdas de la cuenta del alumno, iguales en toda tabla. */
 const celdasCuenta = (c: { precio: number; descuento: number; pagado: number; saldo: number }) =>
@@ -65,7 +65,7 @@ export function construirHTMLRetiro(
       </thead><tbody>${v.regulares
         .map(
           (l) =>
-            `<tr><td>${esc(l.alumno)}${sub(`${l.curso} · ${siglaCriterio(l.criterio)} · ${textoCiclo(l.inicio, l.fin)}`)}</td>${celdasCuenta(l.cuenta)}<td>${l.clases}/${l.clasesDelCurso}</td><td>${textoBonoAplicado(l.bonoAplicado)}</td><td class="r">${gs(l.base)}</td><td class="r">${l.pct}%</td><td class="r">${gs(l.aLaFecha)}</td><td class="r">${textoYaLiquidado(l)}</td><td class="r b">${gs(l.monto)}</td></tr>`
+            `<tr><td>${esc(l.alumno)}${sub(`${l.curso} · ${siglaCriterio(l.criterio)} · ${textoCiclo(l.inicio, l.fin)}`, true)}</td>${celdasCuenta(l.cuenta)}<td>${l.clases}/${l.clasesDelCurso}</td><td>${textoBonoAplicado(l.bonoAplicado)}</td><td class="r">${gs(l.base)}</td><td class="r">${l.pct}%</td><td class="r">${gs(l.aLaFecha)}</td><td class="r">${textoYaLiquidado(l)}</td><td class="r b">${gs(l.monto)}</td></tr>`
         )
         .join("")}</tbody></table>${leyenda(v.regulares.map((l) => l.criterio))}`
     : `<p class="small">Nada que devengar por cursos regulares.</p>`;
@@ -77,7 +77,7 @@ export function construirHTMLRetiro(
       </thead><tbody>${v.particulares
         .map(
           (l) =>
-            `<tr><td>${esc(l.alumno)}${sub(`Clase particular · ${siglaCriterio(l.criterio)} · ${textoCiclo(l.inicio, l.fin)}`)}</td>${celdasCuenta(l.cuenta)}<td class="nw">${cantidad(l.horasDadas)} de ${cantidad(l.horasContratadas)} h</td><td>${esc(l.forma.replace("_", " "))}</td><td class="r">${gs(l.aLaFecha)}</td><td class="r">${textoYaLiquidado(l)}</td><td class="r b">${gs(l.monto)}</td></tr>`
+            `<tr><td>${esc(l.alumno)}${sub(`Clase particular · ${siglaCriterio(l.criterio)} · ${textoCiclo(l.inicio, l.fin)}`, true)}</td>${celdasCuenta(l.cuenta)}<td class="nw">${cantidad(l.horasDadas)} de ${cantidad(l.horasContratadas)} h</td><td>${esc(l.forma.replace("_", " "))}</td><td class="r">${gs(l.aLaFecha)}</td><td class="r">${textoYaLiquidado(l)}</td><td class="r b">${gs(l.monto)}</td></tr>`
         )
         .join("")}</tbody></table>${leyenda(v.particulares.map((l) => l.criterio))}`
     : `<p class="small">Nada que devengar por clases particulares.</p>`;

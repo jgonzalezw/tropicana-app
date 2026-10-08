@@ -32,9 +32,14 @@ export function avanceEnDosLineas(m: Pick<InconclusaVista, "hechas" | "total" | 
       };
 }
 
-/** El ciclo en una línea: «01/10/2026 – 27/10/2026». */
-export const textoCiclo = (inicio: string | null, fin: string | null): string =>
-  `${fechaCorta(inicio)} – ${fechaCorta(fin)}`;
+/** El ciclo en una línea y corto: «01/10/26 – 27/10/26» (cabe junto al curso sin ensanchar la tabla). */
+export const textoCiclo = (inicio: string | null, fin: string | null): string => {
+  const corta = (f: string | null) => {
+    const t = fechaCorta(f);
+    return /^\d\d\/\d\d\/\d{4}$/.test(t) ? `${t.slice(0, 6)}${t.slice(8)}` : t;
+  };
+  return `${corta(inicio)} – ${corta(fin)}`;
+};
 
 /** Bono que recibió de la venta anterior: «+1 clase» o «—». */
 export const textoBonoAplicado = (n: number): string => (n > 0 ? `+${n}` : "—");
