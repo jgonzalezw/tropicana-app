@@ -11,6 +11,10 @@
 --              empezar el 2026-10-01 y esa clase (sesión 123) se registra en ella.
 --              El bono de Jorge vence el 2026-10-01: sin esta fecha ya no se aplica.
 --
+--   * Lucas:   bono de la membresía 20 (Salsa y Bachata Inicial) -> nueva membresía 63
+--              (plan CR - TU RITMO 4, inicio 2026-10-07). El bono vence el 2026-10-07,
+--              el mismo día en que empieza la 63: llega a tiempo.
+--
 -- Qué hace por cada caso (todo o nada: es un solo bloque):
 --   1. verifica (alumno, estado, bono pendiente del curso, vigencia, sesión);
 --   2. guarda el antes en `bono_correccion_i003_previo` (para el rollback);
@@ -42,7 +46,8 @@ begin
   for c in
     select * from (values
       (4::bigint,  59::bigint, null::date,        null::bigint),   -- Manuel Aguilar
-      (16::bigint, 56::bigint, date '2026-10-01', 123::bigint)     -- Jorge Vilca
+      (16::bigint, 56::bigint, date '2026-10-01', 123::bigint),    -- Jorge Vilca
+      (20::bigint, 63::bigint, null::date,        null::bigint)    -- Lucas Campero
     ) as v(origen, destino, inicio, sesion)
   loop
     select * into o from public.membresias where id = c.origen;
