@@ -408,3 +408,9 @@ D35 (`docs/decisiones/vigentes.md`). **Migración 0064 aplicada en dev (2026-10-
 - **Producción (2026-10-08, OK de Javier):** antes, 4 liquidaciones sin la columna; después, N° 1 (Gongora) → 10/09/2026 y N° 4 (Caceres) → 14/09/2026, N° 2 y N° 3 sin fecha; el resto de cada fila idéntico al respaldo; control 50 en 0; `retirar_profesor` ya escribe la fecha. Los respaldos `resp_i007_*` se borraron de producción con OK de Javier (2026-10-08): el rollback ya no tiene respaldo.
 - **Verificado en dev:** `tsc`, `lint`, `npm test` (339), relleno de las liquidaciones de retiro, control 50 en 0 y el comprobante N° 5 en pantalla (hasta el 07/10/2026).
 
+
+### I-010 · Bono de Raquel López (asistencia mal tipeada) — 2026-10-08
+
+- **Causa:** la asistencia de Raquel (membresía 21) se tipeó mal: 14/09 ausente (Lucas, presente) y 16/09 ausente sin licencia (Lucas, con licencia). Con una falta sin licencia el curso no genera bono. Era el último caso de este tipo.
+- **Arreglo:** `scripts/corregir_bono_i010.sql` (sin migración, con respaldo `resp_i010_previo` y rollback `scripts/rollback_corregir_bono_i010.sql`): asistencias 121 y 143 igualadas a las de Lucas, bono de 1 clase de la 21 aplicado a la 62 (clases 4 → 5, fin 19/10 → 21/10, igual que la 63) y recuento de la 21 (7 hechas).
+- **Producción (2026-10-08, OK de Javier):** antes/después verificado; control 49 en 0 para las membresías 20, 21, 62 y 63; sin comisiones ni liquidaciones afectadas. Probado antes en dev: corrida doble idempotente y rollback sin diferencias. El respaldo `resp_i010_previo` se borró de producción con OK de Javier (2026-10-08). En dev el refresh no copia `membresia_bonos`: el control 49 da 9 allí (membresías ajenas), no en producción.
