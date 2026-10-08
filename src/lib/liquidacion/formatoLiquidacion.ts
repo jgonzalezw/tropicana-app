@@ -1,11 +1,13 @@
 /**
- * Cómo se dicen las cifras de la vista del retiro, en pantalla y en el impreso:
- * un solo lugar para que las dos hablen igual. Sin DOM.
+ * Cómo se dicen las cifras de una liquidación (retiro, pre-liquidación, simulación,
+ * Liquidaciones, comprobante), en pantalla y en el impreso: un solo lugar para que
+ * todas hablen igual (calidad 10). Sin DOM.
  */
 
 import { gs } from "../inscripcion.ts";
 import { fechaCorta } from "./formatoPre.ts";
-import type { InconclusaVista, LineaParticular, LineaRegular } from "./retiro.ts";
+import type { LineaParticular, LineaRegular } from "./lineas.ts";
+import type { InconclusaVista } from "./retiro.ts";
 
 /** Un monto, o «—» si es cero (la tabla se lee mejor sin ceros). */
 export const montoOGuion = (n: number): string => (Math.abs(n) < 0.005 ? "—" : gs(n));

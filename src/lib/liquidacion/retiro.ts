@@ -16,6 +16,17 @@ import { fechaCorta } from "./formatoPre.ts";
 import type { DevengoPendiente, MembresiaBloqueada } from "./motor.ts";
 import type { DevengoParticular, ParticularBloqueada } from "./particulares.ts";
 import type { DescuentoPre } from "./preliquidacion.ts";
+import {
+  armarLineas,
+  type BonoMembresia,
+  type CuentaMembresia,
+  type LineaPrevia,
+  type LineaParticular,
+  type LineaRegular,
+  type PreviaCierre,
+} from "./lineas.ts";
+
+export type { BonoMembresia, CuentaMembresia, LineaPrevia, LineaParticular, LineaRegular, PreviaCierre };
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -27,41 +38,8 @@ export type AsignacionRetiro = {
   hasta: string | null;
 };
 
-/** Lo que el alumno debe y pagó por una membresía (`cobroPorMembresia`). */
-export type CuentaMembresia = { precio: number; descuento: number; pagado: number; saldo: number };
-
-/**
- * Bono de tolerancia de una membresía (D35), sumado de todos sus cursos:
- * `aplicado` = el que recibió de la venta anterior; `generado` = el que dejó
- * para su renovación, con el vencimiento más próximo.
- */
-export type BonoMembresia = { aplicado: number; generado: number; vence: string | null };
-
-/** Lo ya devengado de una membresía (y curso, en regulares) y en qué liquidación quedó. */
-/**
- * Una membresía cuyo devengo ya está en una liquidación **sin pagar** del
- * profesor y que el cierre no vuelve a emitir (ya está entera). Se muestra en
- * la misma tabla, con «Este cierre —», porque compone el saldo previo que se le
- * paga al retirarse (Javier, 2026-10-08).
- */
-export type LineaPrevia = {
-  membresiaId: number;
-  /** null en particulares. */
-  cursoId: number | null;
-  tipo: "regular" | "particular";
-  alumno: string;
-  curso: string;
-  base: number;
-  monto: number;
-  horasDadas?: number;
-  horasContratadas?: number;
-  forma?: string;
-};
-
 /** De dónde sale el saldo previo: lo liquidado sin pagar, menos descuentos y pagos a cuenta. */
 export type SaldoDesglose = { liquidado: number; descuentos: number; pagado: number; liquidaciones: number[] };
-
-export type PreviaCierre = { membresiaId: number; cursoId: number | null; monto: number; liquidacionId: number | null };
 
 /** Una membresía que queda sin terminar cuando el profesor se retira. */
 export type MembresiaInconclusa = {
@@ -129,47 +107,6 @@ export type EntradaRetiro = {
 };
 
 export type Accion = { clave: string; texto: string };
-
-/** Lo que toda línea de la liquidación final dice de su membresía y de su cuenta. */
-type LineaCuenta = {
-  criterio: number | null;
-  /** Ciclo de la membresía (inicio y fin), para ubicar la línea en el tiempo. */
-  inicio: string | null;
-  fin: string | null;
-  cuenta: CuentaMembresia;
-  /** Clases de bono de tolerancia que recibió al inscribirse. */
-  bonoAplicado: number;
-  /** Total que le toca a la fecha de corte = ya liquidado + este cierre. */
-  aLaFecha: number;
-  yaLiquidado: number;
-  /** N° de las liquidaciones donde está lo ya liquidado. */
-  liquidaciones: number[];
-  /** Ya liquidada entera en una liquidación sin pagar: este cierre no le suma nada. */
-  soloLiquidado?: boolean;
-};
-
-export type LineaRegular = LineaCuenta & {
-  membresiaId: number;
-  alumno: string;
-  curso: string;
-  clases: number;
-  clasesDelCurso: number;
-  pct: number;
-  base: number;
-  /** Este cierre: lo que se devenga ahora. */
-  monto: number;
-};
-
-export type LineaParticular = LineaCuenta & {
-  membresiaId: number;
-  alumno: string;
-  horasDadas: number;
-  horasContratadas: number;
-  forma: string;
-  cobrado: number;
-  /** Este cierre: lo que se devenga ahora. */
-  monto: number;
-};
 
 export type Traba = {
   clave: string;
@@ -293,92 +230,7 @@ export function armarRetiro(e: EntradaRetiro): VistaRetiro {
   acciones.push({ clave: "cierre", texto: "Se devenga su cierre de cuentas (pago a cuenta, a pagar en Caja)." });
   acciones.push({ clave: "inactivar", texto: `${e.profesor} pasa a inactivo.` });
 
-  const sinCuenta: CuentaMembresia = { precio: 0, descuento: 0, pagado: 0, saldo: 0 };
-  const cuentaDe = (id: number) => e.cuentas[id] ?? sinCuenta;
-  /** Lo ya devengado de esa membresía (y curso, si es regular) y dónde quedó. */
-  const previoDe = (membresiaId: number, cursoId: number | null) => {
-    const filas = e.previas.filter((x) => x.membresiaId === membresiaId && x.cursoId === cursoId);
-    return {
-      monto: r2(filas.reduce((s, x) => s + x.monto, 0)),
-      liquidaciones: [...new Set(filas.map((x) => x.liquidacionId).filter((x): x is number => x != null))].sort(
-        (a, b) => a - b
-      ),
-    };
-  };
-
-  const regulares: LineaRegular[] = e.regular.pendientes.map((p) => {
-    const ya = previoDe(p.membresiaId, p.cursoId);
-    return {
-      membresiaId: p.membresiaId,
-      alumno: p.alumno,
-      curso: p.curso,
-      criterio: e.criterios[p.membresiaId] ?? p.criterio,
-      inicio: e.ciclos[p.membresiaId]?.inicio ?? null,
-      fin: e.ciclos[p.membresiaId]?.fin ?? null,
-      cuenta: cuentaDe(p.membresiaId),
-      clases: p.clases,
-      clasesDelCurso: p.clasesDelCurso,
-      bonoAplicado: e.bonos[p.membresiaId]?.aplicado ?? 0,
-      pct: p.pct,
-      base: p.base,
-      yaLiquidado: ya.monto,
-      liquidaciones: ya.liquidaciones,
-      aLaFecha: r2(ya.monto + p.monto),
-      monto: p.monto,
-    };
-  });
-  const particulares: LineaParticular[] = e.particulares.pendientes.map((p) => ({
-    membresiaId: p.membresiaId,
-    alumno: p.alumno,
-    // El cierre mide como el criterio 2, pero la sigla es la de la venta.
-    criterio: e.criterios[p.membresiaId] ?? p.criterio,
-    inicio: e.ciclos[p.membresiaId]?.inicio ?? null,
-    fin: e.ciclos[p.membresiaId]?.fin ?? null,
-    cuenta: cuentaDe(p.membresiaId),
-    bonoAplicado: e.bonos[p.membresiaId]?.aplicado ?? 0,
-    horasDadas: p.detalle.horasDadas,
-    horasContratadas: p.detalle.horasContratadas,
-    forma: p.detalle.forma,
-    cobrado: p.detalle.cobrado,
-    yaLiquidado: p.detalle.yaDevengado,
-    liquidaciones: previoDe(p.membresiaId, null).liquidaciones,
-    aLaFecha: p.detalle.objetivo,
-    monto: p.monto,
-  }));
-
-  // Las ya liquidadas enteras en una liquidación sin pagar: misma tabla, «Este cierre —».
-  for (const y of e.yaLiquidadas) {
-    const ya = previoDe(y.membresiaId, y.cursoId);
-    const comun = {
-      membresiaId: y.membresiaId,
-      alumno: y.alumno,
-      criterio: e.criterios[y.membresiaId] ?? null,
-      inicio: e.ciclos[y.membresiaId]?.inicio ?? null,
-      fin: e.ciclos[y.membresiaId]?.fin ?? null,
-      cuenta: cuentaDe(y.membresiaId),
-      bonoAplicado: e.bonos[y.membresiaId]?.aplicado ?? 0,
-      yaLiquidado: ya.monto,
-      liquidaciones: ya.liquidaciones,
-      aLaFecha: ya.monto,
-      monto: 0,
-      soloLiquidado: true,
-    };
-    if (y.tipo === "regular") {
-      if (regulares.some((l) => l.membresiaId === y.membresiaId && l.curso === y.curso)) continue;
-      regulares.push({
-        ...comun, curso: y.curso, clases: 0, clasesDelCurso: 0,
-        pct: y.base > 0 ? Math.round((y.monto / y.base) * 100) : 0, base: y.base,
-      });
-    } else {
-      if (particulares.some((l) => l.membresiaId === y.membresiaId)) continue;
-      particulares.push({
-        ...comun, horasDadas: y.horasDadas ?? 0, horasContratadas: y.horasContratadas ?? 0,
-        forma: y.forma ?? "", cobrado: comun.cuenta.pagado,
-      });
-    }
-  }
-  regulares.sort((a, b) => a.alumno.localeCompare(b.alumno, "es") || a.curso.localeCompare(b.curso, "es"));
-  particulares.sort((a, b) => a.alumno.localeCompare(b.alumno, "es"));
+  const { regulares, particulares } = armarLineas(e.regular.pendientes, e.particulares.pendientes, e);
 
   const tReg = r2(regulares.reduce((s, l) => s + l.monto, 0));
   const tPar = r2(particulares.reduce((s, l) => s + l.monto, 0));
@@ -416,7 +268,7 @@ export function armarRetiro(e: EntradaRetiro): VistaRetiro {
       .sort((a, b) => a.alumno.localeCompare(b.alumno, "es"))
       .map((m) => ({
         ...m,
-        cuenta: cuentaDe(m.membresiaId),
+        cuenta: e.cuentas[m.membresiaId] ?? { precio: 0, descuento: 0, pagado: 0, saldo: 0 },
         bonoAplicado: e.bonos[m.membresiaId]?.aplicado ?? 0,
         bonoGenerado: e.bonos[m.membresiaId]?.generado ?? 0,
         bonoVence: e.bonos[m.membresiaId]?.vence ?? null,
