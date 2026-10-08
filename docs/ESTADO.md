@@ -347,3 +347,15 @@ Registro de nueve pedidos (I-001 a I-009, `INCIDENTES.md`) y activación de D29 
 - Código: `src/lib/venta/mensajeInscripcion.ts` (puro, 6 pruebas), `inscribirYCobrar` y `ConfirmacionVenta`.
 - **Verificado:** `tsc`, `lint`, `npm test` (280/280) y prueba en pantalla de Javier en dev.
 - Prueba, particular y alquiler conservan su texto anterior: reusar la función es seguimiento.
+
+---
+
+## I-009 — Número de clase en Asistencia (2026-10-07)
+
+Cierra I-009; **solo dev, sin migración**. Rama `fix/i-009` (sale de `fix/i-001`).
+
+- Cada alumno del padrón muestra «Clase 5 de 12 · quedan 7 · 4/12 tomadas · 1 falta en el ciclo». En un paquete por clase: «Una clase · clase 3 de 8 · quedan 5». En la última: «Última clase (8 de 8)» y la pastilla «Última clase» en color de advertencia, también con la clase ya marcada; pesa más que las de tolerancia.
+- Las tomadas y las faltas del ciclo cuentan hasta la fecha que se mira: una fecha pasada ya no muestra los totales de hoy. No cambió nada de lo que decide el padrón, la tolerancia ni el bono.
+- Código: `src/lib/ordinalClase.ts` (puro, 6 pruebas), `cargarPadron`, `FilaAsistencia.ordinal` y `ClienteAsistencia`.
+- Límite: un alumno con dos cursos el mismo día ve el mismo número en los dos.
+- **Verificado:** `tsc`, `lint`, `npm test` (286/286) y prueba en pantalla de Javier en dev.

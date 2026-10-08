@@ -1,3 +1,5 @@
+import type { OrdinalClase } from "./ordinalClase";
+
 export type Rol = {
   id: number;
   clave: string;
@@ -702,6 +704,11 @@ export type FilaAsistencia = {
   faltasCiclo: number;
   /** Progreso de clases dictadas de la membresía (plan con N): cuántas de las `total`. `null` = no aplica (ilimitado, parcial). */
   progreso: { hechas: number; total: number } | null;
+  /**
+   * Qué número de clase es la de la fecha que se mira y cuántas quedan (I-009).
+   * `null` = no aplica (ilimitado, prueba, legado sin N, fila extra).
+   */
+  ordinal: OrdinalClase | null;
   /** Deuda pendiente del alumno (0 si está al día). */
   deuda: number;
   /**
