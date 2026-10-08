@@ -13,6 +13,7 @@ import VenderParticular, {
 import VenderAlquiler, { type PaqueteHoras, type PlanAlquiler } from "./VenderAlquiler";
 import type { CategoriaSala, TamanoSala, TarifaSala } from "@/lib/sala";
 import Pagina from "@/components/Pagina";
+import type { BonoPendiente } from "@/lib/bono";
 
 type Modo = "inscripcion" | "prueba" | "particular" | "alquiler";
 
@@ -33,7 +34,7 @@ export default function MostradorVenta(props: {
   cursosPorContacto: Record<number, string[]>;
   deudaPorContacto: Record<number, number>;
   planesActivosPorContacto: Record<number, number[]>;
-  bonoPorContactoPlan: Record<number, Record<number, number>>;
+  bonosPorContacto: Record<number, (BonoPendiente & { cursoNombre: string })[]>;
   /** Claves `cursoId|YYYY-MM-DD` de clases suspendidas: no son clase. */
   suspendidas: string[];
   /** Crédito de una clase de prueba sin convertir, por alumno y plan. */

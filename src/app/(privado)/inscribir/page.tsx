@@ -11,6 +11,7 @@ import type { PaqueteHoras, PlanAlquiler } from "./VenderAlquiler";
 import { ETIQUETA_CATEGORIA, type CategoriaSala, type ClaveTamano, type TamanoSala, type TarifaSala } from "@/lib/sala";
 import type { Contacto, Curso } from "@/lib/tipos";
 import { cargarListasContacto } from "@/app/(privado)/contactos/acciones";
+import type { BonoPendiente } from "@/lib/bono";
 
 export const dynamic = "force-dynamic";
 
@@ -148,19 +149,25 @@ export default async function PaginaInscribir() {
     supabase.from("pagos").select("cuota_id, monto, descuento").eq("tipo", "cobro"),
   ]);
 
-  // Bonos de tolerancia pendientes de redimir, por alumno y plan.
-  const { data: bonos } = await supabase
-    .from("membresias")
-    .select("alumno_id, plan_id, bono_generado")
-    .eq("estado", "completada")
-    .eq("bono_redimido", false)
-    .gt("bono_generado", 0);
-  const bonoPorAlumnoPlan: Record<number, Record<number, number>> = {};
-  for (const b of (bonos as { alumno_id: number; plan_id: number | null; bono_generado: number }[]) ?? []) {
-    if (b.plan_id == null) continue;
-    (bonoPorAlumnoPlan[b.alumno_id] ??= {});
-    bonoPorAlumnoPlan[b.alumno_id][b.plan_id] =
-      (bonoPorAlumnoPlan[b.alumno_id][b.plan_id] ?? 0) + Math.max(0, Number(b.bono_generado));
+  // Bonos de tolerancia pendientes, por alumno y POR CURSO (D35): los de
+  // membresías completadas que todavía no se aplicaron a otra venta.
+  const { data: origenes } = await supabase.from("membresias").select("id, alumno_id").eq("estado", "completada");
+  const alumnoDeOrigen = new Map(((origenes as { id: number; alumno_id: number }[]) ?? []).map((m) => [m.id, m.alumno_id]));
+  const bonoPorAlumno: Record<number, (BonoPendiente & { cursoNombre: string })[]> = {};
+  if (alumnoDeOrigen.size) {
+    const { data: bonos } = await supabase
+      .from("membresia_bonos")
+      .select("id, membresia_id, curso_id, clases, vence, curso:cursos(nombre)")
+      .in("membresia_id", [...alumnoDeOrigen.keys()])
+      .is("aplicado", null);
+    for (const b of (bonos as unknown as (BonoPendiente & { curso: { nombre: string } | null })[]) ?? []) {
+      const alumnoId = alumnoDeOrigen.get(b.membresia_id);
+      if (alumnoId == null) continue;
+      (bonoPorAlumno[alumnoId] ??= []).push({
+        id: b.id, membresia_id: b.membresia_id, curso_id: b.curso_id, clases: b.clases, vence: b.vence,
+        cursoNombre: b.curso?.nombre ?? "un curso",
+      });
+    }
   }
 
   // Crédito de clase de prueba por alumno y plan: lo que pagó por una prueba
@@ -462,7 +469,7 @@ export default async function PaginaInscribir() {
       cursosPorContacto={porContacto(cursosPorAlumno)}
       deudaPorContacto={porContacto(deudaPorAlumno)}
       planesActivosPorContacto={porContacto(planesActivosPorAlumno)}
-      bonoPorContactoPlan={porContacto(bonoPorAlumnoPlan)}
+      bonosPorContacto={porContacto(bonoPorAlumno, (x, y) => [...x, ...y])}
       suspendidas={suspendidas}
       creditoPruebaPorContactoPlan={porContacto(creditoPruebaPorAlumnoPlan)}
       matriz={contactoListas.matriz}

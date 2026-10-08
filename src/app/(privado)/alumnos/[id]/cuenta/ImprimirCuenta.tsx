@@ -4,6 +4,7 @@ import { gs, rotuloDiasMembresia } from "@/lib/inscripcion";
 import { formatearHoras } from "@/lib/horarios";
 import { ETIQUETA_ESTADO_RESERVA, type EstadoReserva } from "@/lib/reservas";
 import type { EstadoCuenta, MembresiaCuenta } from "@/lib/tipos";
+import { textoBonos } from "@/lib/bono";
 
 /**
  * El estado de cuenta como documento para dar o mandar. Mismo camino que el
@@ -80,9 +81,9 @@ function resumenMembresia(m: MembresiaCuenta): string {
   );
   if (m.faltasSinLicencia > 0) partes.push(`${m.faltasSinLicencia} falta(s) sin licencia`);
   if (m.faltasConLicencia > 0) partes.push(`${m.faltasConLicencia} falta(s) con licencia`);
-  if (m.bono > 0) partes.push(`${m.bono} de bono de tolerancia por usar`);
+  if (m.bono > 0) partes.push(`bono de tolerancia por usar: ${textoBonos(m.bonos)}`);
   if (m.bono > 0 && m.renovacionBonificada)
-    partes.push(`renovar hasta el ${fechaCorta(m.renovacionBonificada)} para no perderlo`);
+    partes.push(`vale hasta el ${fechaCorta(m.renovacionBonificada)}`);
   return partes.join(" · ");
 }
 

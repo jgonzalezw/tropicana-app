@@ -30,6 +30,7 @@ import { enVigencia } from "@/lib/vigencia";
 import { DIAS_LARGOS, diaIso, fechaClaseN, fechaLarga, gs, isoFecha, proximasClases } from "@/lib/inscripcion";
 import { etiquetaDias } from "@/components/entidades/EntidadCurso";
 import { inscribirYCobrar } from "./acciones";
+import { bonosAplicables, clasesDeBono, type BonoPendiente } from "@/lib/bono";
 
 export type CursoPlan = {
   id: number;
@@ -66,7 +67,7 @@ export default function ClienteInscribir({
   cursosPorContacto,
   deudaPorContacto,
   planesActivosPorContacto,
-  bonoPorContactoPlan,
+  bonosPorContacto,
   suspendidas,
   creditoPruebaPorContactoPlan,
   matriz,
@@ -79,7 +80,8 @@ export default function ClienteInscribir({
   cursosPorContacto: Record<number, string[]>;
   deudaPorContacto: Record<number, number>;
   planesActivosPorContacto: Record<number, number[]>;
-  bonoPorContactoPlan: Record<number, Record<number, number>>;
+  /** Bonos de tolerancia pendientes del titular, por curso (D35). */
+  bonosPorContacto: Record<number, (BonoPendiente & { cursoNombre: string })[]>;
   /** Claves `cursoId|YYYY-MM-DD` de clases suspendidas: no son clase. */
   suspendidas: string[];
   /** Crédito de una clase de prueba sin convertir, por contacto y plan. */
@@ -107,8 +109,6 @@ export default function ClienteInscribir({
   const ilimitado = plan?.ilimitado ?? false;
   const N = ilimitado ? null : (plan?.cantidadClases ?? null);
   const precioPlan = plan?.precio ?? 0;
-  // Bono de tolerancia pendiente del titular para este plan (solo planes con N).
-  const bono = !ilimitado && titularId != null && plan ? (bonoPorContactoPlan[titularId]?.[plan.id] ?? 0) : 0;
   // Crédito de la clase de prueba de este mismo plan (regla 11). Se muestra acá,
   // antes de cobrar, pero el servidor lo vuelve a calcular al vender: la
   // pantalla propone, el servidor decide.
@@ -117,7 +117,6 @@ export default function ClienteInscribir({
   // El precio del plan NO cambia: el crédito se deduce de lo que hay que cobrar,
   // como un descuento con su motivo (Javier).
   const total = precioPlan;
-  const Nefectivo = N != null ? N + bono : null;
 
   // Lista con repetición: una entrada por (curso, día) elegido.
   const diasConteo = useMemo(() => {
@@ -161,6 +160,24 @@ export default function ClienteInscribir({
       .reverse();
   }, [plan, unionDias, hoy, retroActivo, hayClaseReal]);
   const fechaSel = fechas[Math.min(fechaIdx, Math.max(0, fechas.length - 1))] ?? null;
+  // Bono de tolerancia pendiente del titular, por curso (D35): entra si su curso
+  // está entre los elegidos y la fecha de inicio llega a su renovación bonificada.
+  // La pantalla propone; el servidor lo vuelve a decidir al vender.
+  const bonosRes = useMemo(
+    () =>
+      titularId != null && fechaSel
+        ? bonosAplicables(
+            bonosPorContacto[titularId] ?? [],
+            Object.entries(diasPorCurso).filter(([, dias]) => dias.length > 0).map(([cid]) => Number(cid)),
+            isoFecha(fechaSel),
+            ilimitado
+          )
+        : null,
+    [titularId, fechaSel, bonosPorContacto, diasPorCurso, ilimitado]
+  );
+  const bono = bonosRes ? clasesDeBono(bonosRes) : 0;
+  const nombreBono = (id: number) => (titularId != null ? bonosPorContacto[titularId] : [])?.find((b) => b.curso_id === id)?.cursoNombre ?? "un curso";
+  const Nefectivo = N != null ? N + bono : null;
   const fechaFin = !fechaSel
     ? null
     : ilimitado
@@ -454,10 +471,36 @@ export default function ClienteInscribir({
                 </div>
               )}
 
-              {bono > 0 && (
+              {bonosRes && bonosRes.aplican.length > 0 && (
                 <div className="mt-3 rounded-[var(--radio-panel)] border border-[var(--exito)] bg-[var(--exito-fill)] text-[var(--exito-texto)] px-4 py-2.5 text-sm">
-                  Se aplicará bono de tolerancia: <strong>+{bono} {bono === 1 ? "clase" : "clases"}</strong> por falta{bono === 1 ? "" : "s"} con licencia del ciclo
-                  anterior. El nuevo ciclo es de <strong>{Nefectivo} clases</strong> (incluye la clase de tolerancia).
+                  Se aplicará bono de tolerancia:{" "}
+                  {bonosRes.aplican.map((b, i) => (
+                    <span key={b.id}>
+                      {i > 0 && ", "}
+                      <strong>+{b.clases} {b.clases === 1 ? "clase" : "clases"} de {nombreBono(b.curso_id)}</strong>
+                    </span>
+                  ))}
+                  , por falta{bono === 1 ? "" : "s"} con licencia del ciclo anterior. El nuevo ciclo es de <strong>{Nefectivo} clases</strong>{" "}
+                  (el bono extiende solo las clases de ese curso).
+                </div>
+              )}
+              {bonosRes && (bonosRes.vencidos.length > 0 || bonosRes.sinEfecto.length > 0 || bonosRes.noEntran.length > 0) && (
+                <div className="mt-3 rounded-[var(--radio-panel)] border border-[var(--borde)] px-4 py-2.5 text-sm text-[var(--texto-tenue)]">
+                  {bonosRes.vencidos.map((b) => (
+                    <div key={b.id}>
+                      El bono de {nombreBono(b.curso_id)} ({b.clases}) <strong>venció</strong> el {b.vence && fechaLarga(new Date(b.vence + "T00:00:00"))}: no se aplica.
+                    </div>
+                  ))}
+                  {bonosRes.sinEfecto.map((b) => (
+                    <div key={b.id}>
+                      El bono de {nombreBono(b.curso_id)} ({b.clases}) se consume sin efecto: el plan es ilimitado.
+                    </div>
+                  ))}
+                  {bonosRes.noEntran.map((b) => (
+                    <div key={b.id}>
+                      Sigue pendiente el bono de {nombreBono(b.curso_id)} ({b.clases}): ese curso no está entre los elegidos.
+                    </div>
+                  ))}
                 </div>
               )}
 

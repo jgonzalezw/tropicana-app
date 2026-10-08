@@ -42,7 +42,7 @@ El texto completo **manda** y está en `docs/reglas/` (`docs/REGLAS.md` es el ma
 3. Qué agota cada venta: N clases, paquete, ilimitado, horas, taller.
 4. Una suspensión corre el fin de ciclo (se calcula); una falta no.
 5. Una membresía devengada no cambia fechas en silencio; una liquidada no se reabre.
-6. Bono de tolerancia: solo con falta con licencia y ninguna sin licencia.
+6. Bono de tolerancia, por curso (D35): solo con falta con licencia y ninguna sin licencia en ese curso; tope del plan por curso; vence en la renovación bonificada de su curso.
 7. Toda venta crea su cuota.
 8. Comisión sobre lo cobrado, con el criterio del plan (5 criterios), a período vencido. Formas de pago solo en particulares. Cierre de cuentas al retirarse.
 9. Precio del plan: el sistema propone por tramos y la persona decide. En la prueba, suma de cursos.

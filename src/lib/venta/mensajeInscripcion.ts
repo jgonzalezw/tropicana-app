@@ -24,6 +24,8 @@ export type DatosConfirmacion = {
   /** null = ilimitado. */
   clasesPlan: number | null;
   bono: number;
+  /** De qué curso es cada clase de bono (D35). Opcional: sin él, el texto no nombra cursos. */
+  bonoCursos?: { curso: string; clases: number }[];
   cicloDias: number | null;
   inicio: string;
   fin: string | null;
@@ -47,10 +49,15 @@ export function lineaCurso(c: CursoMensaje): string {
   return cuando ? `${c.nombre}: ${cuando}` : c.nombre;
 }
 
-export function textoClases(d: Pick<DatosConfirmacion, "clasesPlan" | "bono" | "cicloDias">): string {
+export function textoClases(d: Pick<DatosConfirmacion, "clasesPlan" | "bono" | "bonoCursos" | "cicloDias">): string {
   if (d.clasesPlan == null) return `clases ilimitadas durante ${d.cicloDias ?? "?"} días`;
   const base = plural(d.clasesPlan, "clase", "clases");
-  return d.bono > 0 ? `${base} (incluye ${plural(d.bono, "clase", "clases")} de bono)` : base;
+  if (d.bono <= 0) return base;
+  // El bono es de un curso (D35): se dice de cuál, porque extiende solo ese.
+  const deCurso = d.bonoCursos?.length
+    ? ` de ${d.bonoCursos.map((b) => `${b.curso}${d.bonoCursos!.length > 1 ? ` (${b.clases})` : ""}`).join(" y ")}`
+    : "";
+  return `${base} (incluye ${plural(d.bono, "clase", "clases")} de bono${deCurso})`;
 }
 
 /** Cómo se cuenta la asistencia, en palabras para el alumno (regla 6). */
@@ -58,8 +65,8 @@ export function textoAsistencia(tolerancia: number): string {
   if (tolerancia <= 0) return "Las faltas no se reponen.";
   return (
     `Si faltás hasta ${plural(tolerancia, "vez", "veces")} por ciclo avisando con licencia, ` +
-    `la clase se repone con un bono para tu próxima inscripción; ` +
-    `una falta sin aviso se pierde y anula ese bono.`
+    `la clase se repone con un bono de ese mismo curso, que vale en tu próxima inscripción que lo incluya; ` +
+    `una falta sin aviso se pierde y anula el bono de ese curso.`
   );
 }
 

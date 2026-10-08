@@ -25,9 +25,13 @@
 5. **Una membresía ya devengada no cambia sus fechas en silencio.** Si el
    recálculo la tocaría, se reporta en vez de hacerse: la fecha define en qué
    período entró la comisión. Tampoco se reabre una membresía liquidada.
-6. **Bono de tolerancia = ciclo sin faltas injustificadas.** Se acredita solo
-   si hubo falta **con licencia** y **ninguna sin licencia** en el ciclo. Una
-   sola falta sin licencia deja el bono en 0, aunque el plan tuviera cupo.
+6. **Bono de tolerancia = ciclo sin faltas injustificadas, por curso (D35).**
+   Cada curso de la membresía se evalúa aparte: se acredita en un curso solo si
+   hubo falta **con licencia** y **ninguna sin licencia** en ese curso, con el
+   tope de la tolerancia del plan por curso. Una falta sin licencia deja en 0
+   el bono de **su** curso, no el de los demás. El bono vence en la renovación
+   bonificada de su curso y se aplica en cualquier plan que incluya ese curso
+   (suma clases de ese curso; en un ilimitado se consume sin efecto).
 7. **Todo lo que se vende se cobra, y el mecanismo es la cuota.** Ninguna venta
    puede quedar con plata fuera de una cuota. Toda venta nueva crea la suya.
 8. **La comisión se calcula sobre lo efectivamente cobrado** (el descuento no

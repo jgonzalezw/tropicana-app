@@ -7,6 +7,7 @@ import { tienePermiso, obtenerParametro, obtenerPerfilActual, errorAccesoCurso }
 import { compararPorApellido } from "@/lib/texto";
 import { diaIso } from "@/lib/inscripcion";
 import { ordinalDeClase } from "@/lib/ordinalClase";
+import { cursoAgotadoAl } from "@/lib/bono";
 import { cargarImpacto, liquidacionesTocadas, avisoDeImpacto } from "@/lib/periodos";
 import { finMesVencidoISO } from "@/lib/liquidacion/periodo";
 import {
@@ -380,6 +381,21 @@ export async function cargarPadron(
   // siempre, también el 25 de agosto, cuando le faltaban tres.
   const fechasDictadas: Record<number, string[]> = {};
   const fechasPresentes: Record<number, string[]> = {};
+  // Las dictadas con su curso y el bono que cada membresía recibió por curso
+  // (D35): el bono de A no extiende el padrón de B.
+  const dictadasConCurso: Record<number, { fecha: string; curso_id: number }[]> = {};
+  const bonoRecibido: Record<number, Map<number, number>> = {};
+  if (membresias.length) {
+    const { data: bon } = await sb
+      .from("membresia_bonos")
+      .select("redimido_en_membresia_id, curso_id, clases")
+      .eq("aplicado", "clases")
+      .in("redimido_en_membresia_id", membresias.map((r) => r.id));
+    for (const b of (bon as { redimido_en_membresia_id: number; curso_id: number; clases: number }[]) ?? []) {
+      const m = (bonoRecibido[b.redimido_en_membresia_id] ??= new Map());
+      m.set(b.curso_id, (m.get(b.curso_id) ?? 0) + b.clases);
+    }
+  }
   if (membresias.length) {
     const { data } = await sb
       .from("asistencias")
@@ -388,10 +404,14 @@ export async function cargarPadron(
     const filasAsis = (data as { membresia_id: number | null; sesion_id: number; estado: Estado }[]) ?? [];
     const sesIds = [...new Set(filasAsis.map((f) => f.sesion_id))];
     const dictadas = new Map<number, string>(); // sesión dictada → su fecha
+    const cursoDeSesion = new Map<number, number>();
     if (sesIds.length) {
-      const { data: ses } = await sb.from("sesiones").select("id, estado, fecha").in("id", sesIds);
-      for (const s of (ses as { id: number; estado: string; fecha: string }[]) ?? [])
-        if (s.estado === "dictada") dictadas.set(s.id, s.fecha);
+      const { data: ses } = await sb.from("sesiones").select("id, estado, fecha, curso_id").in("id", sesIds);
+      for (const s of (ses as { id: number; estado: string; fecha: string; curso_id: number }[]) ?? [])
+        if (s.estado === "dictada") {
+          dictadas.set(s.id, s.fecha);
+          cursoDeSesion.set(s.id, s.curso_id);
+        }
     }
     for (const f of filasAsis) {
       if (f.membresia_id == null) continue;
@@ -399,6 +419,7 @@ export async function cargarPadron(
       if (!fechaSesion) continue;
       dictadasPorInsc[f.membresia_id] = (dictadasPorInsc[f.membresia_id] ?? 0) + 1;
       (fechasDictadas[f.membresia_id] ??= []).push(fechaSesion);
+      (dictadasConCurso[f.membresia_id] ??= []).push({ fecha: fechaSesion, curso_id: cursoDeSesion.get(f.sesion_id)! });
       if (f.estado === "presente") {
         consumidas[f.membresia_id] = (consumidas[f.membresia_id] ?? 0) + 1;
         (fechasPresentes[f.membresia_id] ??= []).push(fechaSesion);
@@ -419,9 +440,27 @@ export async function cargarPadron(
    * vacía. Solo cuentan las clases **anteriores** a `f` — la del propio día `f`
    * es la que se está por marcar, no puede haberla agotado.
    */
+  /**
+   * Con bono recibido (D35) el plan base es `clases_plan` menos el bono, y cada
+   * curso gasta el suyo: se pregunta **por el curso que se está mirando**.
+   */
+  const clasesBase = (r: InscRow) =>
+    (r.clases_plan as number) - [...(bonoRecibido[r.id]?.values() ?? [])].reduce((t, b) => t + b, 0);
+  /** Total de clases de la membresía **para este curso** (plan + su bono). */
+  const clasesParaCurso = (r: InscRow) =>
+    r.clases_plan == null || !bonoRecibido[r.id]
+      ? r.clases_plan
+      : clasesBase(r) + (bonoRecibido[r.id].get(cursoId) ?? 0);
   const cicloAgotadoAl = (r: InscRow, f: string) =>
     r.clases_plan != null
-      ? (fechasDictadas[r.id] ?? []).filter((x) => x < f).length >= r.clases_plan
+      ? bonoRecibido[r.id]
+        ? cursoAgotadoAl(
+            clasesBase(r),
+            bonoRecibido[r.id],
+            (dictadasConCurso[r.id] ?? []).filter((x) => x.fecha < f),
+            cursoId
+          )
+        : (fechasDictadas[r.id] ?? []).filter((x) => x < f).length >= r.clases_plan
       : r.clases_total != null &&
         (fechasPresentes[r.id] ?? []).filter((x) => x < f).length >= r.clases_total;
 
@@ -580,13 +619,19 @@ export async function cargarPadron(
     // no cuenta (I-009). Si la fecha de la sesión no llega, la falta cuenta:
     // un dato que falta no la borra.
     const fechaDeSesion = new Map<number, string>();
+    const cursoDeFalta = new Map<number, number>();
     const sesAus = [...new Set(ausentes.map((x) => x.sesion_id))];
     if (sesAus.length) {
-      const { data: ses } = await sb.from("sesiones").select("id, fecha").in("id", sesAus);
-      for (const s of (ses as { id: number; fecha: string }[]) ?? []) fechaDeSesion.set(s.id, s.fecha);
+      const { data: ses } = await sb.from("sesiones").select("id, fecha, curso_id").in("id", sesAus);
+      for (const s of (ses as { id: number; fecha: string; curso_id: number }[]) ?? []) {
+        fechaDeSesion.set(s.id, s.fecha);
+        cursoDeFalta.set(s.id, s.curso_id);
+      }
     }
     for (const x of ausentes) {
       if (x.membresia_id == null) continue;
+      // El bono es por curso (D35): solo cuentan las faltas del curso que se mira.
+      if (cursoDeFalta.has(x.sesion_id) && cursoDeFalta.get(x.sesion_id) !== cursoId) continue;
       const fechaFalta = fechaDeSesion.get(x.sesion_id);
       if (fechaFalta == null || fechaFalta <= fecha)
         faltasCicloPorInsc[x.membresia_id] = (faltasCicloPorInsc[x.membresia_id] ?? 0) + 1;
@@ -609,11 +654,22 @@ export async function cargarPadron(
       toleranciaPorPlan.set(p.id, p.tolerancia_faltas);
   }
   const toleranciaParam = Math.max(0, Number(await obtenerParametro("faltas_toleradas")) || 0);
+  // Bono ya generado en ESTE curso por cada membresía (D35), no el total.
+  const bonoDelCurso = new Map<number, number>();
+  if (planNRows.length) {
+    const { data: bonos } = await sb
+      .from("membresia_bonos")
+      .select("membresia_id, clases")
+      .eq("curso_id", cursoId)
+      .in("membresia_id", planNRows.map((r) => r.id));
+    for (const b of (bonos as { membresia_id: number; clases: number }[]) ?? [])
+      bonoDelCurso.set(b.membresia_id, b.clases);
+  }
   const toleranciaRestantePorInsc = new Map<number, number>();
   for (const r of planNRows) {
     const efectiva = r.tolerancia_faltas ?? toleranciaPorPlan.get(r.plan_id as number) ?? toleranciaParam;
     const sinDerecho = (faltasSinLicPrevias[r.id] ?? 0) > 0;
-    toleranciaRestantePorInsc.set(r.id, sinDerecho ? 0 : Math.max(0, efectiva - (r.bono_generado ?? 0)));
+    toleranciaRestantePorInsc.set(r.id, sinDerecho ? 0 : Math.max(0, efectiva - (bonoDelCurso.get(r.id) ?? 0)));
   }
 
   for (const e of extrasCrudos)
@@ -652,7 +708,7 @@ export async function cargarPadron(
       // pasada no se ve el futuro (I-009).
       const progreso =
         r.clases_plan != null
-          ? { hechas: (fechasPresentes[r.id] ?? []).filter((x) => x <= fecha).length, total: r.clases_plan }
+          ? { hechas: (fechasPresentes[r.id] ?? []).filter((x) => x <= fecha).length, total: clasesParaCurso(r) as number }
           : null;
       desempatePorInsc.set(r.id, { agotada: cicloAgotadoAl(r, fecha), fechaInicio: r.fecha_inicio });
       return {
@@ -667,7 +723,7 @@ export async function cargarPadron(
         ordinal: r.es_prueba === true
           ? null
           : ordinalDeClase({
-              clasesPlan: r.clases_plan,
+              clasesPlan: clasesParaCurso(r) ?? null,
               clasesTotal: r.clases_total,
               fechasDictadas: fechasDictadas[r.id] ?? [],
               fechasPresentes: fechasPresentes[r.id] ?? [],
