@@ -375,3 +375,16 @@ D34 (`docs/decisiones/vigentes.md`) y D29 activada. **Migración 0063 aplicada e
 - **No hecho:** la cifra de liquidez con el saldo adeudado en la simulación; el valor `semana` no está en el catálogo del parámetro (la liquidación real solo sabe `mes`); el botón del retiro está en el listado, no en la ficha.
 - **Ajuste tras la prueba de Javier (2026-10-07):** la impresión del retiro ya no es la pantalla: `imprimirRetiro.ts` arma un HTML aparte, sobre fondo blanco (con pruebas). El informe suma **«Membresías que quedan inconclusas»**, una línea por membresía (alumno, cursos/plan, inicio, fin, avance con faltantes, estado y saldo; regulares y particulares). Al confirmar, el mismo informe pasa a ser la **liquidación por finalización**, con los datos que el servidor calculó al escribir (N.º de liquidación y fecha de confirmación); se imprime desde la pantalla de retiro confirmado.
 
+---
+
+## I-003 — Bono de tolerancia por curso (2026-10-08)
+
+D35 (`docs/decisiones/vigentes.md`). **Migración 0064 aplicada en dev (2026-10-08) y en producción (2026-10-08).**
+
+- **Modelo:** tabla `membresia_bonos` (un bono por membresía de origen y curso, con `vence` y su destino); `membresias.bono_generado` queda como resumen; `bono_redimido` deja de leerse. Respaldo `bono_previo_0064`.
+- **Reglas:** se evalúa y se topa por curso; vence en la renovación bonificada de su curso; se aplica en cualquier plan que incluya el curso (en ilimitado se consume sin efecto); la prueba no genera ni consume bono. Funciones puras en `src/lib/bono.ts` y `calendarioCiclo.ts`.
+- **Pantallas:** venta (vista previa de bonos que aplican, vencidos y que no entran), padrón por curso, cuenta del alumno y mensaje de inscripción.
+- **Control 49** nuevo (bono por curso inconsistente): 0 en dev y en producción.
+- **Corrección de producción:** `scripts/corregir_bonos_i003.sql` para Manuel Aguilar, Jorge Vilca (inicio retroactivo al 1/10 y su asistencia) y Lucas Campero; rollback en `scripts/rollback_corregir_bonos_i003.sql`, probado en dev.
+- **Verificado:** `tsc`, `lint`, `npm test` (333), venta real en dev, rollback de la 0064 y de la corrección fila por fila.
+
