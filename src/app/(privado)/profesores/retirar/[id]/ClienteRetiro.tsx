@@ -375,14 +375,14 @@ export default function ClienteRetiro({
                         <td className={TDR}>{gs(l.cuenta.pagado)}</td>
                         <td className={TDR}>{montoOGuion(l.cuenta.saldo)}</td>
                         <td className={`${TD} tabular-nums`}>
-                          {l.clases}/{l.clasesDelCurso}
+                          {l.soloLiquidado ? "—" : `${l.clases}/${l.clasesDelCurso}`}
                         </td>
                         <td className={`${TD} tabular-nums`}>{textoBonoAplicado(l.bonoAplicado)}</td>
                         <td className={TDR}>{gs(l.base)}</td>
                         <td className={TDR}>{l.pct}%</td>
                         <td className={TDR}>{gs(l.aLaFecha)}</td>
                         <td className={TDR}>{textoYaLiquidado(l)}</td>
-                        <td className="py-2 text-right tabular-nums whitespace-nowrap font-semibold">{gs(l.monto)}</td>
+                        <td className="py-2 text-right tabular-nums whitespace-nowrap font-semibold">{montoOGuion(l.monto)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -435,7 +435,7 @@ export default function ClienteRetiro({
                         <td className={TD}>{l.forma.replace("_", " ")}</td>
                         <td className={TDR}>{gs(l.aLaFecha)}</td>
                         <td className={TDR}>{textoYaLiquidado(l)}</td>
-                        <td className="py-2 text-right tabular-nums whitespace-nowrap font-semibold">{gs(l.monto)}</td>
+                        <td className="py-2 text-right tabular-nums whitespace-nowrap font-semibold">{montoOGuion(l.monto)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -451,7 +451,12 @@ export default function ClienteRetiro({
               <dd className="text-right tabular-nums">{gs(vista.totales.particulares)}</dd>
               <dt className="font-semibold">Cierre que se devenga ahora</dt>
               <dd className="text-right tabular-nums font-semibold">{gs(vista.totales.cierre)}</dd>
-              <dt>Saldo previo sin pagar</dt>
+              <dt>
+                Saldo previo sin pagar
+                {vista.totales.saldoDesglose.liquidaciones.length > 0 && (
+                  <span className="text-sm text-[var(--texto-tenue)]"> · N° {vista.totales.saldoDesglose.liquidaciones.join(", ")}</span>
+                )}
+              </dt>
               <dd className="text-right tabular-nums">{gs(vista.totales.saldoPrevio)}</dd>
               <dt className="text-lg font-bold border-t border-[var(--borde)] pt-2">Total a pagarle</dt>
               <dd className="text-lg font-bold text-right tabular-nums border-t border-[var(--borde)] pt-2">

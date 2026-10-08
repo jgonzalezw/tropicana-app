@@ -83,14 +83,65 @@ export async function leerEntradaRetiro(
     const liqs = exigir(
       await sb
         .from("liquidaciones")
-        .select("total_devengado, total_descuentos, total_pagado")
+        .select("id, total_devengado, total_descuentos, total_pagado")
         .eq("profesor_id", profesorId),
       "las liquidaciones del profesor"
-    ) as { total_devengado: number; total_descuentos: number | null; total_pagado: number }[];
-    const saldoPrevio = liqs.reduce(
-      (s, l) => s + Number(l.total_devengado) - Number(l.total_descuentos ?? 0) - Number(l.total_pagado),
-      0
-    );
+    ) as { id: number; total_devengado: number; total_descuentos: number | null; total_pagado: number }[];
+    const saldoDe = (l: (typeof liqs)[number]) =>
+      Number(l.total_devengado) - Number(l.total_descuentos ?? 0) - Number(l.total_pagado);
+    const saldoPrevio = liqs.reduce((s, l) => s + saldoDe(l), 0);
+    // De dónde sale: las liquidaciones con saldo sin pagar (se listan en la vista).
+    const sinPagar = new Set(liqs.filter((l) => saldoDe(l) > 0.005).map((l) => l.id));
+    const saldoDesglose = {
+      liquidado: r2(liqs.reduce((s, l) => s + Number(l.total_devengado), 0)),
+      descuentos: r2(liqs.reduce((s, l) => s + Number(l.total_descuentos ?? 0), 0)),
+      pagado: r2(liqs.reduce((s, l) => s + Number(l.total_pagado), 0)),
+      liquidaciones: [...sinPagar].sort((a, b) => a - b),
+    };
+
+    // Las membresías que ya están **enteras** en una liquidación sin pagar: el
+    // cierre no las vuelve a emitir, pero componen el saldo previo y se muestran.
+    const yaLiquidadas: EntradaRetiro["yaLiquidadas"] = [];
+    {
+      const alumnoDe = new Map((datos?.alumnos ?? []).map((a) => [a.id, `${a.apellido}, ${a.nombre}`]));
+      const cursoDe = new Map((datos?.cursos ?? []).map((c) => [c.id, c.nombre]));
+      const membDe = new Map((datos?.membresias ?? []).map((m) => [m.id, m]));
+      const grupos = new Map<string, { membresiaId: number; cursoId: number; base: number; monto: number }>();
+      for (const c of datos?.comisionesPrevias ?? []) {
+        if (c.profesor_id !== profesorId || c.membresia_id == null || c.curso_id == null) continue;
+        if (c.liquidacion_id == null || !sinPagar.has(c.liquidacion_id)) continue;
+        const k = `${c.membresia_id}|${c.curso_id}`;
+        const g = grupos.get(k) ?? { membresiaId: c.membresia_id, cursoId: c.curso_id, base: 0, monto: 0 };
+        g.base += Number(c.base);
+        g.monto += Number(c.monto);
+        grupos.set(k, g);
+      }
+      for (const g of grupos.values()) {
+        const m = membDe.get(g.membresiaId);
+        if (!m || Math.abs(g.monto) < 0.005) continue;
+        yaLiquidadas.push({
+          membresiaId: g.membresiaId, cursoId: g.cursoId, tipo: "regular",
+          alumno: alumnoDe.get(m.alumno_id) ?? `#${m.alumno_id}`,
+          curso: cursoDe.get(g.cursoId) ?? `#${g.cursoId}`,
+          base: r2(g.base), monto: r2(g.monto),
+        });
+      }
+      const porMemb = new Map<number, number>();
+      for (const c of datosPart?.previas ?? []) {
+        if (c.membresia_id == null || c.liquidacion_id == null || !sinPagar.has(c.liquidacion_id)) continue;
+        porMemb.set(c.membresia_id, (porMemb.get(c.membresia_id) ?? 0) + Number(c.monto));
+      }
+      for (const [id, monto] of porMemb) {
+        const m = (datosPart?.membresias ?? []).find((x) => x.id === id);
+        if (!m || m.profesor_id !== profesorId || Math.abs(monto) < 0.005) continue;
+        yaLiquidadas.push({
+          membresiaId: id, cursoId: null, tipo: "particular", alumno: m.alumno, curso: "Clase particular",
+          base: 0, monto: r2(monto),
+          horasDadas: horasDadas((datosPart?.reservas ?? []).filter((r) => r.membresia_id === id), corte),
+          horasContratadas: m.horas_contratadas, forma: m.forma_pago_profesor ?? "",
+        });
+      }
+    }
 
     // Clases que dictó después del corte, por curso.
     const post = exigir(
@@ -205,6 +256,7 @@ export async function leerEntradaRetiro(
         ...reg.pendientes.map((p) => p.membresiaId),
         ...par.pendientes.map((p) => p.membresiaId),
         ...inconclusas.map((m) => m.membresiaId),
+        ...yaLiquidadas.map((y) => y.membresiaId),
       ]),
     ];
     const cuentas: EntradaRetiro["cuentas"] = {};
@@ -308,6 +360,8 @@ export async function leerEntradaRetiro(
         bonos,
         criterios,
         ciclos,
+        yaLiquidadas,
+        saldoDesglose,
         previas,
       },
     };

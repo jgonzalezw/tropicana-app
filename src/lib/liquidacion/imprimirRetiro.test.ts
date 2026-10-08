@@ -12,7 +12,7 @@ function vista(inconclusas: MembresiaInconclusa[], cuentas: EntradaRetiro["cuent
     profesorId: 7, profesor: "Salek, Natalia", activo: true, corte: "2026-10-31", hoyISO: "2026-10-07",
     asignaciones: [], sustitutos: {}, regular: { pendientes: [], bloqueadas: [] },
     particulares: { pendientes: [], bloqueadas: [] }, descuentos: [], saldoPrevio: 0, posteriores: [],
-    reservasFuturas: [], inconclusas, cuentas, bonos, criterios: {}, ciclos: {}, previas: [],
+    reservasFuturas: [], inconclusas, cuentas, bonos, criterios: {}, ciclos: {}, yaLiquidadas: [], saldoDesglose: { liquidado: 0, descuentos: 0, pagado: 0, liquidaciones: [] }, previas: [],
   };
   return armarRetiro(e);
 }

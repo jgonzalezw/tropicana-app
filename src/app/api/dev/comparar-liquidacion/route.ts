@@ -20,6 +20,32 @@ export async function GET(req: Request) {
   if (!a) return NextResponse.json({ error: "sin cliente admin" }, { status: 500 });
 
   const salida: Record<string, unknown> = {};
+  const debug = url.searchParams.get("debug");
+  if (debug) {
+    const { createClient } = await import("@/lib/supabase/server");
+    const { leerDatosMotor } = await import("@/lib/liquidacion/lecturas");
+    const { calcularDevengos } = await import("@/lib/liquidacion/motor");
+    const ids = debug.split(",").map(Number);
+    const datos = await leerDatosMotor(await createClient(), "9999-12-31");
+    const venc = calcularDevengos(datos!, "2026-09-30");
+    const out: Record<string, unknown> = {
+      memb: datos!.membresias.filter((m) => ids.includes(m.id)),
+      vencido: venc.pendientes.filter((p) => ids.includes(p.membresiaId)).map((p) => [p.membresiaId, p.profesorId, p.curso, p.monto]),
+      vencBloq: venc.bloqueadas.filter((b) => ids.includes(b.membresiaId)),
+      asig: datos!.asignaciones,
+    };
+    for (const prof of [1, 2]) {
+      const c = calcularDevengos(datos!, "9999-12-31", { profesorId: prof, corte: cortes[0] });
+      out[`cierre${prof}`] = c.pendientes.filter((p) => ids.includes(p.membresiaId)).map((p) => [p.membresiaId, p.curso, p.monto, p.clases]);
+      out[`cierreBloq${prof}`] = c.bloqueadas.filter((b) => ids.includes(b.membresiaId));
+    }
+    return NextResponse.json(out);
+  }
+  const soloProf = url.searchParams.get("prof");
+  if (soloProf) {
+    const l = await leerEntradaRetiro(Number(soloProf), cortes[0], {});
+    return NextResponse.json(l.ok ? { vista: armarRetiro(l.entrada), bloqueadas: l.entrada.regular.bloqueadas, pendientes: l.entrada.regular.pendientes.map((p) => [p.alumno, p.curso, p.monto]) } : l);
+  }
   salida.liquidaciones = await cargarLiquidaciones();
   salida.preVencido = await prepararPreliquidacion("vencido");
   salida.preSimulacion = await prepararPreliquidacion("simulacion");

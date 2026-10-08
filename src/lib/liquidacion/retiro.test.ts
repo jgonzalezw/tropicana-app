@@ -29,7 +29,7 @@ function entrada(o: Partial<EntradaRetiro> = {}): EntradaRetiro {
     regular: { pendientes: [regular()], bloqueadas: [] },
     particulares: { pendientes: [particular()], bloqueadas: [] },
     descuentos: [], saldoPrevio: 0, posteriores: [], reservasFuturas: [], inconclusas: [],
-    cuentas: {}, bonos: {}, criterios: {}, ciclos: {}, previas: [],
+    cuentas: {}, bonos: {}, criterios: {}, ciclos: {}, yaLiquidadas: [], saldoDesglose: { liquidado: 0, descuentos: 0, pagado: 0, liquidaciones: [] }, previas: [],
     ...o,
   };
 }
@@ -180,4 +180,36 @@ test("las inconclusas llevan su cuenta y sus bonos", () => {
   assert.equal(m.bonoAplicado, 1);
   assert.equal(m.bonoGenerado, 1);
   assert.equal(m.bonoVence, "2026-11-03");
+});
+
+test("una membresía ya liquidada entera en una liquidación sin pagar aparece en la tabla, con «Este cierre» en cero", () => {
+  const v = armarRetiro(
+    entrada({
+      regular: { pendientes: [], bloqueadas: [] },
+      particulares: { pendientes: [], bloqueadas: [] },
+      saldoPrevio: 96.43,
+      saldoDesglose: { liquidado: 96.43, descuentos: 0, pagado: 0, liquidaciones: [3] },
+      yaLiquidadas: [{ membresiaId: 35, cursoId: 1, tipo: "regular", alumno: "Ortiz, Leidy", curso: "Bachata", base: 192.85, monto: 96.43 }],
+      previas: [{ membresiaId: 35, cursoId: 1, monto: 96.43, liquidacionId: 3 }],
+    })
+  );
+  assert.equal(v.regulares.length, 1);
+  const l = v.regulares[0];
+  assert.equal(l.alumno, "Ortiz, Leidy");
+  assert.equal(l.monto, 0);
+  assert.equal(l.yaLiquidado, 96.43);
+  assert.deepEqual(l.liquidaciones, [3]);
+  assert.equal(l.soloLiquidado, true);
+  assert.equal(v.totales.cierre, 0, "no suma al cierre");
+  assert.equal(v.totales.aPagar, 96.43, "el total sigue siendo el saldo previo");
+  assert.deepEqual(v.totales.saldoDesglose.liquidaciones, [3]);
+});
+
+test("si la membresía ya tiene línea de cierre, la ya liquidada no se duplica", () => {
+  const v = armarRetiro(
+    entrada({
+      yaLiquidadas: [{ membresiaId: 1, cursoId: 1, tipo: "regular", alumno: "Pérez, Ana", curso: "Salsa", base: 100, monto: 50 }],
+    })
+  );
+  assert.equal(v.regulares.filter((l) => l.membresiaId === 1).length, 1);
 });

@@ -37,6 +37,29 @@ export type CuentaMembresia = { precio: number; descuento: number; pagado: numbe
 export type BonoMembresia = { aplicado: number; generado: number; vence: string | null };
 
 /** Lo ya devengado de una membresía (y curso, en regulares) y en qué liquidación quedó. */
+/**
+ * Una membresía cuyo devengo ya está en una liquidación **sin pagar** del
+ * profesor y que el cierre no vuelve a emitir (ya está entera). Se muestra en
+ * la misma tabla, con «Este cierre —», porque compone el saldo previo que se le
+ * paga al retirarse (Javier, 2026-10-08).
+ */
+export type LineaPrevia = {
+  membresiaId: number;
+  /** null en particulares. */
+  cursoId: number | null;
+  tipo: "regular" | "particular";
+  alumno: string;
+  curso: string;
+  base: number;
+  monto: number;
+  horasDadas?: number;
+  horasContratadas?: number;
+  forma?: string;
+};
+
+/** De dónde sale el saldo previo: lo liquidado sin pagar, menos descuentos y pagos a cuenta. */
+export type SaldoDesglose = { liquidado: number; descuentos: number; pagado: number; liquidaciones: number[] };
+
 export type PreviaCierre = { membresiaId: number; cursoId: number | null; monto: number; liquidacionId: number | null };
 
 /** Una membresía que queda sin terminar cuando el profesor se retira. */
@@ -97,6 +120,9 @@ export type EntradaRetiro = {
   criterios: Record<number, number | null>;
   /** Inicio y fin del ciclo de cada membresía de las líneas. */
   ciclos: Record<number, { inicio: string | null; fin: string | null }>;
+  /** Membresías ya liquidadas enteras en una liquidación sin pagar (componen el saldo previo). */
+  yaLiquidadas: LineaPrevia[];
+  saldoDesglose: SaldoDesglose;
   /** Lo ya devengado de las membresías de las líneas (de este profesor). */
   previas: PreviaCierre[];
 };
@@ -117,6 +143,8 @@ type LineaCuenta = {
   yaLiquidado: number;
   /** N° de las liquidaciones donde está lo ya liquidado. */
   liquidaciones: number[];
+  /** Ya liquidada entera en una liquidación sin pagar: este cierre no le suma nada. */
+  soloLiquidado?: boolean;
 };
 
 export type LineaRegular = LineaCuenta & {
@@ -162,6 +190,7 @@ export type VistaRetiro = {
     /** Lo nuevo que se devenga ahora (cierre). */
     cierre: number;
     saldoPrevio: number;
+    saldoDesglose: SaldoDesglose;
     /** Todo lo que se le debe al confirmar: cierre + saldo previo. */
     aPagar: number;
   };
@@ -316,6 +345,40 @@ export function armarRetiro(e: EntradaRetiro): VistaRetiro {
     monto: p.monto,
   }));
 
+  // Las ya liquidadas enteras en una liquidación sin pagar: misma tabla, «Este cierre —».
+  for (const y of e.yaLiquidadas) {
+    const ya = previoDe(y.membresiaId, y.cursoId);
+    const comun = {
+      membresiaId: y.membresiaId,
+      alumno: y.alumno,
+      criterio: e.criterios[y.membresiaId] ?? null,
+      inicio: e.ciclos[y.membresiaId]?.inicio ?? null,
+      fin: e.ciclos[y.membresiaId]?.fin ?? null,
+      cuenta: cuentaDe(y.membresiaId),
+      bonoAplicado: e.bonos[y.membresiaId]?.aplicado ?? 0,
+      yaLiquidado: ya.monto,
+      liquidaciones: ya.liquidaciones,
+      aLaFecha: ya.monto,
+      monto: 0,
+      soloLiquidado: true,
+    };
+    if (y.tipo === "regular") {
+      if (regulares.some((l) => l.membresiaId === y.membresiaId && l.curso === y.curso)) continue;
+      regulares.push({
+        ...comun, curso: y.curso, clases: 0, clasesDelCurso: 0,
+        pct: y.base > 0 ? Math.round((y.monto / y.base) * 100) : 0, base: y.base,
+      });
+    } else {
+      if (particulares.some((l) => l.membresiaId === y.membresiaId)) continue;
+      particulares.push({
+        ...comun, horasDadas: y.horasDadas ?? 0, horasContratadas: y.horasContratadas ?? 0,
+        forma: y.forma ?? "", cobrado: comun.cuenta.pagado,
+      });
+    }
+  }
+  regulares.sort((a, b) => a.alumno.localeCompare(b.alumno, "es") || a.curso.localeCompare(b.curso, "es"));
+  particulares.sort((a, b) => a.alumno.localeCompare(b.alumno, "es"));
+
   const tReg = r2(regulares.reduce((s, l) => s + l.monto, 0));
   const tPar = r2(particulares.reduce((s, l) => s + l.monto, 0));
   const tDesc = r2(e.descuentos.reduce((s, d) => s + d.monto, 0));
@@ -345,6 +408,7 @@ export function armarRetiro(e: EntradaRetiro): VistaRetiro {
       descuentos: tDesc,
       cierre,
       saldoPrevio: r2(e.saldoPrevio),
+      saldoDesglose: e.saldoDesglose,
       aPagar: r2(cierre + e.saldoPrevio),
     },
     inconclusas: [...e.inconclusas]

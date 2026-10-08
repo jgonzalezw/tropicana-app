@@ -65,7 +65,7 @@ export function construirHTMLRetiro(
       </thead><tbody>${v.regulares
         .map(
           (l) =>
-            `<tr><td>${esc(l.alumno)}${sub(`${l.curso} · ${siglaCriterio(l.criterio)} · ${textoCiclo(l.inicio, l.fin)}`, true)}</td>${celdasCuenta(l.cuenta)}<td>${l.clases}/${l.clasesDelCurso}</td><td>${textoBonoAplicado(l.bonoAplicado)}</td><td class="r">${gs(l.base)}</td><td class="r">${l.pct}%</td><td class="r">${gs(l.aLaFecha)}</td><td class="r">${textoYaLiquidado(l)}</td><td class="r b">${gs(l.monto)}</td></tr>`
+            `<tr><td>${esc(l.alumno)}${sub(`${l.curso} · ${siglaCriterio(l.criterio)} · ${textoCiclo(l.inicio, l.fin)}`, true)}</td>${celdasCuenta(l.cuenta)}<td>${l.soloLiquidado ? "—" : `${l.clases}/${l.clasesDelCurso}`}</td><td>${textoBonoAplicado(l.bonoAplicado)}</td><td class="r">${gs(l.base)}</td><td class="r">${l.pct}%</td><td class="r">${gs(l.aLaFecha)}</td><td class="r">${textoYaLiquidado(l)}</td><td class="r b">${montoOGuion(l.monto)}</td></tr>`
         )
         .join("")}</tbody></table>${leyenda(v.regulares.map((l) => l.criterio))}`
     : `<p class="small">Nada que devengar por cursos regulares.</p>`;
@@ -77,7 +77,7 @@ export function construirHTMLRetiro(
       </thead><tbody>${v.particulares
         .map(
           (l) =>
-            `<tr><td>${esc(l.alumno)}${sub(`Clase particular · ${siglaCriterio(l.criterio)} · ${textoCiclo(l.inicio, l.fin)}`, true)}</td>${celdasCuenta(l.cuenta)}<td class="nw">${cantidad(l.horasDadas)} de ${cantidad(l.horasContratadas)} h</td><td>${esc(l.forma.replace("_", " "))}</td><td class="r">${gs(l.aLaFecha)}</td><td class="r">${textoYaLiquidado(l)}</td><td class="r b">${gs(l.monto)}</td></tr>`
+            `<tr><td>${esc(l.alumno)}${sub(`Clase particular · ${siglaCriterio(l.criterio)} · ${textoCiclo(l.inicio, l.fin)}`, true)}</td>${celdasCuenta(l.cuenta)}<td class="nw">${cantidad(l.horasDadas)} de ${cantidad(l.horasContratadas)} h</td><td>${esc(l.forma.replace("_", " "))}</td><td class="r">${gs(l.aLaFecha)}</td><td class="r">${textoYaLiquidado(l)}</td><td class="r b">${montoOGuion(l.monto)}</td></tr>`
         )
         .join("")}</tbody></table>${leyenda(v.particulares.map((l) => l.criterio))}`
     : `<p class="small">Nada que devengar por clases particulares.</p>`;
@@ -150,7 +150,7 @@ export function construirHTMLRetiro(
       <tr><td>Cierre de cuentas (regulares)</td><td>${gs(t.regulares)}</td></tr>
       <tr><td>Cierre de cuentas (particulares)</td><td>${gs(t.particulares)}</td></tr>
       <tr><td class="b">Cierre que se devenga ahora</td><td class="b">${gs(t.cierre)}</td></tr>
-      <tr><td>Saldo previo sin pagar</td><td>${gs(t.saldoPrevio)}</td></tr>
+      <tr><td>Saldo previo sin pagar${t.saldoDesglose.liquidaciones.length ? ` (N° ${t.saldoDesglose.liquidaciones.join(", ")})` : ""}</td><td>${gs(t.saldoPrevio)}</td></tr>
       <tr class="fin"><td>Total a pagarle</td><td>${gs(t.aPagar)}</td></tr>
     </table>
   </section>`
