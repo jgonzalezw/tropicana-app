@@ -12,20 +12,14 @@ import { obtenerParametro } from "@/lib/sesion";
 import { exigir } from "@/lib/datos";
 import type { Curso } from "@/lib/tipos";
 import { COLUMNAS_ASIGNACION, type AsignacionVigencia } from "@/lib/asignaciones";
-import { isoHoy } from "@/lib/liquidacion/periodo";
 import { cobroPorMembresia } from "@/lib/liquidacion/cobro";
+import { liquidar, parametrosMotores, type ModoLiquidacion, type ResultadoLiquidacion } from "@/lib/liquidacion/liquidar";
 import {
-  calcularDevengosParticulares,
   type DatosParticulares,
-  type DevengoParticular,
-  type ParticularBloqueada,
   type ModoVencida,
 } from "@/lib/liquidacion/particulares";
 import {
-  calcularDevengos,
   type DatosMotor,
-  type DevengoPendiente,
-  type MembresiaBloqueada,
   type MembresiaLiq,
 } from "@/lib/liquidacion/motor";
 
@@ -121,19 +115,18 @@ export async function calcularDescuentos(
 }
 
 /**
- * Lo pendiente de devengar, para un período.
- *
- * **El cálculo no vive acá**: está en `@/lib/liquidacion/motor`, sin base de
- * datos, para poder fijarlo con pruebas deterministas. Esta función es el
- * envoltorio que trae las filas y se las pasa.
+ * Lo pendiente de devengar según el **modo** (ver `liquidar.ts`): lee lo que ese
+ * modo necesita y lo calcula con el proceso único. El cálculo no vive acá: está
+ * en `motor.ts` y `particulares.ts`, sin base de datos, para fijarlo con pruebas.
  */
-export async function calcularPendientes(
+export async function calcularLiquidacion(
   sb: Awaited<ReturnType<typeof createClient>>,
-  hastaISO: string
-): Promise<{ pendientes: DevengoPendiente[]; bloqueadas: MembresiaBloqueada[] }> {
-  const datos = await leerDatosMotor(sb, hastaISO);
-  if (!datos) return { pendientes: [], bloqueadas: [] };
-  return calcularDevengos(datos, hastaISO);
+  modo: ModoLiquidacion
+): Promise<ResultadoLiquidacion> {
+  const p = parametrosMotores(modo);
+  const regular = await leerDatosMotor(sb, p.regular.hastaISO);
+  const particulares = p.particulares ? await leerDatosParticulares(sb) : null;
+  return liquidar({ regular, particulares }, modo);
 }
 
 /**
@@ -378,15 +371,4 @@ export async function leerDatosParticulares(
     previas,
     modoVencida: modo === "completo" ? "completo" : "proporcional",
   };
-}
-
-/** El cálculo de las particulares: las lecturas de arriba + `calcularDevengosParticulares`. */
-export async function calcularPendientesParticulares(
-  sb: Awaited<ReturnType<typeof createClient>>,
-  hastaISO: string,
-  periodoVencido: string
-): Promise<{ pendientes: DevengoParticular[]; bloqueadas: ParticularBloqueada[] }> {
-  const datos = await leerDatosParticulares(sb);
-  if (!datos) return { pendientes: [], bloqueadas: [] };
-  return calcularDevengosParticulares(datos, { hastaISO, periodoVencido, hoyISO: isoHoy() });
 }

@@ -10,13 +10,13 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { exigir } from "@/lib/datos";
-import { isoHoy, primerDiaMesDe } from "@/lib/liquidacion/periodo";
-import { calcularDevengos } from "@/lib/liquidacion/motor";
+import { isoHoy } from "@/lib/liquidacion/periodo";
+import { liquidar, SIN_LIMITE } from "@/lib/liquidacion/liquidar";
 import { calcularDescuentos, leerDatosMotor, leerDatosParticulares } from "@/lib/liquidacion/lecturas";
 import { cobroPorMembresia } from "@/lib/liquidacion/cobro";
-import { calcularDevengosParticulares, horasDadas, situacionParticular } from "@/lib/liquidacion/particulares";
+import { horasDadas, situacionParticular } from "@/lib/liquidacion/particulares";
 import type { EntradaRetiro, MembresiaInconclusa } from "@/lib/liquidacion/retiro";
-import { avanceAlCorte } from "@/lib/ordinalClase";
+import { leerAvancesAlCorte, type Avance } from "@/lib/liquidacion/lecturaAvance";
 import type { DatosSustituto } from "@/lib/desasignacion";
 
 type Persona = { nombre: string | null; apellido: string | null } | null;
@@ -71,19 +71,12 @@ export async function leerEntradaRetiro(
     }
 
     // El cálculo del cierre: regulares (todos sus cursos) y particulares.
-    const datos = await leerDatosMotor(sb, "9999-12-31");
-    const reg = datos
-      ? calcularDevengos(datos, "9999-12-31", { profesorId, corte })
-      : { pendientes: [], bloqueadas: [] };
+    const datos = await leerDatosMotor(sb, SIN_LIMITE);
     const datosPart = await leerDatosParticulares(sb);
-    const par = datosPart
-      ? calcularDevengosParticulares(datosPart, {
-          hastaISO: corte,
-          periodoVencido: primerDiaMesDe(corte),
-          hoyISO,
-          cierre: { profesorId, corte },
-        })
-      : { pendientes: [], bloqueadas: [] };
+    const { regular: reg, particulares: par } = liquidar(
+      { regular: datos, particulares: datosPart },
+      { tipo: "retiro", profesorId, corte, hoyISO }
+    );
     const descuentos = (await calcularDescuentos(sb, corte)).filter((d) => d.profesorId === profesorId);
 
     // Lo que ya se le debe de liquidaciones anteriores.
@@ -151,28 +144,8 @@ export async function leerEntradaRetiro(
     const candidatas = new Map<number, NonNullable<(typeof mcs)[number]["membresia"]>>();
     for (const r of mcs) if (r.membresia?.estado === "activa") candidatas.set(r.membresia.id, r.membresia);
 
-    // Avance de cada una **al corte**, con la misma regla que Asistencia
-    // (`ordinalClase`): en un plan de N cuentan las clases dictadas —una falta
-    // también—; en un paquete, las presentes. No `clases_hechas`, que solo suma
-    // presentes y subcuenta la clase a la que faltó.
-    const asisRaw = candidatas.size
-      ? await sb
-          .from("asistencias")
-          .select("membresia_id, estado, sesion:sesiones!inner(fecha, estado)", { count: "exact" })
-          .in("membresia_id", [...candidatas.keys()])
-      : null;
-    const asis = asisRaw
-      ? (exigir(asisRaw, "las asistencias de las membresías") as unknown as {
-          membresia_id: number; estado: string; sesion: { fecha: string; estado: string };
-        }[])
-      : [];
-    // El tope de filas de la API corta en silencio: un avance truncado subcontaría.
-    if (asisRaw?.count != null && asis.length < asisRaw.count)
-      throw new Error(`No se pudieron cargar las asistencias completas (${asis.length} de ${asisRaw.count}).`);
-    const fechasDe = (id: number, soloPresentes: boolean) =>
-      asis
-        .filter((a) => a.membresia_id === id && a.sesion.estado === "dictada" && (!soloPresentes || a.estado === "presente"))
-        .map((a) => a.sesion.fecha);
+    // Avance de cada una **al corte** (regla de Asistencia, una sola lectura).
+    const avances = await leerAvancesAlCorte(sb, [...candidatas.values()], corte);
 
     const regulares = new Map<number, MembresiaInconclusa>();
     for (const r of mcs) {
@@ -184,10 +157,7 @@ export async function leerEntradaRetiro(
         if (!ya.detalle.split(", ").includes(curso)) ya.detalle += `, ${curso}`;
         continue;
       }
-      const av = avanceAlCorte(
-        { clasesPlan: m.clases_plan, clasesTotal: m.clases_total, fechasDictadas: fechasDe(m.id, false), fechasPresentes: fechasDe(m.id, true) },
-        corte
-      );
+      const av = avances.get(m.id) as Avance;
       if (av.total != null && av.hechas >= av.total) continue; // agotada: no queda inconclusa
       regulares.set(m.id, {
         membresiaId: m.id,

@@ -207,6 +207,58 @@ function objetivoDe(
   }
 }
 
+/**
+ * El devengo de una membresía particular, armado en **un solo lugar**: lo usan
+ * la liquidación normal (comisión, ajuste, avance) y el cierre por retiro. Lo
+ * que cambia entre un modo y otro es qué entra acá, no cómo se arma.
+ */
+function armarDevengo(
+  m: MembresiaParticular,
+  datos: DatosParticulares,
+  d: {
+    criterio: 1 | 2 | 3;
+    tipo: DevengoParticular["tipo"];
+    periodo: string;
+    dadas: number;
+    factor: number;
+    completadaPor: DetalleParticular["completadaPor"];
+    cobrado: number;
+    objetivo: { monto: number; base: number };
+    yaDevengado: number;
+    monto: number;
+    ajustaComisionId?: number;
+  }
+): DevengoParticular {
+  return {
+    membresiaId: m.id,
+    profesorId: m.profesor_id,
+    planId: m.plan_id,
+    alumno: m.alumno,
+    tipo: d.tipo,
+    criterio: d.criterio,
+    periodo: d.periodo,
+    ajustaComisionId: d.ajustaComisionId,
+    base: d.objetivo.base,
+    monto: d.monto,
+    detalle: {
+      forma: m.forma_pago_profesor as FormaPago,
+      criterio: d.criterio,
+      horasContratadas: m.horas_contratadas,
+      horasDadas: d.dadas,
+      factor: r2(d.factor),
+      completadaPor: d.completadaPor,
+      cobrado: d.cobrado,
+      costoSala: m.pago_descuenta_sala ? m.costo_sala_aplicado : null,
+      pct: m.pago_pct_margen,
+      fee: m.fee_hora_aplicado,
+      montoFijo: m.pago_monto_fijo,
+      modoVencida: datos.modoVencida,
+      objetivo: d.objetivo.monto,
+      yaDevengado: d.yaDevengado,
+    },
+  };
+}
+
 export function calcularDevengosParticulares(
   datos: DatosParticulares,
   rango: RangoParticulares
@@ -231,33 +283,12 @@ export function calcularDevengosParticulares(
       const ya = r2(datos.previas.filter((p) => p.membresia_id === m.id).reduce((a, p) => a + Number(p.monto), 0));
       const delta = r2(obj.monto - ya);
       if (delta <= EPS) continue; // un cierre nunca descuenta (regla 8)
-      pendientes.push({
-        membresiaId: m.id,
-        profesorId: m.profesor_id,
-        planId: m.plan_id,
-        alumno: m.alumno,
-        tipo: "cierre",
-        criterio: 2,
-        periodo: primerDiaMesDe(rango.cierre.corte),
-        base: obj.base,
-        monto: delta,
-        detalle: {
-          forma: m.forma_pago_profesor as FormaPago,
-          criterio: 2,
-          horasContratadas: m.horas_contratadas,
-          horasDadas: dadas,
-          factor: r2(factor),
-          completadaPor: null,
-          cobrado: cobradoM,
-          costoSala: m.pago_descuenta_sala ? m.costo_sala_aplicado : null,
-          pct: m.pago_pct_margen,
-          fee: m.fee_hora_aplicado,
-          montoFijo: m.pago_monto_fijo,
-          modoVencida: datos.modoVencida,
-          objetivo: obj.monto,
-          yaDevengado: ya,
-        },
-      });
+      pendientes.push(
+        armarDevengo(m, datos, {
+          criterio: 2, tipo: "cierre", periodo: primerDiaMesDe(rango.cierre.corte), dadas, factor, completadaPor: null,
+          cobrado: cobradoM, objetivo: obj, yaDevengado: ya, monto: delta,
+        })
+      );
       continue;
     }
     const criterio = m.criterio_liquidacion;
@@ -286,34 +317,11 @@ export function calcularDevengosParticulares(
       periodo: string,
       monto: number,
       ajustaComisionId?: number
-    ): DevengoParticular => ({
-      membresiaId: m.id,
-      profesorId: m.profesor_id,
-      planId: m.plan_id,
-      alumno: m.alumno,
-      tipo,
-      criterio,
-      periodo,
-      ajustaComisionId,
-      base: objetivo.base,
-      monto,
-      detalle: {
-        forma: m.forma_pago_profesor as FormaPago,
-        criterio,
-        horasContratadas: m.horas_contratadas,
-        horasDadas: dadas,
-        factor: r2(factor),
-        completadaPor: sit.completadaPor,
-        cobrado,
-        costoSala: m.pago_descuenta_sala ? m.costo_sala_aplicado : null,
-        pct: m.pago_pct_margen,
-        fee: m.fee_hora_aplicado,
-        montoFijo: m.pago_monto_fijo,
-        modoVencida: datos.modoVencida,
-        objetivo: objetivo.monto,
-        yaDevengado,
-      },
-    });
+    ): DevengoParticular =>
+      armarDevengo(m, datos, {
+        criterio, tipo, periodo, dadas, factor, completadaPor: sit.completadaPor, cobrado, objetivo, yaDevengado, monto,
+        ajustaComisionId,
+      });
 
     if (criterio === 2) {
       // Avance: siempre que esté cobrada al 100%, sobre lo dado a la fecha.

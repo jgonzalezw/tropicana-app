@@ -14,6 +14,8 @@ import {
 import { cierreDeCuentas, type VistaCierre } from "@/app/(privado)/liquidaciones/acciones";
 import { presenteDesdeExtra } from "@/lib/matrizMinimos";
 import { leerEntradaRetiro } from "@/lib/liquidacion/lecturaRetiro";
+import { leerAvancesAlCorte } from "@/lib/liquidacion/lecturaAvance";
+import { createClient } from "@/lib/supabase/server";
 import { abiertasDe, armarRetiro, type VistaRetiro } from "@/lib/liquidacion/retiro";
 import {
   crearOReusarContactoPersona,
@@ -335,27 +337,37 @@ export async function revisarDesasignacion(id: number, fecha: string): Promise<R
   const { data: mcs, error: eM } = await a
     .from("membresia_cursos")
     .select(
-      "membresia:membresias(id, estado, es_prueba, clases_plan, clases_hechas, alumno:alumnos(contacto:contactos(nombre, apellido)))"
+      "membresia:membresias(id, estado, es_prueba, clases_plan, clases_total, alumno:alumnos(contacto:contactos(nombre, apellido)))"
     )
     .eq("curso_id", asig.curso_id);
   if (eM) return { error: eM.message };
 
   type Fila = {
     membresia: {
-      id: number; estado: string; es_prueba: boolean; clases_plan: number | null; clases_hechas: number;
+      id: number; estado: string; es_prueba: boolean; clases_plan: number | null; clases_total: number | null;
       alumno: { contacto: { nombre: string | null; apellido: string | null } | null } | null;
     } | null;
   };
-  const pendientes = ((mcs ?? []) as unknown as Fila[])
+  // El avance, con la regla única (clases dictadas, falta incluida), no `clases_hechas`.
+  const activas = ((mcs ?? []) as unknown as Fila[])
     .map((r) => r.membresia)
-    .filter((m): m is NonNullable<Fila["membresia"]> =>
-      !!m && m.estado === "activa" && !m.es_prueba && m.clases_plan != null && m.clases_hechas < m.clases_plan)
-    .map((m) => ({
+    .filter((m): m is NonNullable<Fila["membresia"]> => !!m && m.estado === "activa" && !m.es_prueba);
+  let avances;
+  try {
+    avances = await leerAvancesAlCorte(await createClient(), activas, fecha);
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "No se pudo leer el avance de las membresías." };
+  }
+  const pendientes = activas.flatMap((m) => {
+    const av = avances.get(m.id);
+    if (!av || av.total == null || av.hechas >= av.total) return [];
+    return [{
       id: m.id,
       alumno: [m.alumno?.contacto?.apellido, m.alumno?.contacto?.nombre].filter(Boolean).join(", ") || "—",
-      hechas: m.clases_hechas,
-      plan: m.clases_plan as number,
-    }));
+      hechas: av.hechas,
+      plan: av.total,
+    }];
+  });
 
   const { data: ult, error: eU } = await a
     .from("sesiones")
