@@ -91,3 +91,16 @@ test("formato: período largo, fecha corta y monto firmado con el menos tipográ
   assert.equal(conSigno(12.5), "+ Bs. 12,50");
   assert.equal(conSigno(-40), "− Bs. 40,00");
 });
+
+test("la simulación imprime la cifra de liquidez y el saldo por profesor; el informe real no", () => {
+  const real = construirHTMLPreliquidacion(informe(), "2026-09-30T12:00:00Z");
+  assert.ok(!real.includes("Liquidez a prever"));
+  const i = informe();
+  i.liquidez = { total: 175, devengo: 100, saldoPrevio: 50, reemplazos: 25, soloSaldo: 1 };
+  i.profesores[0].saldoPrevio = 10;
+  i.profesores[0].aPagar = 90;
+  const html = construirHTMLPreliquidacion(i, "2026-09-30T12:00:00Z");
+  assert.ok(html.includes("Liquidez a prever"));
+  assert.ok(html.includes("incluye 1 profesor sin devengo"));
+  assert.ok(html.includes("A pagar al cierre"));
+});

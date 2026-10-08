@@ -111,3 +111,4 @@ Cómo se usan, el backlog completo y el orden del pase (§3: leelo antes de un p
 - D31 el profesor gestiona sus alquileres — si sube la prioridad.
 - D32 la grilla de sala como entrada de la venta (C4) — mockup de C4; todo paso de agenda nuevo recibe el slot.
 - D33 asistencia al inscribir con fecha pasada — primer caso real.
+- D36 liquidación real por semana — cuando se quiera liquidar a semana vencida.

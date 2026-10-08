@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import Link from "next/link";
 import type { Profesor, DepsProfesor, TipoProfesor, DatosProfesor, Estilo, MatrizMinimo } from "@/lib/tipos";
 import { soloDigitos } from "@/lib/texto";
 import {
@@ -51,6 +52,7 @@ export default function EntidadProfesor({
   onActivar,
   onSelect,
   onCancelar,
+  hrefRetirar,
 }: {
   padron: Profesor[];
   cuentas: Cuenta[];
@@ -71,6 +73,8 @@ export default function EntidadProfesor({
   onActivar?: (id: number) => Promise<{ error?: string }>;
   onSelect?: (prof: Profesor) => void;
   onCancelar?: () => void;
+  /** A dónde lleva «Retirar…» en la ficha; `null` o sin la prop = no se ofrece. */
+  hrefRetirar?: (p: Profesor) => string | null;
 }) {
   const [ficha, setFicha] = useState<Profesor | "nuevo" | null>(valor);
   // Elegir a alguien lo abre para VER; editar es un paso explícito, y solo
@@ -110,6 +114,7 @@ export default function EntidadProfesor({
         puedeVerPrivados={puedeVerPrivados}
         padron={padron}
         permitirBaja={permitirBaja}
+        hrefRetirar={existente && hrefRetirar ? hrefRetirar(existente) : null}
         deps={existente && depsDe ? depsDe(existente.id) : undefined}
         onEditar={() => {
           setModo("editar");
@@ -195,6 +200,7 @@ function FichaProfesor({
   puedeVerPrivados,
   padron,
   permitirBaja,
+  hrefRetirar,
   deps,
   onEditar,
   onGuardar,
@@ -213,6 +219,7 @@ function FichaProfesor({
   puedeVerPrivados: boolean;
   padron: Profesor[];
   permitirBaja: boolean;
+  hrefRetirar: string | null;
   deps?: DepsProfesor;
   onEditar: () => void;
   onGuardar?: (datos: DatosProfesor, id: number | null, existenteId?: number | null) => Promise<{ error?: string }>;
@@ -413,6 +420,11 @@ function FichaProfesor({
             <button onClick={onEditar} className={BOTON_FILA}>
               Editar
             </button>
+          )}
+          {hrefRetirar && (
+            <Link href={hrefRetirar} className={`${BOTON_FILA_BASE} border-[var(--primario)] text-[var(--primario)]`}>
+              Retirar…
+            </Link>
           )}
           {permitirBaja &&
             (inicial.activo ? (

@@ -14,6 +14,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { obtenerParametro } from "@/lib/sesion";
 import { exigir } from "@/lib/datos";
+import { lineasPorPagarReemplazos } from "@/lib/cuentas";
 import { isoHoy, rangoEnCurso, rangoLiquidable } from "@/lib/liquidacion/periodo";
 import { LIMITES_SIMULACION, simularCierre, simularParticulares } from "@/lib/liquidacion/simulacion";
 import { calcularDevengos, type DatosMotor } from "@/lib/liquidacion/motor";
@@ -49,6 +50,9 @@ export const LECTURAS_PRE = [
   "Liquidaciones ya generadas del período",
 ] as const;
 
+/** Solo en la simulación (D29): lo que ya se debe, para la cifra de liquidez. */
+const LECTURA_SALDOS = "Saldo adeudado a profesores y suplentes (hoy)";
+
 /** Un nombre "Apellido, Nombre" desde la fila anidada de `contactos`. */
 type ConContacto = { id: number; contacto: { nombre: string | null; apellido: string | null } | null };
 const aPersona = (r: ConContacto) => ({
@@ -66,7 +70,8 @@ export type ModoPre = "vencido" | "simulacion";
 
 export async function prepararPreliquidacion(modo: ModoPre = "vencido"): Promise<ResultadoPre> {
   const sb = await createClient();
-  const lecturas: Lectura[] = LECTURAS_PRE.map((nombre) => ({ nombre, estado: "sin_leer" }));
+  const nombres: string[] = [...LECTURAS_PRE, ...(modo === "simulacion" ? [LECTURA_SALDOS] : [])];
+  const lecturas: Lectura[] = nombres.map((nombre) => ({ nombre, estado: "sin_leer" }));
   let primerFallo: string | null = null;
 
   /** Corre la lectura `i`; tras un fallo, las demás quedan "sin leer". */
@@ -228,7 +233,24 @@ export async function prepararPreliquidacion(modo: ModoPre = "vencido"): Promise
     }));
   });
 
-  if (primerFallo || !regular || !particulares || !descuentos || !maestros || !sinPlan || !sesionesCal || !existentes)
+  // 8. Solo simulada: lo que ya se les debe (liquidaciones anteriores y suplentes).
+  const saldos =
+    modo === "simulacion"
+      ? await paso(8, async () => {
+          const liqs = exigir(
+            await sb.from("liquidaciones").select("profesor_id, total_devengado, total_descuentos, total_pagado"),
+            "las liquidaciones de los profesores"
+          ) as { profesor_id: number; total_devengado: number; total_descuentos: number | null; total_pagado: number }[];
+          const previos = liqs.map((l) => ({
+            profesorId: l.profesor_id,
+            saldo: Number(l.total_devengado) - Number(l.total_descuentos ?? 0) - Number(l.total_pagado),
+          }));
+          const reemplazos = (await lineasPorPagarReemplazos(sb)).reduce((t, l) => t + Math.max(0, l.saldo), 0);
+          return { previos, reemplazos };
+        })
+      : undefined;
+
+  if (primerFallo || (modo === "simulacion" && !saldos) || !regular || !particulares || !descuentos || !maestros || !sinPlan || !sesionesCal || !existentes)
     return { ok: false, lecturas, error: primerFallo ?? "Faltó leer algún dato del período." };
 
   const informe = armarInforme({
@@ -247,6 +269,7 @@ export async function prepararPreliquidacion(modo: ModoPre = "vencido"): Promise
     membresiasSinPlan: sinPlan,
     sesionesCal,
     existentes,
+    saldos,
   });
   return { ok: true, informe, generadoEn: new Date().toISOString(), lecturas };
 }

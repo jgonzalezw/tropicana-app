@@ -14,6 +14,7 @@ import {
   LEYENDA_PRE,
   LEYENDA_SIMULACION,
   nombrePeriodoPre,
+  notaLiquidez,
   subtituloPre,
   tituloPre,
   TEXTO_CRITERIO,
@@ -183,6 +184,15 @@ function Informe({ informe, periodo }: { informe: InformePre; periodo: string })
         <Cifra etiqueta="Membresías que entran" valor={String(r.membresiasQueEntran)} nota="Cuenta una vez cada membresía, aunque tenga varios cursos" />
         <Cifra etiqueta="Membresías con excepción" valor={String(r.membresiasConExcepcion)} nota="No entran en esta liquidación" />
       </div>
+      {informe.liquidez && (
+        <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]">
+          <Cifra
+            etiqueta={`Liquidez a prever al ${fechaCorta(informe.hastaISO)}`}
+            valor={gs(informe.liquidez.total)}
+            nota={notaLiquidez(informe.liquidez)}
+          />
+        </div>
+      )}
 
       <Profesores profesores={informe.profesores} periodo={periodo} />
       <Excepciones informe={informe} />
@@ -364,6 +374,15 @@ function DetalleProfesor({ p }: { p: ProfesorPre }) {
           <span className="titulo text-lg">Neto a devengar</span>
           <span className="titulo text-xl tabular-nums">{gs(p.neto)}</span>
         </div>
+        {p.aPagar != null && (
+          <>
+            <Fila texto="Saldo sin pagar de liquidaciones anteriores" monto={gs(p.saldoPrevio ?? 0)} />
+            <div className="flex justify-between gap-3 items-baseline">
+              <span className="titulo text-lg">A pagar al cierre</span>
+              <span className="titulo text-xl tabular-nums">{gs(p.aPagar)}</span>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
