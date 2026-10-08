@@ -250,7 +250,7 @@ function TabListado({
                           Retirar…
                         </Link>
                       )}
-                      {p.activo ? (
+                      {p.activo && conAsignacionAbierta.includes(p.id) ? null : p.activo ? (
                         <button
                           disabled={pendiente}
                           onClick={() =>
@@ -273,7 +273,7 @@ function TabListado({
                         </button>
                       )}
                     </div>
-                    {historial && p.activo && (
+                    {historial && p.activo && !conAsignacionAbierta.includes(p.id) && (
                       <div className="text-xs text-[var(--texto-tenue)] mt-1 text-right">
                         Tiene historial: se desactiva, no se elimina.
                       </div>

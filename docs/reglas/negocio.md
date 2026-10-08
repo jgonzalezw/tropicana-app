@@ -296,3 +296,11 @@
     reescribe lo vendido. Los **nombres** de las categorías y de los tramos de
     personas se editan; las **claves** no, porque de ellas depende la regla
     que propone. *(Definiciones v2 de C3, 2026-09-25.)*
+
+25. **Un profesor con cursos a cargo se da de baja por «Retirar», nunca por
+    «Desactivar».** Retirar cierra sus asignaciones, deja el sustituto si lo
+    hay, hace el cierre de cuentas y lo inactiva, todo o nada (D34). Un
+    inactivo con una asignación abierta es un titular que nadie puede elegir y
+    a quien nadie liquida (control 48). Lo garantiza la base (migración 0065):
+    no se inactiva con asignaciones abiertas ni se le abre una asignación
+    inactivo. *(I-006, 2026-10-08.)*

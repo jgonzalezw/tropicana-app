@@ -61,6 +61,7 @@ El texto completo **manda** y está en `docs/reglas/` (`docs/REGLAS.md` es el ma
 22. Todo se vende por plan; hay cinco tipos de servicio.
 23. Cada slot es una reserva independiente. Los 7 estados y su efecto en el saldo; Solicitada ocupa 24 h.
 24. La categoría de alquiler la propone el sistema; se edita según `alquiler_categoria_modo`.
+25. Un profesor con cursos a cargo se da de baja por Retirar, no por Desactivar (control 48; la base lo garantiza, 0065).
 
 ### Proceso → `docs/reglas/proceso.md`
 1. Pase a producción: OK explícito de Javier, cada vez (el hook lo exige).

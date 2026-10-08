@@ -49,9 +49,12 @@ export default async function PaginaProfesores() {
   // Dependencias por profesor (por ahora solo asignaciones; comisiones/
   // liquidaciones/sala llegan en 0007).
   const deps: Record<number, DepsProfesor> = {};
-  for (const p of padron) deps[p.id] = { asignaciones: 0, comisiones: 0, liquidaciones: 0, sala: 0 };
+  for (const p of padron) deps[p.id] = { asignaciones: 0, asignacionesAbiertas: 0, comisiones: 0, liquidaciones: 0, sala: 0 };
   for (const a of listaAsignaciones) {
-    if (deps[a.profesor_id]) deps[a.profesor_id].asignaciones += 1;
+    if (deps[a.profesor_id]) {
+      deps[a.profesor_id].asignaciones += 1;
+      if (a.hasta === null) deps[a.profesor_id].asignacionesAbiertas += 1;
+    }
   }
 
   const cuentas = ((perfiles as { id: string; nombre: string | null; apellido: string | null; email: string | null }[]) ?? []).map(

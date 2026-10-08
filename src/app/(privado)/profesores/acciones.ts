@@ -206,6 +206,16 @@ export async function eliminarODesactivarProfesor(id: number): Promise<Resultado
     return { ok: true, accion: "eliminada" };
   }
 
+  // Con cursos a cargo se da de baja por Retirar (D34): desactivar a mano dejaba
+  // un titular inactivo (control 48). La base también lo rechaza (0065).
+  const { count: abiertas } = await admin()
+    .from("asignaciones")
+    .select("id", { count: "exact", head: true })
+    .eq("profesor_id", id)
+    .is("hasta", null);
+  if ((abiertas ?? 0) > 0)
+    return { error: "Tiene cursos a cargo: se da de baja con «Retirar…», que cierra sus asignaciones y su cuenta." };
+
   const { error } = await admin()
     .from("profesores")
     .update({ activo: false, actualizado_en: new Date().toISOString() })
@@ -242,6 +252,12 @@ export async function crearAsignacion(
     return { error: "El % por referido tiene que estar entre 0 y 100." };
 
   const a = admin();
+  // Antes de cerrar la asignación vigente: un inactivo no puede quedar de titular (0065).
+  const { data: prof, error: eProf } = await a.from("profesores").select("activo").eq("id", profesorId).maybeSingle();
+  if (eProf) return { error: eProf.message };
+  if (!prof) return { error: "El profesor no existe." };
+  if (!prof.activo) return { error: "No se asigna un curso a un profesor inactivo." };
+
   const { data: previas, error: eP } = await a
     .from("asignaciones")
     .select("desde, hasta")
