@@ -3,7 +3,7 @@ import Pagina from "@/components/Pagina";
 /** Estado "cargando": dice qué se está leyendo y muestra siluetas, no una pantalla vacía. */
 export default function CargandoPreliquidacion() {
   return (
-    <Pagina ancho="5xl">
+    <Pagina ancho="6xl">
       <div className="flex flex-col gap-7">
         <div>
           <div className="text-sm text-[var(--texto-tenue)]">Liquidaciones</div>

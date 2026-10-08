@@ -13,13 +13,14 @@ const informe = (): InformePre => ({
     {
       profesorId: 1, nombre: "Álvarez, <Pedro>", membresias: 1, cursos: ["Salsa"], subtotal: 100, neto: 80,
       extras: [{ titulo: "Reemplazo", detalle: "Salsa · 17/08", monto: -20 }],
-      lineas: [{
-        membresiaId: 1, alumno: "Pérez, Ana", curso: "Salsa", plan: "Plan Salsa", criterio: 1,
-        cicloInicio: "2026-08-03", cicloFin: "2026-08-31", clases: "5/5", cobrado: 200, base: 200,
-        notaBase: null, pct: 50, comision: 100, particular: false,
+      regulares: [{
+        membresiaId: 1, alumno: "Pérez, Ana", curso: "Salsa", criterio: 1, inicio: "2026-08-03", fin: "2026-08-31",
+        cuenta: { precio: 200, descuento: 0, pagado: 200, saldo: 0 }, bonoAplicado: 0, aLaFecha: 100, yaLiquidado: 0,
+        liquidaciones: [], clases: 5, clasesDelCurso: 5, pct: 50, base: 200, reparto: null, monto: 100,
       }],
+      particulares: [],
     },
-    { profesorId: 2, nombre: "Zapata, Luz", membresias: 0, cursos: [], subtotal: 0, neto: 0, extras: [], lineas: [] },
+    { profesorId: 2, nombre: "Zapata, Luz", membresias: 0, cursos: [], subtotal: 0, neto: 0, extras: [], regulares: [], particulares: [] },
   ],
   resumen: { total: 80, comisiones: 100, extras: -20, profesoresConDevengo: 2, membresiasQueEntran: 1, membresiasConExcepcion: 1 },
   excepciones: [

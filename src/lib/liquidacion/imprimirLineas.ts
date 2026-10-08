@@ -13,6 +13,7 @@ import {
   montoOGuion,
   textoBonoAplicado,
   textoCiclo,
+  textoReparto,
   textoYaLiquidado,
 } from "./formatoLiquidacion.ts";
 import type { LineaParticular, LineaRegular } from "./lineas.ts";
@@ -51,7 +52,7 @@ export function tablaRegularesHTML(lineas: LineaRegular[], o: Opciones = {}): st
       </thead><tbody>${lineas
         .map(
           (l) =>
-            `<tr><td>${esc(l.alumno)}${sub(`${l.curso} · ${siglaCriterio(l.criterio)} · ${textoCiclo(l.inicio, l.fin)}`, true)}</td>${celdasCuenta(l.cuenta)}<td>${l.soloLiquidado ? "—" : `${l.clases}/${l.clasesDelCurso}`}</td><td>${textoBonoAplicado(l.bonoAplicado)}</td><td class="r">${gs(l.base)}</td><td class="r">${l.pct}%</td><td class="r">${gs(l.aLaFecha)}</td>${ya ? `<td class="r">${textoYaLiquidado(l)}</td>` : ""}<td class="r b">${montoOGuion(l.monto)}</td></tr>`
+            `<tr><td>${esc(l.alumno)}${sub(`${l.curso} · ${siglaCriterio(l.criterio)} · ${textoCiclo(l.inicio, l.fin)}`, true)}</td>${celdasCuenta(l.cuenta)}<td>${l.soloLiquidado ? "—" : `${l.clases}/${l.clasesDelCurso}`}</td><td>${textoBonoAplicado(l.bonoAplicado)}</td><td class="r">${gs(l.base)}${l.reparto ? sub(textoReparto(l), true) : ""}</td><td class="r">${l.pct}%</td><td class="r">${gs(l.aLaFecha)}</td>${ya ? `<td class="r">${textoYaLiquidado(l)}</td>` : ""}<td class="r b">${montoOGuion(l.monto)}</td></tr>`
         )
         .join("")}</tbody></table>${leyenda(lineas.map((l) => l.criterio))}`;
 }

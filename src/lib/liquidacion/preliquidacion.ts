@@ -18,6 +18,7 @@ import { enVigencia } from "../vigencia.ts";
 import { diaIso, isoFecha } from "../inscripcion.ts";
 import { compararPorApellido } from "../texto.ts";
 import { cobroPorMembresia } from "./cobro.ts";
+import { armarLineas, type ContextoLineas, type LineaParticular, type LineaRegular } from "./lineas.ts";
 import type {
   DatosMotor,
   DevengoPendiente,
@@ -95,6 +96,8 @@ export type EntradaPre = {
   /** Las clases (con o sin asistencia) hasta hoy, para ver cuáles faltan. */
   sesionesCal: SesionCal[];
   existentes: LiquidacionExistente[];
+  /** Cuenta, bonos, criterio y ciclo de las membresías (decoran las líneas estándar). */
+  contexto?: ContextoLineas;
   /**
    * Solo en la simulación: lo que ya se le debe a cada profesor de
    * liquidaciones anteriores (devengado − descuentos − pagado) y lo que se
@@ -117,24 +120,6 @@ export type LiquidezPre = {
 
 // ── Lo que devuelve ──────────────────────────────────────────────────────
 
-export type LineaPre = {
-  membresiaId: number;
-  alumno: string;
-  curso: string;
-  plan: string;
-  criterio: number;
-  cicloInicio: string | null;
-  cicloFin: string | null;
-  /** "8/8", "3" (ilimitada) o "2 de 4 h" (particular). */
-  clases: string;
-  cobrado: number;
-  base: number;
-  notaBase: string | null;
-  pct: number | null;
-  comision: number;
-  particular: boolean;
-};
-
 /** Reemplazo o ajuste: va aparte del subtotal, con su signo (regla 20a / 0044). */
 export type AjustePre = { titulo: string; detalle: string; monto: number };
 
@@ -143,7 +128,9 @@ export type ProfesorPre = {
   nombre: string;
   membresias: number;
   cursos: string[];
-  lineas: LineaPre[];
+  /** Las líneas estándar de la liquidación (`lineas.ts`), iguales en todo flujo. */
+  regulares: LineaRegular[];
+  particulares: LineaParticular[];
   /** Comisiones (sin reemplazos ni ajustes). */
   subtotal: number;
   extras: AjustePre[];
@@ -575,28 +562,26 @@ export function armarExcepciones(e: EntradaPre): MotivoExcepcion[] {
 
 // ── Por profesor ─────────────────────────────────────────────────────────
 
-const FORMA_NOTA: Record<string, string> = {
-  fee_hora: "fee por hora",
-  pct_margen: "% sobre el margen",
-  monto_fijo: "monto fijo",
-};
+const CONTEXTO_VACIO: ContextoLineas = { cuentas: {}, bonos: {}, criterios: {}, ciclos: {}, previas: [], yaLiquidadas: [] };
 
 export function armarProfesores(e: EntradaPre): ProfesorPre[] {
-  const { datos } = e;
-  const membresiaPor = new Map(datos.membresias.map((m) => [m.id, m]));
-  const planNombre = new Map(e.planes.map((p) => [p.id, p.nombre]));
   const persona = new Map(e.profesores.map((p) => [p.id, p]));
   const bloques = new Map<number, ProfesorPre>();
   const bloque = (id: number): ProfesorPre => {
     let b = bloques.get(id);
     if (!b) {
       const p = persona.get(id);
-      b = { profesorId: id, nombre: p ? nombreDe(p) : `#${id}`, membresias: 0, cursos: [], lineas: [], subtotal: 0, extras: [], neto: 0 };
+      b = {
+        profesorId: id, nombre: p ? nombreDe(p) : `#${id}`, membresias: 0, cursos: [],
+        regulares: [], particulares: [], subtotal: 0, extras: [], neto: 0,
+      };
       bloques.set(id, b);
     }
     return b;
   };
 
+  // Un ajuste por recálculo no es una línea: va aparte, con su signo.
+  const regPorProf = new Map<number, DevengoPendiente[]>();
   for (const p of e.pendientes) {
     const b = bloque(p.profesorId);
     if (p.tipo === "ajuste") {
@@ -607,34 +592,11 @@ export function armarProfesores(e: EntradaPre): ProfesorPre[] {
       });
       continue;
     }
-    const m = membresiaPor.get(p.membresiaId);
-    // Membresía de varios cursos: lo cobrado se reparte a prorrata (regla 10) y
-    // la línea dice qué parte le tocó a este curso y de cuántos cursos es la venta.
-    const reparto =
-      p.reparto.length > 1
-        ? `${p.curso} · ${Math.round((100 * p.base) / (p.cobradoTotal || 1))}% · membresía de ${p.reparto.length} cursos`
-        : null;
-    b.lineas.push({
-      membresiaId: p.membresiaId,
-      alumno: p.alumno,
-      curso: p.curso,
-      plan: m?.plan_id != null ? planNombre.get(m.plan_id) ?? `plan #${m.plan_id}` : "—",
-      criterio: p.criterio,
-      cicloInicio: m?.fecha_inicio ?? null,
-      cicloFin: m?.fecha_fin ?? null,
-      clases: m?.clases_plan != null ? `${p.clases}/${m.clases_plan}` : String(p.clases),
-      cobrado: p.cobradoTotal,
-      base: p.base,
-      notaBase: [reparto, p.tipo === "avance" ? "avance" : null].filter(Boolean).join(" · ") || null,
-      pct: p.pct,
-      comision: p.monto,
-      particular: false,
-    });
+    regPorProf.set(p.profesorId, [...(regPorProf.get(p.profesorId) ?? []), p]);
   }
-
+  const parPorProf = new Map<number, DevengoParticular[]>();
   for (const p of e.particulares.pendientes) {
     const b = bloque(p.profesorId);
-    const d = p.detalle;
     if (p.tipo === "ajuste") {
       b.extras.push({
         titulo: "Ajuste por recálculo",
@@ -643,25 +605,15 @@ export function armarProfesores(e: EntradaPre): ProfesorPre[] {
       });
       continue;
     }
-    b.lineas.push({
-      membresiaId: p.membresiaId,
-      alumno: p.alumno,
-      curso: "Clase particular",
-      plan: planNombre.get(p.planId) ?? `plan #${p.planId}`,
-      criterio: p.criterio,
-      cicloInicio: null,
-      cicloFin: null,
-      clases: `${d.horasDadas} de ${d.horasContratadas} h`,
-      cobrado: d.cobrado,
-      base: p.base,
-      notaBase:
-        [FORMA_NOTA[d.forma] ?? d.forma, p.tipo === "avance" ? `avance ${Math.round(d.factor * 100)}%` : null, d.costoSala ? "− sala" : null]
-          .filter(Boolean)
-          .join(" · ") || null,
-      pct: d.pct,
-      comision: p.monto,
-      particular: true,
-    });
+    parPorProf.set(p.profesorId, [...(parPorProf.get(p.profesorId) ?? []), p]);
+  }
+
+  // Las líneas las arma la misma función que usa el retiro (calidad 10).
+  const ctx = e.contexto ?? CONTEXTO_VACIO;
+  for (const b of bloques.values()) {
+    const l = armarLineas(regPorProf.get(b.profesorId) ?? [], parPorProf.get(b.profesorId) ?? [], ctx);
+    b.regulares = l.regulares;
+    b.particulares = l.particulares;
   }
 
   for (const d of e.descuentos) {
@@ -674,10 +626,11 @@ export function armarProfesores(e: EntradaPre): ProfesorPre[] {
   }
 
   for (const b of bloques.values()) {
-    b.lineas.sort((x, y) => x.alumno.localeCompare(y.alumno, "es") || x.curso.localeCompare(y.curso, "es"));
-    b.membresias = new Set(b.lineas.map((l) => l.membresiaId)).size;
-    b.cursos = [...new Set(b.lineas.map((l) => l.curso))].sort((x, y) => x.localeCompare(y, "es"));
-    b.subtotal = r2(b.lineas.reduce((a, l) => a + l.comision, 0));
+    b.membresias = new Set([...b.regulares, ...b.particulares].map((l) => l.membresiaId)).size;
+    b.cursos = [
+      ...new Set([...b.regulares.map((l) => l.curso), ...(b.particulares.length ? ["Clase particular"] : [])]),
+    ].sort((x, y) => x.localeCompare(y, "es"));
+    b.subtotal = r2([...b.regulares, ...b.particulares].reduce((a, l) => a + l.monto, 0));
     b.neto = r2(b.subtotal + b.extras.reduce((a, x) => a + x.monto, 0));
   }
   return [...bloques.values()].sort((a, b) => {
@@ -746,7 +699,7 @@ export function armarInforme(e: EntradaPre): InformePre {
       comisiones,
       extras: r2(total - comisiones),
       profesoresConDevengo: profesores.length,
-      membresiasQueEntran: new Set(profesores.flatMap((p) => p.lineas.map((l) => l.membresiaId))).size,
+      membresiasQueEntran: new Set(profesores.flatMap((p) => [...p.regulares, ...p.particulares].map((l) => l.membresiaId))).size,
       membresiasConExcepcion: ids.size,
     },
     excepciones,

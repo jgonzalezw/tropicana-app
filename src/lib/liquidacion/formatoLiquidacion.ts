@@ -51,3 +51,7 @@ export function textoBonoGenerado(m: Pick<InconclusaVista, "bonoGenerado" | "bon
   if (m.bonoGenerado <= 0) return "—";
   return m.bonoVence ? `${m.bonoGenerado} · hasta ${fechaCorta(m.bonoVence)}` : String(m.bonoGenerado);
 }
+
+/** «60% de la venta · 2 cursos», o vacío si la membresía es de un solo curso. */
+export const textoReparto = (l: Pick<LineaRegular, "reparto">): string =>
+  l.reparto ? `${l.reparto.pct}% de la venta · ${l.reparto.cursos} cursos` : "";

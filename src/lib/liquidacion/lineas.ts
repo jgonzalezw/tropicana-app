@@ -88,6 +88,8 @@ export type LineaRegular = LineaCuenta & {
   clasesDelCurso: number;
   pct: number;
   base: number;
+  /** Membresía de varios cursos: qué parte de la venta le tocó a este curso (regla 10). */
+  reparto: { cursos: number; pct: number } | null;
   /** Lo que se devenga ahora. */
   monto: number;
 };
@@ -150,6 +152,10 @@ export function armarLineas(
       clasesDelCurso: p.clasesDelCurso,
       pct: p.pct,
       base: p.base,
+      reparto:
+        p.reparto.length > 1
+          ? { cursos: p.reparto.length, pct: Math.round((100 * p.base) / (p.cobradoTotal || 1)) }
+          : null,
       yaLiquidado: ya.monto,
       liquidaciones: ya.liquidaciones,
       aLaFecha: r2(ya.monto + p.monto),
@@ -189,6 +195,7 @@ export function armarLineas(
       reg.push({
         ...comun, curso: y.curso, clases: 0, clasesDelCurso: 0,
         pct: y.base > 0 ? Math.round((y.monto / y.base) * 100) : 0, base: y.base,
+        reparto: null,
       });
     } else {
       if (par.some((l) => l.membresiaId === y.membresiaId)) continue;

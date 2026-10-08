@@ -13,10 +13,7 @@ import {
   conSigno, fechaCorta, fechaHora, LEYENDA_PRE, LEYENDA_SIMULACION, nombrePeriodoPre, notaLiquidez,
   subtituloPre, tituloPre,
 } from "./formatoPre.ts";
-import { siglaCriterio, textoCriterio } from "./criterios.ts";
-
-const esc = (s: string | number | null | undefined) =>
-  String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+import { ESTILO_TABLAS, esc, tablaParticularesHTML, tablaRegularesHTML } from "./imprimirLineas.ts";
 
 /** Dónde se arregla cada caso, con el nombre de la pantalla (no un link: es papel). */
 export function pantallaDe(c: CasoExcepcion): string {
@@ -76,37 +73,36 @@ export function construirHTMLPreliquidacion(i: InformePre, generadoEn: string): 
 
   const hojas = i.profesores
     .map((p) => {
-      const filas = p.lineas
-        .map(
-          (l) => `<tr>
-        <td>${esc(l.alumno)}</td><td>${esc(l.curso)}</td><td>${esc(l.plan)}</td>
-        <td title="${esc(textoCriterio(l.criterio))}">${siglaCriterio(l.criterio)}</td>
-        <td>${fechaCorta(l.cicloInicio)}<br>${fechaCorta(l.cicloFin)}</td>
-        <td class="r">${esc(l.clases)}</td><td class="r">${gs(l.cobrado)}</td>
-        <td class="r">${gs(l.base)}${l.notaBase ? `<br><span class="small">${esc(l.notaBase)}</span>` : ""}</td>
-        <td class="r">${l.pct == null ? "—" : `${l.pct}%`}</td><td class="r b">${gs(l.comision)}</td></tr>`
-        )
-        .join("");
+      const sinLineas = p.regulares.length === 0 && p.particulares.length === 0;
       const extras = p.extras.length
         ? p.extras
             .map(
               (x) =>
-                `<tr><td colspan="9"><b>${esc(x.titulo)}</b> · <span class="small">${esc(x.detalle)}</span></td><td class="r b">${conSigno(x.monto)}</td></tr>`
+                `<tr><td><b>${esc(x.titulo)}</b> · <span class="small">${esc(x.detalle)}</span></td><td class="r b">${conSigno(x.monto)}</td></tr>`
             )
             .join("")
-        : `<tr><td colspan="10" class="small">Sin descuentos por reemplazo ni ajustes de períodos anteriores.</td></tr>`;
+        : `<tr><td colspan="2" class="small">Sin descuentos por reemplazo ni ajustes de períodos anteriores.</td></tr>`;
       return `<section class="hoja">
       <h2>${esc(p.nombre)}</h2>
       <p class="muted">${p.membresias} ${p.membresias === 1 ? "membresía" : "membresías"} · ${esc(p.cursos.join(", ") || "—")}</p>
-      <table class="t g"><thead><tr><th>Alumno</th><th>Curso(s)</th><th>Plan</th><th>Crit.</th><th>Ciclo</th><th class="r">Clases</th><th class="r">Cobrado</th><th class="r">Base</th><th class="r">%</th><th class="r">Comisión</th></tr></thead>
-      <tbody>${filas || `<tr><td colspan="10" class="small">Sin comisiones en este período.</td></tr>`}</tbody>
-      <tfoot><tr class="tot"><td colspan="9">Comisiones · ${p.membresias} ${p.membresias === 1 ? "membresía" : "membresías"}</td><td class="r">${gs(p.subtotal)}</td></tr>
-      ${extras}<tr class="tot"><td colspan="9">Neto a devengar</td><td class="r">${gs(p.neto)}</td></tr>${
-        p.aPagar != null
-          ? `<tr><td colspan="9">Saldo sin pagar de liquidaciones anteriores</td><td class="r">${gs(p.saldoPrevio ?? 0)}</td></tr><tr class="tot"><td colspan="9">A pagar al cierre</td><td class="r">${gs(p.aPagar)}</td></tr>`
-          : ""
-      }</tfoot></table>
-      <p class="small muted">Criterios: C1 al completarse (período vencido) · C2 proporcional al avance · C3 al completarse, sin esperar el cierre.</p>
+      ${
+        sinLineas
+          ? `<p class="small">Sin comisiones en este período.</p>`
+          : `${p.regulares.length ? `<h3>Cursos regulares</h3>${tablaRegularesHTML(p.regulares, { etiquetaMonto: "Este período" })}` : ""}${
+              p.particulares.length
+                ? `<h3>Clases particulares</h3>${tablaParticularesHTML(p.particulares, { etiquetaMonto: "Este período" })}`
+                : ""
+            }`
+      }
+      <table class="tfin">
+        <tr><td>Comisiones · ${p.membresias} ${p.membresias === 1 ? "membresía" : "membresías"}</td><td class="r">${gs(p.subtotal)}</td></tr>
+        ${extras}
+        <tr class="fin"><td>Neto a devengar</td><td class="r">${gs(p.neto)}</td></tr>${
+          p.aPagar != null
+            ? `<tr><td>Saldo sin pagar de liquidaciones anteriores</td><td class="r">${gs(p.saldoPrevio ?? 0)}</td></tr><tr class="fin"><td>A pagar al cierre</td><td class="r">${gs(p.aPagar)}</td></tr>`
+            : ""
+        }
+      </table>
     </section>`;
     })
     .join("");
@@ -143,7 +139,7 @@ export function construirHTMLPreliquidacion(i: InformePre, generadoEn: string): 
   ].join("");
 
   return `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${esc(titulo)}</title><style>
-  @page { size: A4 portrait; margin: 14mm 14mm 16mm;
+  @page { size: A4 landscape; margin: 14mm 14mm 16mm;
     @bottom-left { content: "${pie.replace(/"/g, "'")}"; font: 9px sans-serif; color: #444; }
     @bottom-right { content: "Página " counter(page) " de " counter(pages); font: 9px sans-serif; color: #444; }
     @top-left { content: "${titulo.replace(/"/g, "'")}"; font: 9px sans-serif; color: #444; } }
@@ -158,10 +154,8 @@ export function construirHTMLPreliquidacion(i: InformePre, generadoEn: string): 
   .cifras { display: flex; gap: 8px; margin: 12px 0; }
   .cifras > div { flex: 1; border: 1px solid #111; padding: 6px 8px; }
   .cifras .n { font-size: 17px; font-weight: 800; font-family: "Montserrat", Arial, sans-serif; }
-  .t { width: 100%; border-collapse: collapse; margin: 6px 0; }
-  .t th { text-align: left; font-size: 9.5px; text-transform: uppercase; letter-spacing: .05em; border-bottom: 1.5px solid #111; padding: 3px 4px; }
-  .t td { border-top: 1px solid #bbb; padding: 4px; vertical-align: top; }
-  .t.g { font-size: 10.5px; } .t th.r, .t td.r { text-align: right; }
+  ${ESTILO_TABLAS}
+  .tfin { width: 45%; margin-left: auto; border-collapse: collapse; } .tfin td { padding: 3px 4px; } .tfin .fin td { border-top: 1.5px solid #111; font-weight: 800; font-size: 13px; }
   .t .tot td { border-top: 1.5px solid #111; font-weight: 800; }
   .hoja { break-before: page; } .bloque { break-inside: avoid; margin-bottom: 8px; } .seccion { break-before: page; }
   </style></head><body>

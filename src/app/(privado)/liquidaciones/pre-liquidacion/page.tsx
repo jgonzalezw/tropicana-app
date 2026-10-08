@@ -23,7 +23,7 @@ export default async function PaginaPreliquidacion({
   const { modo } = await searchParams;
   const resultado = await prepararPreliquidacion(modo === "simulacion" ? "simulacion" : "vencido");
   return (
-    <Pagina ancho="5xl">
+    <Pagina ancho="6xl">
       <ClientePreliquidacion resultado={resultado} />
     </Pagina>
   );

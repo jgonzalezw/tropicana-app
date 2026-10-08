@@ -14,6 +14,7 @@ import {
   montoOGuion,
   textoBonoAplicado,
   textoCiclo,
+  textoReparto,
   textoYaLiquidado,
 } from "@/lib/liquidacion/formatoLiquidacion";
 
@@ -107,7 +108,10 @@ export function TablaRegulares({
               <CuentaCeldas l={l} />
               <td className={`${TD} tabular-nums`}>{l.soloLiquidado ? "—" : `${l.clases}/${l.clasesDelCurso}`}</td>
               <td className={`${TD} tabular-nums`}>{textoBonoAplicado(l.bonoAplicado)}</td>
-              <td className={TDR}>{gs(l.base)}</td>
+              <td className={TDR}>
+                {gs(l.base)}
+                {l.reparto && <div className="text-[11px] text-[var(--texto-tenue)] font-normal">{textoReparto(l)}</div>}
+              </td>
               <td className={TDR}>{l.pct}%</td>
               <td className={TDR}>{gs(l.aLaFecha)}</td>
               {conYaLiquidado && <td className={TDR}>{textoYaLiquidado(l)}</td>}

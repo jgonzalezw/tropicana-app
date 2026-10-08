@@ -19,6 +19,8 @@ import { isoHoy, rangoEnCurso, rangoLiquidable } from "@/lib/liquidacion/periodo
 import { LIMITES_SIMULACION, simularCierre, simularParticulares } from "@/lib/liquidacion/simulacion";
 import { type DatosMotor } from "@/lib/liquidacion/motor";
 import { liquidar, type ModoLiquidacion } from "@/lib/liquidacion/liquidar";
+import { criteriosYCiclos, leerCuentasYBonos, previasDe } from "@/lib/liquidacion/lecturaContexto";
+import type { ContextoLineas } from "@/lib/liquidacion/lineas";
 import {
   calcularDescuentos,
   leerDatosMotor,
@@ -48,6 +50,7 @@ export const LECTURAS_PRE = [
   "Membresías sin plan",
   "Asistencia: clases del calendario hasta hoy",
   "Liquidaciones ya generadas del período",
+  "Cuenta de cada alumno, bonos y ciclos",
 ] as const;
 
 /** Solo en la simulación (D29): lo que ya se debe, para la cifra de liquidez. */
@@ -228,10 +231,26 @@ export async function prepararPreliquidacion(modo: ModoPre = "vencido"): Promise
     }));
   });
 
-  // 8. Solo simulada: lo que ya se les debe (liquidaciones anteriores y suplentes).
+  // 8. La cuenta de cada alumno, los bonos y el ciclo de las membresías que entran:
+  //    decoran las líneas estándar (`lineas.ts`), igual que en el retiro.
+  const contexto = await paso(8, async (): Promise<ContextoLineas> => {
+    const ids = [
+      ...new Set([
+        ...regular!.pendientes.filter((p) => p.tipo !== "ajuste").map((p) => p.membresiaId),
+        ...particulares!.pendientes.filter((p) => p.tipo !== "ajuste").map((p) => p.membresiaId),
+      ]),
+    ];
+    const { cuentas, bonos } = await leerCuentasYBonos(sb, ids);
+    return {
+      cuentas, bonos, ...criteriosYCiclos(regular!.datos, particulares!.datos),
+      previas: previasDe(regular!.datos, particulares!.datos), yaLiquidadas: [],
+    };
+  });
+
+  // 9. Solo simulada: lo que ya se les debe (liquidaciones anteriores y suplentes).
   const saldos =
     modo === "simulacion"
-      ? await paso(8, async () => {
+      ? await paso(9, async () => {
           const liqs = exigir(
             await sb.from("liquidaciones").select("profesor_id, total_devengado, total_descuentos, total_pagado"),
             "las liquidaciones de los profesores"
@@ -245,7 +264,7 @@ export async function prepararPreliquidacion(modo: ModoPre = "vencido"): Promise
         })
       : undefined;
 
-  if (primerFallo || (modo === "simulacion" && !saldos) || !regular || !particulares || !descuentos || !maestros || !sinPlan || !sesionesCal || !existentes)
+  if (primerFallo || (modo === "simulacion" && !saldos) || !regular || !particulares || !descuentos || !maestros || !sinPlan || !sesionesCal || !existentes || !contexto)
     return { ok: false, lecturas, error: primerFallo ?? "Faltó leer algún dato del período." };
 
   const informe = armarInforme({
@@ -264,6 +283,7 @@ export async function prepararPreliquidacion(modo: ModoPre = "vencido"): Promise
     membresiasSinPlan: sinPlan,
     sesionesCal,
     existentes,
+    contexto,
     saldos,
   });
   return { ok: true, informe, generadoEn: new Date().toISOString(), lecturas };

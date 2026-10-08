@@ -260,13 +260,13 @@ test("el neto separa comisiones de reemplazos y ajustes, con su signo", () => {
     },
   });
   const [p] = armarProfesores(e);
-  assert.equal(p.lineas.length, 1);
+  assert.equal(p.regulares.length, 1);
   assert.equal(p.subtotal, 100);
   assert.deepEqual(p.extras.map((x) => x.monto), [-20, -30]);
   assert.equal(p.neto, 50);
   assert.equal(p.membresias, 1);
-  assert.equal(p.lineas[0].clases, "5/5");
-  assert.equal(p.lineas[0].plan, "Plan Salsa");
+  assert.equal(p.regulares[0].clases, 5);
+  assert.equal(p.regulares[0].monto, 100);
 });
 
 test("el informe resume: total, profesores, membresías y excepciones", () => {
@@ -295,7 +295,7 @@ test("una línea de varios cursos dice qué parte de lo cobrado le tocó al curs
       ] })],
     },
   });
-  assert.equal(armarProfesores(e)[0].lineas[0].notaBase, "Salsa · 60% · membresía de 2 cursos");
+  assert.deepEqual(armarProfesores(e)[0].regulares[0].reparto, { cursos: 2, pct: 60 });
 });
 
 test("los profesores salen ordenados por apellido", () => {
@@ -387,12 +387,12 @@ test("una membresía de varios cursos: una línea por curso y profesor, con su p
   });
   const ps = armarProfesores(e);
   assert.equal(ps.length, 2);
-  assert.equal(ps[0].lineas[0].notaBase, "Salsa · 60% · membresía de 2 cursos");
-  assert.equal(ps[1].lineas[0].notaBase, "Bachata · 40% · membresía de 2 cursos");
+  assert.deepEqual(ps[0].regulares[0].reparto, { cursos: 2, pct: 60 });
+  assert.deepEqual(ps[1].regulares[0].reparto, { cursos: 2, pct: 40 });
   // La membresía se cuenta UNA vez en el resumen, aunque dé dos líneas.
   assert.equal(armarInforme(e).resumen.membresiasQueEntran, 1);
   // Lo repartido suma lo cobrado.
-  assert.equal(ps.reduce((a, p) => a + p.lineas[0].base, 0), 200);
+  assert.equal(ps.reduce((a, p) => a + p.regulares[0].base, 0), 200);
 });
 
 test("razonDeDescarte: simulada, una activa con saldo es 'saldo', no 'sin_agotar'", () => {
@@ -406,7 +406,7 @@ test("razonDeDescarte: simulada, una activa con saldo es 'saldo', no 'sin_agotar
 // ── Liquidez de la simulación (D29) ──────────────────────────────────────
 
 const prof = (profesorId: number, neto: number): ProfesorPre => ({
-  profesorId, nombre: `P${profesorId}`, membresias: 0, cursos: [], lineas: [], subtotal: neto, extras: [], neto,
+  profesorId, nombre: `P${profesorId}`, membresias: 0, cursos: [], regulares: [], particulares: [], subtotal: neto, extras: [], neto,
 });
 
 test("liquidez: el piso va por profesor, lo pagado de más a uno no compensa a otro", () => {
