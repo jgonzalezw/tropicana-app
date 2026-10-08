@@ -151,3 +151,4 @@ acompañantes de una prueba grupal), **D13** (aumentar un catálogo sin salir de
 la operación) y **D22** (comisión por referido: decidida en concepto, sin
 construir).
 *D1, D3 y D12 ya están cerradas (2026-09-24).*
+**D29** (simular la pre-liquidación = proyección de liquidez) quedó **activada el 2026-10-07** y se construye con el incidente I-005 (`INCIDENTES.md`).

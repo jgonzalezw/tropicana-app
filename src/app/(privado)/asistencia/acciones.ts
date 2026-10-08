@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { tienePermiso, obtenerParametro, obtenerPerfilActual, errorAccesoCurso } from "@/lib/sesion";
 import { compararPorApellido } from "@/lib/texto";
 import { diaIso } from "@/lib/inscripcion";
+import { ordinalDeClase } from "@/lib/ordinalClase";
 import { cargarImpacto, liquidacionesTocadas, avisoDeImpacto } from "@/lib/periodos";
 import { finMesVencidoISO } from "@/lib/liquidacion/periodo";
 import {
@@ -574,9 +575,21 @@ export async function cargarPadron(
       .select("membresia_id, sesion_id, con_licencia")
       .eq("estado", "ausente")
       .in("membresia_id", todosInscIds);
-    for (const x of (data as { membresia_id: number | null; sesion_id: number; con_licencia: boolean }[]) ?? []) {
+    const ausentes = (data as { membresia_id: number | null; sesion_id: number; con_licencia: boolean }[]) ?? [];
+    // `faltasCiclo` se muestra al día que se mira: una falta posterior a `fecha`
+    // no cuenta (I-009). Si la fecha de la sesión no llega, la falta cuenta:
+    // un dato que falta no la borra.
+    const fechaDeSesion = new Map<number, string>();
+    const sesAus = [...new Set(ausentes.map((x) => x.sesion_id))];
+    if (sesAus.length) {
+      const { data: ses } = await sb.from("sesiones").select("id, fecha").in("id", sesAus);
+      for (const s of (ses as { id: number; fecha: string }[]) ?? []) fechaDeSesion.set(s.id, s.fecha);
+    }
+    for (const x of ausentes) {
       if (x.membresia_id == null) continue;
-      faltasCicloPorInsc[x.membresia_id] = (faltasCicloPorInsc[x.membresia_id] ?? 0) + 1;
+      const fechaFalta = fechaDeSesion.get(x.sesion_id);
+      if (fechaFalta == null || fechaFalta <= fecha)
+        faltasCicloPorInsc[x.membresia_id] = (faltasCicloPorInsc[x.membresia_id] ?? 0) + 1;
       // La falta de la sesión que se está editando no se bloquea a sí misma:
       // justo ahora se está decidiendo si es justificada o no.
       if (!x.con_licencia && x.sesion_id !== sesionId)
@@ -613,6 +626,7 @@ export async function cargarPadron(
       restantes: null,
       faltasCiclo: e.inscripcionId != null ? faltasCicloPorInsc[e.inscripcionId] ?? 0 : 0,
       progreso: null,
+      ordinal: null,
       deuda: deuda[e.alumnoId] ?? 0,
       toleranciaRestante: null,
       faltaSinLicenciaEnCiclo: false,
@@ -634,7 +648,12 @@ export async function cargarPadron(
     .map((r) => {
       const esMensual = r.modalidad === "mensual";
       const restantes = esMensual ? null : Math.max(0, (r.clases_total ?? 0) - (consumidas[r.id] ?? 0));
-      const progreso = r.clases_plan != null ? { hechas: consumidas[r.id] ?? 0, total: r.clases_plan } : null;
+      // Las tomadas, hasta la fecha que se mira (inclusive): al abrir una fecha
+      // pasada no se ve el futuro (I-009).
+      const progreso =
+        r.clases_plan != null
+          ? { hechas: (fechasPresentes[r.id] ?? []).filter((x) => x <= fecha).length, total: r.clases_plan }
+          : null;
       desempatePorInsc.set(r.id, { agotada: cicloAgotadoAl(r, fecha), fechaInicio: r.fecha_inicio });
       return {
         inscripcionId: r.id,
@@ -645,6 +664,15 @@ export async function cargarPadron(
         restantes,
         faltasCiclo: faltasCicloPorInsc[r.id] ?? 0,
         progreso,
+        ordinal: r.es_prueba === true
+          ? null
+          : ordinalDeClase({
+              clasesPlan: r.clases_plan,
+              clasesTotal: r.clases_total,
+              fechasDictadas: fechasDictadas[r.id] ?? [],
+              fechasPresentes: fechasPresentes[r.id] ?? [],
+              fecha,
+            }),
         deuda: deuda[r.alumno_id] ?? 0,
         toleranciaRestante: toleranciaRestantePorInsc.has(r.id) ? toleranciaRestantePorInsc.get(r.id)! : null,
         faltaSinLicenciaEnCiclo: (faltasSinLicPrevias[r.id] ?? 0) > 0,

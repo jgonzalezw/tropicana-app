@@ -917,6 +917,7 @@ function FilaRow({
       ? "bg-[var(--peligro-fill)] border-[var(--peligro)] text-[var(--peligro-texto)]"
       : "bg-[var(--fondo-elevado)] border-[var(--borde)]";
 
+  const ord = fila.ordinal; // null = sin N clases o prueba (I-009).
   const tol = fila.toleranciaRestante; // null = no aplica (sin plan de N clases).
   const sinTolerancia = tol != null && tol <= 0;
   const esParcial = fila.modalidad !== "mensual";
@@ -931,11 +932,26 @@ function FilaRow({
       ? `Clase de prueba · ${fila.personas} personas`
       : "Clase de prueba"
     : esParcial
-    ? `${ETIQUETA_MODALIDAD[fila.modalidad]}${
-        fila.restantes != null ? ` · quedan ${fila.restantes} ${fila.restantes === 1 ? "clase" : "clases"}` : ""
-      }`
+    ? [
+        ETIQUETA_MODALIDAD[fila.modalidad],
+        // El ordinal ya dice cuántas quedan; sin él (legado) queda el conteo de siempre.
+        ord
+          ? ord.ultima
+            ? `última clase (${ord.numero} de ${ord.total})`
+            : `clase ${ord.numero} de ${ord.total} · quedan ${ord.quedan}`
+          : fila.restantes != null
+          ? `quedan ${fila.restantes} ${fila.restantes === 1 ? "clase" : "clases"}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(" · ")
     : [
-        fila.progreso ? `${fila.progreso.hechas}/${fila.progreso.total} clases` : null,
+        ord
+          ? ord.ultima
+            ? `Última clase (${ord.numero} de ${ord.total})`
+            : `Clase ${ord.numero} de ${ord.total} · quedan ${ord.quedan}`
+          : null,
+        fila.progreso ? `${fila.progreso.hechas}/${fila.progreso.total} ${ord ? "tomadas" : "clases"}` : null,
         fila.faltasCiclo === 0 ? "Sin faltas en el ciclo" : `${fila.faltasCiclo} ${fila.faltasCiclo === 1 ? "falta" : "faltas"} en el ciclo`,
       ]
         .filter(Boolean)
@@ -952,6 +968,9 @@ function FilaRow({
 
   const pill = fila.esPrueba
     ? "Prueba"
+    : ord?.ultima
+    ? // Avisa también con la clase ya marcada, y pesa más que la tolerancia.
+      "Última clase"
     : !estado && tol != null
       ? tol <= 0
         ? fila.faltaSinLicenciaEnCiclo
@@ -989,7 +1008,13 @@ function FilaRow({
         {(pill || (mostrarDeuda && fila.deuda > 0)) && (
           <span className="shrink-0 flex flex-col items-end gap-1">
             {pill && (
-              <span className="whitespace-nowrap px-2.5 py-1 text-xs rounded-[var(--radio-control)] bg-[var(--peligro-fill)] text-[var(--peligro-texto)]">
+              <span
+                className={`whitespace-nowrap px-2.5 py-1 text-xs rounded-[var(--radio-control)] ${
+                  pill === "Última clase"
+                    ? "bg-[var(--advertencia-fill)] text-[var(--advertencia-texto)]"
+                    : "bg-[var(--peligro-fill)] text-[var(--peligro-texto)]"
+                }`}
+              >
                 {pill}
               </span>
             )}

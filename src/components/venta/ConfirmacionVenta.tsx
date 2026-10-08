@@ -15,11 +15,14 @@ export default function ConfirmacionVenta({
   titulo = "Venta registrada",
   datos,
   avisos = [],
+  reciboHref,
   onNueva,
 }: {
   titulo?: string;
   datos: { etiqueta: string; valor: string }[];
   avisos?: AvisoVenta[];
+  /** Recibo imprimible del cobro; se abre aparte para no perder esta tarjeta. */
+  reciboHref?: string;
   onNueva: () => void;
 }) {
   const [copiado, setCopiado] = useState(false);
@@ -56,7 +59,12 @@ export default function ConfirmacionVenta({
         <button type="button" onClick={copiar} className="px-4 py-2 text-sm rounded-[var(--radio-control)] border border-current">
           {copiado ? "Copiado" : "Copiar resumen"}
         </button>
-        <button type="button" onClick={onNueva} className="px-4 py-2 text-sm font-semibold rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)]">
+        {reciboHref && (
+          <a href={reciboHref} target="_blank" rel="noopener" className="px-4 py-2 text-sm rounded-[var(--radio-control)] border border-current">
+            Ver recibo
+          </a>
+        )}
+        <button type="button" onClick={onNueva}className="px-4 py-2 text-sm font-semibold rounded-[var(--radio-control)] bg-[var(--primario)] text-[var(--primario-texto)]">
           Nueva venta
         </button>
       </div>

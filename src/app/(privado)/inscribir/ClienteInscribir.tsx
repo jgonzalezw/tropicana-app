@@ -56,7 +56,7 @@ export type PlanVenta = {
   cursos: CursoPlan[];
 };
 
-type Cerrada = { datos: { etiqueta: string; valor: string }[]; avisos: AvisoVenta[] };
+type Cerrada = { datos: { etiqueta: string; valor: string }[]; avisos: AvisoVenta[]; reciboHref?: string };
 type CreditoPrueba = { monto: number; fecha: string; personas: number; pagado: number };
 
 export default function ClienteInscribir({
@@ -247,7 +247,8 @@ export default function ClienteInscribir({
       if (res.error) return setError(res.error);
       setCerrada({
         datos: [...resumenLocal, ...(res.datos ?? [])],
-        avisos: res.avisoAlumno ? [res.avisoAlumno] : [],
+        avisos: [...(res.avisoAlumno ? [res.avisoAlumno] : []), ...(res.avisoRecibo ? [res.avisoRecibo] : [])],
+        reciboHref: res.reciboId ? `/caja/recibo/${res.reciboId}` : undefined,
       });
       reiniciar();
       router.refresh();
@@ -255,7 +256,7 @@ export default function ClienteInscribir({
     });
   }
 
-  if (cerrada) return <ConfirmacionVenta titulo="Inscripción registrada" datos={cerrada.datos} avisos={cerrada.avisos} onNueva={() => setCerrada(null)} />;
+  if (cerrada) return <ConfirmacionVenta titulo="Inscripción registrada" datos={cerrada.datos} avisos={cerrada.avisos} reciboHref={cerrada.reciboHref} onNueva={() => setCerrada(null)} />;
 
   if (planes.length === 0)
     return (
