@@ -30,12 +30,12 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
   const liq = exigirUno(
     await sb
       .from("liquidaciones")
-      .select("id, profesor_id, periodo, periodicidad, estado, total_devengado, total_descuentos, total_pagado, neto, creado_en")
+      .select("id, profesor_id, periodo, periodicidad, retiro_hasta, estado, total_devengado, total_descuentos, total_pagado, neto, creado_en")
       .eq("id", liquidacionId)
       .maybeSingle(),
     "la liquidación"
   ) as {
-    id: number; profesor_id: number; periodo: string; periodicidad: string; estado: string;
+    id: number; profesor_id: number; periodo: string; periodicidad: string; retiro_hasta: string | null; estado: string;
     total_devengado: number; total_descuentos: number; total_pagado: number; neto: number; creado_en: string;
   } | null;
   if (!liq)
@@ -293,6 +293,7 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
     whatsapp: profContacto?.whatsapp ?? null,
     periodo: liq.periodo as string,
     periodicidad: liq.periodicidad as string,
+    retiroHasta: (liq.retiro_hasta as string | null) ?? null,
     estado: liq.estado as string,
     totalDevengado: Number(liq.total_devengado),
     totalDescuentos: Number(liq.total_descuentos ?? 0),

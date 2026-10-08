@@ -192,7 +192,7 @@ export default function ClienteRetiro({
 
       <section className="flex flex-col gap-4">
         <label className="flex flex-col gap-1 max-w-xs">
-          <span className="text-base font-semibold">Último día a cargo</span>
+          <span className="text-base font-semibold">Fecha efectiva del retiro (último día a cargo)</span>
           <input type="date" value={corte} onChange={(e) => setCorte(e.target.value)} className={CAMPO} />
         </label>
 

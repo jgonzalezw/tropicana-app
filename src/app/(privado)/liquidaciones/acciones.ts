@@ -91,6 +91,8 @@ export type FilaLiquidacion = {
   profesor: string;
   periodo: string;
   periodicidad: string;
+  /** Fecha efectiva del retiro cuando la liquidación incluye su cierre; null = normal. */
+  retiroHasta: string | null;
   estado: string;
   totalDevengado: number;
   /** Lo que se le descuenta (regla 20a). El neto ya lo resta. */
@@ -175,7 +177,7 @@ export async function cargarLiquidaciones(): Promise<{
 
   const { data: liqs } = await sb
     .from("liquidaciones")
-    .select("id, profesor_id, periodo, periodicidad, estado, total_devengado, total_descuentos, total_pagado, neto")
+    .select("id, profesor_id, periodo, periodicidad, retiro_hasta, estado, total_devengado, total_descuentos, total_pagado, neto")
     .order("periodo", { ascending: false });
   const profNombre = new Map(
     (
@@ -187,6 +189,7 @@ export async function cargarLiquidaciones(): Promise<{
     profesor_id: number;
     periodo: string;
     periodicidad: string;
+    retiro_hasta: string | null;
     estado: string;
     total_devengado: number;
     total_descuentos: number;
@@ -198,6 +201,7 @@ export async function cargarLiquidaciones(): Promise<{
     profesor: profNombre.get(l.profesor_id) ?? `#${l.profesor_id}`,
     periodo: l.periodo,
     periodicidad: l.periodicidad,
+    retiroHasta: l.retiro_hasta,
     estado: l.estado,
     totalDevengado: Number(l.total_devengado),
     totalDescuentos: Number(l.total_descuentos ?? 0),
