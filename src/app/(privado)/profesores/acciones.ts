@@ -478,7 +478,7 @@ export async function retirarProfesor(
   profesorId: number,
   corte: string,
   sustitutos: Record<number, DatosSustituto | null>
-): Promise<{ ok?: true; error?: string; liquidacionId?: number | null }> {
+): Promise<{ ok?: true; error?: string; liquidacionId?: number | null; vista?: VistaRetiro; confirmadoEn?: string }> {
   if (!(await tienePermiso("profesores", "editar"))) return { error: "Sin permiso." };
   if (!(await tienePermiso("liquidaciones", "crear")))
     return { error: "Retirar a un profesor liquida su cierre: requiere el permiso de crear liquidaciones." };
@@ -528,5 +528,12 @@ export async function retirarProfesor(
   revalidatePath("/liquidaciones");
   revalidatePath("/caja");
   revalidatePath("/asistencia");
-  return { ok: true, liquidacionId: (data as { liquidacion_id: number | null } | null)?.liquidacion_id ?? null };
+  // La vista devuelta es la que calculó el servidor al escribir: los datos finales
+  // del informe de liquidación por finalización.
+  return {
+    ok: true,
+    liquidacionId: (data as { liquidacion_id: number | null } | null)?.liquidacion_id ?? null,
+    vista,
+    confirmadoEn: new Date().toISOString(),
+  };
 }

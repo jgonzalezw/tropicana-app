@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { gs } from "@/lib/inscripcion";
 import type { DatosSustituto } from "@/lib/desasignacion";
 import type { VistaRetiro } from "@/lib/liquidacion/retiro";
+import { construirHTMLRetiro } from "@/lib/liquidacion/imprimirRetiro";
+import { fechaCorta } from "@/lib/liquidacion/formatoPre";
 import { retirarProfesor, vistaRetiro } from "../../acciones";
 
 export type CursoRetiro = { asignacionId: number; cursoId: number; curso: string; desde: string };
@@ -42,7 +44,12 @@ export default function ClienteRetiro({
   const [error, setError] = useState<string | null>(null);
   const [calculando, setCalculando] = useState(false);
   const [confirmando, startConfirmar] = useTransition();
-  const [hecho, setHecho] = useState<{ liquidacionId: number | null; total: number } | null>(null);
+  const [hecho, setHecho] = useState<{
+    liquidacionId: number | null;
+    total: number;
+    vista: VistaRetiro;
+    confirmadoEn: string;
+  } | null>(null);
   const pedido = useRef(0);
 
   // Modo enfoque: mientras se revisa un retiro el shell se atenúa (globals.css).
@@ -84,6 +91,33 @@ export default function ClienteRetiro({
     return () => clearTimeout(t);
   }, [profesorId, corte, datosSustitutos, hecho]);
 
+  /** Imprime el informe en papel blanco, en una ventana aparte (no la pantalla). */
+  function imprimir() {
+    const v = hecho?.vista ?? vista;
+    if (!v) return;
+    const win = window.open("", "_blank", "width=900,height=1100");
+    if (!win) return;
+    const generadoEn = new Date().toISOString();
+    win.document.write(
+      construirHTMLRetiro(
+        v,
+        hecho
+          ? { profesor, corte, generadoEn, confirmado: { liquidacionId: hecho.liquidacionId, confirmadoEn: hecho.confirmadoEn } }
+          : { profesor, corte, generadoEn }
+      )
+    );
+    win.document.close();
+    win.focus();
+    win.onload = () => win.print();
+    setTimeout(() => {
+      try {
+        win.print();
+      } catch {
+        /* noop */
+      }
+    }, 300);
+  }
+
   function confirmar() {
     if (!vista?.puedeConfirmar) return;
     startConfirmar(async () => {
@@ -93,7 +127,13 @@ export default function ClienteRetiro({
         return;
       }
       setError(null);
-      setHecho({ liquidacionId: r.liquidacionId ?? null, total: vista.totales.aPagar });
+      const final = r.vista ?? vista;
+      setHecho({
+        liquidacionId: r.liquidacionId ?? null,
+        total: final.totales.aPagar,
+        vista: final,
+        confirmadoEn: r.confirmadoEn ?? new Date().toISOString(),
+      });
       router.refresh();
     });
   }
@@ -110,7 +150,10 @@ export default function ClienteRetiro({
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Link href="/caja" className={BOTON_PRIMARIO}>
+          <button type="button" onClick={imprimir} className={BOTON_PRIMARIO}>
+            Imprimir liquidación por finalización
+          </button>
+          <Link href="/caja" className={BOTON_SECUNDARIO}>
             Ir a Caja
           </Link>
           <Link href="/liquidaciones" className={BOTON_SECUNDARIO}>
@@ -129,7 +172,7 @@ export default function ClienteRetiro({
         <Link href="/profesores" className={BOTON_SECUNDARIO}>
           ← Volver a Profesores
         </Link>
-        <button type="button" onClick={() => window.print()} disabled={!vista} className={BOTON_SECUNDARIO}>
+        <button type="button" onClick={imprimir} disabled={!vista} className={BOTON_SECUNDARIO}>
           Imprimir
         </button>
       </div>
@@ -324,6 +367,57 @@ export default function ClienteRetiro({
                 {gs(vista.totales.aPagar)}
               </dd>
             </dl>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-bold mb-1">Membresías que quedan inconclusas · {vista.inconclusas.length}</h2>
+            <p className="text-base text-[var(--texto-tenue)] mb-2">
+              Una línea por membresía. Siguen con el sustituto o sin titular, según lo elegido.
+            </p>
+            {vista.inconclusas.length === 0 ? (
+              <p className="text-base">No quedan membresías sin terminar.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-base">
+                  <thead>
+                    <tr className="text-left text-sm text-[var(--texto-tenue)]">
+                      <th className="py-2 pr-3 font-medium">Alumno</th>
+                      <th className="py-2 pr-3 font-medium">Cursos / plan</th>
+                      <th className="py-2 pr-3 font-medium">Inicio</th>
+                      <th className="py-2 pr-3 font-medium">Fin</th>
+                      <th className="py-2 pr-3 font-medium">Avance</th>
+                      <th className="py-2 pr-3 font-medium">Estado</th>
+                      <th className="py-2 font-medium text-right">Saldo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {vista.inconclusas.map((m) => (
+                      <tr key={`${m.tipo}-${m.membresiaId}`} className="border-t border-[var(--borde)]">
+                        <td className="py-2 pr-3">{m.alumno}</td>
+                        <td className="py-2 pr-3">
+                          {m.detalle}
+                          {m.plan !== m.detalle && (
+                            <div className="text-sm text-[var(--texto-tenue)]">{m.plan}</div>
+                          )}
+                        </td>
+                        <td className="py-2 pr-3 tabular-nums">{fechaCorta(m.inicio)}</td>
+                        <td className="py-2 pr-3 tabular-nums">{fechaCorta(m.fin)}</td>
+                        <td className="py-2 pr-3 tabular-nums">
+                          {m.total == null
+                            ? `${m.hechas} ${m.unidad} (ilimitado)`
+                            : `${m.hechas} de ${m.total} ${m.unidad} · faltan ${Math.max(0, m.total - m.hechas)}`}
+                        </td>
+                        <td className="py-2 pr-3">
+                          {m.estado}
+                          {m.saldo > 0 ? " · con saldo" : " · cobrada"}
+                        </td>
+                        <td className="py-2 text-right tabular-nums">{m.saldo > 0 ? gs(m.saldo) : "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </section>
 
           {vista.quedanAfuera.length > 0 && (

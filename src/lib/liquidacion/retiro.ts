@@ -26,6 +26,25 @@ export type AsignacionRetiro = {
   hasta: string | null;
 };
 
+/** Una membresía que queda sin terminar cuando el profesor se retira. */
+export type MembresiaInconclusa = {
+  membresiaId: number;
+  alumno: string;
+  tipo: "regular" | "particular";
+  /** Los cursos (regular) o «Clase particular». */
+  detalle: string;
+  plan: string;
+  inicio: string | null;
+  fin: string | null;
+  /** Lo dado hasta ahora y el total del plan (`null` = ilimitado), en `unidad`. */
+  hechas: number;
+  total: number | null;
+  unidad: "clases" | "horas";
+  estado: string;
+  /** Lo que falta cobrar; 0 = cobrada. */
+  saldo: number;
+};
+
 export type EntradaRetiro = {
   profesorId: number;
   profesor: string;
@@ -48,8 +67,8 @@ export type EntradaRetiro = {
   posteriores: { cursoId: number; curso: string; fechas: string[] }[];
   /** Reservas particulares futuras del profesor, que quedarían sin profesor. */
   reservasFuturas: { id: number; fecha: string; alumno: string }[];
-  /** Membresías activas de sus cursos con clases por dar. */
-  membresiasQueQuedan: { id: number; alumno: string; curso: string; hechas: number; plan: number }[];
+  /** Membresías de sus cursos y particulares que quedan sin terminar (una por membresía). */
+  inconclusas: MembresiaInconclusa[];
 };
 
 export type Accion = { clave: string; texto: string };
@@ -98,6 +117,8 @@ export type VistaRetiro = {
     /** Todo lo que se le debe al confirmar: cierre + saldo previo. */
     aPagar: number;
   };
+  /** Las membresías que quedan inconclusas, una línea por membresía, por alumno. */
+  inconclusas: MembresiaInconclusa[];
   /** Cosas que no traban pero se explican. */
   avisos: string[];
   /**
@@ -218,9 +239,9 @@ export function armarRetiro(e: EntradaRetiro): VistaRetiro {
   const cierre = r2(tReg + tPar);
 
   const avisos: string[] = [];
-  if (e.membresiasQueQuedan.length)
+  if (e.inconclusas.length)
     avisos.push(
-      `${e.membresiasQueQuedan.length} membresía(s) activa(s) siguen con clases por dar: quedan con el sustituto o sin titular, según lo elegido. Lo que se cobre o dicte después se liquida como ajuste (regla 16).`
+      `${e.inconclusas.length} membresía(s) siguen con clases por dar: quedan con el sustituto o sin titular, según lo elegido. Lo que se cobre o dicte después se liquida como ajuste (regla 16).`
     );
   avisos.push("Los alquileres no se liquidan al profesor: él es quien paga la sala, no hay nada que cerrarle.");
   if (tDesc > 0)
@@ -242,6 +263,7 @@ export function armarRetiro(e: EntradaRetiro): VistaRetiro {
       saldoPrevio: r2(e.saldoPrevio),
       aPagar: r2(cierre + e.saldoPrevio),
     },
+    inconclusas: [...e.inconclusas].sort((a, b) => a.alumno.localeCompare(b.alumno, "es")),
     avisos,
     quedanAfuera: quedanAfueraDe(e),
     trabas,

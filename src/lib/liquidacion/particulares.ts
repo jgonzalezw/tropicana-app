@@ -34,6 +34,7 @@ export type MembresiaParticular = {
   pago_descuenta_sala: boolean;
   costo_sala_aplicado: number | null;
   horas_contratadas: number;
+  fecha_inicio?: string | null;
   fecha_fin: string | null;
   es_cortesia: boolean;
 };

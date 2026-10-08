@@ -13,8 +13,9 @@ import { exigir } from "@/lib/datos";
 import { isoHoy, primerDiaMesDe } from "@/lib/liquidacion/periodo";
 import { calcularDevengos } from "@/lib/liquidacion/motor";
 import { calcularDescuentos, leerDatosMotor, leerDatosParticulares } from "@/lib/liquidacion/lecturas";
-import { calcularDevengosParticulares } from "@/lib/liquidacion/particulares";
-import type { EntradaRetiro } from "@/lib/liquidacion/retiro";
+import { cobroPorMembresia } from "@/lib/liquidacion/cobro";
+import { calcularDevengosParticulares, horasDadas, situacionParticular } from "@/lib/liquidacion/particulares";
+import type { EntradaRetiro, MembresiaInconclusa } from "@/lib/liquidacion/retiro";
 import type { DatosSustituto } from "@/lib/desasignacion";
 
 type Persona = { nombre: string | null; apellido: string | null } | null;
@@ -123,34 +124,76 @@ export async function leerEntradaRetiro(
       "las reservas particulares futuras"
     ) as unknown as { id: number; fecha: string; membresia: { alumno: { contacto: Persona } | null } | null }[];
 
-    // Membresías activas de sus cursos con clases por dar.
+    // Las membresías que quedan sin terminar: las de sus cursos (una línea por
+    // membresía, con todos sus cursos) y sus particulares.
+    const saldoDe = datos ? cobroPorMembresia(datos.cuotas, datos.pagos).saldo : {};
     const cursoIds = [...new Set(asigs.filter((a) => a.hasta == null).map((a) => a.curso_id))];
     const mcs = cursoIds.length
       ? (exigir(
           await sb
             .from("membresia_cursos")
             .select(
-              "curso_id, membresia:membresias(id, estado, es_prueba, clases_plan, clases_hechas, alumno:alumnos(contacto:contactos(nombre, apellido)))"
+              "curso_id, membresia:membresias(id, estado, clases_plan, clases_hechas, fecha_inicio, fecha_fin, plan:planes(nombre), alumno:alumnos(contacto:contactos(nombre, apellido)))"
             )
             .in("curso_id", cursoIds),
           "las membresías de sus cursos"
         ) as unknown as {
           curso_id: number;
           membresia: {
-            id: number; estado: string; es_prueba: boolean; clases_plan: number | null; clases_hechas: number;
+            id: number; estado: string; clases_plan: number | null; clases_hechas: number;
+            fecha_inicio: string | null; fecha_fin: string | null; plan: { nombre: string } | null;
             alumno: { contacto: Persona } | null;
           } | null;
         }[])
       : [];
-    const membresiasQueQuedan = mcs.flatMap((r) => {
+    const regulares = new Map<number, MembresiaInconclusa>();
+    for (const r of mcs) {
       const m = r.membresia;
-      if (!m || m.estado !== "activa" || m.es_prueba || m.clases_plan == null || m.clases_hechas >= m.clases_plan)
-        return [];
-      return [{
-        id: m.id, alumno: nombreDe(m.alumno?.contacto ?? null), curso: nombreCurso.get(r.curso_id) ?? `#${r.curso_id}`,
-        hechas: m.clases_hechas, plan: m.clases_plan,
-      }];
-    });
+      if (!m || m.estado !== "activa") continue;
+      if (m.clases_plan != null && m.clases_hechas >= m.clases_plan) continue; // agotada: no queda inconclusa
+      const curso = nombreCurso.get(r.curso_id) ?? `#${r.curso_id}`;
+      const ya = regulares.get(m.id);
+      if (ya) {
+        if (!ya.detalle.split(", ").includes(curso)) ya.detalle += `, ${curso}`;
+        continue;
+      }
+      regulares.set(m.id, {
+        membresiaId: m.id,
+        alumno: nombreDe(m.alumno?.contacto ?? null),
+        tipo: "regular",
+        detalle: curso,
+        plan: m.plan?.nombre ?? "—",
+        inicio: m.fecha_inicio,
+        fin: m.fecha_fin,
+        hechas: m.clases_hechas,
+        total: m.clases_plan,
+        unidad: "clases",
+        estado: m.estado,
+        saldo: Math.round((saldoDe[m.id] ?? 0) * 100) / 100,
+      });
+    }
+    const particularesInconclusas: MembresiaInconclusa[] = (datosPart?.membresias ?? [])
+      .filter((m) => m.profesor_id === profesorId && !m.es_cortesia)
+      .flatMap((m) => {
+        const reservasM = datosPart!.reservas.filter((r) => r.membresia_id === m.id);
+        const saldo = datosPart!.saldo[m.id] ?? 0;
+        if (situacionParticular(m, reservasM, saldo, hoyISO).completa) return [];
+        return [{
+          membresiaId: m.id,
+          alumno: m.alumno,
+          tipo: "particular" as const,
+          detalle: "Clase particular",
+          plan: "Clase particular",
+          inicio: m.fecha_inicio ?? null,
+          fin: m.fecha_fin,
+          hechas: horasDadas(reservasM),
+          total: m.horas_contratadas,
+          unidad: "horas" as const,
+          estado: "activa",
+          saldo: Math.round(saldo * 100) / 100,
+        }];
+      });
+    const inconclusas = [...regulares.values(), ...particularesInconclusas];
 
     return {
       ok: true,
@@ -177,7 +220,7 @@ export async function leerEntradaRetiro(
         reservasFuturas: res.map((r) => ({
           id: r.id, fecha: r.fecha, alumno: nombreDe(r.membresia?.alumno?.contacto ?? null),
         })),
-        membresiasQueQuedan,
+        inconclusas,
       },
     };
   } catch (e) {

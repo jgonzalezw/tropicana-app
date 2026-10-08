@@ -28,7 +28,7 @@ function entrada(o: Partial<EntradaRetiro> = {}): EntradaRetiro {
     sustitutos: {},
     regular: { pendientes: [regular()], bloqueadas: [] },
     particulares: { pendientes: [particular()], bloqueadas: [] },
-    descuentos: [], saldoPrevio: 0, posteriores: [], reservasFuturas: [], membresiasQueQuedan: [],
+    descuentos: [], saldoPrevio: 0, posteriores: [], reservasFuturas: [], inconclusas: [],
     ...o,
   };
 }
@@ -91,6 +91,20 @@ test("un sustituto igual al profesor o una fecha anterior al inicio traban", () 
 test("un inactivo sin asignaciones abiertas no se retira de nuevo; con asignaciones abiertas sí", () => {
   assert.equal(armarRetiro(entrada({ activo: false, asignaciones: [] })).puedeConfirmar, false);
   assert.equal(armarRetiro(entrada({ activo: false })).puedeConfirmar, true);
+});
+
+test("las inconclusas salen una por membresía, por alumno, y se avisan", () => {
+  const base = { tipo: "regular" as const, detalle: "Salsa", plan: "Plan", inicio: "2026-10-01", fin: "2026-10-29", unidad: "clases" as const, estado: "activa", saldo: 0 };
+  const v = armarRetiro(
+    entrada({
+      inconclusas: [
+        { ...base, membresiaId: 2, alumno: "Zárate, Ana", hechas: 2, total: 8 },
+        { ...base, membresiaId: 1, alumno: "Álvarez, Bo", hechas: 3, total: null },
+      ],
+    })
+  );
+  assert.deepEqual(v.inconclusas.map((m) => m.membresiaId), [1, 2]);
+  assert.ok(v.avisos.some((a) => /^2 membresía/.test(a)));
 });
 
 test("los descuentos por reemplazo se avisan y no entran al cierre", () => {
