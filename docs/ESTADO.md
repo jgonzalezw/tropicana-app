@@ -364,7 +364,7 @@ Cierra I-009; **solo dev, sin migración**. Rama `fix/i-009` (sale de `fix/i-001
 
 ## I-005 — Retiro del profesor y pre-liquidación simulada (2026-10-07)
 
-D34 (`docs/decisiones/vigentes.md`) y D29 activada. **Migración 0063 aplicada solo en dev (2026-10-07); producción sin tocar.**
+D34 (`docs/decisiones/vigentes.md`) y D29 activada. **Migración 0063 aplicada en dev (2026-10-07) y en producción (2026-10-08).**
 
 - **Pre-liquidación simulada (D29):** botón «Simular cierre del período» en Liquidaciones → `/liquidaciones/pre-liquidacion?modo=simulacion`. El período en curso sale de `periodicidad_liquidacion` (`rangoEnCurso`: mes o semana). Capa pura `simulacion.ts`: las activas con fin dentro del período y saldo 0 pasan a completadas, las clases y reservas futuras cuentan como dadas; el motor no se tocó. Rótulo «Simulación al <fecha>» y los 3 límites, también en el impreso.
 - **Cierre de particulares:** `calcularDevengosParticulares` acepta `cierre` (avance de horas al corte, solo positivo, tipo `cierre`).
