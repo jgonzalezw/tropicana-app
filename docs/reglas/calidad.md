@@ -114,7 +114,15 @@
     Asistencia contaba clases dictadas, y los criterios tenían cuatro
     catálogos distintos. Javier: "todos los cálculos de liquidación deben ser
     realizados por un solo proceso estandarizado, independientemente del
-    flujo."*
+    flujo."* **Vale también para lo que se muestra:** toda exposición de
+    liquidación (retiro, pre-liquidación, simulación, Liquidaciones,
+    comprobante) usa la misma línea (`lineas.ts`), el mismo formateador
+    (`formatoLiquidacion.ts`) y las mismas tablas (`TablasLineas.tsx`,
+    `imprimirLineas.ts`); el flujo solo elige columnas y rótulos. Lo que no
+    entra al cálculo (regla 17, falta un plan, un cobro) se muestra arriba, en
+    «Hay que resolver», nunca al final ni escondido. *Costó L-01 (2026-10-08):
+    el retiro no mostraba las multicurso ya liquidadas que la liquidación del
+    período sí mostraba, y las excepciones quedaban fuera de vista.*
 
 ## 5. Controles
 

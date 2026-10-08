@@ -1,11 +1,13 @@
 /**
- * Cómo se dicen las cifras de la vista del retiro, en pantalla y en el impreso:
- * un solo lugar para que las dos hablen igual. Sin DOM.
+ * Cómo se dicen las cifras de una liquidación (retiro, pre-liquidación, simulación,
+ * Liquidaciones, comprobante), en pantalla y en el impreso: un solo lugar para que
+ * todas hablen igual (calidad 10). Sin DOM.
  */
 
 import { gs } from "../inscripcion.ts";
 import { fechaCorta } from "./formatoPre.ts";
-import type { InconclusaVista, LineaParticular, LineaRegular } from "./retiro.ts";
+import type { LineaParticular, LineaRegular } from "./lineas.ts";
+import type { InconclusaVista } from "./retiro.ts";
 
 /** Un monto, o «—» si es cero (la tabla se lee mejor sin ceros). */
 export const montoOGuion = (n: number): string => (Math.abs(n) < 0.005 ? "—" : gs(n));
@@ -49,3 +51,7 @@ export function textoBonoGenerado(m: Pick<InconclusaVista, "bonoGenerado" | "bon
   if (m.bonoGenerado <= 0) return "—";
   return m.bonoVence ? `${m.bonoGenerado} · hasta ${fechaCorta(m.bonoVence)}` : String(m.bonoGenerado);
 }
+
+/** «60% de la venta · 2 cursos», o vacío si la membresía es de un solo curso. */
+export const textoReparto = (l: Pick<LineaRegular, "reparto">): string =>
+  l.reparto ? `${l.reparto.pct}% de la venta · ${l.reparto.cursos} cursos` : "";

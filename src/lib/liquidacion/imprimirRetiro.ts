@@ -13,25 +13,10 @@
 
 import { gs } from "../inscripcion.ts";
 import { fechaCorta, fechaHora } from "./formatoPre.ts";
-import { leyendaCriterios, siglaCriterio } from "./criterios.ts";
-import {
-  avanceEnDosLineas, cantidad, montoOGuion, textoBonoAplicado, textoBonoGenerado, textoCiclo, textoYaLiquidado,
-} from "./formatoRetiro.ts";
+import { siglaCriterio } from "./criterios.ts";
+import { avanceEnDosLineas, montoOGuion, textoBonoAplicado, textoBonoGenerado } from "./formatoLiquidacion.ts";
+import { ESTILO_TABLAS, esc, leyenda, sub, tablaParticularesHTML, tablaRegularesHTML } from "./imprimirLineas.ts";
 import type { VistaRetiro } from "./retiro.ts";
-
-const esc = (s: string | number | null | undefined) =>
-  String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
-
-const sub = (t: string, nw = false) => `<br><span class="small muted${nw ? " nw" : ""}">${esc(t)}</span>`;
-
-/** Las cuatro celdas de la cuenta del alumno, iguales en toda tabla. */
-const celdasCuenta = (c: { precio: number; descuento: number; pagado: number; saldo: number }) =>
-  `<td class="r">${gs(c.precio)}</td><td class="r">${montoOGuion(c.descuento)}</td><td class="r">${gs(c.pagado)}</td><td class="r">${montoOGuion(c.saldo)}</td>`;
-
-const leyenda = (criterios: (number | null)[]) => {
-  const t = leyendaCriterios(criterios);
-  return t ? `<p class="small muted">${esc(t)}</p>` : "";
-};
 
 export function construirHTMLRetiro(
   v: VistaRetiro,
@@ -59,27 +44,11 @@ export function construirHTMLRetiro(
   const t = v.totales;
 
   const regulares = v.regulares.length
-    ? `<table class="t g"><thead>
-        <tr class="grupo"><th></th><th colspan="4" class="c">Cuenta del alumno</th><th colspan="7" class="c">Liquidación</th></tr>
-        <tr><th>Alumno</th><th class="r">Precio</th><th class="r">Desc.</th><th class="r">Pagado</th><th class="r">Saldo</th><th>Clases</th><th>Bono</th><th class="r">Base</th><th class="r">%</th><th class="r">A la fecha</th><th class="r">Ya liquidado</th><th class="r">Este cierre</th></tr>
-      </thead><tbody>${v.regulares
-        .map(
-          (l) =>
-            `<tr><td>${esc(l.alumno)}${sub(`${l.curso} · ${siglaCriterio(l.criterio)} · ${textoCiclo(l.inicio, l.fin)}`, true)}</td>${celdasCuenta(l.cuenta)}<td>${l.clases}/${l.clasesDelCurso}</td><td>${textoBonoAplicado(l.bonoAplicado)}</td><td class="r">${gs(l.base)}</td><td class="r">${l.pct}%</td><td class="r">${gs(l.aLaFecha)}</td><td class="r">${textoYaLiquidado(l)}</td><td class="r b">${gs(l.monto)}</td></tr>`
-        )
-        .join("")}</tbody></table>${leyenda(v.regulares.map((l) => l.criterio))}`
+    ? tablaRegularesHTML(v.regulares, { etiquetaMonto: "Este cierre" })
     : `<p class="small">Nada que devengar por cursos regulares.</p>`;
 
   const particulares = v.particulares.length
-    ? `<table class="t g"><thead>
-        <tr class="grupo"><th></th><th colspan="4" class="c">Cuenta del alumno</th><th colspan="5" class="c">Liquidación</th></tr>
-        <tr><th>Alumno</th><th class="r">Precio</th><th class="r">Desc.</th><th class="r">Pagado</th><th class="r">Saldo</th><th>Horas</th><th>Forma de pago</th><th class="r">A la fecha</th><th class="r">Ya liquidado</th><th class="r">Este cierre</th></tr>
-      </thead><tbody>${v.particulares
-        .map(
-          (l) =>
-            `<tr><td>${esc(l.alumno)}${sub(`Clase particular · ${siglaCriterio(l.criterio)} · ${textoCiclo(l.inicio, l.fin)}`, true)}</td>${celdasCuenta(l.cuenta)}<td class="nw">${cantidad(l.horasDadas)} de ${cantidad(l.horasContratadas)} h</td><td>${esc(l.forma.replace("_", " "))}</td><td class="r">${gs(l.aLaFecha)}</td><td class="r">${textoYaLiquidado(l)}</td><td class="r b">${gs(l.monto)}</td></tr>`
-        )
-        .join("")}</tbody></table>${leyenda(v.particulares.map((l) => l.criterio))}`
+    ? tablaParticularesHTML(v.particulares, { etiquetaMonto: "Este cierre" })
     : `<p class="small">Nada que devengar por clases particulares.</p>`;
 
   const inconclusas = v.inconclusas.length
@@ -118,14 +87,9 @@ export function construirHTMLRetiro(
   body { font: 12px/1.4 "Figtree", system-ui, Arial, sans-serif; color: #111; background: #fff; margin: 0; }
   h1, h2, h3 { font-family: "Montserrat", system-ui, Arial, sans-serif; font-weight: 800; margin: 0 0 6px; }
   h1 { font-size: 24px; } h2 { font-size: 16px; margin-top: 16px; } h3 { font-size: 13px; margin-top: 10px; }
-  .nw { white-space: nowrap; } .muted { color: #444; } .small { font-size: 10.5px; } .b { font-weight: 700; } .r { text-align: right; } .c { text-align: center; }
   .caja { border: 2px solid #111; padding: 8px 10px; margin: 10px 0; font-weight: 700; }
   .aviso { border: 1.5px dashed #111; padding: 8px 10px; margin: 8px 0; }
-  .t { width: 100%; border-collapse: collapse; margin: 6px 0; }
-  .t th { text-align: left; font-size: 9.5px; text-transform: uppercase; letter-spacing: .05em; border-bottom: 1.5px solid #111; padding: 3px 4px; }
-  .t tr.grupo th { border-bottom: 1px solid #888; font-size: 8.5px; color: #444; }
-  .t td { border-top: 1px solid #bbb; padding: 4px; vertical-align: top; }
-  .t.g { font-size: 10.5px; } .t th.r, .t td.r { text-align: right; } .t th.c { text-align: center; }
+  ${ESTILO_TABLAS}
   .tot { width: 40%; margin-left: auto; border-collapse: collapse; }
   .tot td { padding: 3px 4px; } .tot td:last-child { text-align: right; }
   .tot .fin td { border-top: 1.5px solid #111; font-weight: 800; font-size: 14px; }
@@ -150,7 +114,7 @@ export function construirHTMLRetiro(
       <tr><td>Cierre de cuentas (regulares)</td><td>${gs(t.regulares)}</td></tr>
       <tr><td>Cierre de cuentas (particulares)</td><td>${gs(t.particulares)}</td></tr>
       <tr><td class="b">Cierre que se devenga ahora</td><td class="b">${gs(t.cierre)}</td></tr>
-      <tr><td>Saldo previo sin pagar</td><td>${gs(t.saldoPrevio)}</td></tr>
+      <tr><td>Saldo previo sin pagar${t.saldoDesglose.liquidaciones.length ? ` (N° ${t.saldoDesglose.liquidaciones.join(", ")})` : ""}</td><td>${gs(t.saldoPrevio)}</td></tr>
       <tr class="fin"><td>Total a pagarle</td><td>${gs(t.aPagar)}</td></tr>
     </table>
   </section>`
@@ -160,11 +124,6 @@ export function construirHTMLRetiro(
     <p class="small muted">Una línea por membresía. Siguen con el sustituto o sin titular, según lo elegido; lo que se cobre o dicte después se liquida como ajuste (regla 16).</p>
     ${inconclusas}
   </section>
-  ${
-    v.quedanAfuera.length
-      ? `<section><h2>Quedan afuera del cierre</h2>${lista(v.quedanAfuera.map((x) => x.texto))}</section>`
-      : ""
-  }
   ${avisos.length ? `<section><h2>A tener en cuenta</h2>${lista(avisos)}</section>` : ""}
   </body></html>`;
 }

@@ -5,14 +5,16 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { tienePermiso, obtenerParametro, obtenerPerfilActual, alcanceDe, obtenerProfesorActual } from "@/lib/sesion";
 import { imputarPago } from "@/lib/liquidacion/cuenta";
-import { primerDiaMesVencidoISO, finMesVencidoISO, rangoLiquidable, primerDiaMesDe } from "@/lib/liquidacion/periodo";
+import { isoHoy, rangoLiquidable, primerDiaMesDe } from "@/lib/liquidacion/periodo";
 import {
   calcularDescuentos,
-  calcularPendientes,
-  calcularPendientesParticulares,
+  calcularLiquidacion,
   leerDatosMotor,
 } from "@/lib/liquidacion/lecturas";
-import { calcularDevengos, type MembresiaBloqueada } from "@/lib/liquidacion/motor";
+import { type MembresiaBloqueada } from "@/lib/liquidacion/motor";
+import { liquidar, SIN_LIMITE } from "@/lib/liquidacion/liquidar";
+import { armarLineas, type ContextoLineas, type LineaParticular, type LineaRegular } from "@/lib/liquidacion/lineas";
+import { criteriosYCiclos, leerCuentasYBonos, previasDe } from "@/lib/liquidacion/lecturaContexto";
 
 // El cálculo del reparto vive en `@/lib/liquidacion/motor`, sin base de datos,
 // para poder fijarlo con pruebas deterministas. Acá quedan las lecturas.
@@ -83,6 +85,9 @@ export type FilaProfesor = {
   ventasEsperando: number;
   /** Particulares que no se pueden liquidar, con su motivo (calidad 5: se dice, no se esconde). */
   particularesBloqueadas: { alumno: string; motivo: string }[];
+  /** Las líneas estándar que componen el devengado (`lineas.ts`): lo que se inspecciona antes de generar. */
+  regulares: LineaRegular[];
+  particulares: LineaParticular[];
 };
 
 export type FilaLiquidacion = {
@@ -132,9 +137,15 @@ export async function cargarLiquidaciones(): Promise<{
 
   const sb = await createClient();
 
-  const periodoVencido = primerDiaMesVencidoISO();
-  const { pendientes, bloqueadas } = await calcularPendientes(sb, finMesVencidoISO());
-  const particulares = await calcularPendientesParticulares(sb, finMesVencidoISO(), periodoVencido);
+  // El mismo rango que usa `generarLiquidacion`: el parámetro de periodicidad.
+  const rango = rangoLiquidable((await obtenerParametro("periodicidad_liquidacion")) || "mes");
+  if (!rango.ok) throw new Error(rango.error);
+  const periodoVencido = rango.periodoVencido;
+  const calculo = await calcularLiquidacion(sb, {
+    tipo: "vencido", hastaISO: rango.hastaISO, periodoVencido, hoyISO: isoHoy(),
+  });
+  const { pendientes, bloqueadas } = calculo.regular;
+  const particulares = calculo.particulares;
   // `count` son MEMBRESÍAS distintas, no líneas: un curso por profesor y un
   // avance dejan varias líneas de una misma membresía y la columna decía
   // "2 membresías" para una sola.
@@ -157,6 +168,24 @@ export async function cargarLiquidaciones(): Promise<{
       else trabadasPorProf.set(id, [b]);
     }
 
+  // Las líneas estándar de cada profesor: la misma función y los mismos datos
+  // que usan el retiro y la pre-liquidación (calidad 10).
+  const lineasDe = (profesorId: number) =>
+    armarLineas(
+      pendientes.filter((p) => p.profesorId === profesorId && p.tipo !== "ajuste"),
+      particulares.pendientes.filter((p) => p.profesorId === profesorId && p.tipo !== "ajuste"),
+      contexto
+    );
+  const idsLineas = [
+    ...new Set([...pendientes, ...particulares.pendientes].filter((p) => p.tipo !== "ajuste").map((p) => p.membresiaId)),
+  ];
+  const contexto: ContextoLineas = {
+    ...(await leerCuentasYBonos(sb, idsLineas)),
+    ...criteriosYCiclos(calculo.datos.regular, calculo.datos.particulares),
+    previas: previasDe(calculo.datos.regular, calculo.datos.particulares),
+    yaLiquidadas: [],
+  };
+
   const { data: profs } = await sb.from("profesores").select("id, contacto:contactos(nombre, apellido)");
   const profesores: FilaProfesor[] = (
     (profs as unknown as { id: number; contacto: { nombre: string | null; apellido: string | null } | null }[]) ?? []
@@ -171,6 +200,10 @@ export async function cargarLiquidaciones(): Promise<{
       particularesBloqueadas: particulares.bloqueadas
         .filter((b) => b.profesorId === p.id)
         .map((b) => ({ alumno: b.alumno, motivo: b.motivo })),
+      ...(() => {
+        const l = lineasDe(p.id);
+        return { regulares: l.regulares, particulares: l.particulares };
+      })(),
     }))
     .filter((p) => p.pendienteCount > 0 || p.ventasEsperando > 0 || p.particularesBloqueadas.length > 0)
     .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
@@ -295,9 +328,10 @@ export async function generarLiquidacion(profesorId: number): Promise<{ ok?: tru
   if (!rango.ok) return { error: rango.error };
   const { periodicidad, periodoVencido: periodo, hastaISO } = rango;
 
-  const calculo = await calcularPendientes(sb, hastaISO);
+  const todo = await calcularLiquidacion(sb, { tipo: "vencido", hastaISO, periodoVencido: periodo, hoyISO: isoHoy() });
+  const calculo = todo.regular;
   const pendientes = calculo.pendientes.filter((p) => p.profesorId === profesorId);
-  const calculoP = await calcularPendientesParticulares(sb, hastaISO, periodo);
+  const calculoP = todo.particulares;
   const pendientesP = calculoP.pendientes.filter((p) => p.profesorId === profesorId);
 
   // Regla 17 revisada: las membresías con prorrateo y clases sin registrar ya
@@ -560,12 +594,12 @@ export async function cierreDeCuentas(
   const sb = await createClient();
   const periodicidad = "mes";
 
-  const datos = await leerDatosMotor(sb, "9999-12-31");
+  const datos = await leerDatosMotor(sb, SIN_LIMITE);
   if (!datos) return { lineas: [], total: 0, sinRegistrar: [] };
-  const calculo = calcularDevengos(datos, "9999-12-31", { profesorId, corte });
   // Si se desasigna de UN curso, el cierre es solo de ese curso.
-  const pendientes = calculo.pendientes.filter((p) => cursoId == null || p.cursoId === cursoId);
-  const bloqueadas = calculo.bloqueadas.filter((b) => cursoId == null || b.cursos.some((c) => c.cursoId === cursoId));
+  const calculo = liquidar({ regular: datos, particulares: null }, { tipo: "curso", profesorId, cursoId: cursoId ?? null, corte }).regular;
+  const pendientes = calculo.pendientes;
+  const bloqueadas = calculo.bloqueadas;
   const lineas = pendientes.map((p) => ({
     membresiaId: p.membresiaId, alumno: p.alumno, curso: p.curso, clases: p.clases,
     clasesDelCurso: p.clasesDelCurso, base: p.base, monto: p.monto,

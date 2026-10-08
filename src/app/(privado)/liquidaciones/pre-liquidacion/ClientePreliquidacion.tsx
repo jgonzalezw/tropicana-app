@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { gs } from "@/lib/inscripcion";
 import type { ResultadoPre } from "@/lib/liquidacion/lecturaPre";
-import type { ClaseSinRegistrar, InformePre, LineaPre, ProfesorPre } from "@/lib/liquidacion/preliquidacion";
+import { TablaParticulares, TablaRegulares } from "@/components/liquidacion/TablasLineas";
+import type { ClaseSinRegistrar, InformePre, ProfesorPre } from "@/lib/liquidacion/preliquidacion";
 import { construirHTMLPreliquidacion } from "@/lib/liquidacion/imprimirPre";
 import {
   conSigno,
@@ -18,7 +19,6 @@ import {
   subtituloPre,
   tituloPre,
 } from "@/lib/liquidacion/formatoPre";
-import { siglaCriterio, textoCriterio } from "@/lib/liquidacion/criterios";
 
 const BOTON_SECUNDARIO =
   "inline-flex items-center justify-center min-h-[44px] px-5 text-base font-semibold rounded-[var(--radio-control)] border border-[var(--borde)] hover:border-[var(--primario)]";
@@ -177,6 +177,8 @@ function Informe({ informe, periodo }: { informe: InformePre; periodo: string })
         </div>
       )}
 
+      <Excepciones informe={informe} aResolver />
+
       {/* Resumen */}
       <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]">
         <Cifra etiqueta="Total a devengar" valor={gs(r.total)} nota={`Comisiones ${gs(r.comisiones)} · reemplazos y ajustes ${conSigno(r.extras)}`} />
@@ -195,7 +197,7 @@ function Informe({ informe, periodo }: { informe: InformePre; periodo: string })
       )}
 
       <Profesores profesores={informe.profesores} periodo={periodo} />
-      <Excepciones informe={informe} />
+      <Excepciones informe={informe} aResolver={false} />
       <Clases informe={informe} />
     </>
   );
@@ -284,68 +286,22 @@ function Profesores({ profesores, periodo }: { profesores: ProfesorPre[]; period
   );
 }
 
-function CriterioPill({ criterio }: { criterio: number }) {
-  return (
-    <span
-      title={textoCriterio(criterio)}
-      className="inline-block px-2 py-0.5 text-xs font-bold rounded-[var(--radio-control)] bg-[var(--exito-fill)] text-[var(--exito-texto)]"
-    >
-      {siglaCriterio(criterio)}
-    </span>
-  );
-}
-
 function DetalleProfesor({ p }: { p: ProfesorPre }) {
   return (
     <div className="px-5 pb-5">
-      {/* Escritorio: tabla de diez columnas */}
-      <div className="hidden min-[960px]:block overflow-x-auto">
-        <table className="w-full text-[14px] border-collapse">
-          <thead>
-            <tr className="text-left text-xs uppercase tracking-[0.06em] text-[var(--texto-tenue)]">
-              {["Alumno", "Curso(s)", "Plan", "Crit.", "Ciclo", "Clases", "Cobrado", "Base", "%", "Comisión"].map((h, i) => (
-                <th key={h} className={`px-1.5 py-2 font-semibold ${i >= 5 ? "text-right" : ""}`}>
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {p.lineas.map((l, i) => (
-              <tr key={`${l.membresiaId}-${i}`} className="border-t border-[var(--borde)] align-top">
-                <td className="px-1.5 py-2">{l.alumno}</td>
-                <td className="px-1.5 py-2">{l.curso}</td>
-                <td className="px-1.5 py-2">{l.plan}</td>
-                <td className="px-1.5 py-2">
-                  <CriterioPill criterio={l.criterio} />
-                </td>
-                <td className="px-1.5 py-2 text-[13px]">
-                  {fechaCorta(l.cicloInicio)}
-                  <br />
-                  {fechaCorta(l.cicloFin)}
-                </td>
-                <td className="px-1.5 py-2 text-right tabular-nums">{l.clases}</td>
-                <td className="px-1.5 py-2 text-right tabular-nums">{gs(l.cobrado)}</td>
-                <td className="px-1.5 py-2 text-right tabular-nums max-w-[110px]">
-                  {gs(l.base)}
-                  {l.notaBase && <div className="text-xs text-[var(--texto-tenue)]">{l.notaBase}</div>}
-                </td>
-                <td className="px-1.5 py-2 text-right tabular-nums">{l.pct == null ? "—" : `${l.pct}%`}</td>
-                <td className="px-1.5 py-2 text-right tabular-nums font-bold">{gs(l.comision)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Celular: tarjetas */}
-      <div className="min-[960px]:hidden flex flex-col gap-2">
-        {p.lineas.map((l, i) => (
-          <TarjetaLinea key={`${l.membresiaId}-${i}`} l={l} />
-        ))}
-      </div>
-
-      {p.lineas.length === 0 && (
+      {p.regulares.length > 0 && (
+        <>
+          <h3 className="text-base font-semibold mt-1">Cursos regulares</h3>
+          <TablaRegulares lineas={p.regulares} etiquetaMonto="Este período" />
+        </>
+      )}
+      {p.particulares.length > 0 && (
+        <>
+          <h3 className="text-base font-semibold mt-4">Clases particulares</h3>
+          <TablaParticulares lineas={p.particulares} etiquetaMonto="Este período" />
+        </>
+      )}
+      {p.regulares.length === 0 && p.particulares.length === 0 && (
         <p className="text-base text-[var(--texto-tenue)]">Sin comisiones en este período.</p>
       )}
 
@@ -397,54 +353,28 @@ function Fila({ texto, monto }: { texto: string; monto: string }) {
   );
 }
 
-function TarjetaLinea({ l }: { l: LineaPre }) {
-  return (
-    <div className="rounded-[20px] bg-[var(--fondo-elevado)] p-4">
-      <div className="flex justify-between gap-3">
-        <span className="font-semibold">{l.alumno}</span>
-        <span className="font-bold tabular-nums">{gs(l.comision)}</span>
-      </div>
-      <div className="text-sm text-[var(--texto-tenue)]">
-        {l.curso} · {l.plan}
-      </div>
-      <div className="flex items-center gap-2 flex-wrap mt-1 text-sm">
-        <CriterioPill criterio={l.criterio} />
-        <span>
-          {fechaCorta(l.cicloInicio)} – {fechaCorta(l.cicloFin)}
-        </span>
-        <span>· {l.clases} clases</span>
-      </div>
-      <div className="grid grid-cols-3 gap-2 mt-2 text-[13px] whitespace-nowrap">
-        <div>
-          <div className="text-[var(--texto-tenue)] text-xs">Cobrado</div>
-          {gs(l.cobrado)}
-        </div>
-        <div>
-          <div className="text-[var(--texto-tenue)] text-xs">Base</div>
-          {gs(l.base)}
-          {l.notaBase && <div className="text-xs text-[var(--texto-tenue)]">{l.notaBase}</div>}
-        </div>
-        <div>
-          <div className="text-[var(--texto-tenue)] text-xs">%</div>
-          {l.pct == null ? "—" : `${l.pct}%`}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ── Excepciones ──────────────────────────────────────────────────────────
 
-function Excepciones({ informe }: { informe: InformePre }) {
+/**
+ * Lo que no entra en esta liquidación. Lo que hay que **resolver** (falta un
+ * plan, un titular, clases por registrar, un cobro) va arriba del informe y solo
+ * si hay casos: una excepción no se esconde al final. Lo que simplemente
+ * **todavía no toca** (el ciclo termina después del corte) va abajo.
+ */
+function Excepciones({ informe, aResolver }: { informe: InformePre; aResolver: boolean }) {
+  const motivos = informe.excepciones.filter((m) => (m.clave !== "ciclo_posterior") === aResolver);
+  if (aResolver && motivos.every((m) => m.casos.length === 0)) return null;
   return (
-    <section className="flex flex-col gap-3">
+    <section className={`flex flex-col gap-3 ${aResolver ? "rounded-[var(--radio-tarjeta)] border border-[var(--peligro)] p-4" : ""}`} role={aResolver ? "alert" : undefined}>
       <div>
-        <h2 className="text-2xl">Excepciones</h2>
+        <h2 className="text-2xl">{aResolver ? "Hay que resolver" : "Todavía no entran"}</h2>
         <p className="text-sm text-[var(--texto-tenue)] mt-1">
-          Lo que no entra en esta liquidación, y por qué. Cada caso lleva a donde se arregla.
+          {aResolver
+            ? "Lo que no entra en esta liquidación hasta que se corrija, y por qué. Cada caso lleva a donde se arregla."
+            : "Membresías cuyo ciclo termina después del corte: entran en el período siguiente."}
         </p>
       </div>
-      {informe.excepciones.map((m) => (
+      {motivos.filter((m) => !aResolver || m.casos.length > 0).map((m) => (
         <div key={m.clave} className="rounded-[22px] bg-[var(--fondo-panel)] border border-[var(--borde)] p-5">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <h3 className="text-[17px] titulo">{m.titulo}</h3>

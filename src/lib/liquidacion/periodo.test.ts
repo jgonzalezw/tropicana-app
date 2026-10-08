@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { rangoEnCurso } from "./periodo.ts";
+import { finDePeriodoISO, rangoEnCurso } from "./periodo.ts";
 
 test("mes: del 1 al último día, también en febrero bisiesto", () => {
   const r = rangoEnCurso("mes", new Date(2028, 1, 10));
@@ -24,4 +24,10 @@ test("un valor desconocido es un error explícito", () => {
   const r = rangoEnCurso("quincena", new Date(2026, 9, 7));
   assert.ok(!r.ok);
   assert.match(r.error, /quincena/);
+});
+
+test("finDePeriodoISO: fin del mes o semana de un período", () => {
+  assert.equal(finDePeriodoISO("2026-09-01", "mes"), "2026-09-30");
+  assert.equal(finDePeriodoISO("2026-02-01", "mes"), "2026-02-28");
+  assert.equal(finDePeriodoISO("2026-09-28", "semana"), "2026-10-04");
 });

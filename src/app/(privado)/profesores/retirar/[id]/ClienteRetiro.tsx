@@ -8,10 +8,11 @@ import type { DatosSustituto } from "@/lib/desasignacion";
 import type { VistaRetiro } from "@/lib/liquidacion/retiro";
 import { construirHTMLRetiro } from "@/lib/liquidacion/imprimirRetiro";
 import { fechaCorta } from "@/lib/liquidacion/formatoPre";
-import { leyendaCriterios, siglaCriterio } from "@/lib/liquidacion/criterios";
+import { siglaCriterio } from "@/lib/liquidacion/criterios";
 import {
-  avanceEnDosLineas, cantidad, montoOGuion, textoBonoAplicado, textoBonoGenerado, textoCiclo, textoYaLiquidado,
-} from "@/lib/liquidacion/formatoRetiro";
+  avanceEnDosLineas, montoOGuion, textoBonoAplicado, textoBonoGenerado,
+} from "@/lib/liquidacion/formatoLiquidacion";
+import { Leyenda, TD, TDR, TH, THR, TablaParticulares, TablaRegulares } from "@/components/liquidacion/TablasLineas";
 import { retirarProfesor, vistaRetiro } from "../../acciones";
 
 export type CursoRetiro = { asignacionId: number; cursoId: number; curso: string; desde: string };
@@ -26,16 +27,6 @@ const CAMPO =
 
 type Eleccion = { profesorId: number | null; pct: string };
 
-const TH = "py-2 pr-2 font-medium";
-const THR = `${TH} text-right`;
-const TD = "py-2 pr-2";
-const TDR = `${TD} text-right tabular-nums whitespace-nowrap`;
-
-/** Las siglas que aparecen en una tabla, explicadas debajo. */
-function Leyenda({ criterios }: { criterios: (number | null)[] }) {
-  const t = leyendaCriterios(criterios);
-  return t ? <p className="mt-2 text-sm text-[var(--texto-tenue)]">{t}</p> : null;
-}
 
 /** Esconde solo la liquidación del que se retira; el resto sirve al profesor nuevo. */
 function InterruptorLiquidacion({ valor, onChange }: { valor: boolean; onChange: (v: boolean) => void }) {
@@ -338,110 +329,14 @@ export default function ClienteRetiro({
             {vista.regulares.length === 0 ? (
               <p className="text-base text-[var(--texto-tenue)]">Nada que devengar por cursos regulares.</p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-base">
-                  <thead>
-                    <tr className="text-center text-xs text-[var(--texto-tenue)]">
-                      <th />
-                      <th colSpan={4} className="font-medium">Cuenta del alumno</th>
-                      <th colSpan={7} className="font-medium">Liquidación</th>
-                    </tr>
-                    <tr className="text-left text-sm text-[var(--texto-tenue)]">
-                      <th className={TH}>Alumno</th>
-                      <th className={THR}>Precio</th>
-                      <th className={THR}>Desc.</th>
-                      <th className={THR}>Pagado</th>
-                      <th className={THR}>Saldo</th>
-                      <th className={TH}>Clases</th>
-                      <th className={TH}>Bono</th>
-                      <th className={THR}>Base</th>
-                      <th className={THR}>%</th>
-                      <th className={THR}>A la fecha</th>
-                      <th className={THR}>Ya liquidado</th>
-                      <th className="py-2 font-medium text-right">Este cierre</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {vista.regulares.map((l) => (
-                      <tr key={`${l.membresiaId}-${l.curso}`} className="border-t border-[var(--borde)] align-top">
-                        <td className={TD}>
-                          {l.alumno}
-                          <div className="text-[11px] text-[var(--texto-tenue)] whitespace-nowrap">
-                            {l.curso} · {siglaCriterio(l.criterio)} · {textoCiclo(l.inicio, l.fin)}
-                          </div>
-                        </td>
-                        <td className={TDR}>{gs(l.cuenta.precio)}</td>
-                        <td className={TDR}>{montoOGuion(l.cuenta.descuento)}</td>
-                        <td className={TDR}>{gs(l.cuenta.pagado)}</td>
-                        <td className={TDR}>{montoOGuion(l.cuenta.saldo)}</td>
-                        <td className={`${TD} tabular-nums`}>
-                          {l.clases}/{l.clasesDelCurso}
-                        </td>
-                        <td className={`${TD} tabular-nums`}>{textoBonoAplicado(l.bonoAplicado)}</td>
-                        <td className={TDR}>{gs(l.base)}</td>
-                        <td className={TDR}>{l.pct}%</td>
-                        <td className={TDR}>{gs(l.aLaFecha)}</td>
-                        <td className={TDR}>{textoYaLiquidado(l)}</td>
-                        <td className="py-2 text-right tabular-nums whitespace-nowrap font-semibold">{gs(l.monto)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <Leyenda criterios={vista.regulares.map((l) => l.criterio)} />
-              </div>
+              <TablaRegulares lineas={vista.regulares} etiquetaMonto="Este cierre" />
             )}
 
             <h3 className="text-base font-semibold mt-5">Clases particulares</h3>
             {vista.particulares.length === 0 ? (
               <p className="text-base text-[var(--texto-tenue)]">Nada que devengar por clases particulares.</p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-base">
-                  <thead>
-                    <tr className="text-center text-xs text-[var(--texto-tenue)]">
-                      <th />
-                      <th colSpan={4} className="font-medium">Cuenta del alumno</th>
-                      <th colSpan={5} className="font-medium">Liquidación</th>
-                    </tr>
-                    <tr className="text-left text-sm text-[var(--texto-tenue)]">
-                      <th className={TH}>Alumno</th>
-                      <th className={THR}>Precio</th>
-                      <th className={THR}>Desc.</th>
-                      <th className={THR}>Pagado</th>
-                      <th className={THR}>Saldo</th>
-                      <th className={TH}>Horas</th>
-                      <th className={TH}>Forma de pago</th>
-                      <th className={THR}>A la fecha</th>
-                      <th className={THR}>Ya liquidado</th>
-                      <th className="py-2 font-medium text-right">Este cierre</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {vista.particulares.map((l) => (
-                      <tr key={l.membresiaId} className="border-t border-[var(--borde)] align-top">
-                        <td className={TD}>
-                          {l.alumno}
-                          <div className="text-[11px] text-[var(--texto-tenue)] whitespace-nowrap">
-                            Clase particular · {siglaCriterio(l.criterio)} · {textoCiclo(l.inicio, l.fin)}
-                          </div>
-                        </td>
-                        <td className={TDR}>{gs(l.cuenta.precio)}</td>
-                        <td className={TDR}>{montoOGuion(l.cuenta.descuento)}</td>
-                        <td className={TDR}>{gs(l.cuenta.pagado)}</td>
-                        <td className={TDR}>{montoOGuion(l.cuenta.saldo)}</td>
-                        <td className={`${TD} tabular-nums whitespace-nowrap`}>
-                          {cantidad(l.horasDadas)} de {cantidad(l.horasContratadas)} h
-                        </td>
-                        <td className={TD}>{l.forma.replace("_", " ")}</td>
-                        <td className={TDR}>{gs(l.aLaFecha)}</td>
-                        <td className={TDR}>{textoYaLiquidado(l)}</td>
-                        <td className="py-2 text-right tabular-nums whitespace-nowrap font-semibold">{gs(l.monto)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <Leyenda criterios={vista.particulares.map((l) => l.criterio)} />
-              </div>
+              <TablaParticulares lineas={vista.particulares} etiquetaMonto="Este cierre" />
             )}
 
             <dl className="mt-5 grid grid-cols-[1fr_auto] gap-x-6 gap-y-1 max-w-md text-base">
@@ -451,7 +346,12 @@ export default function ClienteRetiro({
               <dd className="text-right tabular-nums">{gs(vista.totales.particulares)}</dd>
               <dt className="font-semibold">Cierre que se devenga ahora</dt>
               <dd className="text-right tabular-nums font-semibold">{gs(vista.totales.cierre)}</dd>
-              <dt>Saldo previo sin pagar</dt>
+              <dt>
+                Saldo previo sin pagar
+                {vista.totales.saldoDesglose.liquidaciones.length > 0 && (
+                  <span className="text-sm text-[var(--texto-tenue)]"> · N° {vista.totales.saldoDesglose.liquidaciones.join(", ")}</span>
+                )}
+              </dt>
               <dd className="text-right tabular-nums">{gs(vista.totales.saldoPrevio)}</dd>
               <dt className="text-lg font-bold border-t border-[var(--borde)] pt-2">Total a pagarle</dt>
               <dd className="text-lg font-bold text-right tabular-nums border-t border-[var(--borde)] pt-2">
@@ -526,30 +426,6 @@ export default function ClienteRetiro({
               </div>
             )}
           </section>
-
-          {vista.quedanAfuera.length > 0 && (
-            <section>
-              <h2 className="text-xl font-bold mb-1">Quedan afuera del cierre</h2>
-              <p className="text-base text-[var(--texto-tenue)] mb-2">
-                No traban el retiro: se liquidan después, con la liquidación final, cuando se corrija lo que falta.
-              </p>
-              <ul className="flex flex-col gap-2">
-                {vista.quedanAfuera.map((t) => (
-                  <li
-                    key={t.clave}
-                    className="px-4 py-3 rounded-[var(--radio-panel)] bg-[var(--fondo-elevado)] text-base flex flex-wrap items-center justify-between gap-3"
-                  >
-                    <span>{t.texto}</span>
-                    {t.href && (
-                      <Link href={t.href} className={BOTON_SECUNDARIO}>
-                        {t.accion ?? "Resolver"}
-                      </Link>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
 
           {avisosVisibles.length > 0 && (
             <section>
