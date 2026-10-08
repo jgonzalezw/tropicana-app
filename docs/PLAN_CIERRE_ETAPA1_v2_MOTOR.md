@@ -195,7 +195,7 @@ corrimientos, detección de "completada", y el bono que salta a la renovación).
   período (como venía)? El texto del criterio (1) dice "cobrada y completada".
   Necesito tu precisión (impacta cuándo se paga).
 
-## 5. Metodología de release (adoptada — ver `ESTADO.md` §7)
+## 5. Metodología de release (adoptada — ver `docs/archivo/ESTADO-2026-08-09.md`, «Secciones base», §7; lo vigente en `docs/reglas/proceso.md`)
 Dos ambientes: **local** (build + pruebas de Javier) y **producción** (Vercel +
 Supabase, lo usa Natalia). Todo se prueba en local; pasa a producción solo con
 OK explícito. Migraciones: primero en local, y solo tras el OK, Javier las aplica

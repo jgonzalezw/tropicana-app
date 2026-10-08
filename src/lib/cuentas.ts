@@ -449,16 +449,19 @@ export async function lineasPorCobrar(
   sb: ClienteLectura,
   filtro?: { alumnoId?: number }
 ): Promise<LineaPendiente[]> {
-  const { data } = await sb
-    .from("cuotas")
-    .select(
-      "id, membresia_id, monto_devengado, descuento_adelanto, vencimiento, fecha_compromiso, " +
-        "inscripcion:membresias(id, alumno_id, contacto_id, categoria_aplicada, " +
-        "alumno:alumnos(id, contacto:contactos(nombre, apellido)), " +
-        "titular:contactos(id, tipo, nombre, apellido, razon_social), " +
-        "plan:planes(nombre, tipo_servicio), curso:cursos(nombre))"
-    )
-    .neq("estado", "pagada");
+  const data = exigir(
+    await sb
+      .from("cuotas")
+      .select(
+        "id, membresia_id, monto_devengado, descuento_adelanto, vencimiento, fecha_compromiso, " +
+          "inscripcion:membresias(id, alumno_id, contacto_id, categoria_aplicada, " +
+          "alumno:alumnos(id, contacto:contactos(nombre, apellido)), " +
+          "titular:contactos(id, tipo, nombre, apellido, razon_social), " +
+          "plan:planes(nombre, tipo_servicio), curso:cursos(nombre))"
+      )
+      .neq("estado", "pagada"),
+    "las cuotas pendientes"
+  );
 
   type Fila = {
     id: number;
@@ -489,12 +492,15 @@ export async function lineasPorCobrar(
 
   // Lo ya cubierto de cada cuota (plata + descuentos).
   const cubierto: Record<number, number> = {};
-  const { data: pagos } = await sb
-    .from("pagos")
-    .select("cuota_id, monto, descuento")
-    .eq("tipo", "cobro")
-    .in("cuota_id", filas.map((f) => f.id));
-  for (const p of (pagos as { cuota_id: number | null; monto: number; descuento: number }[]) ?? [])
+  const pagos = exigir(
+    await sb
+      .from("pagos")
+      .select("cuota_id, monto, descuento")
+      .eq("tipo", "cobro")
+      .in("cuota_id", filas.map((f) => f.id)),
+    "los cobros de las cuotas"
+  ) as unknown as { cuota_id: number | null; monto: number; descuento: number }[];
+  for (const p of pagos)
     if (p.cuota_id != null) cubierto[p.cuota_id] = (cubierto[p.cuota_id] ?? 0) + num(p.monto) + num(p.descuento);
 
   return filas
@@ -692,21 +698,22 @@ export async function registrarCobro(
  * motivo `otro_pago_profesor` no salda esta línea. *(Javier, 2026-09-18.)*
  */
 export async function lineasPorPagar(sb: ClienteLectura): Promise<LineaPendiente[]> {
-  const { data } = await sb
-    .from("liquidaciones")
-    .select(
-      "id, profesor_id, periodo, total_devengado, total_descuentos, total_pagado, profesor:profesores(id, contacto:contactos(nombre, apellido))"
-    );
-  const filas =
-    (data as unknown as {
-      id: number;
-      profesor_id: number;
-      periodo: string;
-      total_devengado: number;
-      total_descuentos: number | null;
-      total_pagado: number;
-      profesor: { id: number; contacto: { nombre: string | null; apellido: string | null } | null } | null;
-    }[]) ?? [];
+  const filas = exigir(
+    await sb
+      .from("liquidaciones")
+      .select(
+        "id, profesor_id, periodo, total_devengado, total_descuentos, total_pagado, profesor:profesores(id, contacto:contactos(nombre, apellido))"
+      ),
+    "las liquidaciones"
+  ) as unknown as {
+    id: number;
+    profesor_id: number;
+    periodo: string;
+    total_devengado: number;
+    total_descuentos: number | null;
+    total_pagado: number;
+    profesor: { id: number; contacto: { nombre: string | null; apellido: string | null } | null } | null;
+  }[];
 
   const porProfesor = new Map<
     number,
@@ -735,11 +742,11 @@ export async function lineasPorPagar(sb: ClienteLectura): Promise<LineaPendiente
   const porDescontar = await cargarDescuentosPendientes(sb);
   const sinLiquidaciones = [...porDescontar.keys()].filter((id) => !porProfesor.has(id));
   if (sinLiquidaciones.length) {
-    const { data: profs } = await sb
-      .from("profesores")
-      .select("id, contacto:contactos(nombre, apellido)")
-      .in("id", sinLiquidaciones);
-    for (const p of (profs as unknown as { id: number; contacto: { nombre: string | null; apellido: string | null } | null }[]) ?? [])
+    const profs = exigir(
+      await sb.from("profesores").select("id, contacto:contactos(nombre, apellido)").in("id", sinLiquidaciones),
+      "los profesores con descuentos pendientes"
+    ) as unknown as { id: number; contacto: { nombre: string | null; apellido: string | null } | null }[];
+    for (const p of profs)
       porProfesor.set(p.id, {
         nombre: `${p.contacto?.apellido ?? ""}, ${p.contacto?.nombre ?? ""}`,
         saldo: 0,
