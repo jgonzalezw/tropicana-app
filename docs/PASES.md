@@ -397,3 +397,8 @@ producción (0060 y 0061, de H7, desde el 2026-10-02). Cuando algo quede **solo 
     nada. No deja rastro equivocado porque las tres acciones que actualizan
     reservas completan las cuatro columnas en cada update; queda anotado
     para cuando se toque ese trigger (H4).
+
+- **2026-10-07 (noche) — I-001 e I-009** (OK explícito de Javier). **Sin migraciones:** producción sigue en 0001–0062; no hubo SQL ni cambio de datos, así que no hay antes/después ni rollback de datos.
+  - **Código:** PR #15 (`fix/i-009` → `main`), merge `29fb879`, **un solo push**. Vercel: deploy de Producción del commit `29fb879` en estado `success`.
+  - **Qué llega:** mensaje de confirmación de inscripción con recibo por WhatsApp (I-001) y «Clase N de M · quedan K» con la pastilla «Última clase» en Asistencia (I-009).
+  - **Verificado:** `tsc`, `lint` y `npm test` (286) antes del pase; ambos validados por Javier en dev. Pendiente de Javier: ver en producción el chip PROD con `29fb879`.
