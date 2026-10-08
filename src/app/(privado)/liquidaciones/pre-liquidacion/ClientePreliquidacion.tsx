@@ -12,7 +12,10 @@ import {
   fechaCorta,
   fechaHora,
   LEYENDA_PRE,
-  periodoLargo,
+  LEYENDA_SIMULACION,
+  nombrePeriodoPre,
+  subtituloPre,
+  tituloPre,
   TEXTO_CRITERIO,
 } from "@/lib/liquidacion/formatoPre";
 
@@ -55,7 +58,7 @@ export default function ClientePreliquidacion({ resultado }: { resultado: Result
     }, 300);
   }
 
-  const periodo = resultado.ok ? periodoLargo(resultado.informe.periodoVencido) : null;
+  const periodo = resultado.ok ? nombrePeriodoPre(resultado.informe) : null;
 
   return (
     <div className="flex flex-col gap-7">
@@ -73,17 +76,23 @@ export default function ClientePreliquidacion({ resultado }: { resultado: Result
       <div>
         <div className="text-sm text-[var(--texto-tenue)]">Liquidaciones</div>
         <h1 className="text-[28px] sm:text-[38px] mt-1">
-          Pre-liquidación{periodo ? ` · ${periodo}` : ""}
+          {resultado.ok ? tituloPre(resultado.informe) : "Pre-liquidación"}
         </h1>
         {resultado.ok && (
           <p className="text-base text-[var(--texto-tenue)] mt-2">
-            Generado el {fechaHora(resultado.generadoEn)} · Período {fechaCorta(resultado.informe.periodoVencido)} –{" "}
-            {fechaCorta(resultado.informe.hastaISO)}, se liquida a período vencido
+            Generado el {fechaHora(resultado.generadoEn)} · {subtituloPre(resultado.informe)}
           </p>
         )}
         <p className="mt-4 px-5 py-3 rounded-[var(--radio-panel)] bg-[var(--fondo-elevado)] text-base font-bold">
-          {LEYENDA_PRE}
+          {resultado.ok && resultado.informe.simulacion ? LEYENDA_SIMULACION : LEYENDA_PRE}
         </p>
+        {resultado.ok && resultado.informe.simulacion && (
+          <ul className="mt-3 list-disc pl-6 text-base text-[var(--texto-tenue)]">
+            {resultado.informe.simulacion.limites.map((l) => (
+              <li key={l}>{l}</li>
+            ))}
+          </ul>
+        )}
       </div>
 
       {resultado.ok ? <Informe informe={resultado.informe} periodo={periodo!} /> : <Fallo resultado={resultado} onReintentar={() => router.refresh()} />}

@@ -62,7 +62,17 @@ export type LiquidacionExistente = {
   total: number;
 };
 
+/** Rótulo de una pre-liquidación simulada (D29): ausente = el informe real. */
+export type SimulacionInfo = {
+  periodicidad: "mes" | "semana";
+  /** El día en que se corrió la simulación. */
+  alFecha: string;
+  desdeISO: string;
+  limites: string[];
+};
+
 export type EntradaPre = {
+  simulacion?: SimulacionInfo;
   /** Lo que leyó el motor regular, tal cual. */
   datos: DatosMotor;
   periodoVencido: string;
@@ -153,6 +163,7 @@ export type ClaseSinRegistrar = {
 };
 
 export type InformePre = {
+  simulacion?: SimulacionInfo;
   periodoVencido: string;
   hastaISO: string;
   profesores: ProfesorPre[];
@@ -659,6 +670,7 @@ export function armarInforme(e: EntradaPre): InformePre {
   const comisiones = r2(profesores.reduce((a, p) => a + p.subtotal, 0));
   const total = r2(profesores.reduce((a, p) => a + p.neto, 0));
   return {
+    ...(e.simulacion ? { simulacion: e.simulacion } : {}),
     periodoVencido: e.periodoVencido,
     hastaISO: e.hastaISO,
     profesores,

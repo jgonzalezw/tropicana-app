@@ -43,3 +43,34 @@ export const TEXTO_CRITERIO: Record<number, string> = {
 
 export const LEYENDA_PRE =
   "Informe preliminar: no se ha generado ninguna liquidación ni se ha devengado nada.";
+
+type ConPeriodo = {
+  periodoVencido: string;
+  hastaISO: string;
+  simulacion?: { periodicidad: "mes" | "semana"; alFecha: string };
+};
+
+/** El nombre del período del informe: «Septiembre 2026», o el en curso si es simulación. */
+export function nombrePeriodoPre(i: ConPeriodo): string {
+  if (!i.simulacion) return periodoLargo(i.periodoVencido);
+  return i.simulacion.periodicidad === "mes"
+    ? `${periodoLargo(i.periodoVencido)} (en curso)`
+    : `Semana del ${fechaCorta(i.periodoVencido)} al ${fechaCorta(i.hastaISO)}`;
+}
+
+/** Título completo: «Pre-liquidación · …» o «Simulación al <fecha> · …». */
+export function tituloPre(i: ConPeriodo): string {
+  return i.simulacion
+    ? `Simulación al ${fechaCorta(i.simulacion.alFecha)} · ${nombrePeriodoPre(i)}`
+    : `Pre-liquidación · ${nombrePeriodoPre(i)}`;
+}
+
+export const LEYENDA_SIMULACION =
+  "Simulación: proyecta el cierre del período en curso como si ya hubiera terminado. No se ha generado ninguna liquidación ni se ha devengado nada.";
+
+/** La línea de «Período …» bajo el título. */
+export function subtituloPre(i: ConPeriodo): string {
+  return `Período ${fechaCorta(i.periodoVencido)} – ${fechaCorta(i.hastaISO)}, ${
+    i.simulacion ? "proyección del período en curso" : "se liquida a período vencido"
+  }`;
+}

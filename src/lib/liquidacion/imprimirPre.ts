@@ -9,7 +9,10 @@
 
 import { gs } from "../inscripcion.ts";
 import type { CasoExcepcion, ClaseSinRegistrar, InformePre } from "./preliquidacion.ts";
-import { conSigno, fechaCorta, fechaHora, LEYENDA_PRE, periodoLargo, TEXTO_CRITERIO } from "./formatoPre.ts";
+import {
+  conSigno, fechaCorta, fechaHora, LEYENDA_PRE, LEYENDA_SIMULACION, nombrePeriodoPre,
+  subtituloPre, tituloPre, TEXTO_CRITERIO,
+} from "./formatoPre.ts";
 
 const esc = (s: string | number | null | undefined) =>
   String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
@@ -46,9 +49,10 @@ function bloqueClases(titulo: string, bajada: string, filas: ClaseSinRegistrar[]
 }
 
 export function construirHTMLPreliquidacion(i: InformePre, generadoEn: string): string {
-  const periodo = periodoLargo(i.periodoVencido);
+  const periodo = nombrePeriodoPre(i);
+  const titulo = tituloPre(i);
   const r = i.resumen;
-  const pie = `Tropicana · Pre-liquidación ${periodo} · Informe preliminar, no es una liquidación`;
+  const pie = `Tropicana · ${titulo} · ${i.simulacion ? "Simulación, no es una liquidación" : "Informe preliminar, no es una liquidación"}`;
 
   const existentes = i.existentes.length
     ? `<div class="aviso"><b>Ya hay una liquidación generada para ${esc(periodo.toLowerCase())}.</b><br>${i.existentes
@@ -133,11 +137,11 @@ export function construirHTMLPreliquidacion(i: InformePre, generadoEn: string): 
     ),
   ].join("");
 
-  return `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Pre-liquidación ${esc(periodo)}</title><style>
+  return `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${esc(titulo)}</title><style>
   @page { size: A4 portrait; margin: 14mm 14mm 16mm;
     @bottom-left { content: "${pie.replace(/"/g, "'")}"; font: 9px sans-serif; color: #444; }
     @bottom-right { content: "Página " counter(page) " de " counter(pages); font: 9px sans-serif; color: #444; }
-    @top-left { content: "Pre-liquidación ${periodo.replace(/"/g, "'")}"; font: 9px sans-serif; color: #444; } }
+    @top-left { content: "${titulo.replace(/"/g, "'")}"; font: 9px sans-serif; color: #444; } }
   @page :first { @top-left { content: none; } }
   * { box-sizing: border-box; }
   body { font: 12px/1.4 "Figtree", system-ui, Arial, sans-serif; color: #111; background: #fff; margin: 0; }
@@ -158,9 +162,13 @@ export function construirHTMLPreliquidacion(i: InformePre, generadoEn: string): 
   </style></head><body>
   <section>
     <p class="muted" style="margin:0">Liquidaciones</p>
-    <h1>Pre-liquidación · ${esc(periodo)}</h1>
-    <p class="muted">Generado el ${esc(fechaHora(generadoEn))} · Período ${fechaCorta(i.periodoVencido)} – ${fechaCorta(i.hastaISO)}, se liquida a período vencido</p>
-    <div class="caja">${esc(LEYENDA_PRE)}</div>
+    <h1>${esc(titulo)}</h1>
+    <p class="muted">Generado el ${esc(fechaHora(generadoEn))} · ${subtituloPre(i)}</p>
+    <div class="caja">${esc(i.simulacion ? LEYENDA_SIMULACION : LEYENDA_PRE)}</div>${
+      i.simulacion
+        ? `<div class="aviso"><b>Límites de la simulación</b><br>${i.simulacion.limites.map(esc).join("<br>")}</div>`
+        : ""
+    }
     ${existentes}
     <div class="cifras">
       <div><div class="small muted">Total a devengar</div><div class="n">${gs(r.total)}</div><div class="small muted">Comisiones ${gs(r.comisiones)} · reemplazos y ajustes ${conSigno(r.extras)}</div></div>
