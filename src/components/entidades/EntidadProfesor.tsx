@@ -427,6 +427,7 @@ function FichaProfesor({
             </Link>
           )}
           {permitirBaja &&
+            !(inicial.activo && deps?.asignacionesAbiertas) &&
             (inicial.activo ? (
               <button
                 onClick={baja}
@@ -445,7 +446,10 @@ function FichaProfesor({
               </button>
             ))}
         </div>
-        {permitirBaja && tieneHistorial && inicial.activo && (
+        {permitirBaja && inicial.activo && !!deps?.asignacionesAbiertas && (
+          <p className="text-xs text-[var(--texto-tenue)]">Tiene cursos a cargo: se da de baja con «Retirar…».</p>
+        )}
+        {permitirBaja && tieneHistorial && inicial.activo && !deps?.asignacionesAbiertas && (
           <p className="text-xs text-[var(--texto-tenue)]">Tiene historial: se desactiva, no se elimina.</p>
         )}
         {!puedeEditar && (
@@ -642,7 +646,7 @@ function FichaProfesor({
       </div>
 
       {/* Baja: eliminar de verdad si no hay historial; si hay, desactivar. */}
-      {permitirBaja && inicial && (
+      {permitirBaja && inicial && !(inicial.activo && deps?.asignacionesAbiertas) && (
         <div
           className={`mt-2 p-4 rounded-[var(--radio-panel)] border ${
             tieneHistorial

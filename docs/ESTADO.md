@@ -389,3 +389,9 @@ D35 (`docs/decisiones/vigentes.md`). **Migración 0064 aplicada en dev (2026-10-
 - **Verificado:** `tsc`, `lint`, `npm test` (333), venta real en dev, rollback de la 0064 y de la corrección fila por fila.
 - **Cierre (2026-10-08):** PR #19, `main` `5b3093d`, deploy Producción `success`; Javier confirmó el chip PROD y los bonos de los 3 alumnos. Tablas de respaldo `bono_previo_0064` y `bono_correccion_i003_previo` borradas de producción con su OK (sin respaldo de rollback en producción).
 
+### I-006 · Baja de profesor por Retirar (control 48) — 2026-10-08
+
+- **Causa:** «Desactivar» solo apagaba `activo`: dejaba un titular inactivo con la asignación abierta (en producción, Caceres, Angel desde el 14/09, curso Danza Comercial). **Migración 0065 aplicada en dev y en producción (2026-10-08).**
+- **Prevención:** triggers en `profesores` (no se inactiva con asignaciones abiertas) y `asignaciones` (no se abre una a un inactivo); `eliminarODesactivarProfesor` y `crearAsignacion` lo validan antes; con cursos a cargo la ficha y el listado ofrecen solo «Retirar…». Regla 25 de negocio.
+- **Verificado:** triggers probados en dev en una transacción deshecha (baja con cursos y alta a inactivo se rechazan; tras cerrar la asignación, inactivar pasa). **Producción (2026-10-08):** Caceres, Angel retirado con la pantalla Retirar (corte 14/09, sin sustituto: Danza Comercial espera nuevo profesor). Antes/después contra respaldo: asignación 3 abierta → cerrada 14/09; membresías 25–27 sin cambios; cierre de 3 × Bs. 25 en la liquidación N° 4 (Bs. 75, abierta, por pagar en Caja); control 48: 1 → 0; triggers 0065 activos. Las tablas de respaldo `resp_i006_*` se borraron de producción con OK de Javier (2026-10-08): el rollback ya no tiene respaldo.
+

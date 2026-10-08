@@ -315,6 +315,8 @@ export type Profesor = {
 /** Resumen de dependencias de un profesor: decide eliminar vs. desactivar. */
 export type DepsProfesor = {
   asignaciones: number;
+  /** Asignaciones sin `hasta`: con ellas la baja es por Retirar, no por Desactivar. */
+  asignacionesAbiertas: number;
   comisiones: number;
   liquidaciones: number;
   sala: number;
