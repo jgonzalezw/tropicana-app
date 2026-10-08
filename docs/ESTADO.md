@@ -183,3 +183,12 @@ D35 (`docs/decisiones/vigentes.md`). **Migración 0064 aplicada en dev (2026-10-
 - **Retiro:** muestra en la misma tabla las membresías ya liquidadas sin pagar (Ortiz y Fernandez, N° 3) con «Este cierre —»; lo que el cierre dejaría afuera (regla 17, falta de foto de pago) es una traba en «Hay que resolver antes de confirmar», con curso y fechas. Pre-liquidación y Liquidaciones también ponen arriba lo que hay que resolver.
 - **Verificado:** `tsc`, `lint`, `npm test` (366), y en pantalla en dev. Semilla de dev: `scripts/seed_liquidacion_pendiente_dev.sql`. Sin migración.
 - **Anotado:** escritura única (TS vs RPC `retirar_profesor`) pide migración; el retiro a fecha futura no proyecta clases (incidente de la simulación a fecha futura).
+
+### H0 · Higiene — 2026-10-08
+
+- **Caja:** `lineasPorPagar` y `lineasPorCobrar` (`src/lib/cuentas.ts`) leen con `exigir()` (calidad 1): un fallo de lectura se ve, no deja la Caja vacía. Sin cambio de montos.
+- **INCIDENTES:** reportes abiertos renumerados a I-012 (membresías) e I-013 (curso); filas de I-005b, I-006 e I-007; estados de I-001, I-003, I-005, I-009 y L-01 al día.
+- **ESTADO:** secciones 1–7 archivadas en `docs/archivo/ESTADO-2026-08-09.md` (38 → 20 KB). `desasignar` ya usaba `avanceAlCorte` desde L-01.
+- **Probado:** `tsc`, `lint`, `npm test` (366); `/caja` en dev (Por cobrar 1.530, Por pagar 1.749,11, cuadran con sus líneas).
+- **Producción:** PR #32, `bf76d8a`, deploy `success`; sin migración; chip PROD confirmado por Javier.
+
