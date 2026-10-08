@@ -5,6 +5,8 @@ import SinAcceso from "@/components/SinAcceso";
 import Comprobante, { type DatosComprobante, type ParticularItem } from "./Comprobante";
 import type { LineaReparto } from "../acciones";
 import Pagina from "@/components/Pagina";
+import { leerAvancesAlCorte, type Avance } from "@/lib/liquidacion/lecturaAvance";
+import { finDePeriodoISO } from "@/lib/liquidacion/periodo";
 
 export const dynamic = "force-dynamic";
 
@@ -85,10 +87,12 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
     number,
     {
       alumno_id: number; curso_id: number; plan_id: number | null; fecha_inicio: string | null;
-      fecha_fin: string | null; clases_plan: number | null; clases_hechas: number | null;
+      fecha_fin: string | null; clases_plan: number | null; clases_total: number | null;
       es_prueba: boolean | null; acompanantes: number | null; estado: string;
     }
   >();
+  // El avance se mide con la misma regla que el retiro (Asistencia), al cierre del período.
+  let avances = new Map<number, Avance>();
   const corrSuspPorInsc: Record<number, number> = {};
   const faltasConLicPorInsc: Record<number, number> = {};
   const faltasSinLicPorInsc: Record<number, number> = {};
@@ -104,17 +108,22 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
 
   if (membresiaIds.length) {
     const [{ data: insc }, { data: corr }, { data: cuotas }, { data: asis }] = await Promise.all([
-      sb.from("membresias").select("id, alumno_id, curso_id, plan_id, fecha_inicio, fecha_fin, clases_plan, clases_hechas, es_prueba, acompanantes, estado").in("id", membresiaIds),
+      sb.from("membresias").select("id, alumno_id, curso_id, plan_id, fecha_inicio, fecha_fin, clases_plan, clases_total, es_prueba, acompanantes, estado").in("id", membresiaIds),
       sb.from("corrimientos_ciclo").select("membresia_id, tipo").in("membresia_id", membresiaIds),
       sb.from("cuotas").select("id, membresia_id, monto_devengado, descuento_adelanto").in("membresia_id", membresiaIds),
       sb.from("asistencias").select("membresia_id, sesion_id, estado, con_licencia").in("membresia_id", membresiaIds),
     ]);
     for (const r of (insc as {
       id: number; alumno_id: number; curso_id: number; plan_id: number | null; fecha_inicio: string | null;
-      fecha_fin: string | null; clases_plan: number | null; clases_hechas: number | null;
+      fecha_fin: string | null; clases_plan: number | null; clases_total: number | null;
       es_prueba: boolean | null; acompanantes: number | null; estado: string;
     }[]) ?? [])
       inscById.set(r.id, r);
+    avances = await leerAvancesAlCorte(
+      sb,
+      [...inscById.entries()].map(([id, m]) => ({ id, clases_plan: m.clases_plan, clases_total: m.clases_total })),
+      liq.retiro_hasta ?? finDePeriodoISO(liq.periodo, liq.periodicidad)
+    );
     // Corrimientos: en el comprobante solo cuentan los de SUSPENSION (la falta con
     // licencia se muestra aparte como bono; la falta sin licencia no corre nada).
     for (const r of (corr as { membresia_id: number | null; tipo: string | null }[]) ?? [])
@@ -251,7 +260,7 @@ export default async function PaginaComprobante({ params }: { params: Promise<{ 
       cicloInicio: i?.fecha_inicio ?? null,
       cicloFin: i?.fecha_fin ?? null,
       clasesPlan: i?.clases_plan ?? null,
-      clasesHechas: i?.clases_hechas ?? null,
+      clasesHechas: mid != null ? avances.get(mid)?.hechas ?? null : null,
       faltasConLic: mid != null ? faltasConLicPorInsc[mid] ?? 0 : 0,
       faltasSinLic: mid != null ? faltasSinLicPorInsc[mid] ?? 0 : 0,
       corrSuspension: mid != null ? corrSuspPorInsc[mid] ?? 0 : 0,

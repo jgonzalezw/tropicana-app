@@ -31,6 +31,20 @@ export function isoHoy(hoy = new Date()): string {
   return `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}-${String(hoy.getDate()).padStart(2, "0")}`;
 }
 
+/**
+ * Último día de un período de liquidación ("2026-09-01" + mes → "2026-09-30";
+ * semana → +6 días). Es el corte con que se mide el avance en el comprobante.
+ */
+export function finDePeriodoISO(periodoISO: string, periodicidad: string): string {
+  const d = new Date(`${periodoISO}T00:00:00`);
+  if (periodicidad === "semana") d.setDate(d.getDate() + 6);
+  else {
+    d.setMonth(d.getMonth() + 1);
+    d.setDate(0);
+  }
+  return isoHoy(d);
+}
+
 /** Primer día del mes de una fecha ISO cualquiera ("2026-09-20" → "2026-09-01"). */
 export function primerDiaMesDe(fechaISO: string): string {
   return `${fechaISO.slice(0, 7)}-01`;
