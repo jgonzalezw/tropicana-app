@@ -30,12 +30,20 @@ export default async function PaginaLiquidaciones() {
           // El informe muestra a todos los profesores: un rol con visibilidad
           // "propio" (Profesor) no lo ve, igual que la página.
           alcance === "propio" ? undefined : (
-            <Link
-              href="/liquidaciones/pre-liquidacion"
-              className="shrink-0 inline-flex items-center justify-center min-h-[44px] px-5 text-base font-semibold rounded-[var(--radio-control)] border border-[var(--borde)] hover:border-[var(--primario)]"
-            >
-              Pre-liquidación
-            </Link>
+            <div className="shrink-0 flex flex-wrap gap-3">
+              <Link
+                href="/liquidaciones/pre-liquidacion"
+                className="inline-flex items-center justify-center min-h-[44px] px-5 text-base font-semibold rounded-[var(--radio-control)] border border-[var(--borde)] hover:border-[var(--primario)]"
+              >
+                Pre-liquidación
+              </Link>
+              <Link
+                href="/liquidaciones/pre-liquidacion?modo=simulacion"
+                className="inline-flex items-center justify-center min-h-[44px] px-5 text-base font-semibold rounded-[var(--radio-control)] border border-[var(--borde)] hover:border-[var(--primario)]"
+              >
+                Simular cierre del período
+              </Link>
+            </div>
           )
         }
       />

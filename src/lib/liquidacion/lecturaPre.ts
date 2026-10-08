@@ -14,7 +14,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { obtenerParametro } from "@/lib/sesion";
 import { exigir } from "@/lib/datos";
-import { isoHoy, rangoLiquidable } from "@/lib/liquidacion/periodo";
+import { isoHoy, rangoEnCurso, rangoLiquidable } from "@/lib/liquidacion/periodo";
+import { LIMITES_SIMULACION, simularCierre, simularParticulares } from "@/lib/liquidacion/simulacion";
 import { calcularDevengos, type DatosMotor } from "@/lib/liquidacion/motor";
 import {
   calcularDescuentos,
@@ -27,6 +28,7 @@ import {
   type InformePre,
   type LiquidacionExistente,
   type MembresiaSinPlan,
+  type SimulacionInfo,
   type SesionCal,
 } from "@/lib/liquidacion/preliquidacion";
 
@@ -60,7 +62,9 @@ const VACIO: DatosMotor = {
   sesiones: [], cursos: [], tarifas: [], asignaciones: [], alumnos: [], profesores: [],
 };
 
-export async function prepararPreliquidacion(): Promise<ResultadoPre> {
+export type ModoPre = "vencido" | "simulacion";
+
+export async function prepararPreliquidacion(modo: ModoPre = "vencido"): Promise<ResultadoPre> {
   const sb = await createClient();
   const lecturas: Lectura[] = LECTURAS_PRE.map((nombre) => ({ nombre, estado: "sin_leer" }));
   let primerFallo: string | null = null;
@@ -82,29 +86,45 @@ export async function prepararPreliquidacion(): Promise<ResultadoPre> {
 
   const hoyISO = isoHoy();
 
-  // 0. El período: el mismo que usa Liquidaciones (mes vencido).
+  // 0. El período: el mismo que usa Liquidaciones (mes vencido) o, en la
+  //    simulación (D29), el período EN CURSO que dice el parámetro.
   const rango = await paso(0, async () => {
-    const r = rangoLiquidable((await obtenerParametro("periodicidad_liquidacion")) || "mes");
+    const periodicidad = (await obtenerParametro("periodicidad_liquidacion")) || "mes";
+    if (modo === "simulacion") {
+      const r = rangoEnCurso(periodicidad, new Date());
+      if (!r.ok) throw new Error(r.error);
+      const simulacion: SimulacionInfo = {
+        periodicidad: r.periodicidad,
+        alFecha: hoyISO,
+        desdeISO: r.desdeISO,
+        limites: [...LIMITES_SIMULACION],
+      };
+      return { periodoVencido: r.periodo, hastaISO: r.hastaISO, simulacion };
+    }
+    const r = rangoLiquidable(periodicidad);
     if (!r.ok) throw new Error(r.error);
-    return r;
+    return { periodoVencido: r.periodoVencido, hastaISO: r.hastaISO, simulacion: undefined };
   });
   if (!rango) return { ok: false, lecturas, error: primerFallo ?? "No se pudo determinar el período." };
 
   // 1. Regulares: las mismas filas y el mismo cálculo que `generarLiquidacion`.
   const regular = await paso(1, async () => {
-    const datos = (await leerDatosMotor(sb, rango.hastaISO)) ?? VACIO;
+    const leidos = (await leerDatosMotor(sb, rango.hastaISO)) ?? VACIO;
+    const datos = rango.simulacion && leidos !== VACIO ? simularCierre(leidos, hoyISO, rango.hastaISO) : leidos;
     const calculo = datos === VACIO ? { pendientes: [], bloqueadas: [] } : calcularDevengos(datos, rango.hastaISO);
     return { datos, ...calculo };
   });
 
   // 2. Particulares.
   const particulares = await paso(2, async () => {
-    const datos = await leerDatosParticulares(sb);
+    const leidos = await leerDatosParticulares(sb);
+    const datos = leidos && rango.simulacion ? simularParticulares(leidos, hoyISO, rango.hastaISO) : leidos;
     const calculo = datos
       ? calcularDevengosParticulares(datos, {
           hastaISO: rango.hastaISO,
           periodoVencido: rango.periodoVencido,
-          hoyISO,
+          // Simulado, "hoy" es el fin del período: lo que vence adentro cuenta como vencido.
+          hoyISO: rango.simulacion ? rango.hastaISO : hoyISO,
         })
       : { pendientes: [], bloqueadas: [] };
     return { datos, ...calculo };
@@ -212,6 +232,7 @@ export async function prepararPreliquidacion(): Promise<ResultadoPre> {
     return { ok: false, lecturas, error: primerFallo ?? "Faltó leer algún dato del período." };
 
   const informe = armarInforme({
+    simulacion: rango.simulacion,
     datos: regular.datos,
     periodoVencido: rango.periodoVencido,
     hastaISO: rango.hastaISO,

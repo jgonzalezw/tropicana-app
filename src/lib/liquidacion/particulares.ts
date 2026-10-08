@@ -34,6 +34,7 @@ export type MembresiaParticular = {
   pago_descuenta_sala: boolean;
   costo_sala_aplicado: number | null;
   horas_contratadas: number;
+  fecha_inicio?: string | null;
   fecha_fin: string | null;
   es_cortesia: boolean;
 };
@@ -71,6 +72,14 @@ export type RangoParticulares = {
   periodoVencido: string;
   /** Hoy, para saber si ya venció la vigencia. */
   hoyISO: string;
+  /**
+   * Cierre de cuentas de un profesor que se retira (I-005, D34): solo sus
+   * membresías, medidas como avance al `corte` (horas dadas hasta ahí sobre
+   * las contratadas, sobre lo cobrado hasta hoy), sin esperar a que se
+   * completen ni se cobren al 100 %. Solo emite montos positivos, de tipo
+   * `cierre`, en el mes del corte. Igual que el cierre de los cursos regulares.
+   */
+  cierre?: { profesorId: number; corte: string };
 };
 
 export type DetalleParticular = {
@@ -95,7 +104,7 @@ export type DevengoParticular = {
   profesorId: number;
   planId: number;
   alumno: string;
-  tipo: "comision" | "ajuste" | "avance";
+  tipo: "comision" | "ajuste" | "avance" | "cierre";
   criterio: 1 | 2 | 3;
   /** Período destino; en un ajuste, el de la comisión que corrige. */
   periodo: string;
@@ -207,6 +216,49 @@ export function calcularDevengosParticulares(
   for (const m of datos.membresias) {
     // Una membresía entera de cortesía no devenga nada (decisión 6).
     if (m.es_cortesia) continue;
+    if (rango.cierre) {
+      if (m.profesor_id !== rango.cierre.profesorId) continue;
+      const reservasM = datos.reservas.filter((r) => r.membresia_id === m.id);
+      const dadas = horasDadas(reservasM, rango.cierre.corte);
+      const factor = m.horas_contratadas > 0 ? Math.min(1, dadas / m.horas_contratadas) : 0;
+      const cobradoM = datos.cobrado[m.id] ?? 0;
+      const obj = objetivoDe(m, dadas, cobradoM, factor);
+      if (!obj.ok) {
+        bloqueadas.push({ membresiaId: m.id, profesorId: m.profesor_id, alumno: m.alumno, motivo: obj.motivo });
+        continue;
+      }
+      const ya = r2(datos.previas.filter((p) => p.membresia_id === m.id).reduce((a, p) => a + Number(p.monto), 0));
+      const delta = r2(obj.monto - ya);
+      if (delta <= EPS) continue; // un cierre nunca descuenta (regla 8)
+      pendientes.push({
+        membresiaId: m.id,
+        profesorId: m.profesor_id,
+        planId: m.plan_id,
+        alumno: m.alumno,
+        tipo: "cierre",
+        criterio: 2,
+        periodo: primerDiaMesDe(rango.cierre.corte),
+        base: obj.base,
+        monto: delta,
+        detalle: {
+          forma: m.forma_pago_profesor as FormaPago,
+          criterio: 2,
+          horasContratadas: m.horas_contratadas,
+          horasDadas: dadas,
+          factor: r2(factor),
+          completadaPor: null,
+          cobrado: cobradoM,
+          costoSala: m.pago_descuenta_sala ? m.costo_sala_aplicado : null,
+          pct: m.pago_pct_margen,
+          fee: m.fee_hora_aplicado,
+          montoFijo: m.pago_monto_fijo,
+          modoVencida: datos.modoVencida,
+          objetivo: obj.monto,
+          yaDevengado: ya,
+        },
+      });
+      continue;
+    }
     const criterio = m.criterio_liquidacion;
     if (criterio !== 1 && criterio !== 2 && criterio !== 3) {
       bloqueadas.push({

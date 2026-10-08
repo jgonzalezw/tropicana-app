@@ -392,3 +392,11 @@ test("una membresía de varios cursos: una línea por curso y profesor, con su p
   // Lo repartido suma lo cobrado.
   assert.equal(ps.reduce((a, p) => a + p.lineas[0].base, 0), 200);
 });
+
+test("razonDeDescarte: simulada, una activa con saldo es 'saldo', no 'sin_agotar'", () => {
+  const m = { id: 1, alumno_id: 1, curso_id: 1, plan_id: 1, es_prueba: false, acompanantes: 0, fecha_inicio: "2026-10-01", fecha_fin: "2026-10-24", estado: "activa", criterio_liquidacion: 1 };
+  const ctx = { hastaISO: "2026-10-31", saldo: 50, yaDevengada: false };
+  assert.equal(razonDeDescarte(m, ctx), "sin_agotar");
+  assert.equal(razonDeDescarte(m, { ...ctx, simulada: true }), "saldo");
+  assert.equal(razonDeDescarte(m, { ...ctx, simulada: true, saldo: 0 }), "sin_agotar");
+});

@@ -62,6 +62,10 @@
    que un profesor las complete, y la liquidación final emite solo la
    diferencia (lo cobrado después llega como `ajuste`, regla 16). Nunca
    descuenta. El pago real se hace en Caja. Alcance: cursos regulares.
+   **Retiro del profesor** *(Javier, 2026-10-07, D34)*: al retirarlo se cierran
+   las cuentas de **todas** sus membresías, de cualquier tipo (regulares y
+   particulares), en un solo paso con vista previa simulada que no guarda
+   nada; confirmar es todo o nada. El alquiler no liquida al profesor.
    **Período vencido** = la liquidación del período siguiente, donde el
    período lo fija el parámetro `periodicidad_liquidacion` (hoy `mes`).
    **Cuánto** gana el profesor lo fija la **forma de pago** que elige el plan:

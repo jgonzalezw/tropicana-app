@@ -924,6 +924,19 @@ select '47. reserva de alquiler con profesor o sin membresia de alquiler' as con
    and (r.profesor_id is not null or m.id is null or m.categoria_aplicada is null);
 
 -- ---------------------------------------------------------------------
+-- 48. PROFESOR INACTIVO CON ASIGNACION ABIERTA (migracion 0063)
+--     Retirar a un profesor cierra todas sus asignaciones y lo inactiva en
+--     una sola transaccion (retirar_profesor). Un inactivo con una asignacion
+--     abierta es un retiro a medias o un titular que nadie puede elegir.
+-- ---------------------------------------------------------------------
+select '48. profesor inactivo con asignacion abierta' as control,
+       count(*) as n,
+       case when count(*) = 0 then 'OK' else 'REVISAR' end as estado
+  from public.asignaciones a
+  join public.profesores p on p.id = a.profesor_id
+ where a.hasta is null and p.activo = false;
+
+-- ---------------------------------------------------------------------
 -- Detalle, por si algun control da REVISAR:
 -- ---------------------------------------------------------------------
 -- select id, alumno_id, curso_id, estado, fecha_inicio, fecha_fin,

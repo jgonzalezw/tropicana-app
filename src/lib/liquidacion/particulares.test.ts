@@ -131,3 +131,44 @@ test("criterio de taller (4/5) en una particular: bloquea con motivo", () => {
   const r = calcularDevengosParticulares(datos(mem({ criterio_liquidacion: 4 }), res(4)), RANGO);
   assert.equal(r.bloqueadas.length, 1);
 });
+
+// ── Cierre de cuentas del profesor que se retira (I-005, D34) ──────────────
+
+const CIERRE = { ...RANGO, cierre: { profesorId: 7, corte: "2026-08-31" } };
+
+test("cierre: fee por hora paga las horas dadas al corte, sin esperar cobro ni fin", () => {
+  const { pendientes } = calcularDevengosParticulares(datos(mem(), res(2), { saldo: { 1: 200 } }), CIERRE);
+  assert.equal(pendientes.length, 1);
+  assert.equal(pendientes[0].tipo, "cierre");
+  assert.equal(pendientes[0].monto, 100);
+  assert.equal(pendientes[0].periodo, "2026-08-01");
+});
+
+test("cierre: solo las membresías de ese profesor", () => {
+  const otra = mem({ id: 2, profesor_id: 9 });
+  const d = { ...datos(mem(), res(2)), membresias: [mem(), otra] };
+  const { pendientes } = calcularDevengosParticulares(d, CIERRE);
+  assert.deepEqual(pendientes.map((p) => p.membresiaId), [1]);
+});
+
+test("cierre: monto fijo proporcional a las horas dadas; las horas después del corte no cuentan", () => {
+  const m = mem({ forma_pago_profesor: "monto_fijo", pago_monto_fijo: 400, fee_hora_aplicado: null });
+  const r = [...res(2), ...res(1, "realizada", { fecha: "2026-09-02" })];
+  const { pendientes } = calcularDevengosParticulares(datos(m, r), CIERRE);
+  assert.equal(pendientes[0].monto, 200);
+});
+
+test("cierre: nunca descuenta y no repite lo ya devengado", () => {
+  const previas = [{ id: 1, membresia_id: 1, monto: 150, tipo: "cierre", periodo: "2026-08-01" }];
+  const menos = calcularDevengosParticulares(datos(mem(), res(2), { previas }), CIERRE);
+  assert.equal(menos.pendientes.length, 0, "se devengó 150 y el objetivo es 100: no descuenta");
+  const mas = calcularDevengosParticulares(datos(mem(), res(4), { previas }), CIERRE);
+  assert.equal(mas.pendientes[0].monto, 50, "solo la diferencia");
+});
+
+test("cierre: una membresía sin la foto de pago se explica, no se calla", () => {
+  const m = mem({ forma_pago_profesor: "monto_fijo", pago_monto_fijo: null, fee_hora_aplicado: null });
+  const r = calcularDevengosParticulares(datos(m, res(2)), CIERRE);
+  assert.equal(r.pendientes.length, 0);
+  assert.equal(r.bloqueadas.length, 1);
+});

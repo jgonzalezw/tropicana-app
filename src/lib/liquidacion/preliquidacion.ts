@@ -62,7 +62,17 @@ export type LiquidacionExistente = {
   total: number;
 };
 
+/** Rótulo de una pre-liquidación simulada (D29): ausente = el informe real. */
+export type SimulacionInfo = {
+  periodicidad: "mes" | "semana";
+  /** El día en que se corrió la simulación. */
+  alFecha: string;
+  desdeISO: string;
+  limites: string[];
+};
+
 export type EntradaPre = {
+  simulacion?: SimulacionInfo;
   /** Lo que leyó el motor regular, tal cual. */
   datos: DatosMotor;
   periodoVencido: string;
@@ -153,6 +163,7 @@ export type ClaseSinRegistrar = {
 };
 
 export type InformePre = {
+  simulacion?: SimulacionInfo;
   periodoVencido: string;
   hastaISO: string;
   profesores: ProfesorPre[];
@@ -242,7 +253,7 @@ type RazonDescarte = "sin_criterio" | "ciclo_posterior" | "sin_agotar" | "saldo"
  */
 export function razonDeDescarte(
   m: MembresiaLiq,
-  ctx: { hastaISO: string; saldo: number; yaDevengada: boolean }
+  ctx: { hastaISO: string; saldo: number; yaDevengada: boolean; simulada?: boolean }
 ): RazonDescarte {
   const criterio = m.criterio_liquidacion ?? null;
   if (criterio == null) return "sin_criterio";
@@ -252,6 +263,9 @@ export function razonDeDescarte(
   const terminaDespues = m.fecha_fin != null && m.fecha_fin > ctx.hastaISO;
   if (criterio === 1 && terminaDespues) return "ciclo_posterior";
   if (criterio === 3 && estado !== "completada" && terminaDespues) return "ciclo_posterior";
+  // Simulado, «activa» con el fin dentro del período solo puede deberse a la
+  // plata (la simulación ya da por dictadas las clases que faltan).
+  if (ctx.simulada && estado === "activa" && ctx.saldo > 0) return "saldo";
   if (criterio === 2 ? estado !== "activa" && estado !== "completada" : estado !== "completada") return "sin_agotar";
   if (ctx.saldo > 0) return "saldo";
   return null;
@@ -480,6 +494,7 @@ export function armarExcepciones(e: EntradaPre): MotivoExcepcion[] {
       hastaISO: e.hastaISO,
       saldo: saldo[m.id] ?? 0,
       yaDevengada: devengadas.has(m.id),
+      simulada: !!e.simulacion,
     });
     if (!razon) continue;
     const persona = alumnoPor.get(m.alumno_id) ?? `#${m.alumno_id}`;
@@ -502,7 +517,7 @@ export function armarExcepciones(e: EntradaPre): MotivoExcepcion[] {
     else if (razon === "sin_agotar")
       casos.bloqueada_clases.push({
         persona, curso, membresiaId: m.id, href: HREF.asistencia, accion: "Resolver",
-        detalle: `Su ciclo terminó el ${diaMes(m.fecha_fin ?? "")} pero la membresía sigue activa: faltan clases por registrar o cobrar para que figure completada.`,
+        detalle: `Su ciclo ${(m.fecha_fin ?? "") > e.hoyISO ? "termina" : "terminó"} el ${diaMes(m.fecha_fin ?? "")} pero la membresía sigue activa: faltan clases por registrar o cobrar para que figure completada.`,
       });
     else
       casos.saldo.push({
@@ -659,6 +674,7 @@ export function armarInforme(e: EntradaPre): InformePre {
   const comisiones = r2(profesores.reduce((a, p) => a + p.subtotal, 0));
   const total = r2(profesores.reduce((a, p) => a + p.neto, 0));
   return {
+    ...(e.simulacion ? { simulacion: e.simulacion } : {}),
     periodoVencido: e.periodoVencido,
     hastaISO: e.hastaISO,
     profesores,

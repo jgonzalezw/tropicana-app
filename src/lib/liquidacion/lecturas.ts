@@ -319,7 +319,7 @@ export async function leerDatosParticulares(
     await sb
       .from("membresias")
       .select(
-        "id, alumno_id, profesor_id, plan_id, criterio_liquidacion, forma_pago_profesor, fee_hora_aplicado, pago_pct_margen, pago_monto_fijo, pago_descuenta_sala, costo_sala_aplicado, horas_contratadas, fecha_fin, es_cortesia, plan:planes!inner(tipo_servicio)"
+        "id, alumno_id, profesor_id, plan_id, criterio_liquidacion, forma_pago_profesor, fee_hora_aplicado, pago_pct_margen, pago_monto_fijo, pago_descuenta_sala, costo_sala_aplicado, horas_contratadas, fecha_inicio, fecha_fin, es_cortesia, plan:planes!inner(tipo_servicio)"
       )
       .is("curso_id", null)
       .not("plan_id", "is", null)

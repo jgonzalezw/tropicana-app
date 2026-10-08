@@ -4,6 +4,8 @@ Movido desde `DECISIONES.md` §4 el 2026-10-02 para que no se cargue en cada ses
 
 ## 4. Registro de pases a producción
 
+- **I-005 (retiro del profesor + pre-liquidación simulada, D29/D34; migración 0063) — PASADO A PRODUCCIÓN el 2026-10-08**, con el OK explícito de Javier (*"tienes mi OK explícito para: aplicar la 0063 en producción, mergear el PR de I-005 y cerrar el #17"*). Orden de §3: antes, la función no existía, todas las columnas que referencia estaban, última migración `20261002142322` y control 48 en 1 (el caso que originó el incidente: un profesor inactivo con una asignación abierta); **0063** aplicada en `pnvhpbxjbdmbktpwebtx` antes del código (solo crea `retirar_profesor`, permisos solo `service_role`, no toca datos); después, función con permisos correctos y control 48 igual (1, se resuelve con la pantalla «Retirar»). Un solo push. Se cierra el PR #17 sin mergear (su RETOMAR quedó viejo).
+
 - **Hito B + estandarización de /sala + gestión sin salir de la pantalla — PASADO A PRODUCCIÓN el 2026-10-02**, con el OK explícito de Javier (*"pasa producción hasta acá. Te lo solicito explícitamente"*). **Sin migraciones**: producción sigue en 0001–0062. PR #10, `main` `86a812b` (30 commits), un solo push de código; Javier confirmó el chip PROD. Incluye reservas de alquiler gestionables desde `/sala` (corrige el "Esa reserva no existe"), vista de trabajo con barra fija, asistencia embebida, avisos de WhatsApp al suspender/reabrir y navegación interna en la misma pestaña. Control nuevo en `control_migracion.sql` (no corrido en producción). Detalle en `docs/ESTADO.md`.
 
 - **Cierre de cuentas al desasignar + fecha de inicio al asignar (migración 0062;

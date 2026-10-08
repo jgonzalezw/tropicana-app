@@ -57,3 +57,37 @@ export function rangoLiquidable(periodicidad: string, hoy = new Date()): RangoLi
     hastaISO: finMesVencidoISO(hoy),
   };
 }
+
+export type RangoEnCurso =
+  | { ok: true; periodicidad: "mes" | "semana"; periodo: string; desdeISO: string; hastaISO: string }
+  | { ok: false; error: string };
+
+const iso = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+/**
+ * El período EN CURSO (el que todavía no venció), para la simulación de la
+ * pre-liquidación (D29). `mes`: del 1 al último día del mes. `semana`: de lunes
+ * a domingo. `periodo` es el primer día, como el de una liquidación. Cualquier
+ * otro valor es un error explícito (calidad 1 y 5).
+ */
+export function rangoEnCurso(periodicidad: string, hoy = new Date()): RangoEnCurso {
+  if (periodicidad === "mes") {
+    const desde = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+    const hasta = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0);
+    return { ok: true, periodicidad, periodo: iso(desde), desdeISO: iso(desde), hastaISO: iso(hasta) };
+  }
+  if (periodicidad === "semana") {
+    const atras = (hoy.getDay() + 6) % 7; // lunes = 0
+    const desde = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() - atras);
+    const hasta = new Date(desde.getFullYear(), desde.getMonth(), desde.getDate() + 6);
+    return { ok: true, periodicidad, periodo: iso(desde), desdeISO: iso(desde), hastaISO: iso(hasta) };
+  }
+  return {
+    ok: false,
+    error:
+      `La periodicidad de liquidación está en "${periodicidad}", y la simulación solo sabe ` +
+      `proyectar por "mes" o "semana". Cambiá el parámetro "periodicidad_liquidacion" en ` +
+      `Administración → Parámetros.`,
+  };
+}

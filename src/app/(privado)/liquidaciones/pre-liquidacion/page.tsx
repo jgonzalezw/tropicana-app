@@ -12,11 +12,16 @@ export const dynamic = "force-dynamic";
  * con visibilidad "propio" (un Profesor) no la ve: el informe muestra a todos
  * los profesores a la vez.
  */
-export default async function PaginaPreliquidacion() {
+export default async function PaginaPreliquidacion({
+  searchParams,
+}: {
+  searchParams: Promise<{ modo?: string }>;
+}) {
   if (!(await tienePermiso("liquidaciones", "ver"))) return <SinAcceso />;
   if ((await alcanceDe("liquidaciones")) === "propio") return <SinAcceso />;
 
-  const resultado = await prepararPreliquidacion();
+  const { modo } = await searchParams;
+  const resultado = await prepararPreliquidacion(modo === "simulacion" ? "simulacion" : "vencido");
   return (
     <Pagina ancho="5xl">
       <ClientePreliquidacion resultado={resultado} />

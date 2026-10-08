@@ -13,6 +13,8 @@ import {
 } from "@/lib/desasignacion";
 import { cierreDeCuentas, type VistaCierre } from "@/app/(privado)/liquidaciones/acciones";
 import { presenteDesdeExtra } from "@/lib/matrizMinimos";
+import { leerEntradaRetiro } from "@/lib/liquidacion/lecturaRetiro";
+import { abiertasDe, armarRetiro, type VistaRetiro } from "@/lib/liquidacion/retiro";
 import {
   crearOReusarContactoPersona,
   actualizarContactoPersona,
@@ -449,4 +451,89 @@ export async function eliminarAsignacion(id: number): Promise<{ ok?: true; error
   if (error) return { error: error.message };
   revalidatePath("/profesores");
   return { ok: true };
+}
+
+// ── Retiro del profesor (I-005, D34) ─────────────────────────────────────
+
+/** La simulación del retiro: calcula todo y **no escribe nada**. */
+export async function vistaRetiro(
+  profesorId: number,
+  corte: string,
+  sustitutos: Record<number, DatosSustituto | null>
+): Promise<{ error?: string; vista?: VistaRetiro; profesor?: string }> {
+  if (!(await tienePermiso("profesores", "editar"))) return { error: "Sin permiso." };
+  if (!(await tienePermiso("liquidaciones", "crear")))
+    return { error: "Retirar a un profesor liquida su cierre: requiere el permiso de crear liquidaciones." };
+  const l = await leerEntradaRetiro(profesorId, corte, sustitutos);
+  if (!l.ok) return { error: l.error };
+  return { vista: armarRetiro(l.entrada), profesor: l.entrada.profesor };
+}
+
+/**
+ * Confirma el retiro. Vuelve a calcular en el servidor (no confía en la vista)
+ * y lo aplica todo junto en la función `retirar_profesor` (0063): si algo
+ * falla, no queda nada escrito.
+ */
+export async function retirarProfesor(
+  profesorId: number,
+  corte: string,
+  sustitutos: Record<number, DatosSustituto | null>
+): Promise<{ ok?: true; error?: string; liquidacionId?: number | null; vista?: VistaRetiro; confirmadoEn?: string }> {
+  if (!(await tienePermiso("profesores", "editar"))) return { error: "Sin permiso." };
+  if (!(await tienePermiso("liquidaciones", "crear")))
+    return { error: "Retirar a un profesor liquida su cierre: requiere el permiso de crear liquidaciones." };
+  const l = await leerEntradaRetiro(profesorId, corte, sustitutos);
+  if (!l.ok) return { error: l.error };
+  const e = l.entrada;
+  const vista = armarRetiro(e);
+  if (!vista.puedeConfirmar) return { error: vista.trabas[0]?.texto ?? "El retiro tiene trabas." };
+
+  const [, mes, dia] = corte.split("-");
+  const rotulo = `Cierre de cuentas · corte ${dia}/${mes}`;
+  const lineas = [
+    ...e.regular.pendientes.map((p) => ({
+      membresia_id: p.membresiaId, curso_id: p.cursoId, plan_id: null, criterio: p.criterio,
+      base: p.base, monto: p.monto, reparto: p.reparto.length > 1 ? p.reparto : null, detalle_particular: null,
+      origen:
+        `${rotulo} (${p.curso} / ${p.alumno}): ${p.pct}% de ${p.base} (${p.clases} de ${p.clasesDelCurso} clases al corte). ` +
+        `Pago a cuenta de la liquidación final: lo ya devengado se resta de lo que corresponda al completarse.`,
+      descripcion: `${rotulo} · ${p.alumno} — ${p.curso} (${p.clases}/${p.clasesDelCurso} clases · ${p.pct}% de ${p.base})`,
+    })),
+    ...e.particulares.pendientes.map((p) => ({
+      membresia_id: p.membresiaId, curso_id: null, plan_id: p.planId, criterio: p.criterio,
+      base: p.base, monto: p.monto, reparto: null, detalle_particular: p.detalle,
+      origen:
+        `${rotulo} (particular / ${p.alumno}): ${p.detalle.horasDadas} de ${p.detalle.horasContratadas} h al corte. ` +
+        `Pago a cuenta de la liquidación final: lo ya devengado se resta de lo que corresponda al completarse.`,
+      descripcion: `${rotulo} · ${p.alumno} — clase particular (${p.detalle.horasDadas}/${p.detalle.horasContratadas} h)`,
+    })),
+  ];
+  const asignaciones = abiertasDe(e.asignaciones).map((a) => {
+    const s = sustitutos[a.id];
+    return {
+      id: a.id,
+      curso_id: a.cursoId,
+      sustituto: s?.profesorId
+        ? { profesor_id: s.profesorId, pct_ingresos: s.pctIngresos, pct_referido: s.pctReferido }
+        : null,
+    };
+  });
+
+  const { data, error } = await admin().rpc("retirar_profesor", {
+    p: { profesor_id: profesorId, corte, asignaciones, lineas },
+  });
+  if (error) return { error: error.message };
+
+  revalidatePath("/profesores");
+  revalidatePath("/liquidaciones");
+  revalidatePath("/caja");
+  revalidatePath("/asistencia");
+  // La vista devuelta es la que calculó el servidor al escribir: los datos finales
+  // del informe de liquidación por finalización.
+  return {
+    ok: true,
+    liquidacionId: (data as { liquidacion_id: number | null } | null)?.liquidacion_id ?? null,
+    vista,
+    confirmadoEn: new Date().toISOString(),
+  };
 }
