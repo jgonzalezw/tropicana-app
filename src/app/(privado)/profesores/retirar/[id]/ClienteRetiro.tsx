@@ -532,30 +532,6 @@ export default function ClienteRetiro({
             )}
           </section>
 
-          {vista.quedanAfuera.length > 0 && (
-            <section>
-              <h2 className="text-xl font-bold mb-1">Quedan afuera del cierre</h2>
-              <p className="text-base text-[var(--texto-tenue)] mb-2">
-                No traban el retiro: se liquidan después, con la liquidación final, cuando se corrija lo que falta.
-              </p>
-              <ul className="flex flex-col gap-2">
-                {vista.quedanAfuera.map((t) => (
-                  <li
-                    key={t.clave}
-                    className="px-4 py-3 rounded-[var(--radio-panel)] bg-[var(--fondo-elevado)] text-base flex flex-wrap items-center justify-between gap-3"
-                  >
-                    <span>{t.texto}</span>
-                    {t.href && (
-                      <Link href={t.href} className={BOTON_SECUNDARIO}>
-                        {t.accion ?? "Resolver"}
-                      </Link>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-
           {avisosVisibles.length > 0 && (
             <section>
               <h2 className="text-xl font-bold mb-2">A tener en cuenta</h2>

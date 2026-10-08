@@ -160,11 +160,6 @@ export function construirHTMLRetiro(
     <p class="small muted">Una línea por membresía. Siguen con el sustituto o sin titular, según lo elegido; lo que se cobre o dicte después se liquida como ajuste (regla 16).</p>
     ${inconclusas}
   </section>
-  ${
-    v.quedanAfuera.length
-      ? `<section><h2>Quedan afuera del cierre</h2>${lista(v.quedanAfuera.map((x) => x.texto))}</section>`
-      : ""
-  }
   ${avisos.length ? `<section><h2>A tener en cuenta</h2>${lista(avisos)}</section>` : ""}
   </body></html>`;
 }

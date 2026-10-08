@@ -200,12 +200,6 @@ export type VistaRetiro = {
   avisos: string[];
   /** Avisos de la plata del profesor que se retira: se esconden con su liquidación. */
   avisosLiquidacion: string[];
-  /**
-   * Membresías que **no entran al cierre** y por qué (regla 17: bloquea esa
-   * membresía, no al profesor). No traban el retiro: se liquidan después, con
-   * la liquidación final, cuando se corrija lo que falta.
-   */
-  quedanAfuera: Traba[];
   trabas: Traba[];
   puedeConfirmar: boolean;
 };
@@ -255,11 +249,17 @@ export function validarRetiro(e: EntradaRetiro): Traba[] {
       accion: "Ir a la sala",
     });
 
+  trabas.push(...excepcionesDelCierre(e));
+
   return trabas;
 }
 
-/** Lo que el cierre deja afuera: no traba, se explica y lleva a donde se arregla. */
-export function quedanAfueraDe(e: EntradaRetiro): Traba[] {
+/**
+ * Lo que el cierre dejaría afuera (regla 17, falta de foto de pago): es una
+ * traba más, porque confirmar así esconde plata del profesor. Se explica y
+ * lleva a donde se arregla.
+ */
+function excepcionesDelCierre(e: EntradaRetiro): Traba[] {
   return [
     ...e.regular.bloqueadas.map((b) => ({
       clave: `bloq-${b.membresiaId}`,
@@ -271,7 +271,7 @@ export function quedanAfueraDe(e: EntradaRetiro): Traba[] {
     })),
     ...e.particulares.bloqueadas.map((b) => ({
       clave: `part-${b.membresiaId}`,
-      texto: `${b.alumno} (particular): ${b.motivo} No entra al cierre.`,
+      texto: `${b.alumno} (particular): ${b.motivo} Hay que corregirlo antes de retirar.`,
     })),
   ];
 }
@@ -422,7 +422,6 @@ export function armarRetiro(e: EntradaRetiro): VistaRetiro {
       })),
     avisos,
     avisosLiquidacion,
-    quedanAfuera: quedanAfueraDe(e),
     trabas,
     puedeConfirmar: trabas.length === 0,
   };

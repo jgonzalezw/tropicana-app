@@ -66,20 +66,20 @@ test("reservas particulares futuras traban y llevan a la sala", () => {
   assert.equal(v.trabas[0].href, "/sala");
 });
 
-test("una multi-curso con clases sin registrar no traba: queda afuera del cierre (regla 17), con dónde registrarlas", () => {
+test("una multi-curso con clases sin registrar es una traba (regla 17), con dónde registrarlas", () => {
   const b = { membresiaId: 4, alumno: "Ruiz, Mar", cursos: [{ cursoId: 1, curso: "Salsa", fechas: ["2026-10-01"] }], profesorIds: [7] };
   const v = armarRetiro(entrada({ regular: { pendientes: [], bloqueadas: [b] } }));
-  assert.equal(v.puedeConfirmar, true);
-  assert.equal(v.quedanAfuera.length, 1);
-  assert.equal(v.quedanAfuera[0].href, "/asistencia");
-  assert.match(v.quedanAfuera[0].texto, /regla 17/);
+  assert.equal(v.puedeConfirmar, false);
+  assert.equal(v.trabas.length, 1);
+  assert.equal(v.trabas[0].href, "/asistencia");
+  assert.match(v.trabas[0].texto, /regla 17/);
 });
 
-test("una particular sin la foto de pago queda afuera y se explica", () => {
+test("una particular sin la foto de pago traba y se explica", () => {
   const b = { membresiaId: 9, profesorId: 7, alumno: "Gómez, Eva", motivo: "La venta no guardó el fee por hora del profesor." };
   const v = armarRetiro(entrada({ particulares: { pendientes: [], bloqueadas: [b] } }));
-  assert.equal(v.puedeConfirmar, true);
-  assert.match(v.quedanAfuera[0].texto, /No entra al cierre/);
+  assert.equal(v.puedeConfirmar, false);
+  assert.match(v.trabas[0].texto, /antes de retirar/);
 });
 
 test("un sustituto igual al profesor o una fecha anterior al inicio traban", () => {
