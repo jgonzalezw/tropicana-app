@@ -15,7 +15,7 @@ import { gs } from "../inscripcion.ts";
 import { fechaCorta, fechaHora } from "./formatoPre.ts";
 import { leyendaCriterios, siglaCriterio } from "./criterios.ts";
 import {
-  cantidad, montoOGuion, textoAvance, textoBonoAplicado, textoBonoGenerado, textoYaLiquidado,
+  avanceEnDosLineas, cantidad, montoOGuion, textoBonoAplicado, textoBonoGenerado, textoCiclo, textoYaLiquidado,
 } from "./formatoRetiro.ts";
 import type { VistaRetiro } from "./retiro.ts";
 
@@ -65,35 +65,33 @@ export function construirHTMLRetiro(
       </thead><tbody>${v.regulares
         .map(
           (l) =>
-            `<tr><td>${esc(l.alumno)}${sub(`${l.curso} · ${siglaCriterio(l.criterio)}`)}</td>${celdasCuenta(l.cuenta)}<td>${l.clases}/${l.clasesDelCurso}</td><td>${textoBonoAplicado(l.bonoAplicado)}</td><td class="r">${gs(l.base)}</td><td class="r">${l.pct}%</td><td class="r">${gs(l.aLaFecha)}</td><td class="r">${textoYaLiquidado(l)}</td><td class="r b">${gs(l.monto)}</td></tr>`
+            `<tr><td>${esc(l.alumno)}${sub(`${l.curso} · ${siglaCriterio(l.criterio)} · ${textoCiclo(l.inicio, l.fin)}`)}</td>${celdasCuenta(l.cuenta)}<td>${l.clases}/${l.clasesDelCurso}</td><td>${textoBonoAplicado(l.bonoAplicado)}</td><td class="r">${gs(l.base)}</td><td class="r">${l.pct}%</td><td class="r">${gs(l.aLaFecha)}</td><td class="r">${textoYaLiquidado(l)}</td><td class="r b">${gs(l.monto)}</td></tr>`
         )
         .join("")}</tbody></table>${leyenda(v.regulares.map((l) => l.criterio))}`
     : `<p class="small">Nada que devengar por cursos regulares.</p>`;
 
   const particulares = v.particulares.length
     ? `<table class="t g"><thead>
-        <tr class="grupo"><th></th><th colspan="4" class="c">Cuenta del alumno</th><th colspan="5" class="c">Liquidación</th></tr>
-        <tr><th>Alumno</th><th class="r">Precio</th><th class="r">Desc.</th><th class="r">Pagado</th><th class="r">Saldo</th><th>Horas</th><th>Forma de pago</th><th class="r">A la fecha</th><th class="r">Ya liquidado</th><th class="r">Este cierre</th></tr>
+        <tr class="grupo"><th></th><th colspan="4" class="c">Cuenta del alumno</th><th colspan="6" class="c">Liquidación</th></tr>
+        <tr><th>Alumno</th><th class="r">Precio</th><th class="r">Desc.</th><th class="r">Pagado</th><th class="r">Saldo</th><th>Horas</th><th>Bono</th><th>Forma de pago</th><th class="r">A la fecha</th><th class="r">Ya liquidado</th><th class="r">Este cierre</th></tr>
       </thead><tbody>${v.particulares
         .map(
           (l) =>
-            `<tr><td>${esc(l.alumno)}${sub(`Clase particular · ${siglaCriterio(l.criterio)}`)}</td>${celdasCuenta(l.cuenta)}<td>${cantidad(l.horasDadas)} de ${cantidad(l.horasContratadas)} h</td><td>${esc(l.forma.replace("_", " "))}</td><td class="r">${gs(l.aLaFecha)}</td><td class="r">${textoYaLiquidado(l)}</td><td class="r b">${gs(l.monto)}</td></tr>`
+            `<tr><td>${esc(l.alumno)}${sub(`Clase particular · ${siglaCriterio(l.criterio)} · ${textoCiclo(l.inicio, l.fin)}`)}</td>${celdasCuenta(l.cuenta)}<td>${cantidad(l.horasDadas)} de ${cantidad(l.horasContratadas)} h</td><td>${textoBonoAplicado(l.bonoAplicado)}</td><td>${esc(l.forma.replace("_", " "))}</td><td class="r">${gs(l.aLaFecha)}</td><td class="r">${textoYaLiquidado(l)}</td><td class="r b">${gs(l.monto)}</td></tr>`
         )
         .join("")}</tbody></table>${leyenda(v.particulares.map((l) => l.criterio))}`
     : `<p class="small">Nada que devengar por clases particulares.</p>`;
 
   const inconclusas = v.inconclusas.length
     ? `<table class="t g"><thead>
-        <tr class="grupo"><th colspan="6"></th><th colspan="2" class="c">Bono</th><th colspan="4" class="c">Cuenta del alumno</th><th></th></tr>
-        <tr><th>Alumno</th><th>Tipo</th><th>Cursos / plan</th><th>Inicio</th><th>Fin</th><th>Avance</th><th>Aplicado</th><th>Para renovar</th><th class="r">Precio</th><th class="r">Desc.</th><th class="r">Pagado</th><th class="r">Saldo</th><th>Estado</th></tr>
+        <tr class="grupo"><th colspan="5"></th><th colspan="2" class="c">Bono</th><th colspan="4" class="c">Cuenta del alumno</th></tr>
+        <tr><th>Alumno</th><th>Tipo</th><th>Cursos / plan</th><th>Ciclo</th><th>Avance</th><th>Aplicado</th><th>Para renovar</th><th class="r">Precio</th><th class="r">Desc.</th><th class="r">Pagado</th><th class="r">Saldo</th></tr>
       </thead><tbody>${v.inconclusas
         .map(
           (m) =>
             `<tr><td>${esc(m.alumno)}</td><td>${m.tipo === "particular" ? "Particular" : "Regular"}</td><td>${esc(m.detalle)}${sub(
               m.plan && m.plan !== m.detalle ? `${m.plan} · ${siglaCriterio(m.criterio)}` : siglaCriterio(m.criterio)
-            )}</td><td>${fechaCorta(m.inicio)}</td><td>${fechaCorta(m.fin)}</td><td>${esc(textoAvance(m))}</td><td>${textoBonoAplicado(m.bonoAplicado)}</td><td>${esc(textoBonoGenerado(m))}</td>${celdasCuenta(m.cuenta)}<td>${esc(m.estado)}${
-              m.cuenta.saldo > 0 ? " · con saldo" : " · cobrada"
-            }</td></tr>`
+            )}</td><td class="nw">${fechaCorta(m.inicio)}<br>${fechaCorta(m.fin)}</td><td>${esc(avanceEnDosLineas(m).principal)}${sub(avanceEnDosLineas(m).resto)}</td><td>${textoBonoAplicado(m.bonoAplicado)}</td><td>${esc(textoBonoGenerado(m))}</td><td class="r">${gs(m.cuenta.precio)}</td><td class="r">${montoOGuion(m.cuenta.descuento)}</td><td class="r">${gs(m.cuenta.pagado)}</td><td class="r nw">${montoOGuion(m.cuenta.saldo)}${m.cuenta.saldo > 0 ? sub("con saldo") : ""}</td></tr>`
         )
         .join("")}</tbody></table>${leyenda(v.inconclusas.map((m) => m.criterio))}`
     : `<p class="small">No quedan membresías sin terminar.</p>`;
@@ -120,7 +118,7 @@ export function construirHTMLRetiro(
   body { font: 12px/1.4 "Figtree", system-ui, Arial, sans-serif; color: #111; background: #fff; margin: 0; }
   h1, h2, h3 { font-family: "Montserrat", system-ui, Arial, sans-serif; font-weight: 800; margin: 0 0 6px; }
   h1 { font-size: 24px; } h2 { font-size: 16px; margin-top: 16px; } h3 { font-size: 13px; margin-top: 10px; }
-  .muted { color: #444; } .small { font-size: 10.5px; } .b { font-weight: 700; } .r { text-align: right; } .c { text-align: center; }
+  .nw { white-space: nowrap; } .muted { color: #444; } .small { font-size: 10.5px; } .b { font-weight: 700; } .r { text-align: right; } .c { text-align: center; }
   .caja { border: 2px solid #111; padding: 8px 10px; margin: 10px 0; font-weight: 700; }
   .aviso { border: 1.5px dashed #111; padding: 8px 10px; margin: 8px 0; }
   .t { width: 100%; border-collapse: collapse; margin: 6px 0; }
@@ -158,7 +156,7 @@ export function construirHTMLRetiro(
   </section>`
       : ""
   }
-  <section><h2>Membresías que quedan inconclusas · ${v.inconclusas.length}</h2>
+  <section><h2>Membresías activas que quedan inconclusas · ${v.inconclusas.length}</h2>
     <p class="small muted">Una línea por membresía. Siguen con el sustituto o sin titular, según lo elegido; lo que se cobre o dicte después se liquida como ajuste (regla 16).</p>
     ${inconclusas}
   </section>

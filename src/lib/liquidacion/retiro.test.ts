@@ -29,7 +29,7 @@ function entrada(o: Partial<EntradaRetiro> = {}): EntradaRetiro {
     regular: { pendientes: [regular()], bloqueadas: [] },
     particulares: { pendientes: [particular()], bloqueadas: [] },
     descuentos: [], saldoPrevio: 0, posteriores: [], reservasFuturas: [], inconclusas: [],
-    cuentas: {}, bonos: {}, criterios: {}, previas: [],
+    cuentas: {}, bonos: {}, criterios: {}, ciclos: {}, previas: [],
     ...o,
   };
 }

@@ -268,12 +268,24 @@ export async function leerEntradaRetiro(
           .or(`membresia_id.in.(${ids.join(",")}),redimido_en_membresia_id.in.(${ids.join(",")})`),
         "los bonos de tolerancia"
       ) as { membresia_id: number; clases: number; vence: string | null; aplicado: string | null; redimido_en_membresia_id: number | null }[];
+      // Las ventas anteriores a la 0064 recibieron el bono sumándolo a `clases_plan`
+      // sin dejar `redimido_en_membresia_id`: lo que excede al plan es ese bono.
+      const planes = exigir(
+        await sb.from("membresias").select("id, clases_plan, plan:planes(cantidad_clases, clases_ilimitadas)").in("id", ids),
+        "los planes de las membresías"
+      ) as unknown as { id: number; clases_plan: number | null; plan: { cantidad_clases: number | null; clases_ilimitadas: boolean | null } | null }[];
+      const excedente = (id: number): number => {
+        const m = planes.find((x) => x.id === id);
+        if (!m?.plan || m.plan.clases_ilimitadas || m.plan.cantidad_clases == null || m.clases_plan == null) return 0;
+        return Math.max(0, m.clases_plan - m.plan.cantidad_clases);
+      };
       for (const id of ids) {
         const generados = filas.filter((f) => f.membresia_id === id && f.aplicado == null);
         bonos[id] = {
-          aplicado: filas
-            .filter((f) => f.redimido_en_membresia_id === id && f.aplicado != null)
-            .reduce((t, f) => t + f.clases, 0),
+          aplicado:
+            filas
+              .filter((f) => f.redimido_en_membresia_id === id && f.aplicado != null)
+              .reduce((t, f) => t + f.clases, 0) || excedente(id),
           generado: generados.reduce((t, f) => t + f.clases, 0),
           vence: generados.map((f) => f.vence).filter((v): v is string => v != null).sort()[0] ?? null,
         };
@@ -292,6 +304,9 @@ export async function leerEntradaRetiro(
     const criterios: EntradaRetiro["criterios"] = {};
     for (const m of datos?.membresias ?? []) criterios[m.id] = m.criterio_liquidacion ?? null;
     for (const m of datosPart?.membresias ?? []) criterios[m.id] = m.criterio_liquidacion;
+    const ciclos: EntradaRetiro["ciclos"] = {};
+    for (const m of datos?.membresias ?? []) ciclos[m.id] = { inicio: m.fecha_inicio, fin: m.fecha_fin };
+    for (const m of datosPart?.membresias ?? []) ciclos[m.id] = { inicio: m.fecha_inicio ?? null, fin: m.fecha_fin };
 
     return {
       ok: true,
@@ -322,6 +337,7 @@ export async function leerEntradaRetiro(
         cuentas,
         bonos,
         criterios,
+        ciclos,
         previas,
       },
     };

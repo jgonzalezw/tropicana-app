@@ -10,7 +10,7 @@ import { construirHTMLRetiro } from "@/lib/liquidacion/imprimirRetiro";
 import { fechaCorta } from "@/lib/liquidacion/formatoPre";
 import { leyendaCriterios, siglaCriterio } from "@/lib/liquidacion/criterios";
 import {
-  cantidad, montoOGuion, textoAvance, textoBonoAplicado, textoBonoGenerado, textoYaLiquidado,
+  avanceEnDosLineas, cantidad, montoOGuion, textoBonoAplicado, textoBonoGenerado, textoCiclo, textoYaLiquidado,
 } from "@/lib/liquidacion/formatoRetiro";
 import { retirarProfesor, vistaRetiro } from "../../acciones";
 
@@ -367,7 +367,7 @@ export default function ClienteRetiro({
                         <td className={TD}>
                           {l.alumno}
                           <div className="text-sm text-[var(--texto-tenue)]">
-                            {l.curso} · {siglaCriterio(l.criterio)}
+                            {l.curso} · {siglaCriterio(l.criterio)} · {textoCiclo(l.inicio, l.fin)}
                           </div>
                         </td>
                         <td className={TDR}>{gs(l.cuenta.precio)}</td>
@@ -401,7 +401,7 @@ export default function ClienteRetiro({
                     <tr className="text-center text-xs text-[var(--texto-tenue)]">
                       <th />
                       <th colSpan={4} className="font-medium">Cuenta del alumno</th>
-                      <th colSpan={5} className="font-medium">Liquidación</th>
+                      <th colSpan={6} className="font-medium">Liquidación</th>
                     </tr>
                     <tr className="text-left text-sm text-[var(--texto-tenue)]">
                       <th className={TH}>Alumno</th>
@@ -410,6 +410,7 @@ export default function ClienteRetiro({
                       <th className={THR}>Pagado</th>
                       <th className={THR}>Saldo</th>
                       <th className={TH}>Horas</th>
+                      <th className={TH}>Bono</th>
                       <th className={TH}>Forma de pago</th>
                       <th className={THR}>A la fecha</th>
                       <th className={THR}>Ya liquidado</th>
@@ -422,7 +423,7 @@ export default function ClienteRetiro({
                         <td className={TD}>
                           {l.alumno}
                           <div className="text-sm text-[var(--texto-tenue)]">
-                            Clase particular · {siglaCriterio(l.criterio)}
+                            Clase particular · {siglaCriterio(l.criterio)} · {textoCiclo(l.inicio, l.fin)}
                           </div>
                         </td>
                         <td className={TDR}>{gs(l.cuenta.precio)}</td>
@@ -432,6 +433,7 @@ export default function ClienteRetiro({
                         <td className={`${TD} tabular-nums`}>
                           {cantidad(l.horasDadas)} de {cantidad(l.horasContratadas)} h
                         </td>
+                        <td className={`${TD} tabular-nums`}>{textoBonoAplicado(l.bonoAplicado)}</td>
                         <td className={TD}>{l.forma.replace("_", " ")}</td>
                         <td className={TDR}>{gs(l.aLaFecha)}</td>
                         <td className={TDR}>{textoYaLiquidado(l)}</td>
@@ -462,7 +464,7 @@ export default function ClienteRetiro({
           )}
 
           <section>
-            <h2 className="text-xl font-bold mb-1">Membresías que quedan inconclusas · {vista.inconclusas.length}</h2>
+            <h2 className="text-xl font-bold mb-1">Membresías activas que quedan inconclusas · {vista.inconclusas.length}</h2>
             <p className="text-base text-[var(--texto-tenue)] mb-2">
               Una línea por membresía. Siguen con el sustituto o sin titular, según lo elegido.
             </p>
@@ -476,21 +478,18 @@ export default function ClienteRetiro({
                       <th colSpan={4} />
                       <th colSpan={2} className="font-medium">Bono</th>
                       <th colSpan={4} className="font-medium">Cuenta del alumno</th>
-                      <th />
                     </tr>
                     <tr className="text-left text-sm text-[var(--texto-tenue)]">
                       <th className={TH}>Alumno</th>
                       <th className={TH}>Cursos / plan</th>
-                      <th className={TH}>Inicio</th>
-                      <th className={TH}>Fin</th>
+                      <th className={TH}>Ciclo</th>
                       <th className={TH}>Avance</th>
                       <th className={TH}>Aplicado</th>
                       <th className={TH}>Para renovar</th>
                       <th className={THR}>Precio</th>
                       <th className={THR}>Desc.</th>
                       <th className={THR}>Pagado</th>
-                      <th className={THR}>Saldo</th>
-                      <th className="py-2 font-medium">Estado</th>
+                      <th className="py-2 font-medium text-right">Saldo</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -504,18 +503,22 @@ export default function ClienteRetiro({
                             {siglaCriterio(m.criterio)}
                           </div>
                         </td>
-                        <td className={`${TD} tabular-nums`}>{fechaCorta(m.inicio)}</td>
-                        <td className={`${TD} tabular-nums`}>{fechaCorta(m.fin)}</td>
-                        <td className={`${TD} tabular-nums`}>{textoAvance(m)}</td>
+                        <td className={`${TD} tabular-nums whitespace-nowrap`}>
+                          {fechaCorta(m.inicio)}
+                          <div>{fechaCorta(m.fin)}</div>
+                        </td>
+                        <td className={`${TD} tabular-nums`}>
+                          {avanceEnDosLineas(m).principal}
+                          <div className="text-sm text-[var(--texto-tenue)]">{avanceEnDosLineas(m).resto}</div>
+                        </td>
                         <td className={`${TD} tabular-nums`}>{textoBonoAplicado(m.bonoAplicado)}</td>
                         <td className={`${TD} tabular-nums`}>{textoBonoGenerado(m)}</td>
                         <td className={TDR}>{gs(m.cuenta.precio)}</td>
                         <td className={TDR}>{montoOGuion(m.cuenta.descuento)}</td>
                         <td className={TDR}>{gs(m.cuenta.pagado)}</td>
-                        <td className={TDR}>{montoOGuion(m.cuenta.saldo)}</td>
-                        <td className="py-2">
-                          {m.estado}
-                          {m.cuenta.saldo > 0 ? " · con saldo" : " · cobrada"}
+                        <td className="py-2 text-right tabular-nums whitespace-nowrap">
+                          {montoOGuion(m.cuenta.saldo)}
+                          {m.cuenta.saldo > 0 && <div className="text-sm text-[var(--texto-tenue)]">con saldo</div>}
                         </td>
                       </tr>
                     ))}

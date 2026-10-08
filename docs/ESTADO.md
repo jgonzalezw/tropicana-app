@@ -423,3 +423,4 @@ D35 (`docs/decisiones/vigentes.md`). **Migración 0064 aplicada en dev (2026-10-
 - **Un solo catálogo de criterios:** `src/lib/liquidacion/criterios.ts` reemplaza los de Planes, Comprobante y pre-liquidación.
 - **Verificado en dev:** `tsc`, `lint`, `npm test` (353), y en pantalla Nuñez al 06/10 (Luz Marina 2 de 8; Yubinca 250 / 150 N° 3 / 100) y Salek (bono +1). Falta la reconfirmación de Javier y el pase.
 - **Anotado:** unificar los flujos de cálculo (decisión de Javier sobre D34 pendiente) y `desasignar` con `clases_hechas`.
+- **Ajuste de pantalla (2026-10-08):** inconclusas con ciclo en dos líneas, avance en dos líneas, sin Estado y con «con saldo»; el ciclo junto al curso en las líneas de liquidación; columna Bono también en particulares. El bono de ventas anteriores a la 0064 (`aplicado='historico'`, sin `redimido_en_membresia_id`) se lee como el excedente de `clases_plan` sobre el plan (Yubinca: 7/9, +1).

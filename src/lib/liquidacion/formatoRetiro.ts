@@ -19,12 +19,22 @@ export function textoYaLiquidado(l: Pick<LineaRegular | LineaParticular, "yaLiqu
   return l.liquidaciones.length ? `${gs(l.yaLiquidado)} · N° ${l.liquidaciones.join(", ")}` : gs(l.yaLiquidado);
 }
 
-/** «2 de 8 clases · faltan 6», o «3 clases (ilimitado)». */
-export function textoAvance(m: Pick<InconclusaVista, "hechas" | "total" | "unidad">): string {
+/**
+ * El avance en dos líneas como mucho: «2 de 8 clases» y debajo «faltan 6»
+ * (o «ilimitado», que no tiene total contra el cual faltar).
+ */
+export function avanceEnDosLineas(m: Pick<InconclusaVista, "hechas" | "total" | "unidad">): { principal: string; resto: string } {
   return m.total == null
-    ? `${cantidad(m.hechas)} ${m.unidad} (ilimitado)`
-    : `${cantidad(m.hechas)} de ${cantidad(m.total)} ${m.unidad} · faltan ${cantidad(Math.max(0, m.total - m.hechas))}`;
+    ? { principal: `${cantidad(m.hechas)} ${m.unidad}`, resto: "ilimitado" }
+    : {
+        principal: `${cantidad(m.hechas)} de ${cantidad(m.total)} ${m.unidad}`,
+        resto: `faltan ${cantidad(Math.max(0, m.total - m.hechas))}`,
+      };
 }
+
+/** El ciclo en una línea: «01/10/2026 – 27/10/2026». */
+export const textoCiclo = (inicio: string | null, fin: string | null): string =>
+  `${fechaCorta(inicio)} – ${fechaCorta(fin)}`;
 
 /** Bono que recibió de la venta anterior: «+1 clase» o «—». */
 export const textoBonoAplicado = (n: number): string => (n > 0 ? `+${n}` : "—");

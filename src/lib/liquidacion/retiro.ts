@@ -95,6 +95,8 @@ export type EntradaRetiro = {
   bonos: Record<number, BonoMembresia>;
   /** Criterio de liquidación de cada membresía de las líneas. */
   criterios: Record<number, number | null>;
+  /** Inicio y fin del ciclo de cada membresía de las líneas. */
+  ciclos: Record<number, { inicio: string | null; fin: string | null }>;
   /** Lo ya devengado de las membresías de las líneas (de este profesor). */
   previas: PreviaCierre[];
 };
@@ -104,7 +106,12 @@ export type Accion = { clave: string; texto: string };
 /** Lo que toda línea de la liquidación final dice de su membresía y de su cuenta. */
 type LineaCuenta = {
   criterio: number | null;
+  /** Ciclo de la membresía (inicio y fin), para ubicar la línea en el tiempo. */
+  inicio: string | null;
+  fin: string | null;
   cuenta: CuentaMembresia;
+  /** Clases de bono de tolerancia que recibió al inscribirse. */
+  bonoAplicado: number;
   /** Total que le toca a la fecha de corte = ya liquidado + este cierre. */
   aLaFecha: number;
   yaLiquidado: number;
@@ -118,7 +125,6 @@ export type LineaRegular = LineaCuenta & {
   curso: string;
   clases: number;
   clasesDelCurso: number;
-  bonoAplicado: number;
   pct: number;
   base: number;
   /** Este cierre: lo que se devenga ahora. */
@@ -277,6 +283,8 @@ export function armarRetiro(e: EntradaRetiro): VistaRetiro {
       alumno: p.alumno,
       curso: p.curso,
       criterio: e.criterios[p.membresiaId] ?? p.criterio,
+      inicio: e.ciclos[p.membresiaId]?.inicio ?? null,
+      fin: e.ciclos[p.membresiaId]?.fin ?? null,
       cuenta: cuentaDe(p.membresiaId),
       clases: p.clases,
       clasesDelCurso: p.clasesDelCurso,
@@ -294,7 +302,10 @@ export function armarRetiro(e: EntradaRetiro): VistaRetiro {
     alumno: p.alumno,
     // El cierre mide como el criterio 2, pero la sigla es la de la venta.
     criterio: e.criterios[p.membresiaId] ?? p.criterio,
+    inicio: e.ciclos[p.membresiaId]?.inicio ?? null,
+    fin: e.ciclos[p.membresiaId]?.fin ?? null,
     cuenta: cuentaDe(p.membresiaId),
+    bonoAplicado: e.bonos[p.membresiaId]?.aplicado ?? 0,
     horasDadas: p.detalle.horasDadas,
     horasContratadas: p.detalle.horasContratadas,
     forma: p.detalle.forma,
