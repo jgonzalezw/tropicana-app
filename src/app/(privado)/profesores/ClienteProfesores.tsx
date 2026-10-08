@@ -179,6 +179,9 @@ function TabListado({
           listasContacto={listasContacto}
           puedeVerPrivados={puedeVerPrivados}
           permitirBaja
+          hrefRetirar={(p) =>
+            puedeRetirar && (p.activo || conAsignacionAbierta.includes(p.id)) ? `/profesores/retirar/${p.id}` : null
+          }
           valor={editSel}
           modoInicial={puedeEditar ? "editar" : "ver"}
           puedeEditar={puedeEditar}

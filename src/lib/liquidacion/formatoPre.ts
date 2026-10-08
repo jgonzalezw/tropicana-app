@@ -1,6 +1,7 @@
 /** Formato del informe de pre-liquidación (pantalla e impreso), sin DOM. */
 
 import { gs } from "../inscripcion.ts";
+import type { LiquidezPre } from "./preliquidacion.ts";
 
 const MESES = [
   "enero", "febrero", "marzo", "abril", "mayo", "junio",
@@ -73,4 +74,11 @@ export function subtituloPre(i: ConPeriodo): string {
   return `Período ${fechaCorta(i.periodoVencido)} – ${fechaCorta(i.hastaISO)}, ${
     i.simulacion ? "proyección del período en curso" : "se liquida a período vencido"
   }`;
+}
+
+/** El desglose de la cifra de liquidez (pantalla e impreso). */
+export function notaLiquidez(l: LiquidezPre): string {
+  const partes = [`devengo ${gs(l.devengo)}`, `saldo anterior ${gs(l.saldoPrevio)}`, `suplentes ${gs(l.reemplazos)}`];
+  const extra = l.soloSaldo ? ` · incluye ${l.soloSaldo} ${l.soloSaldo === 1 ? "profesor" : "profesores"} sin devengo en el período` : "";
+  return partes.join(" · ") + extra;
 }

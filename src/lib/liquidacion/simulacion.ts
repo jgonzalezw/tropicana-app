@@ -25,6 +25,7 @@ export const LIMITES_SIMULACION = [
   "Una suspensión futura no se puede prever: las clases del resto del período se cuentan como dictadas.",
   "Las membresías ilimitadas cuentan solo lo asistido hasta hoy, así que se subestiman.",
   "El saldo y lo cobrado son los de hoy: lo que se cobre después no está.",
+  "Los reemplazos que se dicten de acá al cierre no están en la liquidez.",
 ] as const;
 
 const EPS = 0.005;

@@ -10,7 +10,7 @@
 import { gs } from "../inscripcion.ts";
 import type { CasoExcepcion, ClaseSinRegistrar, InformePre } from "./preliquidacion.ts";
 import {
-  conSigno, fechaCorta, fechaHora, LEYENDA_PRE, LEYENDA_SIMULACION, nombrePeriodoPre,
+  conSigno, fechaCorta, fechaHora, LEYENDA_PRE, LEYENDA_SIMULACION, nombrePeriodoPre, notaLiquidez,
   subtituloPre, tituloPre, TEXTO_CRITERIO,
 } from "./formatoPre.ts";
 
@@ -100,7 +100,11 @@ export function construirHTMLPreliquidacion(i: InformePre, generadoEn: string): 
       <table class="t g"><thead><tr><th>Alumno</th><th>Curso(s)</th><th>Plan</th><th>Crit.</th><th>Ciclo</th><th class="r">Clases</th><th class="r">Cobrado</th><th class="r">Base</th><th class="r">%</th><th class="r">Comisión</th></tr></thead>
       <tbody>${filas || `<tr><td colspan="10" class="small">Sin comisiones en este período.</td></tr>`}</tbody>
       <tfoot><tr class="tot"><td colspan="9">Comisiones · ${p.membresias} ${p.membresias === 1 ? "membresía" : "membresías"}</td><td class="r">${gs(p.subtotal)}</td></tr>
-      ${extras}<tr class="tot"><td colspan="9">Neto a devengar</td><td class="r">${gs(p.neto)}</td></tr></tfoot></table>
+      ${extras}<tr class="tot"><td colspan="9">Neto a devengar</td><td class="r">${gs(p.neto)}</td></tr>${
+        p.aPagar != null
+          ? `<tr><td colspan="9">Saldo sin pagar de liquidaciones anteriores</td><td class="r">${gs(p.saldoPrevio ?? 0)}</td></tr><tr class="tot"><td colspan="9">A pagar al cierre</td><td class="r">${gs(p.aPagar)}</td></tr>`
+          : ""
+      }</tfoot></table>
       <p class="small muted">Criterios: C1 al completarse (período vencido) · C2 proporcional al avance · C3 al completarse, sin esperar el cierre.</p>
     </section>`;
     })
@@ -175,7 +179,11 @@ export function construirHTMLPreliquidacion(i: InformePre, generadoEn: string): 
       <div><div class="small muted">Profesores con devengo</div><div class="n">${r.profesoresConDevengo}</div></div>
       <div><div class="small muted">Membresías que entran</div><div class="n">${r.membresiasQueEntran}</div></div>
       <div><div class="small muted">Membresías con excepción</div><div class="n">${r.membresiasConExcepcion}</div></div>
-    </div>
+    </div>${
+      i.liquidez
+        ? `<div class="cifras"><div><div class="small muted">Liquidez a prever al ${esc(fechaCorta(i.hastaISO))}</div><div class="n">${gs(i.liquidez.total)}</div><div class="small muted">${esc(notaLiquidez(i.liquidez))}</div></div></div>`
+        : ""
+    }
     <h2>Profesores en este informe</h2>${indice}
     <p class="small muted">Las excepciones y las clases sin registrar están al final del informe.</p>
   </section>

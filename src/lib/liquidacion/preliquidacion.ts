@@ -95,6 +95,24 @@ export type EntradaPre = {
   /** Las clases (con o sin asistencia) hasta hoy, para ver cuáles faltan. */
   sesionesCal: SesionCal[];
   existentes: LiquidacionExistente[];
+  /**
+   * Solo en la simulación: lo que ya se le debe a cada profesor de
+   * liquidaciones anteriores (devengado − descuentos − pagado) y lo que se
+   * debe hoy a suplentes. Con esto sale la cifra de liquidez.
+   */
+  saldos?: { previos: SaldoPrevio[]; reemplazos: number };
+};
+
+export type SaldoPrevio = { profesorId: number; saldo: number };
+
+/** La plata que hay que tener al cierre (D29). Por profesor y con piso 0. */
+export type LiquidezPre = {
+  total: number;
+  devengo: number;
+  saldoPrevio: number;
+  reemplazos: number;
+  /** Profesores con deuda previa y sin devengo en el período. */
+  soloSaldo: number;
 };
 
 // ── Lo que devuelve ──────────────────────────────────────────────────────
@@ -130,6 +148,9 @@ export type ProfesorPre = {
   subtotal: number;
   extras: AjustePre[];
   neto: number;
+  /** Solo en la simulación: saldo sin pagar de liquidaciones anteriores y neto + saldo. */
+  saldoPrevio?: number;
+  aPagar?: number;
 };
 
 export type MotivoClave =
@@ -182,6 +203,8 @@ export type InformePre = {
     sinAlumnos: ClaseSinRegistrar[];
   };
   existentes: LiquidacionExistente[];
+  /** Solo en la simulación. */
+  liquidez?: LiquidezPre;
 };
 
 export const TITULOS_MOTIVO: Record<MotivoClave, string> = {
@@ -666,8 +689,48 @@ export function armarProfesores(e: EntradaPre): ProfesorPre[] {
 
 // ── Todo junto ───────────────────────────────────────────────────────────
 
+/**
+ * Liquidez = Σ por profesor max(0, neto + saldo previo) + reemplazos de
+ * suplentes. El piso va por profesor: lo pagado de más a uno no compensa lo
+ * que se le debe a otro. Anota `saldoPrevio` y `aPagar` en cada bloque.
+ */
+export function calcularLiquidez(
+  profesores: ProfesorPre[],
+  saldos: { previos: SaldoPrevio[]; reemplazos: number }
+): LiquidezPre {
+  const previo = new Map<number, number>();
+  for (const s of saldos.previos) previo.set(s.profesorId, (previo.get(s.profesorId) ?? 0) + s.saldo);
+  let devengo = 0;
+  let saldoPrevio = 0;
+  let total = 0;
+  for (const p of profesores) {
+    const sp = r2(previo.get(p.profesorId) ?? 0);
+    previo.delete(p.profesorId);
+    p.saldoPrevio = sp;
+    p.aPagar = r2(p.neto + sp);
+    devengo += Math.max(0, p.neto);
+    saldoPrevio += Math.max(0, p.aPagar) - Math.max(0, p.neto);
+    total += Math.max(0, p.aPagar);
+  }
+  let soloSaldo = 0;
+  for (const sp of previo.values()) {
+    if (sp <= 0) continue;
+    soloSaldo += 1;
+    saldoPrevio += sp;
+    total += sp;
+  }
+  return {
+    total: r2(total + saldos.reemplazos),
+    devengo: r2(devengo),
+    saldoPrevio: r2(saldoPrevio),
+    reemplazos: r2(saldos.reemplazos),
+    soloSaldo,
+  };
+}
+
 export function armarInforme(e: EntradaPre): InformePre {
   const profesores = armarProfesores(e);
+  const liquidez = e.simulacion && e.saldos ? calcularLiquidez(profesores, e.saldos) : undefined;
   const excepciones = armarExcepciones(e);
   const ids = new Set<number>();
   for (const m of excepciones) for (const c of m.casos) if (c.membresiaId != null) ids.add(c.membresiaId);
@@ -689,5 +752,6 @@ export function armarInforme(e: EntradaPre): InformePre {
     excepciones,
     clases: clasesSinRegistrar(e),
     existentes: e.existentes,
+    ...(liquidez ? { liquidez } : {}),
   };
 }

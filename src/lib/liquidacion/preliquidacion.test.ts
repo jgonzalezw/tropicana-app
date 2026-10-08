@@ -10,6 +10,8 @@ import {
   armarExcepciones,
   armarInforme,
   armarProfesores,
+  calcularLiquidez,
+  type ProfesorPre,
   clasesSinRegistrar,
   razonDeDescarte,
   type EntradaPre,
@@ -399,4 +401,43 @@ test("razonDeDescarte: simulada, una activa con saldo es 'saldo', no 'sin_agotar
   assert.equal(razonDeDescarte(m, ctx), "sin_agotar");
   assert.equal(razonDeDescarte(m, { ...ctx, simulada: true }), "saldo");
   assert.equal(razonDeDescarte(m, { ...ctx, simulada: true, saldo: 0 }), "sin_agotar");
+});
+
+// ── Liquidez de la simulación (D29) ──────────────────────────────────────
+
+const prof = (profesorId: number, neto: number): ProfesorPre => ({
+  profesorId, nombre: `P${profesorId}`, membresias: 0, cursos: [], lineas: [], subtotal: neto, extras: [], neto,
+});
+
+test("liquidez: el piso va por profesor, lo pagado de más a uno no compensa a otro", () => {
+  const ps = [prof(1, 100), prof(2, 50)];
+  const l = calcularLiquidez(ps, { previos: [{ profesorId: 1, saldo: -300 }, { profesorId: 2, saldo: 20 }], reemplazos: 0 });
+  assert.equal(ps[0].aPagar, -200);
+  assert.equal(ps[1].aPagar, 70);
+  assert.equal(l.total, 70);
+  assert.equal(l.devengo, 150);
+});
+
+test("liquidez: un profesor con deuda y sin devengo suma y se cuenta aparte; los suplentes también", () => {
+  const ps = [prof(1, 100)];
+  const l = calcularLiquidez(ps, {
+    previos: [{ profesorId: 1, saldo: 10 }, { profesorId: 9, saldo: 40 }, { profesorId: 8, saldo: -5 }],
+    reemplazos: 25,
+  });
+  assert.equal(l.total, 175);
+  assert.equal(l.soloSaldo, 1);
+  assert.equal(l.saldoPrevio, 50);
+  assert.equal(l.reemplazos, 25);
+});
+
+test("liquidez: sin saldos o fuera de simulación el informe no la trae", () => {
+  const e = entrada();
+  assert.equal(armarInforme(e).liquidez, undefined);
+  assert.equal(armarInforme({ ...e, saldos: { previos: [], reemplazos: 0 } }).liquidez, undefined);
+});
+
+test("liquidez: un descuento por reemplazo ya restado en el neto no se resta dos veces", () => {
+  const ps = [prof(1, 100 - 30)];
+  const l = calcularLiquidez(ps, { previos: [{ profesorId: 1, saldo: 0 }], reemplazos: 0 });
+  assert.equal(l.total, 70);
 });
