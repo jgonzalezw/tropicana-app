@@ -33,10 +33,10 @@ test("una línea por membresía inconclusa, con fechas, avance y estado", () => 
   assert.match(html, /Membresías activas que quedan inconclusas · 2/);
   assert.equal((html.match(/<tr><td>(Pérez|Ruiz)/g) ?? []).length, 2);
   assert.match(html, /3 de 8 clases<br>.*faltan 5/);
-  assert.match(html, /4 de 6 horas · faltan 2/);
+  assert.match(html, /4 de 6 horas<br>.*faltan 2/);
   assert.match(html, /01\/10\/2026/);
-  assert.match(html, /activa · con saldo/);
-  assert.match(html, /activa · cobrada/);
+  assert.match(html, /con saldo/);
+  assert.doesNotMatch(html, /cobrada/);
 });
 
 test("un plan ilimitado se rotula y no inventa un total", () => {
