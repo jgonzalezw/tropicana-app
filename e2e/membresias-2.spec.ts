@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 
 // Fase 2 (I-012): «+ Nueva reserva» dentro de la ficha. Supone el interruptor
 // `membresias_nuevas` = true en dev. La membresía se toma de la lista (una
-// particular activa con saldo), nunca por id fijo. Lo que se crea se borra en
+// particular activa con saldo), nunca por id fijo. Lo que se crea se libera en
 // `finally`, solo contra dev y con la llave de servicio.
 
 const DEV = "hyhijzuomqpylcmrzdvw";
@@ -67,7 +67,8 @@ test("elegir franjas en la grilla, solicitar y comprobar que baja el saldo", asy
   } finally {
     if (membresiaId) {
       const sb = createClient(url, llave!, { auth: { persistSession: false } });
-      await sb.from("reservas_sala").delete().eq("membresia_id", membresiaId).gte("creado_en", inicio);
+      // La base no deja borrar una reserva con historial (solo agregar): se libera el saldo pasándola a «reagendar».
+      await sb.from("reservas_sala").update({ estado: "reagendar", solicitada_hasta: null }).eq("membresia_id", membresiaId).gte("creado_en", inicio).eq("estado", "solicitada");
     }
   }
 });
