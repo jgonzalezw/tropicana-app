@@ -180,11 +180,14 @@ export async function cargarContextoOError(
 /** Filtra las reservas ya traídas (sin los estados que liberan) a las que de
  *  verdad ocupan AHORA — descarta una Solicitada vencida (regla de negocio 4:
  *  se calcula al leer, no se guarda paso a paso). */
-function ocupandoAhora<T extends { estado: string; solicitada_hasta: string | null }>(
+function ocupandoAhora<T extends { tipo: ReservaSalaOcupa["tipo"]; estado: string; solicitada_hasta: string | null }>(
   reservas: T[],
   ahora: Date
 ): T[] {
-  return reservas.filter((r) => ocupaAhora({ tipo: "particular", estado: r.estado, solicitadaHasta: r.solicitada_hasta }, ahora));
+  // El tipo real de cada fila: un bloqueo ocupa con estado `reservada`, que
+  // para una particular no ocupa. Con el tipo fijo el bloqueo se descartaba y
+  // el choque lo frenaba recién la base (23P01), con un mensaje genérico.
+  return reservas.filter((r) => ocupaAhora({ tipo: r.tipo, estado: r.estado, solicitadaHasta: r.solicitada_hasta }, ahora));
 }
 
 export function validarFranja(
