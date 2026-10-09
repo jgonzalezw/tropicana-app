@@ -230,3 +230,12 @@
 .n-enlace { color: var(--n-acc-txt); font-size: 13px; text-decoration: none; }
 .n-enlace:hover { text-decoration: underline; }
 .n-error { color: var(--n-pel); }
+
+/* Esqueleto de la ficha: aparece al instante mientras llegan los datos. */
+.n-esq { background: var(--n-hover); border-radius: 6px; animation: n-esq-pulso 1.2s ease-in-out infinite; }
+@keyframes n-esq-pulso { 50% { opacity: 0.45; } }
+@media (prefers-reduced-motion: reduce) { .n-esq { animation: none; } }
+.n-menor { display: block; font-size: 12px; color: var(--n-fg3); font-weight: 400; }
+.n-fila__ayuda { padding: 10px 14px; font-size: 12px; color: var(--n-fg3); }
+.n-fila__ayuda a, .n-fila__ayuda button { color: var(--n-acc-txt); background: none; border: 0; padding: 0; font: inherit; cursor: pointer; text-decoration: none; }
+.n-fila__ayuda a:hover, .n-fila__ayuda button:hover { text-decoration: underline; }

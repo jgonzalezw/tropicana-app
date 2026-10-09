@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { avisosDe, cuotaMasAntiguaConSaldo, fechaTexto, historialDe, indicadoresDe, lineasDePagos } from "./fichaMembresia.ts";
+import { avisosDe, cuotaMasAntiguaConSaldo, esSustituto, fechaTexto, historialDe, indicadoresDe, lineasDePagos } from "./fichaMembresia.ts";
 import type { FichaMembresia } from "./membresiasLectura.ts";
 import type { ReservaConHistorial } from "../app/(privado)/particulares/acciones.ts";
 
@@ -16,8 +16,8 @@ function ficha(o: { fila?: Partial<FichaMembresia["fila"]>; cuenta?: Partial<Fic
   const fila = {
     id: 1, tipo: "regular", estado: "activa", chip: { clave: "activa", texto: "Activa" },
     titular: { tipo: "persona", nombre: "Ana", apellido: "Zapata", razon_social: null, whatsapp: null },
-    titularNombre: "Ana Zapata", alumnoId: 1, contactoId: 1, tutorWhatsapp: null, planId: 5,
-    planNombre: "Salsa · 8 clases", profesorNombre: null, fechaInicio: "2026-09-01", fechaFin: "2026-10-27",
+    titularNombre: "Ana Zapata", alumnoId: 1, contactoId: 1, esMenor: false, tutor: null, planId: 5,
+    planNombre: "Salsa · 8 clases", estilo: null, cursos: [], profesorNombre: null, profesoresCurso: [], fechaInicio: "2026-09-01", fechaFin: "2026-10-27",
     cicloNumero: 1, anteriorId: null, siguienteId: null,
     uso: { hechas: 3, total: 8, unidad: "clases" }, saldo: 0, solicitudesVigentes: 0,
     historica: false, porVencer: false, conDeuda: false, solicitudes: false,
@@ -31,7 +31,7 @@ function ficha(o: { fila?: Partial<FichaMembresia["fila"]>; cuenta?: Partial<Fic
     ...o.cuenta,
   } as FichaMembresia["cuenta"];
   return {
-    fila, cuenta, pagos: [], clases: [],
+    fila, cuenta, pagos: [], clases: [], profesoresCurso: [],
     titular: { contactoId: 1, rol: "alumno", esMenor: false, avisarA: null },
     alquiler: null, ciclo: { anteriorId: null, siguienteId: null }, extensiones: [],
     ...o.resto,
@@ -167,4 +167,16 @@ test("pagos: cuota, descuento, cobro con recibo y compromiso, en orden", () => {
   assert.deepEqual(l.map((x) => x.titulo), ["Cuota oct 2026", "Descuento por adelanto", "Pago", "Compromiso"]);
   assert.equal(l.find((x) => x.titulo === "Pago")?.pagoId, 9);
   assert.equal(l.filter((x) => x.pagoId != null).length, 1, "solo el cobro lleva recibo");
+});
+
+test("sustituto: dictó alguien que no es el titular del curso ese día", () => {
+  assert.equal(esSustituto(7, 9, false), true);
+  assert.equal(esSustituto(7, 7, false), false);
+  assert.equal(esSustituto(7, 7, true), false); // un motivo anotado no hace sustituto a quien es el titular
+});
+
+test("sin titular asignado ese día, vale el motivo de reemplazo anotado", () => {
+  assert.equal(esSustituto(null, 9, true), true);
+  assert.equal(esSustituto(null, 9, false), false);
+  assert.equal(esSustituto(7, null, true), true);
 });

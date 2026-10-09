@@ -232,3 +232,13 @@ export function lineasDePagos(f: FichaMembresia): LineaPago[] {
   const orden = (l: LineaPago) => (l.clave.startsWith("cuota") ? 0 : l.clave.startsWith("adel") ? 1 : 2);
   return out.sort((a, b) => (a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : orden(a) - orden(b) || a.clave.localeCompare(b.clave)));
 }
+
+/**
+ * ¿Esta clase la dictó un sustituto? Sí si quien la dictó no es el titular del
+ * curso ese día (asignación, regla 20): es un hecho registrado, no un motivo
+ * anotado. Sin asignación que lo diga, vale el motivo de reemplazo de la sesión.
+ */
+export function esSustituto(titularProfesorId: number | null, dictoProfesorId: number | null, tieneMotivoReemplazo: boolean): boolean {
+  if (titularProfesorId != null && dictoProfesorId != null) return titularProfesorId !== dictoProfesorId;
+  return tieneMotivoReemplazo;
+}

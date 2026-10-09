@@ -1,8 +1,10 @@
+import EnlaceWhatsapp from "@/components/entidades/EnlaceWhatsapp";
 import { Chip } from "@/components/nuevo/Chip";
 import { Indicadores } from "@/components/nuevo/Indicador";
 import { gs, rotuloDiasMembresia } from "@/lib/inscripcion";
 import { textoBonos } from "@/lib/bono";
 import { formatearHoras } from "@/lib/horarios";
+import { textoMenorFila } from "@/lib/listaMembresias";
 import {
   fechaTexto,
   periodoTexto,
@@ -90,8 +92,14 @@ export default function FichaMembresiaVista({
           <p className="n-enc__sub">
             <b data-testid="ficha-titular">{fila.titularNombre || "Sin titular"}</b>
             {rolTexto && ` · ${rolTexto}`}
-            {titular.esMenor && " · menor de edad"} · {horario}
+            {" · "}
+            {horario}
           </p>
+          {textoMenorFila(fila) && (
+            <p className="n-enc__sub" data-testid="ficha-menor">
+              {textoMenorFila(fila)}
+            </p>
+          )}
         </div>
         <AccionesFicha alumnoId={fila.alumnoId} deBaja={deBaja} conReservas={conHoras} />
       </div>
@@ -208,13 +216,33 @@ export default function FichaMembresiaVista({
                 {detalle?.estilo && <small style={{ color: "var(--n-fg3)" }}>{detalle.estilo}</small>}
               </>
             ) : (
-              // En un curso la membresía no guarda profesor: se muestra quién dictó (hecho registrado, no supuesto).
+              // En un curso el profesor es el titular del curso (asignación, regla 20); quién dictó
+              // cada clase —con su sustituto— se ve en la pestaña Clases.
               <>
-                <p style={{ margin: 0, fontWeight: 500 }}>{quienDicto.join(", ") || "Sin clases registradas"}</p>
-                {quienDicto.length > 0 && <small style={{ color: "var(--n-fg3)" }}>Quién dictó las clases</small>}
+                {ficha.profesoresCurso.length ? (
+                  ficha.profesoresCurso.map((p) => (
+                    <p key={p.curso} style={{ margin: "0 0 6px", fontWeight: 500 }} data-testid="profesor-titular">
+                      {p.profesor ?? "Sin titular asignado"}
+                      <small style={{ display: "block", color: "var(--n-fg3)", fontWeight: 400 }}>Titular de {p.curso}</small>
+                    </p>
+                  ))
+                ) : (
+                  <p style={{ margin: 0, fontWeight: 500 }}>Sin titular asignado</p>
+                )}
+                {quienDicto.length > 0 && <small style={{ color: "var(--n-fg3)" }}>Dictaron las clases: {quienDicto.join(", ")}</small>}
               </>
             )}
           </Tarjeta>
+
+          {titular.avisarA && (
+            <Tarjeta titulo="Avisos por WhatsApp" testid="bloque-whatsapp">
+              <p style={{ margin: 0, fontWeight: 500 }} data-testid="whatsapp-destinatario">{titular.avisarA.nombre}</p>
+              <p style={{ margin: "4px 0 0", fontSize: 13 }} data-testid="whatsapp-numero">
+                <EnlaceWhatsapp numero={titular.avisarA.whatsapp} vacio="Sin WhatsApp cargado" />
+              </p>
+              {titular.esMenor && <small style={{ color: "var(--n-fg3)" }}>Es menor: los avisos van a su tutor.</small>}
+            </Tarjeta>
+          )}
 
           <Tarjeta titulo="Avisos" testid="bloque-avisos">
             {avisos.length ? (

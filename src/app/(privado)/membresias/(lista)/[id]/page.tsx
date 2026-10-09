@@ -27,20 +27,26 @@ export default async function PaginaFicha({ params }: { params: Promise<{ id: st
 
   // Lo que `GestionReserva` necesita para mostrar (sin editar) cada reserva.
   let reservas: DatosReservas | null = null;
+  const puedeVerReciboP = tienePermiso("caja", "ver");
   if (detalle && (ficha.fila.tipo === "particular" || ficha.fila.tipo === "alquiler")) {
     const sb = await createClient();
     const [salasR, catalogoR, incR, minR] = await Promise.all([
       sb.from("salas").select("id, nombre, activa, es_externa").eq("activa", true).order("orden"),
-      sb.from("catalogos").select("id").eq("clave", "motivo_suspension_reserva").maybeSingle(),
+      sb
+        .from("catalogos")
+        .select("valores:catalogo_valores(valor, etiqueta, activo, orden)")
+        .eq("clave", "motivo_suspension_reserva")
+        .maybeSingle(),
       sb.from("parametros").select("valor").eq("clave", "tiempos_incremento_min").maybeSingle(),
       sb.from("parametros").select("valor").eq("clave", "duracion_minima_curso_min").maybeSingle(),
     ]);
     if (salasR.error) throw new Error(`No se pudieron leer las salas: ${salasR.error.message}`);
-    const catalogo = catalogoR.data as { id: number } | null;
-    const motivos = catalogo
-      ? await sb.from("catalogo_valores").select("valor, etiqueta").eq("catalogo_id", catalogo.id).eq("activo", true).order("orden")
-      : null;
-    if (motivos?.error) throw new Error(`No se pudieron leer los motivos: ${motivos.error.message}`);
+    if (catalogoR.error) throw new Error(`No se pudieron leer los motivos: ${catalogoR.error.message}`);
+    const motivos = (
+      (catalogoR.data as { valores: { valor: string; etiqueta: string; activo: boolean; orden: number }[] } | null)?.valores ?? []
+    )
+      .filter((v) => v.activo)
+      .sort((x, y) => x.orden - y.orden);
     const externa = detalle.salasDeLaMembresia.find((s) => s.esExterna);
     reservas = {
       membresiaId,
@@ -52,7 +58,7 @@ export default async function PaginaFicha({ params }: { params: Promise<{ id: st
         .filter((s) => !s.es_externa)
         .map((s) => ({ id: s.id, nombre: s.nombre })),
       salaExterna: externa ? { salaId: externa.salaId, nombre: externa.nombre } : null,
-      motivosSuspension: (motivos?.data as { valor: string; etiqueta: string }[] | null) ?? [],
+      motivosSuspension: motivos.map(({ valor, etiqueta }) => ({ valor, etiqueta })),
       incrementoMin: Math.max(1, Number((incR.data as { valor: string } | null)?.valor) || 30),
       minimoMin: Math.max(1, Number((minR.data as { valor: string } | null)?.valor) || 30),
       reservas: detalle.reservas,
@@ -67,7 +73,7 @@ export default async function PaginaFicha({ params }: { params: Promise<{ id: st
       historial={historialDe(ficha, detalle?.reservas ?? null)}
       pagos={lineasDePagos(ficha)}
       reservas={reservas}
-      puedeVerRecibo={await tienePermiso("caja", "ver")}
+      puedeVerRecibo={await puedeVerReciboP}
     />
   );
 }
