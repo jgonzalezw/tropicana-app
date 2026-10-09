@@ -107,6 +107,28 @@ export function validarTiempoReserva(e: {
   return null;
 }
 
+/**
+ * Qué falta para poder pedir una reserva nueva, o `null` si ya se puede. Una
+ * sola función para el formulario de `NuevaReserva` en cualquier marco
+ * (regla de calidad 9): deshabilita los botones y dice por qué.
+ */
+export function faltaNuevaReserva(e: {
+  fecha: string;
+  hora: string;
+  duracionMin: number;
+  incrementoMin: number;
+  minimoMin: number;
+  salaTipo: "propia" | "externa";
+  salaId: number | null;
+  nombreExterna: string;
+}): string | null {
+  if (!e.fecha) return "Elegí la fecha.";
+  const tiempo = validarTiempoReserva(e);
+  if (tiempo) return tiempo;
+  if (e.salaTipo === "externa") return e.nombreExterna.trim() ? null : "Escribí el nombre del lugar externo.";
+  return e.salaId == null ? "Elegí la sala." : null;
+}
+
 export function validarReservaSala(e: EntradaValidarReserva): ResultadoHorario {
   const tiempo = validarTiempoReserva(e);
   if (tiempo) return { ok: false, motivo: tiempo };

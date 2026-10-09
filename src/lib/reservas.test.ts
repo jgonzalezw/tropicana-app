@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   validarReservaSala,
+  faltaNuevaReserva,
   ocupacionDeProfesor,
   puedeTransicionar,
   solicitudVigente,
@@ -451,4 +452,15 @@ test("saldoMembresia: una reserva de cortesía no descuenta el saldo (H5)", () =
   });
   assert.equal(s.consumidasMin, 60);
   assert.equal(s.sinAgendarMin, 180);
+});
+
+test("faltaNuevaReserva: dice qué falta y se calla cuando ya se puede", () => {
+  const ok = { fecha: "2026-10-12", hora: "18:00", duracionMin: 60, incrementoMin: 30, minimoMin: 30, salaTipo: "propia" as const, salaId: 1, nombreExterna: "" };
+  assert.equal(faltaNuevaReserva(ok), null);
+  assert.equal(faltaNuevaReserva({ ...ok, fecha: "" }), "Elegí la fecha.");
+  assert.match(faltaNuevaReserva({ ...ok, hora: "18:10" }) ?? "", /intervalos de 30 minutos/);
+  assert.match(faltaNuevaReserva({ ...ok, duracionMin: 45 }) ?? "", /múltiplo/);
+  assert.equal(faltaNuevaReserva({ ...ok, salaId: null }), "Elegí la sala.");
+  assert.equal(faltaNuevaReserva({ ...ok, salaTipo: "externa", salaId: null, nombreExterna: "  " }), "Escribí el nombre del lugar externo.");
+  assert.equal(faltaNuevaReserva({ ...ok, salaTipo: "externa", salaId: null, nombreExterna: "Salón X" }), null);
 });
