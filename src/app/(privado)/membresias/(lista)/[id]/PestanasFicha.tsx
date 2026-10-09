@@ -4,9 +4,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Chip } from "@/components/nuevo/Chip";
-import GestionReserva from "@/components/GestionReserva";
-import { gs } from "@/lib/inscripcion";
-import { fechaTexto, type EventoHistorial, type LineaPago } from "@/lib/fichaMembresia";
+import FilaReserva from "@/components/nuevo/FilaReserva";
+import { nombreVisible } from "@/lib/formato";
+import { fechaTexto, montoCorto, type EventoHistorial, type LineaPago } from "@/lib/fichaMembresia";
 import type { ClaseFicha } from "@/lib/membresiasLectura";
 import { formatearHoras } from "@/lib/horarios";
 import type { ReservaConHistorial } from "../../../particulares/acciones";
@@ -31,6 +31,10 @@ export type DatosReservas = {
   motivosSuspension: { valor: string; etiqueta: string }[];
   incrementoMin: number;
   minimoMin: number;
+  /** Parámetro `reserva_cancelacion_plazo_horas`: «Cancelar a pedido» devuelve la hora dentro del plazo y la consume fuera. */
+  plazoCancelacionHoras: number;
+  /** Instante en que se armó la página (ISO): el mismo en el servidor y el cliente. */
+  ahora: string;
   reservas: ReservaConHistorial[];
 };
 
@@ -62,6 +66,7 @@ export default function PestanasFicha({
   const router = useRouter();
   const nueva = useNuevaReserva();
   const [activa, setActiva] = useState<Pestana>("clases");
+  const [abierta, setAbierta] = useState<number | null>(null);
   const primera = reservas ? "Reservas" : "Clases";
 
   return (
@@ -83,7 +88,7 @@ export default function PestanasFicha({
               <div key={c.sesionId} className="n-linea">
                 <span className="n-linea__fecha">{fechaTexto(c.fecha)}</span>
                 <div>
-                  <div className="n-linea__titulo">{c.cursoNombre}</div>
+                  <div className="n-linea__titulo">{nombreVisible(c.cursoNombre)}</div>
                   <div className="n-linea__sub">
                     {c.profesorNombre ?? "Sin profesor registrado"}
                     {c.sustituto ? " · sustituto" : ""}
@@ -97,17 +102,15 @@ export default function PestanasFicha({
       )}
 
       {activa === "clases" && reservas && (
-        <div role="tabpanel" aria-label="Reservas" className="flex flex-col gap-3 pt-3">
-          <div className="n-linea" data-testid="resumen-reservas">
-            <div>
-              <div className="n-linea__titulo">
-                Disponible para pedir {formatearHoras(reservas.disponibleMin / 60)} h de {formatearHoras(reservas.contratadasMin / 60)} h
-              </div>
-              {reservas.motivoSinAlta && <div className="n-linea__sub">{reservas.motivoSinAlta}</div>}
+        <div role="tabpanel" aria-label="Reservas" className="flex flex-col">
+          <div className="n-res-cab" data-testid="resumen-reservas">
+            <div className="n-res-cab__resumen">
+              Disponible para pedir {formatearHoras(reservas.disponibleMin / 60)} h de {formatearHoras(reservas.contratadasMin / 60)} h
+              {reservas.motivoSinAlta && <small>{reservas.motivoSinAlta}</small>}
             </div>
             <button
               type="button"
-              className="n-boton n-boton--primario n-boton--chico"
+              className="n-boton--punteado"
               data-testid="boton-nueva-reserva"
               disabled={!!reservas.motivoSinAlta}
               title={reservas.motivoSinAlta ?? undefined}
@@ -118,10 +121,9 @@ export default function PestanasFicha({
           </div>
           {!reservas.reservas.length && <p className="n-vacio">Todavía no hay reservas.</p>}
           {reservas.reservas.map((r) => (
-            <GestionReserva
+            <FilaReserva
               key={r.id}
               reserva={r}
-              membresiaId={reservas.membresiaId}
               tipo={reservas.tipo}
               disponibleMin={reservas.disponibleMin}
               fechaInicioMembresia={reservas.fechaInicio}
@@ -132,6 +134,10 @@ export default function PestanasFicha({
               incrementoMin={reservas.incrementoMin}
               minimoMin={reservas.minimoMin}
               puedeEditar={reservas.puedeEditar}
+              plazoCancelacionHoras={reservas.plazoCancelacionHoras}
+              ahora={reservas.ahora}
+              abierta={abierta === r.id}
+              onToggle={() => setAbierta(abierta === r.id ? null : r.id)}
               onCambio={() => router.refresh()}
             />
           ))}
@@ -155,7 +161,7 @@ export default function PestanasFicha({
                   ) : (
                     <span className="n-linea__sub" title="Necesitás el permiso de ver Caja">Ver recibo no disponible</span>
                   ))}
-                <Chip tono={l.tono ?? "neutro"} chico>{l.monto < 0 ? `− ${gs(-l.monto)}` : gs(l.monto)}</Chip>
+                <Chip tono={l.tono ?? "neutro"} chico>{l.monto < 0 ? `− ${montoCorto(-l.monto)}` : montoCorto(l.monto)}</Chip>
               </div>
             </div>
           ))}

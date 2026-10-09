@@ -209,6 +209,66 @@ export default function NuevaReserva({
     </div>
   );
 
+  // Marco `hoja` (ficha de Membresías): campos del mockup, con la duración y la
+  // sala en chips y «Dónde» segmentado. Mismos estados y mismas reglas que arriba.
+  const camposHoja = (
+    <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-2 gap-3">
+        <label className="n-campo">
+          <span>Fecha</span>
+          <input type="date" value={nFecha} min={fechaInicio} max={fechaFin} onChange={(e) => tocar(setNFecha)(e.target.value)} />
+        </label>
+        <label className="n-campo">
+          <span>Hora de inicio</span>
+          <input type="time" value={nHora} onChange={(e) => tocar(setNHora)(e.target.value)} />
+        </label>
+      </div>
+      <div className="n-campo">
+        <span>Duración</span>
+        <div className="n-chips-opcion" role="group" aria-label="Duración">
+          {duracionesNueva.map((d) => (
+            <button key={d} type="button" className="n-chip-opcion" aria-pressed={nDuracion === d} onClick={() => tocar(setNDuracion)(d)}>
+              {formatearHoras(d / 60)} h
+            </button>
+          ))}
+        </div>
+        <span className="n-res__nota">
+          Disponible para pedir: {formatearHoras(disponibleMin / 60)} h. Múltiplos de {formatearHoras(minimoMin / 60)} h.
+        </span>
+      </div>
+      {tieneExterna && (
+        <div className="n-campo">
+          <span>Dónde</span>
+          <div className="n-segmentado" role="group" aria-label="Dónde">
+            <button type="button" aria-pressed={nSalaTipo === "propia"} onClick={() => tocar(setNSalaTipo)("propia")}>
+              Sala propia
+            </button>
+            <button type="button" aria-pressed={nSalaTipo === "externa"} onClick={() => tocar(setNSalaTipo)("externa")}>
+              Lugar externo
+            </button>
+          </div>
+        </div>
+      )}
+      {nSalaTipo === "propia" ? (
+        <div className="n-campo">
+          <span>Sala</span>
+          <div className="n-chips-opcion" role="group" aria-label="Sala">
+            {salas.map((x) => (
+              <button key={x.id} type="button" className="n-chip-opcion" aria-pressed={nSalaId === x.id} onClick={() => tocar(setNSalaId)(x.id)}>
+                {x.nombre}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <label className="n-campo">
+          <span>Nombre del lugar</span>
+          <input placeholder="Salón X — Hotel Y" value={nNombreExterna} onChange={(e) => tocar(setNNombreExterna)(e.target.value)} />
+        </label>
+      )}
+    </div>
+  );
+
   const sinHoras = (
     <p className="text-[var(--texto-tenue)]">
       No quedan horas para reservar: {disponibleMin > 0 ? `quedan ${formatearHoras(disponibleMin / 60)} h, menos que` : "se usó todo"}{" "}
@@ -235,7 +295,7 @@ export default function NuevaReserva({
               : { txt: "Confirmar directo", onClick: () => crear("confirmar"), bloqueada: pendiente || !!falta }
         }
       >
-        {agotado ? sinHoras : creada ? null : campos}
+        {agotado ? sinHoras : creada ? null : camposHoja}
         {resultado && <PanelResultado r={resultado} />}
       </HojaLateral>
     );

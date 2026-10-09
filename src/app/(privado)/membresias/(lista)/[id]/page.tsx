@@ -36,7 +36,7 @@ export default async function PaginaFicha({ params }: { params: Promise<{ id: st
       tienePermiso(modulo, "editar"),
       createClient(),
     ]);
-    const [salasR, catalogoR, incR, minR] = await Promise.all([
+    const [salasR, catalogoR, incR, minR, plazoR] = await Promise.all([
       sb.from("salas").select("id, nombre, activa, es_externa").eq("activa", true).order("orden"),
       sb
         .from("catalogos")
@@ -45,9 +45,11 @@ export default async function PaginaFicha({ params }: { params: Promise<{ id: st
         .maybeSingle(),
       sb.from("parametros").select("valor").eq("clave", "tiempos_incremento_min").maybeSingle(),
       sb.from("parametros").select("valor").eq("clave", "duracion_minima_curso_min").maybeSingle(),
+      sb.from("parametros").select("valor").eq("clave", "reserva_cancelacion_plazo_horas").maybeSingle(),
     ]);
     if (salasR.error) throw new Error(`No se pudieron leer las salas: ${salasR.error.message}`);
     if (catalogoR.error) throw new Error(`No se pudieron leer los motivos: ${catalogoR.error.message}`);
+    if (plazoR.error) throw new Error(`No se pudo leer el plazo de cancelación: ${plazoR.error.message}`);
     const motivos = (
       (catalogoR.data as { valores: { valor: string; etiqueta: string; activo: boolean; orden: number }[] } | null)?.valores ?? []
     )
@@ -77,6 +79,9 @@ export default async function PaginaFicha({ params }: { params: Promise<{ id: st
       motivosSuspension: motivos.map(({ valor, etiqueta }) => ({ valor, etiqueta })),
       incrementoMin: Math.max(1, Number((incR.data as { valor: string } | null)?.valor) || 30),
       minimoMin: Math.max(1, Number((minR.data as { valor: string } | null)?.valor) || 30),
+      // Mismo valor por defecto que `cancelarAPedido` (parámetro de la migración 0054).
+      plazoCancelacionHoras: Math.max(1, Number((plazoR.data as { valor: string } | null)?.valor) || 8),
+      ahora: ahora.toISOString(),
       reservas: detalle.reservas,
     };
   }
@@ -84,9 +89,9 @@ export default async function PaginaFicha({ params }: { params: Promise<{ id: st
   return (
     <FichaMembresiaVista
       ficha={ficha}
-      indicadores={indicadoresDe(ficha)}
+      indicadores={indicadoresDe(ficha, ahora)}
       avisos={avisosDe(ficha, detalle?.reservas ?? null, ahora)}
-      historial={historialDe(ficha, detalle?.reservas ?? null)}
+      historial={historialDe(ficha, detalle?.reservas ?? null, ahora)}
       pagos={lineasDePagos(ficha)}
       reservas={reservas}
       puedeVerRecibo={await puedeVerReciboP}
