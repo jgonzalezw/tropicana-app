@@ -169,6 +169,18 @@ export default function HojaFranjas({
     };
   }, [externo, salaId, claveSemana, datos.membresiaId, reprogramar?.id, recarga]);
 
+  // Precarga: con la semana actual a la vista, pide la siguiente en segundo plano (la promesa queda
+  // guardada: al pasar de semana el efecto de arriba la encuentra lista o a medio camino).
+  const hayActual = !!semanas[claveSemana];
+  useEffect(() => {
+    if (externo || salaId == null || !hayActual) return;
+    const desdeSig = sumar(semanaDesde, 7);
+    const hastaSig = sumar(semanaDesde, 13);
+    const clave = `${desdeSig}|${hastaSig}`;
+    if (semanasP.current.has(clave)) return;
+    semanasP.current.set(clave, consultarSemanaFranjas({ membresiaId: datos.membresiaId, desde: desdeSig, hasta: hastaSig, reservaId: reprogramar?.id }));
+  }, [externo, salaId, hayActual, semanaDesde, datos.membresiaId, reprogramar?.id]);
+
   // La grilla del día sale de lo ya leído: cambiar de día dentro de la semana no consulta nada.
   const calculo = useMemo(() => {
     const semana = semanas[claveSemana];
@@ -181,9 +193,8 @@ export default function HojaFranjas({
   }, [externo, salaId, base, semanas, claveSemana, fecha, semanaDesde, ahora, reprogramar?.id]);
   const [previa, setPrevia] = useState<DatosFranjas | null>(null);
   const calculada = calculo && "datos" in calculo ? calculo.datos : null;
-  useEffect(() => {
-    if (calculada) setPrevia(calculada);
-  }, [calculada]);
+  // Ajuste durante el render (no en un efecto): recuerda la última grilla calculada.
+  if (calculada && calculada !== previa) setPrevia(calculada);
   // Al cambiar de semana se sigue viendo la anterior, atenuada, hasta que llega la nueva.
   const lectura = calculada ?? previa;
   const errorLectura = errorCarga ?? (calculo && "error" in calculo ? calculo.error : null);
