@@ -150,12 +150,15 @@ Pasaron a `docs/archivo/ESTADO-2026-10.md` para que este archivo se pueda leer. 
 - **RLS (pendiente de cierre):** un Profesor con alcance propio no ve el titular de una de sus particulares (`contacto_visible_por_profesor` no cubre `membresias.profesor_id`); Gerente y Asistente sí lo ven. Antes de la fase 2: explicarle a Javier qué cambio hace falta (migración 0068).
 - **Cierre:** PR #38 (`a6af127`) y #39 (`9ec1bf7`) fusionados en main, sin pase a producción; interruptor apagado en producción (0067 sin aplicar).
 
-### I-012 · Membresías, fase 2 (reservas en la ficha + corrección visual) — 2026-10-09 (en pausa, sin PR)
+### I-012 · Membresías, fase 2 (reservas en la ficha + corrección visual) — 2026-10-09
 
-- **Rama** `membresias/fase-2` (commits 5–12), sin PR y sin pase a producción. Migración **0068** `menu_plegable` aplicada solo en dev (control 52).
-- **Qué cambió:** reservas dentro de la ficha (`FilaReserva`, gestión desde la fila); menú lateral plegable (rail 4,25 rem / desplegado 17 rem); escala única en rem; disposición final de la ficha por container queries; hoja «+ Nueva reserva» con grilla de franjas (`lib/franjasReserva.ts`, `consultarFranjasReserva`, `HojaFranjas`, `SemanaChips`).
-- **Regla de duración (Javier):** al menos `duracion_minima_curso_min`, y de ahí de a `tiempos_incremento_min`.
-- **Revisión de Javier (commits 11, 11b, 12):** cerrar sin confirmar; se puede soltar una franja (tocar el último bloque); la fecha sigue a la semana que se muestra; Cancelar con franjas elegidas solo las suelta y sin elección sale directo; grilla en caché por día y sala. «No puedo volver a entrar» = saldo de la membresía 44 consumido por reservas Solicitada de prueba del e2e (ahora el `finally` las pasa a «reagendar»).
-- **Último punto de la fase:** optimizar la velocidad de la hoja (medir: contexto por sala y relectura por fecha en `consultarFranjasReserva`).
-- **Falta:** e2e con menú fijo y plegado, revisión de `/caja`, `/sala` y `/liquidaciones` plegado (medido: sin scroll horizontal), optimización, PR. Después: 0069 (RLS del Profesor) en su propio PR.
-- **Probado:** `npm test` 450, `tsc`, `eslint` limpios.
+- **Rama** `membresias/fase-2` (commits 5–13), sin pase a producción. Migraciones **0068** `menu_plegable` (control 52) y **0069** `reagenda_de` (control 53), aplicadas solo en dev.
+- **Qué cambió:** reservas dentro de la ficha (`FilaReserva`, gestión desde la fila); menú lateral plegable (rail 4,25 rem / desplegado 17 rem); escala única en rem; disposición final de la ficha por container queries; hoja «+ Nueva reserva» con grilla de franjas (`lib/franjasReserva.ts`, `HojaFranjas`, `SemanaChips`), que también reprograma (`moverReserva`) y reagenda.
+- **Regla de duración (Javier):** al menos `duracion_minima_curso_min`, y de ahí de a `tiempos_incremento_min`. Con el rango en lo disponible, el resumen dice «No quedan horas para alargar · disponible X h» y el clic en la franja inmediata mueve sin alargar.
+- **«Por reagendar»** (etiqueta de `reagendar`; `TRANSICIONES` no cambia): la fila ofrece «Reagendar», que abre la hoja como reserva nueva y guarda `reagenda_de`; la original muestra «Reagendada → fecha · hora». Una reserva se reagenda una sola vez; el plazo no se valida todavía.
+- **Avisos de WhatsApp** de las acciones de la ficha: tarjeta «Para avisar» en la columna derecha, cerrable, solo en memoria.
+- **Velocidad (commit 13):** sesión memorizada por petición (`porPeticion` en `sesion.ts`), identidad por `getClaims()` en el proxy y las acciones, precarga de la semana siguiente. Abrir la hoja 2,5 s → ~1,7 s; semana siguiente ~0,3–0,45 s.
+- **E2E:** membresía de prueba propia (`e2e/membresiaDePrueba.ts`), reservas a más de 48 h; el barrido de datos de prueba es por SQL, solo en dev.
+- **Antes del pase a producción:** JWKS de producción asimétrico; duración del token de acceso en dev y producción; pruebas intermitentes del muestrario anotadas como conocidas.
+- **Falta:** e2e con el menú plegado, PR. Después: RLS del Profesor (migración **0070**) en su propio PR.
+- **Probado:** `npm test` 465, `tsc` y `eslint` limpios; e2e de `membresias-2-reprogramar` (5 casos).
