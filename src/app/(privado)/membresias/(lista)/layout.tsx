@@ -1,17 +1,22 @@
-import DisposicionListaFicha from "@/components/nuevo/DisposicionListaFicha";
+import { Suspense } from "react";
+import { listarMembresias, tiposVisiblesMembresias } from "../acciones";
+import ListaMembresias from "./ListaMembresias";
 
-// La lista persiste entre `/membresias` y `/membresias/[id]` (fase 1b). En la
-// 1a es el esqueleto: la lista llega con `listarMembresias` en la próxima fase.
-export default function LayoutLista({ children }: { children: React.ReactNode }) {
+// La lista persiste entre `/membresias` y `/membresias/[id]` (fase 1b): se lee
+// una vez, con todos los estados, y los filtros se aplican en el cliente.
+// `leerBase` falla con un mensaje si la API cortara las filas (no muestra una
+// lista truncada); al pasar de unas 500 membresías, filtrar y paginar en el
+// servidor (decisión postergada, D37).
+export default async function LayoutLista({ children }: { children: React.ReactNode }) {
+  const [{ items, error }, tiposVisibles] = await Promise.all([
+    listarMembresias({ tipo: "todas", estado: "todas" }),
+    tiposVisiblesMembresias(),
+  ]);
   return (
-    <DisposicionListaFicha
-      encabezado={<h1 className="text-lg font-semibold m-0">Membresías</h1>}
-      filas={null}
-      vacio="Ninguna membresía todavía. La lista llega en la próxima fase."
-      hrefLista="/membresias"
-      miga="Membresías"
-    >
-      {children}
-    </DisposicionListaFicha>
+    <Suspense>
+      <ListaMembresias filas={items} tiposVisibles={tiposVisibles} error={error}>
+        {children}
+      </ListaMembresias>
+    </Suspense>
   );
 }

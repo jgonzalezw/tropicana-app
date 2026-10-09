@@ -4,6 +4,7 @@ import {
   banderas,
   chipEstado,
   filtrarMembresias,
+  membresiaVisible,
   siguienteCiclo,
   tipoDeMembresia,
   usoDelCiclo,
@@ -214,4 +215,36 @@ test("a igual titular, la más reciente primero", () => {
     fila({ id: 11, fechaInicio: "2026-09-15" }),
   ];
   assert.deepEqual(ids(filtrarMembresias(dos)), [11, 10]);
+});
+
+// ── fase 1b: profesor, titulares que no son alumnos, visibilidad ────────
+
+test("el buscador promete «profesor»: buscar por su nombre encuentra la fila", () => {
+  const r = filtrarMembresias(filas, { estado: "todas", q: "raquel" });
+  assert.deepEqual(r.map((m) => m.id), [2]);
+});
+
+test("el titular puede ser una organización, un profesor de la escuela o una persona sin rol", () => {
+  const colegio = fila({
+    id: 20, tipo: "alquiler", alumnoId: null, contactoId: 90, titularNombre: "Colegio San Andrés",
+    titular: { tipo: "organizacion", nombre: null, apellido: null, razon_social: "Colegio San Andrés", whatsapp: "+59174444444" },
+  });
+  const profe = fila({ id: 21, tipo: "alquiler", alumnoId: null, contactoId: 91, titular: persona("Luis", "Peña", "+59175555555"), titularNombre: "Luis Peña" });
+  const externo = fila({ id: 22, tipo: "alquiler", alumnoId: null, contactoId: 92, titular: persona("Marta", "Quiroga"), titularNombre: "Marta Quiroga" });
+  const todas = [colegio, profe, externo];
+  assert.deepEqual(filtrarMembresias(todas, { q: "san andrés" }).map((m) => m.id), [20]);
+  assert.deepEqual(filtrarMembresias(todas, { q: "75555" }).map((m) => m.id), [21]);
+  assert.deepEqual(filtrarMembresias(todas, { q: "quiroga" }).map((m) => m.id), [22]);
+  // Orden por apellido: la razón social cuenta como apellido.
+  assert.deepEqual(filtrarMembresias(todas, {}).map((m) => m.id), [20, 21, 22]);
+});
+
+test("visibilidad: un rol sin el permiso de un tipo no lo ve, y el alcance propio recorta las particulares", () => {
+  const sinAlquileres = { tipos: new Set(["regular", "particular"] as const), profesorIdPropio: null };
+  assert.equal(membresiaVisible(sinAlquileres, { tipo: "alquiler", profesorId: null }), false);
+  assert.equal(membresiaVisible(sinAlquileres, { tipo: "regular", profesorId: null }), true);
+  const propio = { tipos: new Set(["particular"] as const), profesorIdPropio: 7 };
+  assert.equal(membresiaVisible(propio, { tipo: "particular", profesorId: 7 }), true);
+  assert.equal(membresiaVisible(propio, { tipo: "particular", profesorId: 8 }), false);
+  assert.equal(membresiaVisible(propio, { tipo: "particular", profesorId: null }), false);
 });

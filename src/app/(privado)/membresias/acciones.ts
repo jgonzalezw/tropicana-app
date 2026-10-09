@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { alcancePropioDe, tienePermiso } from "@/lib/sesion";
-import { filtrarMembresias, type FilaMembresia, type FiltroMembresias, type TipoMembresia } from "@/lib/listaMembresias";
+import { filtrarMembresias, type FilaMembresia, type FiltroMembresias, type TipoMembresia, TIPOS_MEMBRESIA } from "@/lib/listaMembresias";
 import { leerFichaMembresia, leerFilasMembresias, type AccesoMembresias, type FichaMembresia } from "@/lib/membresiasLectura";
 import {
   obtenerMembresiaAlquiler,
@@ -49,6 +49,13 @@ async function accesoActual(): Promise<{ acceso: AccesoMembresias } | { error: s
 }
 
 const mensaje = (e: unknown) => (e instanceof Error ? e.message : "Error desconocido.");
+
+/** Los tipos que el rol puede ver: la lista solo ofrece esos filtros. */
+export async function tiposVisiblesMembresias(): Promise<TipoMembresia[]> {
+  const a = await accesoActual();
+  if ("error" in a) return [];
+  return TIPOS_MEMBRESIA.filter((t) => a.acceso.tipos.has(t));
+}
 
 export async function listarMembresias(
   filtro: FiltroMembresias = {}

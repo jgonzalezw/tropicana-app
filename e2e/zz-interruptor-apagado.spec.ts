@@ -42,7 +42,10 @@ test("interruptor apagado: sin entrada, /membresias da 404 y el resto sigue igua
   await expect(barra.getByRole("link", { name: "Particulares" }).first()).toBeVisible();
   await expect(page.getByRole("link", { name: "Membresías" })).toHaveCount(0);
 
-  for (const ruta of ["/membresias", "/membresias/muestrario"]) {
+  // Una ficha real (fase 1b) tampoco existe con el interruptor apagado.
+  const { data: una, error: eUna } = await admin().from("membresias").select("id").limit(1).single();
+  if (eUna) throw eUna;
+  for (const ruta of ["/membresias", `/membresias/${una.id}`, "/membresias/muestrario"]) {
     const r = await page.goto(ruta);
     expect(r?.status()).toBe(404);
   }

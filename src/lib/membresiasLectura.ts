@@ -3,11 +3,14 @@ import { exigir } from "@/lib/datos";
 import { armarMembresiasCuenta, type FilaParaCuenta, type PagoCobroCrudo } from "@/lib/cuentas";
 import { leerAvancesAlCorte } from "@/lib/liquidacion/lecturaAvance";
 import { nombreCompleto } from "@/lib/contactos";
+import { destinatarioAviso } from "@/lib/venta/destinatarioAviso";
+import { destinatarioDeTitular } from "@/lib/destinatarioTitular";
 import { solicitudVigente } from "@/lib/reservas";
 import type { MembresiaCuenta } from "@/lib/tipos";
 import {
   banderas,
   chipEstado,
+  membresiaVisible,
   siguienteCiclo,
   tipoDeMembresia,
   usoDelCiclo,
@@ -50,10 +53,64 @@ export type ExtensionMembresia = {
   modoPrecio: string;
 };
 
+/** Un pago (cobro) de la membresía, tal como lo muestra la pestaña Pagos. */
+export type PagoFicha = {
+  id: number;
+  cuotaId: number | null;
+  fecha: string;
+  monto: number;
+  descuento: number;
+  descuentoMotivo: string | null;
+  medio: string | null;
+  concepto: string | null;
+};
+
+/** Una clase registrada de la membresía (regular o prueba). */
+export type ClaseFicha = {
+  sesionId: number;
+  fecha: string;
+  cursoNombre: string;
+  /** `dictada` u otro estado de la sesión: solo las dictadas consumen. */
+  estadoSesion: string;
+  presente: boolean;
+  conLicencia: boolean;
+  /** Quién dictó (hecho registrado, no inferido). */
+  profesorNombre: string | null;
+  /** Hubo reemplazo: `sesiones.reemplazo_motivo` no vacío. */
+  sustituto: boolean;
+};
+
+/** El titular: puede ser alumno, profesor de la escuela, o una persona u organización sin rol. */
+export type TitularFicha = {
+  contactoId: number | null;
+  rol: "alumno" | "profesor" | "sin_rol";
+  esMenor: boolean;
+  /** A quién se le avisa: el tutor si es menor, la persona que atiende si es una organización. */
+  avisarA: { nombre: string; whatsapp: string | null } | null;
+};
+
+/** Precio y categoría de un alquiler (columnas que ya existen en la membresía). */
+export type AlquilerFicha = {
+  categoria: string;
+  categoriaPropuesta: string | null;
+  categoriaCambiada: boolean;
+  motivo: string | null;
+  glosa: string | null;
+  personas: number | null;
+  ruta: string | null;
+  precio: number | null;
+};
+
 export type FichaMembresia = {
   fila: FilaMembresia;
   /** La cuenta de esta membresía: cuotas, saldo, cursos con días, faltas, bonos, horas. */
   cuenta: MembresiaCuenta;
+  pagos: PagoFicha[];
+  /** Vacío en particular y alquiler (no tienen clases: tienen reservas). */
+  clases: ClaseFicha[];
+  titular: TitularFicha;
+  /** Solo en alquiler. */
+  alquiler: AlquilerFicha | null;
   ciclo: { anteriorId: number | null; siguienteId: number | null };
   /** Vacío hasta que exista `membresia_extensiones` (H6). */
   extensiones: ExtensionMembresia[];
@@ -70,6 +127,12 @@ type FilaBase = FilaParaCuenta & {
   membresia_anterior_id: number | null;
   ciclo_numero: number | null;
   profesor_id: number | null;
+  categoria_propuesta: string | null;
+  categoria_motivo: string | null;
+  categoria_glosa: string | null;
+  alquiler_personas: number | null;
+  alquiler_ruta: string | null;
+  precio_aplicado: number | null;
   alumno: { es_menor: boolean; contacto_id: number; contacto: Contacto | null } | null;
   titular: Contacto | null;
 };
@@ -77,6 +140,7 @@ type FilaBase = FilaParaCuenta & {
 const SELECT =
   "id, estado, es_prueba, curso_id, categoria_aplicada, alumno_id, contacto_id, plan_id, membresia_anterior_id, ciclo_numero, " +
   "fecha_inicio, fecha_fin, clases_plan, clases_total, horas_contratadas, profesor_id, " +
+  "categoria_propuesta, categoria_motivo, categoria_glosa, alquiler_personas, alquiler_ruta, precio_aplicado, " +
   "alumno:alumnos(es_menor, contacto_id, contacto:contactos(tipo, nombre, apellido, razon_social, whatsapp)), " +
   "titular:contactos(tipo, nombre, apellido, razon_social, whatsapp), " +
   "profesor:profesores(contacto:contactos(nombre, apellido)), " +
@@ -116,9 +180,7 @@ async function leerBase(a: AccesoMembresias): Promise<{ r: FilaBase; lector: Lec
     if (raw.count != null && filas.length < raw.count)
       throw new Error(`No se pudieron cargar las membresías completas (${filas.length} de ${raw.count}).`);
     for (const r of filas) {
-      const t = tipoDe(r);
-      if (!a.tipos.has(t)) continue;
-      if (t === "particular" && a.profesorIdPropio != null && r.profesor_id !== a.profesorIdPropio) continue;
+      if (!membresiaVisible(a, { tipo: tipoDe(r), profesorId: r.profesor_id })) continue;
       out.push({ r, lector: g.lector });
     }
   }
@@ -132,13 +194,22 @@ async function leerBase(a: AccesoMembresias): Promise<{ r: FilaBase; lector: Lec
 export async function leerFilasMembresias(
   a: AccesoMembresias,
   id?: number
-): Promise<{ filas: FilaMembresia[]; cuentas: Map<number, MembresiaCuenta> }> {
+): Promise<{
+  filas: FilaMembresia[];
+  cuentas: Map<number, MembresiaCuenta>;
+  crudas: Map<number, { r: FilaBase; lector: Lector }>;
+  pagos: PagoCobroCrudo[];
+  cuotas: { id: number; membresia_id: number }[];
+}> {
   const base = await leerBase(a);
   const universo = base.map((b) => entradaCiclo(b.r));
   const elegidas = id == null ? base : base.filter((b) => b.r.id === id);
 
   const filas: FilaMembresia[] = [];
   const cuentas = new Map<number, MembresiaCuenta>();
+  const crudas = new Map(elegidas.map((e) => [e.r.id, e] as const));
+  const pagos: PagoCobroCrudo[] = [];
+  const cuotas: { id: number; membresia_id: number }[] = [];
   const ahora = new Date();
 
   // Un lote por lector: el de la sesión y, si hay alquileres, el admin.
@@ -156,6 +227,8 @@ export async function leerFilasMembresias(
       return exigir(raw, "los pagos de las membresías") as unknown as PagoCobroCrudo[];
     });
     for (const c of armado.membresias) cuentas.set(c.id, c);
+    pagos.push(...armado.pagos);
+    cuotas.push(...armado.cuotas);
 
     const conClases = grupo.filter((r) => {
       const t = tipoDe(r);
@@ -232,18 +305,127 @@ export async function leerFilasMembresias(
       });
     }
   }
-  return { filas, cuentas };
+  return { filas, cuentas, crudas, pagos, cuotas };
+}
+
+const nombreDe = (c: { nombre: string | null; apellido: string | null } | null | undefined) =>
+  c ? `${c.nombre ?? ""} ${c.apellido ?? ""}`.trim() || null : null;
+
+/** Las clases registradas de una membresía de curso, de la más reciente a la más antigua. */
+async function leerClases(lector: Lector, membresiaId: number): Promise<ClaseFicha[]> {
+  const raw = await lector
+    .from("asistencias")
+    .select(
+      "estado, con_licencia, sesion:sesiones!inner(id, fecha, estado, profesor_id, reemplazo_motivo, curso:cursos(nombre))",
+      { count: "exact" }
+    )
+    .eq("membresia_id", membresiaId);
+  const filas = exigir(raw, "las clases de la membresía") as unknown as {
+    estado: string;
+    con_licencia: boolean;
+    sesion: {
+      id: number; fecha: string; estado: string; profesor_id: number | null; reemplazo_motivo: string | null;
+      curso: { nombre: string } | null;
+    };
+  }[];
+  // El tope de filas de la API corta en silencio: una lista truncada mentiría.
+  if (raw.count != null && filas.length < raw.count)
+    throw new Error(`No se pudieron cargar las clases completas (${filas.length} de ${raw.count}).`);
+
+  const profIds = [...new Set(filas.map((f) => f.sesion.profesor_id).filter((x): x is number => x != null))];
+  const nombres = new Map<number, string | null>();
+  if (profIds.length) {
+    const rp = await lector.from("profesores").select("id, contacto:contactos(nombre, apellido)").in("id", profIds);
+    for (const p of exigir(rp, "los profesores de las clases") as unknown as {
+      id: number; contacto: { nombre: string | null; apellido: string | null } | null;
+    }[])
+      nombres.set(p.id, nombreDe(p.contacto));
+  }
+
+  return filas
+    .map((f) => ({
+      sesionId: f.sesion.id,
+      fecha: f.sesion.fecha,
+      cursoNombre: f.sesion.curso?.nombre ?? "—",
+      estadoSesion: f.sesion.estado,
+      presente: f.estado === "presente",
+      conLicencia: f.con_licencia,
+      profesorNombre: f.sesion.profesor_id != null ? (nombres.get(f.sesion.profesor_id) ?? null) : null,
+      sustituto: !!f.sesion.reemplazo_motivo,
+    }))
+    .sort((a, b) => (a.fecha < b.fecha ? 1 : a.fecha > b.fecha ? -1 : b.sesionId - a.sesionId));
+}
+
+/** Quién es el titular y a quién se le avisa (menor → su tutor; organización → quien la atiende). */
+async function leerTitular(lector: Lector, r: FilaBase, fila: FilaMembresia): Promise<TitularFicha> {
+  const contactoId = r.alumno?.contacto_id ?? r.contacto_id;
+  const esMenor = !!r.alumno?.es_menor;
+  let rol: TitularFicha["rol"] = r.alumno_id != null ? "alumno" : "sin_rol";
+  if (rol === "sin_rol" && contactoId != null) {
+    const rp = await lector.from("profesores").select("id").eq("contacto_id", contactoId).limit(1);
+    if ((exigir(rp, "el rol del titular") as unknown[]).length) rol = "profesor";
+  }
+  let avisarA: TitularFicha["avisarA"] = null;
+  if (contactoId != null) {
+    if (esMenor) {
+      avisarA = await destinatarioAviso(lector, {
+        contactoId, esMenor, nombre: fila.titularNombre, whatsapp: fila.titular.whatsapp,
+      });
+    } else if (fila.titular.tipo === "organizacion" && fila.tipo === "alquiler") {
+      // El alquiler se lee con el cliente admin (ver `AccesoMembresias.admin`).
+      avisarA = await destinatarioDeTitular(lector as unknown as Parameters<typeof destinatarioDeTitular>[0], {
+        id: contactoId, nombre: fila.titularNombre, whatsapp: fila.titular.whatsapp,
+      });
+    } else avisarA = { nombre: fila.titularNombre, whatsapp: fila.titular.whatsapp };
+  }
+  return { contactoId, rol, esMenor, avisarA };
 }
 
 /** La ficha de una membresía, o `null` si no existe o este acceso no la ve. */
 export async function leerFichaMembresia(a: AccesoMembresias, id: number): Promise<FichaMembresia | null> {
-  const { filas, cuentas } = await leerFilasMembresias(a, id);
+  const { filas, cuentas, crudas, pagos, cuotas } = await leerFilasMembresias(a, id);
   const fila = filas[0];
   const cuenta = cuentas.get(id);
-  if (!fila || !cuenta) return null;
+  const cruda = crudas.get(id);
+  if (!fila || !cuenta || !cruda) return null;
+  const { r, lector } = cruda;
+
+  const cuotaIds = new Set(cuotas.filter((c) => c.membresia_id === id).map((c) => c.id));
+  const pagosFicha: PagoFicha[] = pagos
+    .filter((p) => p.cuota_id != null && cuotaIds.has(p.cuota_id))
+    .map((p) => ({
+      id: p.id, cuotaId: p.cuota_id, fecha: p.fecha, monto: Number(p.monto), descuento: Number(p.descuento),
+      descuentoMotivo: p.descuento_motivo, medio: p.medio, concepto: p.motivo,
+    }))
+    .sort((x, y) => (x.fecha < y.fecha ? 1 : x.fecha > y.fecha ? -1 : y.id - x.id));
+
+  const conClases = fila.tipo === "regular" || fila.tipo === "prueba";
+  const [clases, titular] = await Promise.all([
+    conClases ? leerClases(lector, id) : Promise.resolve([] as ClaseFicha[]),
+    leerTitular(lector, r, fila),
+  ]);
+
+  const alquiler: AlquilerFicha | null =
+    fila.tipo === "alquiler" && r.categoria_aplicada
+      ? {
+          categoria: r.categoria_aplicada,
+          categoriaPropuesta: r.categoria_propuesta,
+          categoriaCambiada: !!r.categoria_propuesta && r.categoria_propuesta !== r.categoria_aplicada,
+          motivo: r.categoria_motivo,
+          glosa: r.categoria_glosa,
+          personas: r.alquiler_personas,
+          ruta: r.alquiler_ruta,
+          precio: r.precio_aplicado != null ? Number(r.precio_aplicado) : null,
+        }
+      : null;
+
   return {
     fila,
     cuenta,
+    pagos: pagosFicha,
+    clases,
+    titular,
+    alquiler,
     ciclo: { anteriorId: fila.anteriorId, siguienteId: fila.siguienteId },
     extensiones: [],
   };

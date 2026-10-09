@@ -159,6 +159,20 @@ export function chipEstado(e: { estado: string; renovada: boolean } & Banderas):
   return { clave: "activa", texto: "Activa" };
 }
 
+/**
+ * ¿Este acceso puede ver una membresía de este tipo? Con alcance propio, un
+ * profesor ve solo sus particulares. Pura: la regla vive acá y se prueba
+ * sin base de datos.
+ */
+export function membresiaVisible(
+  a: { tipos: ReadonlySet<TipoMembresia>; profesorIdPropio: number | null },
+  m: { tipo: TipoMembresia; profesorId: number | null }
+): boolean {
+  if (!a.tipos.has(m.tipo)) return false;
+  if (m.tipo === "particular" && a.profesorIdPropio != null && m.profesorId !== a.profesorIdPropio) return false;
+  return true;
+}
+
 // ── La fila y el filtro ─────────────────────────────────────────────────
 
 export type FilaMembresia = Banderas & {
