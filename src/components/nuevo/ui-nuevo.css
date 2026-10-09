@@ -338,7 +338,7 @@
 
 /* ── hoja «Nueva reserva»: semana, salas y grilla de franjas ──────────────
    Igual a `Nueva reserva franjas.dc.html` (handoff v4); 14 px del mockup = 1rem. */
-.ui-nuevo { --n-prof-bg: oklch(0.3 0.04 250); --n-prof-fg: oklch(0.85 0.05 250); --n-prof-fg2: oklch(0.8 0.05 250); }
+.ui-nuevo { --n-actual-bg: color-mix(in srgb, var(--n-acc) 14%, transparent); --n-prof-bg: oklch(0.3 0.04 250); --n-prof-fg: oklch(0.85 0.05 250); --n-prof-fg2: oklch(0.8 0.05 250); }
 [data-theme="tropicana_alto_contraste"] .ui-nuevo { --n-prof-bg: oklch(0.34 0.06 250); --n-prof-fg: oklch(0.96 0.03 250); --n-prof-fg2: oklch(0.92 0.04 250); }
 .n-grupo { display: flex; flex-direction: column; gap: 0.5714rem; }
 .n-grupo__cab { display: flex; align-items: center; gap: 0.4286rem; }
@@ -370,6 +370,10 @@
 .n-franja[data-aspecto="profesor"] { background: var(--n-prof-bg); border-color: transparent; color: var(--n-prof-fg); cursor: not-allowed; }
 .n-franja[data-aspecto="profesor"] > span:nth-child(2), .n-franja[data-aspecto="profesor"] > span:last-child { color: var(--n-prof-fg2); }
 .n-franja[data-aspecto="bloqueada"] { cursor: not-allowed; color: var(--n-fg3); }
+.n-franja[data-aspecto="actual"] { background: var(--n-actual-bg); border-style: dashed; border-color: var(--n-acc); }
+.n-franja[data-aspecto="actual"] > span:nth-child(2), .n-franja[data-aspecto="actual"] > span:last-child { color: var(--n-acc-txt); }
+.n-actual-pildora { display: flex; align-items: baseline; gap: 0.5714rem; padding: 0.5rem 0.7143rem; border-radius: 0.4286rem; background: var(--n-actual-bg); border: 1px dashed var(--n-acc); font-size: 0.9286rem; }
+.n-actual-pildora > span { font-size: 0.7857rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--n-acc-txt); }
 .n-franja[data-aspecto="elegida"] { background: var(--n-sel); border-color: var(--n-acc); }
 .n-franja[data-aspecto="elegida"] > span:first-child { font-weight: 600; }
 .n-franja[data-aspecto="elegida"] > span:nth-child(2), .n-franja[data-aspecto="elegida"] > span:last-child { color: var(--n-acc-txt); }

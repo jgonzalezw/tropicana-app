@@ -9,11 +9,15 @@ import {
   horasLibresTexto,
   lineaDeHorario,
   marcaDia,
+  mismoRango,
   minimoEfectivo,
+  rangoActual,
+  type ReservaActual,
   seleccionValida,
   vistaFranjas,
   type Reglas,
 } from "./franjasReserva.ts";
+import { armarDatosFranjas, type BaseFranjas, type ReservaDeSemana, type SemanaFranjas } from "./ocupacionSemana.ts";
 import { ventanasDelDia, type BloqueOcupado, type ExcepcionHorario, type FranjaPatron } from "./sala.ts";
 
 const PATRON: FranjaPatron[] = [1, 2, 3, 4, 5].map((d) => ({ dia_semana: d, desde: "14:00", hasta: "22:00" }));
@@ -192,4 +196,110 @@ test("textos: horas libres, línea de horario y horas", () => {
   );
   assert.equal(lineaDeHorario({ ventanas: [], excepcionMotivo: null, incrementoMin: 30, minimoMin: 60 }), "");
   assert.equal(fh(90), "1,5 h");
+});
+
+// ── Reprogramar ──────────────────────────────────────────────────────────
+
+const ACTUAL: ReservaActual = { id: 7, fecha: LUNES, hora: "16:00", duracionMin: 90, salaId: 1, salaNombre: "Sala 1" };
+const baseRep = (cursos: BaseFranjas["salas"][0]["cursos"] = []): BaseFranjas => ({
+  incrementoMin: 30,
+  minimoMin: 60,
+  disponibleMin: 150, // el saldo ya con la duración de la reserva que se mueve
+  fechaInicio: "2026-10-01",
+  fechaFin: "2026-12-31",
+  profesorId: 5,
+  profesorNombre: "Ana",
+  salas: [{ id: 1, nombre: "Sala 1", patron: PATRON, excepciones: [], cursos }],
+  cursosProfesor: [],
+  etiquetasBloqueo: {},
+  etiquetasExcepcion: {},
+});
+const reservaDe = (r: Partial<ReservaDeSemana> & { id: number }): ReservaDeSemana => ({
+  tipo: "particular",
+  hora: "16:00",
+  duracion_min: 90,
+  motivo: null,
+  glosa: null,
+  estado: "confirmada",
+  solicitada_hasta: null,
+  sala_id: 1,
+  profesor_id: 5,
+  fecha: LUNES,
+  ...r,
+});
+const semanaRep = (reservas: ReservaDeSemana[]): SemanaFranjas => ({ desde: LUNES, hasta: "2026-10-18", reservas, suspendidas: [] });
+const armarRep = (b: BaseFranjas, s: SemanaFranjas, excluir?: number) => {
+  const d = armarDatosFranjas(b, s, { salaId: 1, fecha: LUNES, semanaDesde: LUNES, ahora: new Date(`${LUNES}T08:00:00`), excluirReservaId: excluir });
+  const sala = d.salas[0];
+  const franjas = armarFranjas({
+    ventanas: sala.ventanas,
+    ocupadosSala: sala.ocupadosSala,
+    ocupadosProfesor: d.ocupadosProfesor,
+    incrementoMin: d.incrementoMin,
+    pasadasAntesDeMin: null,
+    actual: rangoActual(ACTUAL, 1, LUNES),
+  });
+  return { d, franjas, r: { incrementoMin: d.incrementoMin, minimoMin: d.minimoMin, disponibleMin: d.disponibleMin, propuestaMin: ACTUAL.duracionMin } satisfies Reglas };
+};
+
+test("reprogramar: correr 30 min no choca con la propia reserva, ni en la sala ni en el profesor", () => {
+  const propia = reservaDe({ id: 7 });
+  // Sin excluirla, 16:30 queda ocupada por ella misma (sala y profesor).
+  const sin = armarRep(baseRep(), semanaRep([propia]));
+  assert.equal(vistaFranjas(sin.franjas, sin.r, null).find((x) => x.hora === "16:30")!.aspecto, "ocupada");
+  // Excluida: sus franjas son «actual» y se puede empezar a las 16:30.
+  const con = armarRep(baseRep(), semanaRep([propia]), 7);
+  assert.equal(con.d.salas[0].ocupadosSala.length, 0);
+  assert.equal(con.d.ocupadosProfesor.length, 0);
+  const v = vistaFranjas(con.franjas, con.r, null);
+  assert.equal(v.find((x) => x.hora === "16:30")!.aspecto, "actual");
+  assert.equal(v.find((x) => x.hora === "17:30")!.aspecto, "libre");
+  assert.deepEqual(clicEnFranja(con.franjas, con.r, null, 990).sel, { ini: 990, fin: 990 + 90 });
+  // Reserva en un lugar externo: no ocupa la sala pero sí al profesor; también se libera.
+  const externa = reservaDe({ id: 7, sala_id: 99 });
+  assert.equal(armarRep(baseRep(), semanaRep([externa])).d.ocupadosProfesor.length, 1);
+  assert.equal(armarRep(baseRep(), semanaRep([externa]), 7).d.ocupadosProfesor.length, 0);
+});
+
+test("reprogramar: más corta y más larga, hasta lo que entra y lo disponible", () => {
+  const f = base();
+  // Más corta: el primer clic no puede bajar del mínimo; después se ajusta como al crear.
+  const corta: Reglas = { ...R, disponibleMin: 150, propuestaMin: 60 };
+  assert.deepEqual(clicEnFranja(f, corta, null, 900).sel, { ini: 900, fin: 960 });
+  const mas = clicEnFranja(f, corta, { ini: 900, fin: 960 }, 960).sel;
+  assert.deepEqual(mas, { ini: 900, fin: 990 });
+  // Más larga: propone la actual, pero no más de lo disponible.
+  const larga: Reglas = { ...R, disponibleMin: 120, propuestaMin: 180 };
+  assert.deepEqual(clicEnFranja(f, larga, null, 900).sel, { ini: 900, fin: 1020 });
+  // Y no más de lo libre seguido.
+  const tope = base({ ocupadosSala: [bloque("15:00", 30, "curso", "X")] });
+  assert.deepEqual(clicEnFranja(tope, { ...R, disponibleMin: 240, propuestaMin: 180 }, null, 840).sel, { ini: 840, fin: 900 });
+});
+
+test("reprogramar: un inicio donde entra el mínimo pero no la duración actual propone lo que entra", () => {
+  const f = base({ ocupadosSala: [bloque("15:30", 30, "curso", "X")] });
+  const r: Reglas = { ...R, disponibleMin: 240, propuestaMin: 120 };
+  // Desde 14:00 entran 90 min (14:00–15:30), no los 120 actuales.
+  assert.equal(entraElMinimo(f, r, 840), true);
+  assert.deepEqual(clicEnFranja(f, r, null, 840).sel, { ini: 840, fin: 930 });
+});
+
+test("reprogramar: el mismo rango, sala y día no se puede mover", () => {
+  const ini = 960;
+  assert.equal(mismoRango({ ini, fin: ini + 90 }, ACTUAL, 1, LUNES), true);
+  assert.equal(mismoRango({ ini, fin: ini + 60 }, ACTUAL, 1, LUNES), false);
+  assert.equal(mismoRango({ ini: ini + 30, fin: ini + 120 }, ACTUAL, 1, LUNES), false);
+  assert.equal(mismoRango({ ini, fin: ini + 90 }, ACTUAL, 2, LUNES), false);
+  assert.equal(mismoRango({ ini, fin: ini + 90 }, ACTUAL, 1, "2026-10-13"), false);
+  assert.equal(mismoRango(null, ACTUAL, 1, LUNES), false);
+});
+
+test("reprogramar: un alquiler sin plan (sin restricción de salas) arma la grilla igual", () => {
+  // Sin plan las salas llegan todas (`salasPermitidasDelPlan` devuelve null): la grilla no depende del plan.
+  const b = baseRep();
+  b.salas.push({ id: 2, nombre: "Sala 2", patron: PATRON, excepciones: [], cursos: [] });
+  const d = armarDatosFranjas(b, semanaRep([reservaDe({ id: 7 })]), { salaId: 2, fecha: LUNES, semanaDesde: LUNES, ahora: new Date(`${LUNES}T08:00:00`), excluirReservaId: 7 });
+  assert.deepEqual(d.salas.map((x) => x.id), [1, 2]);
+  assert.equal(d.salas[1].ocupadosSala.length, 0);
+  assert.equal(rangoActual(ACTUAL, 2, LUNES), null);
 });

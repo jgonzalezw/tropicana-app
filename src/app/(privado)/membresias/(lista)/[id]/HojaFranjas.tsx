@@ -11,6 +11,12 @@
  * con pruebas). Lo guardado vive mientras la hoja está abierta. Al guardar,
  * `crearReserva` valida de nuevo en el servidor, sin confiar en nada de esto.
  * La pantalla vieja (`NuevaReserva` en `marco="pagina"`) no cambia.
+ *
+ * Con `reprogramar` es la misma hoja para mover una reserva (handoff
+ * «Reprogramar reserva»): abre en su día y su sala, la reserva no choca consigo
+ * misma (`excluirReservaId`), sus franjas se marcan «Actual», lo disponible
+ * incluye lo que ella ya ocupa y un solo botón, «Mover reserva», se apaga si
+ * lo elegido es el horario actual. `moverReserva` valida de nuevo en el servidor.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
@@ -25,6 +31,9 @@ import {
   armarFranjas,
   clicEnFranja,
   fh,
+  mismoRango,
+  rangoActual,
+  type ReservaActual,
   horasLibresTexto,
   lineaDeHorario,
   minimoEfectivo,
@@ -34,7 +43,7 @@ import {
   type Seleccion,
 } from "@/lib/franjasReserva";
 import { armarDatosFranjas, rangoDeSemana, type BaseFranjas, type SemanaFranjas } from "@/lib/ocupacionSemana";
-import { consultarFranjasApertura, consultarSemanaFranjas, crearReserva } from "@/app/(privado)/particulares/acciones";
+import { consultarFranjasApertura, consultarSemanaFranjas, crearReserva, moverReserva } from "@/app/(privado)/particulares/acciones";
 import SemanaChips from "./SemanaChips";
 import type { DatosReservas } from "./PestanasFicha";
 
@@ -47,20 +56,27 @@ const semanaDe = (fecha: string, desde: string) => sumar(desde, Math.floor((aUTC
 const LEYENDA: [string, string][] = [
   ["transparent", "Libre"],
   ["var(--n-sel)", "Elegida"],
+  ["var(--n-actual-bg)", "Actual"],
   ["var(--n-hover)", "Ocupada"],
   ["var(--n-prof-bg)", "Profesor ocupado"],
 ];
-const BORDE_LEYENDA: Record<string, string> = { Libre: "var(--n-linea)", Elegida: "var(--n-acc)" };
+const BORDE_LEYENDA: Record<string, string> = { Libre: "var(--n-linea)", Elegida: "var(--n-acc)", Actual: "var(--n-acc)" };
 
 export default function HojaFranjas({
   datos,
-  inicial,
+  inicial: inicialPedido,
+  reprogramar,
   onCerrar,
 }: {
   datos: DatosReservas;
   inicial?: { fecha?: string; hora?: string; salaId?: number };
+  /** La reserva que se mueve: la hoja pasa a «Reprogramar reserva». */
+  reprogramar?: ReservaActual;
   onCerrar: () => void;
 }) {
+  // Reprogramar abre en el día, la sala y la hora de la reserva.
+  const inicial = reprogramar ? { fecha: reprogramar.fecha, hora: reprogramar.hora, salaId: reprogramar.salaId } : inicialPedido;
+  const externaActual = !!reprogramar && datos.salaExterna?.salaId === reprogramar.salaId;
   const router = useRouter();
   const [pendiente, startTransition] = useTransition();
   // Reloj del navegador, fijo mientras la hoja está abierta: solo marca las franjas «Pasada» de hoy.
@@ -72,8 +88,11 @@ export default function HojaFranjas({
 
   const [fecha, setFecha] = useState(fechaInicial);
   const [semanaDesde, setSemanaDesde] = useState(semanaDe(fechaInicial, desde));
-  const [salaTipo, setSalaTipo] = useState<"propia" | "externa">("propia");
-  const [salaId, setSalaId] = useState<number | null>(inicial?.salaId ?? datos.salasPropias[0]?.id ?? null);
+  const [salaTipo, setSalaTipo] = useState<"propia" | "externa">(externaActual ? "externa" : "propia");
+  // Una sala que el plan ya no permite no se ofrece: se abre en la primera.
+  const [salaId, setSalaId] = useState<number | null>(
+    datos.salasPropias.some((s) => s.id === inicial?.salaId) ? inicial!.salaId! : (datos.salasPropias[0]?.id ?? null)
+  );
   const [sel, setSel] = useState<Seleccion>(null);
   const [recarga, setRecarga] = useState(0);
   const [resultado, setResultado] = useState<ResultadoNueva | null>(null);
@@ -82,7 +101,7 @@ export default function HojaFranjas({
   // Lugar externo: sin grilla, con los campos de hora y duración.
   const [nombreExterna, setNombreExterna] = useState(datos.salaExterna?.nombre ?? "");
   const [horaExterna, setHoraExterna] = useState(inicial?.hora ?? "19:00");
-  const [duracionExterna, setDuracionExterna] = useState(0);
+  const [duracionExterna, setDuracionExterna] = useState(externaActual ? reprogramar!.duracionMin : 0);
 
   const avisar = useCallback((texto: string) => {
     clearTimeout(temporizador.current);
@@ -108,13 +127,13 @@ export default function HojaFranjas({
     let vigente = true;
     if (!baseP.current) {
       // Datos fijos y primera semana en una sola llamada (dos seguidas se encolan).
-      const apertura = consultarFranjasApertura({ membresiaId: datos.membresiaId, desde: claveSemana.split("|")[0], hasta: claveSemana.split("|")[1] });
+      const apertura = consultarFranjasApertura({ membresiaId: datos.membresiaId, desde: claveSemana.split("|")[0], hasta: claveSemana.split("|")[1], reservaId: reprogramar?.id });
       baseP.current = apertura.then((r) => ("error" in r ? r : r.base));
       semanasP.current.set(claveSemana, apertura.then((r) => ("error" in r ? r : r.semana)));
     }
     let pSemana = semanasP.current.get(claveSemana);
     if (!pSemana) {
-      pSemana = consultarSemanaFranjas({ membresiaId: datos.membresiaId, desde: claveSemana.split("|")[0], hasta: claveSemana.split("|")[1] });
+      pSemana = consultarSemanaFranjas({ membresiaId: datos.membresiaId, desde: claveSemana.split("|")[0], hasta: claveSemana.split("|")[1], reservaId: reprogramar?.id });
       semanasP.current.set(claveSemana, pSemana);
     }
     Promise.all([baseP.current, pSemana]).then(([b, s]) => {
@@ -135,18 +154,18 @@ export default function HojaFranjas({
     return () => {
       vigente = false;
     };
-  }, [externo, salaId, claveSemana, datos.membresiaId, recarga]);
+  }, [externo, salaId, claveSemana, datos.membresiaId, reprogramar?.id, recarga]);
 
   // La grilla del día sale de lo ya leído: cambiar de día dentro de la semana no consulta nada.
   const calculo = useMemo(() => {
     const semana = semanas[claveSemana];
     if (externo || salaId == null || !base || !semana) return null;
     try {
-      return { datos: armarDatosFranjas(base, semana, { salaId, fecha, semanaDesde, ahora }) };
+      return { datos: armarDatosFranjas(base, semana, { salaId, fecha, semanaDesde, ahora, excluirReservaId: reprogramar?.id }) };
     } catch (e) {
       return { error: e instanceof Error ? e.message : String(e) };
     }
-  }, [externo, salaId, base, semanas, claveSemana, fecha, semanaDesde, ahora]);
+  }, [externo, salaId, base, semanas, claveSemana, fecha, semanaDesde, ahora, reprogramar?.id]);
   const [previa, setPrevia] = useState<DatosFranjas | null>(null);
   const calculada = calculo && "datos" in calculo ? calculo.datos : null;
   useEffect(() => {
@@ -161,7 +180,9 @@ export default function HojaFranjas({
     incrementoMin: lectura?.incrementoMin ?? datos.incrementoMin,
     minimoMin: lectura?.minimoMin ?? datos.minimoMin,
     disponibleMin: lectura?.disponibleMin ?? datos.disponibleMin,
+    propuestaMin: reprogramar?.duracionMin,
   };
+  const actualEnGrilla = rangoActual(reprogramar, salaId, fecha);
   const salaElegida = lectura?.salas.find((s) => s.id === salaId) ?? null;
   const pasadasAntesDeMin = fecha === hoy ? ahora.getHours() * 60 + ahora.getMinutes() : null;
   const franjas = useMemo(
@@ -173,11 +194,12 @@ export default function HojaFranjas({
             ocupadosProfesor: lectura.ocupadosProfesor,
             incrementoMin: lectura.incrementoMin,
             pasadasAntesDeMin,
+            actual: actualEnGrilla,
           })
         : [],
-    [salaElegida, lectura, pasadasAntesDeMin]
+    [salaElegida, lectura, pasadasAntesDeMin, actualEnGrilla?.ini, actualEnGrilla?.fin] // eslint-disable-line react-hooks/exhaustive-deps
   );
-  const vista = useMemo(() => vistaFranjas(franjas, reglas, sel), [franjas, reglas.incrementoMin, reglas.minimoMin, reglas.disponibleMin, sel]); // eslint-disable-line react-hooks/exhaustive-deps
+  const vista = useMemo(() => vistaFranjas(franjas, reglas, sel), [franjas, reglas.incrementoMin, reglas.minimoMin, reglas.disponibleMin, reglas.propuestaMin, sel]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const minimo = minimoEfectivo(reglas.incrementoMin, reglas.minimoMin);
   const duracionesExterna = useMemo(() => {
@@ -201,10 +223,14 @@ export default function HojaFranjas({
     salaId: null,
     nombreExterna,
   });
-  const valida = externo ? !faltaExterna && durExt <= reglas.disponibleMin && duracionesExterna.length > 0 : seleccionValida(franjas, reglas, sel);
   const rango = externo
     ? { ini: aMinutos(horaExterna) ?? 0, fin: (aMinutos(horaExterna) ?? 0) + durExt }
     : sel;
+  // Reprogramar: lo elegido tiene que ser otra cosa que el horario actual.
+  const salaDestino = externo ? (datos.salaExterna?.salaId ?? null) : salaId;
+  const esElActual = !!reprogramar && mismoRango(rango, reprogramar, salaDestino, fecha);
+  const valida =
+    !esElActual && (externo ? !faltaExterna && durExt <= reglas.disponibleMin && duracionesExterna.length > 0 : seleccionValida(franjas, reglas, sel));
   const creada = !!resultado && !resultado.error;
 
   function elegir<T>(poner: (v: T) => void, reiniciar = true) {
@@ -220,15 +246,17 @@ export default function HojaFranjas({
     if (!valida || !rango) return;
     setResultado(null);
     startTransition(async () => {
-      const r = await crearReserva({
-        membresiaId: datos.membresiaId,
-        fecha,
-        hora: aHora(rango.ini),
-        duracionMin: rango.fin - rango.ini,
-        sala: externo ? { tipo: "externa", nombreDescriptivo: nombreExterna } : { tipo: "propia", salaId: salaId! },
-        accion,
-      });
-      setResultado(r);
+      const r = reprogramar
+        ? await moverReserva({ reservaId: reprogramar.id, fecha, hora: aHora(rango.ini), duracionMin: rango.fin - rango.ini, salaId: salaDestino! })
+        : await crearReserva({
+            membresiaId: datos.membresiaId,
+            fecha,
+            hora: aHora(rango.ini),
+            duracionMin: rango.fin - rango.ini,
+            sala: externo ? { tipo: "externa", nombreDescriptivo: nombreExterna } : { tipo: "propia", salaId: salaId! },
+            accion,
+          });
+      setResultado(!r.error && reprogramar ? { ...r, mensaje: `Reserva movida · ${resumenTexto}` } : r);
       if (r.error) {
         // Lo que falló suele ser que el lugar se ocupó: se descarta lo leído, se vuelve a pedir y se avisa.
         setSel(null);
@@ -245,27 +273,43 @@ export default function HojaFranjas({
   }
 
   const textoFecha = fechaTexto(fecha);
+  const lugarTexto = externo ? (reprogramar ? datos.salaExterna?.nombre : nombreExterna) || "Lugar externo" : sala?.nombre;
+  const resumenTexto = rango ? `${textoFecha} · ${aHora(rango.ini)}–${aHora(rango.fin)} · ${fh(rango.fin - rango.ini)} · ${lugarTexto}` : "";
+  const actualTexto = reprogramar
+    ? `${fechaTexto(reprogramar.fecha)} · ${reprogramar.hora}–${aHora((aMinutos(reprogramar.hora) ?? 0) + reprogramar.duracionMin)} · ${reprogramar.salaNombre}`
+    : "";
+  const duracionCambio = !!reprogramar && !!rango && rango.fin - rango.ini !== reprogramar.duracionMin;
   const resumen = rango && (valida || externo || sel) ? (
     <>
-      <strong>
-        {textoFecha} · {aHora(rango.ini)}–{aHora(rango.fin)} · {fh(rango.fin - rango.ini)} · {externo ? nombreExterna || "Lugar externo" : sala?.nombre}
-      </strong>
-      <small>Quedan {fh(Math.max(0, reglas.disponibleMin - (rango.fin - rango.ini)))} para pedir</small>
+      <strong>{resumenTexto}</strong>
+      {reprogramar ? (
+        esElActual ? (
+          <small>Es el horario actual · Elegí otro día u horario</small>
+        ) : (
+          <small>
+            Antes: {actualTexto}
+            {duracionCambio ? ` (duraba ${fh(reprogramar.duracionMin)})` : ""}
+          </small>
+        )
+      ) : (
+        <small>Quedan {fh(Math.max(0, reglas.disponibleMin - (rango.fin - rango.ini)))} para pedir</small>
+      )}
     </>
   ) : (
     <>
       <strong>Elegí la hora de inicio</strong>
-      <small>Disponible para pedir {fh(reglas.disponibleMin)}</small>
+      <small>{reprogramar ? `Actual: ${actualTexto}` : `Disponible para pedir ${fh(reglas.disponibleMin)}`}</small>
     </>
   );
   const resumenOk = valida && !!rango;
 
-  const sinHoras = reglas.disponibleMin < minimo;
+  // Al reprogramar, lo disponible solo es fiable cuando llegó la lectura (incluye lo que ya ocupa la reserva).
+  const sinHoras = (!reprogramar || lectura !== null) && reglas.disponibleMin < minimo;
 
   return (
     <HojaLateral
       contexto={`${datos.tipo === "alquiler" ? "Alquiler" : "Clase particular"}`}
-      titulo="Nueva reserva"
+      titulo={reprogramar ? "Reprogramar reserva" : "Nueva reserva"}
       onCerrar={onCerrar}
       verCancelar={!creada}
       onCancelar={sel && !externo ? () => setSel(null) : undefined}
@@ -284,23 +328,31 @@ export default function HojaFranjas({
           </>
         )
       }
-      secundaria={sinHoras || creada ? undefined : { txt: "Solicitar", onClick: () => guardar("solicitar"), bloqueada: pendiente || !valida }}
+      secundaria={sinHoras || creada || reprogramar ? undefined : { txt: "Solicitar", onClick: () => guardar("solicitar"), bloqueada: pendiente || !valida }}
       primaria={
         creada
           ? { txt: "Listo", onClick: onCerrar }
           : sinHoras
             ? undefined
-            : { txt: "Confirmar directo", onClick: () => guardar("confirmar"), bloqueada: pendiente || !valida }
+            : reprogramar
+              ? { txt: "Mover reserva", onClick: () => guardar("confirmar"), bloqueada: pendiente || !valida }
+              : { txt: "Confirmar directo", onClick: () => guardar("confirmar"), bloqueada: pendiente || !valida }
       }
     >
       {creada ? (
         resultado && <PanelResultado r={resultado} />
       ) : sinHoras ? (
         <p className="n-res__nota">
-          No quedan horas para reservar: {reglas.disponibleMin > 0 ? `quedan ${formatearHoras(reglas.disponibleMin / 60)} h, menos que el mínimo de ${formatearHoras(minimo / 60)} h por reserva` : "se usó todo el paquete"}.
+          {reprogramar ? "No se puede reprogramar" : "No quedan horas para reservar"}: {reglas.disponibleMin > 0 ? `quedan ${formatearHoras(reglas.disponibleMin / 60)} h, menos que el mínimo de ${formatearHoras(minimo / 60)} h por reserva` : "se usó todo el paquete"}.
         </p>
       ) : (
         <>
+          {reprogramar && (
+            <div className="n-actual-pildora" data-testid="reserva-actual">
+              <span>Actual</span>
+              <strong>{actualTexto}</strong>
+            </div>
+          )}
           <SemanaChips
             semanaDesde={semanaDesde}
             fecha={fecha}
@@ -349,7 +401,7 @@ export default function HojaFranjas({
                   </button>
                 );
               })}
-              {datos.ofrecerExterna && (
+              {(reprogramar ? !!datos.salaExterna : datos.ofrecerExterna) && (
                 <button type="button" className="n-sala-chip" aria-pressed={externo} onClick={() => elegir<"propia" | "externa">(setSalaTipo)("externa")}>
                   Lugar externo
                 </button>
@@ -359,10 +411,14 @@ export default function HojaFranjas({
 
           {externo ? (
             <div className="n-grupo" data-testid="lugar-externo">
-              <label className="n-campo">
-                <span>Nombre del lugar</span>
-                <input placeholder="Salón X — Hotel Y" value={nombreExterna} onChange={(e) => elegir<string>(setNombreExterna, false)(e.target.value)} />
-              </label>
+              {reprogramar ? (
+                <span className="n-res__nota">Lugar: {datos.salaExterna?.nombre}</span>
+              ) : (
+                <label className="n-campo">
+                  <span>Nombre del lugar</span>
+                  <input placeholder="Salón X — Hotel Y" value={nombreExterna} onChange={(e) => elegir<string>(setNombreExterna, false)(e.target.value)} />
+                </label>
+              )}
               <div style={{ display: "flex", gap: "0.7143rem" }}>
                 <label className="n-campo" style={{ flex: 1 }}>
                   <span>Hora de inicio</span>

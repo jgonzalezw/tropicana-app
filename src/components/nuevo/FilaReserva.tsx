@@ -85,6 +85,7 @@ export default function FilaReserva({
   abierta,
   onToggle,
   onCambio,
+  onReprogramar,
 }: {
   reserva: ReservaConHistorial;
   tipo: "particular" | "alquiler";
@@ -104,6 +105,8 @@ export default function FilaReserva({
   abierta: boolean;
   onToggle: () => void;
   onCambio: () => void;
+  /** Si viene, «Reprogramar» lo llama en vez de abrir el formulario de la fila (la ficha abre la hoja de franjas). */
+  onReprogramar?: () => void;
 }) {
   const g = useGestionReserva({
     reserva,
@@ -164,7 +167,7 @@ export default function FilaReserva({
                   disabled={ocupado}
                   onClick={() => {
                     g.setResultado(null);
-                    if (d === "reprogramada") g.abrirReprogramar();
+                    if (d === "reprogramada") (onReprogramar ?? g.abrirReprogramar)();
                     else g.setAccion(d);
                   }}
                 >

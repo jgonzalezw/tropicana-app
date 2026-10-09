@@ -139,6 +139,19 @@ export default function PestanasFicha({
               abierta={abierta === r.id}
               onToggle={() => setAbierta(abierta === r.id ? null : r.id)}
               onCambio={() => router.refresh()}
+              onReprogramar={
+                nueva
+                  ? () =>
+                      nueva.reprogramar({
+                        id: r.id,
+                        fecha: r.fecha,
+                        hora: r.hora.slice(0, 5),
+                        duracionMin: r.duracion_min,
+                        salaId: r.sala_id,
+                        salaNombre: r.salaNombre,
+                      })
+                  : undefined
+              }
             />
           ))}
         </div>

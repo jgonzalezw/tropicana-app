@@ -40,7 +40,8 @@ import {
 } from "@/lib/reservas";
 import { cargarContextoOError, validarFranja } from "./validacionReserva";
 import type { BaseFranjas, ReservaDeSemana, SemanaFranjas } from "@/lib/ocupacionSemana";
-import { salasPermitidasDelPlan } from "@/lib/salasDelPlan";
+import { salasPermitidasDeMembresia, salasPermitidasDelPlan } from "@/lib/salasDelPlan";
+import { validarPlazoReprogramacion } from "@/lib/plazoReprogramacion";
 import { FILTRO_ESTADOS_QUE_LIBERAN } from "@/lib/reservas";
 import { sumarDiasISO } from "@/lib/calendarioCiclo";
 import type { CursoOcupa, ExcepcionHorario, FranjaPatron } from "@/lib/sala";
@@ -1095,13 +1096,22 @@ export async function crearReserva(e: EntradaNuevaReserva): Promise<ResultadoAcc
  *  - `consultarBaseFranjas`: lo que no cambia mientras la hoja está abierta
  *    (reglas, horarios, cursos, saldo), una vez por apertura;
  *  - `consultarSemanaFranjas`: las reservas y clases suspendidas de un rango.
- * Mismo control de acceso que `crearReserva` en las dos.
+ * Mismo control de acceso que `crearReserva` en las dos. Con `reservaId` (hoja
+ * «Reprogramar reserva») el control es el de `reprogramarReserva` (permiso
+ * `editar`) y lo disponible es el saldo sin esa reserva: la grilla la excluye
+ * de la ocupación (`excluirReservaId`) y puede pedir hasta lo que quede más lo
+ * que ella ya ocupa.
  */
 
 const MAX_DIAS_RANGO = 60;
 const SIN_PERMISO_CREAR = {
   sinPermiso: "No tenés permiso para crear reservas.",
   otroProfesor: "Esta membresía es de otro profesor: no podés crear reservas en ella.",
+};
+
+const SIN_PERMISO_EDITAR = {
+  sinPermiso: "No tenés permiso para reprogramar una reserva.",
+  otroProfesor: "Esta reserva es de otro profesor: no podés reprogramarla.",
 };
 
 const COLUMNAS_RESERVA_SEMANA = "id, sala_id, profesor_id, fecha, tipo, motivo, glosa, hora, duracion_min, estado, solicitada_hasta";
@@ -1161,6 +1171,8 @@ export async function consultarFranjasApertura(e: {
   membresiaId: number;
   desde: string;
   hasta: string;
+  /** Reprogramar: la reserva que se mueve. */
+  reservaId?: number;
 }): Promise<{ error: string } | { base: BaseFranjas; semana: SemanaFranjas }> {
   if (!rangoValido(e.desde, e.hasta)) return { error: "La fecha no es válida." };
   const a = admin();
@@ -1169,7 +1181,7 @@ export async function consultarFranjasApertura(e: {
     const sem = lecturasDeSala(a, e.desde, e.hasta);
     // Etapa A. `alcanceDe` calienta lo que después usa `autorizarSobre`.
     const [permiso, mR, , , incP, minP, salasR, catR, resR, patronR, excR, cursosR, enSalas, susR] = await Promise.all([
-      permisoEnAlguno("crear"),
+      permisoEnAlguno(e.reservaId != null ? "editar" : "crear"),
       a
         .from("membresias")
         .select("id, fecha_inicio, fecha_fin, horas_contratadas, profesor_id, categoria_aplicada, curso_id, plan_id")
@@ -1185,14 +1197,14 @@ export async function consultarFranjasApertura(e: {
         .from("catalogo_valores")
         .select("valor, etiqueta, catalogos!inner(clave)")
         .in("catalogos.clave", ["motivo_bloqueo_sala", "motivo_excepcion_horario"]),
-      a.from("reservas_sala").select("estado, duracion_min, solicitada_hasta, es_cortesia").eq("membresia_id", e.membresiaId),
+      a.from("reservas_sala").select("id, estado, duracion_min, solicitada_hasta, es_cortesia").eq("membresia_id", e.membresiaId),
       a.from("sala_horario_patron").select("sala_id, dia_semana, desde, hasta"),
       a.from("sala_horario_excepciones").select("sala_id, fecha, hasta_fecha, cerrado, desde, hasta, motivo, glosa"),
       a.from("cursos").select(columnasCurso).eq("activo", true).not("sala_id", "is", null),
       sem.enSalas,
       sem.suspendidas,
     ]);
-    if (!permiso) return { error: "No tenés permiso para crear reservas." };
+    if (!permiso) return { error: (e.reservaId != null ? SIN_PERMISO_EDITAR : SIN_PERMISO_CREAR).sinPermiso };
     if (mR.error) return { error: `No se pudo leer la membresía: ${mR.error.message}` };
     const mRow = mR.data;
     const ctxM = contextoDeFila(mRow as FilaTipoMembresia | null);
@@ -1201,7 +1213,7 @@ export async function consultarFranjasApertura(e: {
 
     // Etapa B: lo que necesita la membresía (plan, profesor).
     const [errAut, permitidas, asigR, profR, delProfesor] = await Promise.all([
-      autorizarSobre(ctxM, "crear", SIN_PERMISO_CREAR),
+      autorizarSobre(ctxM, e.reservaId != null ? "editar" : "crear", e.reservaId != null ? SIN_PERMISO_EDITAR : SIN_PERMISO_CREAR),
       salasPermitidasDelPlan(a, e.membresiaId, mRow.plan_id as number | null),
       profesorId != null
         ? a.from("asignaciones").select(`curso:cursos(${columnasCurso})`).eq("profesor_id", profesorId).is("hasta", null)
@@ -1215,7 +1227,10 @@ export async function consultarFranjasApertura(e: {
     // Un fallo no se disfraza de ausencia (calidad 1): sin el horario o sin las clases la sala parecería libre.
     const salasTodas = exigir(salasR, "las salas") as unknown as { id: number; nombre: string }[];
     const catalogos = exigir(catR, "los motivos") as unknown as { valor: string; etiqueta: string; catalogos: { clave: string } | null }[];
-    const reservasSaldo = exigir(resR, "el saldo de la membresía") as unknown as Parameters<typeof saldoMembresia>[0]["reservas"];
+    const reservasMembresia = exigir(resR, "el saldo de la membresía") as unknown as (Parameters<typeof saldoMembresia>[0]["reservas"][number] & { id: number })[];
+    if (e.reservaId != null && !reservasMembresia.some((r) => r.id === e.reservaId)) return { error: "Esa reserva no es de esta membresía." };
+    // Reprogramar: sin la reserva que se mueve, lo disponible ya cuenta lo que ella ocupa.
+    const reservasSaldo = reservasMembresia.filter((r) => r.id !== e.reservaId);
     const patron = exigir(patronR, "el horario semanal de las salas") as unknown as (FranjaPatron & { sala_id: number })[];
     const excepciones = exigir(excR, "las excepciones del horario de las salas") as unknown as (ExcepcionHorario & { sala_id: number })[];
     const cursos = exigir(cursosR, "los cursos de las salas") as unknown as CursoOcupa[];
@@ -1260,25 +1275,25 @@ export async function consultarFranjasApertura(e: {
 }
 
 /** Otra semana (la hoja ya tiene los datos fijos): reservas que ocupan y clases suspendidas del rango. */
-export async function consultarSemanaFranjas(e: { membresiaId: number; desde: string; hasta: string }): Promise<{ error: string } | SemanaFranjas> {
+export async function consultarSemanaFranjas(e: { membresiaId: number; desde: string; hasta: string; reservaId?: number }): Promise<{ error: string } | SemanaFranjas> {
   if (!rangoValido(e.desde, e.hasta)) return { error: "La fecha no es válida." };
   const a = admin();
   try {
     const sem = lecturasDeSala(a, e.desde, e.hasta);
     const [permiso, mR, , , enSalas, susR] = await Promise.all([
-      permisoEnAlguno("crear"),
+      permisoEnAlguno(e.reservaId != null ? "editar" : "crear"),
       a.from("membresias").select("profesor_id, categoria_aplicada, curso_id").eq("id", e.membresiaId).is("curso_id", null).maybeSingle(),
       alcanceDe("particulares"),
       alcanceDe("alquileres"),
       sem.enSalas,
       sem.suspendidas,
     ]);
-    if (!permiso) return { error: "No tenés permiso para crear reservas." };
+    if (!permiso) return { error: (e.reservaId != null ? SIN_PERMISO_EDITAR : SIN_PERMISO_CREAR).sinPermiso };
     if (mR.error) return { error: `No se pudo leer la membresía: ${mR.error.message}` };
     const ctxM = contextoDeFila(mR.data as FilaTipoMembresia | null);
     if (!mR.data || !ctxM) return { error: "Esa membresía no existe." };
     const [errAut, delProfesor] = await Promise.all([
-      autorizarSobre(ctxM, "crear", SIN_PERMISO_CREAR),
+      autorizarSobre(ctxM, e.reservaId != null ? "editar" : "crear", e.reservaId != null ? SIN_PERMISO_EDITAR : SIN_PERMISO_CREAR),
       reservasDelProfesor(a, mR.data.profesor_id as number | null, e.desde, e.hasta),
     ]);
     if (errAut) return { error: errAut };
@@ -1728,6 +1743,42 @@ export async function reprogramarReserva(e: EntradaReprogramar): Promise<Resulta
       `Hola! Se reprogramó la clase particular (${c?.planNombre}) con ${c?.alumnoNombre}: pasa del ${antes} al ${ahoraEs}, en ${lugar}.`
     ),
   };
+}
+
+/**
+ * Mover una reserva desde la hoja «Reprogramar reserva» de la ficha. Antes de
+ * `reprogramarReserva` (que no cambia, las pantallas viejas la siguen usando)
+ * comprueba lo que la hoja nueva ofrece y esa acción no mira: que la sala sea
+ * una de las que el plan permite (sin plan, como un alquiler, no hay
+ * restricción; un lugar externo no es del plan) y el plazo para reprogramar.
+ * Después `reprogramarReserva` valida de nuevo todo contra la base, controla el
+ * saldo y recalcula la membresía. No hay cobro por reserva: las cuotas son de la
+ * membresía.
+ */
+export async function moverReserva(e: EntradaReprogramar): Promise<ResultadoAccion> {
+  if (!(await permisoEnAlguno("editar"))) return { error: "No tenés permiso para reprogramar una reserva." };
+  const a = admin();
+  try {
+    const { data: rRow, error: errR } = await a
+      .from("reservas_sala")
+      .select("membresia_id, fecha, hora")
+      .eq("id", e.reservaId)
+      .maybeSingle();
+    if (errR) return { error: `No se pudo leer la reserva: ${errR.message}` };
+    if (!rRow) return { error: "Esa reserva no existe." };
+    const [permitidas, salaR] = await Promise.all([
+      salasPermitidasDeMembresia(a, rRow.membresia_id),
+      a.from("salas").select("es_externa").eq("id", e.salaId).maybeSingle(),
+    ]);
+    if (salaR.error) return { error: `No se pudo leer la sala: ${salaR.error.message}` };
+    if (permitidas !== null && !salaR.data?.es_externa && !permitidas.includes(e.salaId))
+      return { error: "Esa sala no está entre las que permite el plan de esta membresía." };
+    const plazo = validarPlazoReprogramacion({ fecha: rRow.fecha, hora: rRow.hora }, new Date());
+    if (!plazo.ok) return { error: plazo.motivo };
+  } catch (err) {
+    return { error: `No se pudo comprobar la reprogramación. ${err instanceof Error ? err.message : String(err)}` };
+  }
+  return reprogramarReserva(e);
 }
 
 // ── Cancelar a pedido del alumno ─────────────────────────────────────────

@@ -24,6 +24,8 @@ export type Franja = {
   /** Qué la ocupa (curso, reserva, bloqueo o lo que hace el profesor). */
   etiqueta: string | null;
   tipo: TipoOcupacion | null;
+  /** Reprogramar: la franja que hoy ocupa la reserva que se mueve (cuenta como libre). */
+  actual?: boolean;
 };
 
 export type EntradaFranjas = {
@@ -33,6 +35,8 @@ export type EntradaFranjas = {
   incrementoMin: number;
   /** Las franjas que empiezan antes de este minuto ya pasaron (solo si la fecha es hoy). */
   pasadasAntesDeMin: number | null;
+  /** Reprogramar: el rango que hoy ocupa la reserva, solo si es la misma sala y el mismo día. */
+  actual?: Seleccion;
 };
 
 const solapa = (inicio: number, paso: number, b: BloqueOcupado) => {
@@ -65,7 +69,8 @@ export function armarFranjas(e: EntradaFranjas): Franja[] {
         etiqueta = prof.etiqueta;
         tipo = prof.tipo;
       }
-      out.push({ inicio: m, hora: aHora(m), estado, etiqueta, tipo });
+      const esActual = estado === "libre" && e.actual != null && m >= e.actual.ini && m < e.actual.fin;
+      out.push({ inicio: m, hora: aHora(m), estado, etiqueta, tipo, ...(esActual ? { actual: true } : {}) });
     }
   }
   return out;
@@ -81,9 +86,49 @@ export type Reglas = {
   minimoMin: number;
   /** Lo que queda para pedir del paquete, en minutos. */
   disponibleMin: number;
+  /** Reprogramar: la duración de la reserva que se mueve; el primer clic propone esa (o la mayor que entre). */
+  propuestaMin?: number;
 };
 
 export type Seleccion = { ini: number; fin: number } | null;
+
+/** La reserva que se está moviendo (hoja «Reprogramar reserva»). */
+export type ReservaActual = {
+  id: number;
+  fecha: string;
+  /** «HH:MM». */
+  hora: string;
+  duracionMin: number;
+  salaId: number;
+  salaNombre: string;
+};
+
+/** El rango de minutos que ocupa la reserva actual si es esa sala y ese día; si no, `null`. */
+export function rangoActual(actual: ReservaActual | undefined, salaId: number | null, fecha: string): Seleccion {
+  if (!actual || actual.salaId !== salaId || actual.fecha !== fecha) return null;
+  const ini = aMinutos(actual.hora) ?? 0;
+  return { ini, fin: ini + actual.duracionMin };
+}
+
+/** ¿Lo elegido es exactamente el horario actual de la reserva? (El botón «Mover reserva» queda apagado.) */
+export function mismoRango(sel: Seleccion, actual: ReservaActual, salaId: number | null, fecha: string): boolean {
+  const r = rangoActual(actual, salaId, fecha);
+  return sel != null && r != null && sel.ini === r.ini && sel.fin === r.fin;
+}
+
+/**
+ * La duración con la que empieza una selección al reprogramar: la actual, o la
+ * mayor que entre desde `m` (libre seguido y dentro de lo disponible), nunca
+ * menos del mínimo. Se mueve en pasos desde el mínimo, como al crear.
+ */
+function propuestaDesde(franjas: Franja[], r: Reglas, m: number): number {
+  const paso = pasoDe(r);
+  const min = minimoEfectivo(r.incrementoMin, r.minimoMin);
+  if (r.propuestaMin == null || r.propuestaMin <= min) return min;
+  let d = min + Math.floor((r.propuestaMin - min) / paso) * paso;
+  while (d > min && !(d <= r.disponibleMin && bloqueLibre(franjas, m, m + d, paso))) d -= paso;
+  return d;
+}
 
 const pasoDe = (r: Reglas) => Math.max(1, r.incrementoMin);
 
@@ -113,7 +158,7 @@ export type FranjaVista = Franja & {
   titulo: string;
   habilitada: boolean;
   /** Para el color: libre · elegida · ocupada · profesor · pasada · bloqueada. */
-  aspecto: "libre" | "elegida" | "ocupada" | "profesor" | "pasada" | "bloqueada";
+  aspecto: "libre" | "elegida" | "ocupada" | "profesor" | "pasada" | "bloqueada" | "actual";
 };
 
 export const fh = (min: number) => (Math.round(min / 6) / 10).toLocaleString("es") + " h";
@@ -150,6 +195,8 @@ export function vistaFranjas(franjas: Franja[], r: Reglas, sel: Seleccion): Fran
     else if (sel != null && m >= sel.fin && m + paso - sel.ini > r.disponibleMin)
       v = { ...v, texto: "Supera lo disponible para pedir", titulo: `Te quedan ${fh(r.disponibleMin)} para pedir`, habilitada: false, aspecto: "bloqueada" };
 
+    if (v.aspecto === "libre" && f.actual) v = { ...v, texto: "Actual", derecha: "Reserva actual", aspecto: "actual" };
+
     if (enRango) v = { ...v, texto: sel!.ini === m ? "Inicio" : "Elegida", derecha: `${aHora(m)}–${aHora(m + paso)}`, habilitada: true, aspecto: "elegida", titulo: "" };
     else if (v.habilitada && sel != null && m === sel.fin) v = { ...v, texto: `+ sumar ${paso} min` };
     return v;
@@ -160,7 +207,8 @@ export function vistaFranjas(franjas: Franja[], r: Reglas, sel: Seleccion): Fran
  * Un clic en la franja que empieza en `m`. Devuelve la selección nueva y, si el
  * clic no se puede, el aviso (la hoja lo muestra; la selección queda igual).
  *
- * - Sin selección: marca el inicio con el **mínimo** (no con un intervalo).
+ * - Sin selección: marca el inicio con el **mínimo** (no con un intervalo); al
+ *   reprogramar, con la duración actual de la reserva o la mayor que entre.
  * - En el inicio: deshace.
  * - Dentro del rango: lo acorta hasta ahí, nunca por debajo del mínimo.
  * - En la franja siguiente: suma un intervalo.
@@ -176,7 +224,7 @@ export function clicEnFranja(franjas: Franja[], r: Reglas, sel: Seleccion, m: nu
   const v = vistas.find((x) => x.inicio === m)!;
   if (!v.habilitada && v.aspecto !== "elegida") return { sel, aviso: v.titulo || "No disponible" };
 
-  if (sel == null) return { sel: { ini: m, fin: m + min }, aviso: null };
+  if (sel == null) return { sel: { ini: m, fin: m + propuestaDesde(franjas, r, m) }, aviso: null };
   if (m === sel.ini) return { sel: null, aviso: null };
   if (m >= sel.ini && m < sel.fin) {
     // Tocar el último bloque de lo elegido lo suelta; tocar uno anterior acorta.
@@ -186,7 +234,7 @@ export function clicEnFranja(franjas: Franja[], r: Reglas, sel: Seleccion, m: nu
   if (m === sel.fin) return { sel: { ini: sel.ini, fin: m + paso }, aviso: null };
   if (m > sel.fin && bloqueLibre(franjas, sel.fin, m + paso, paso) && m + paso - sel.ini <= r.disponibleMin)
     return { sel: { ini: sel.ini, fin: m + paso }, aviso: null };
-  if (entraElMinimo(franjas, r, m)) return { sel: { ini: m, fin: m + min }, aviso: null };
+  if (entraElMinimo(franjas, r, m)) return { sel: { ini: m, fin: m + propuestaDesde(franjas, r, m) }, aviso: null };
   return { sel, aviso: `Desde ${aHora(m)} no hay ${fh(min)} libres seguidas` };
 }
 
