@@ -149,3 +149,13 @@ Pasaron a `docs/archivo/ESTADO-2026-10.md` para que este archivo se pueda leer. 
 - **Probado:** `npm test` 419, `tsc`, `eslint`, Playwright 35/35 en dev; conteos tipo × estado = consulta directa a la base. Javier probó a mano y aprobó.
 - **RLS (pendiente de cierre):** un Profesor con alcance propio no ve el titular de una de sus particulares (`contacto_visible_por_profesor` no cubre `membresias.profesor_id`); Gerente y Asistente sí lo ven. Antes de la fase 2: explicarle a Javier qué cambio hace falta (migración 0068).
 - **Cierre:** PR #38 (`a6af127`) y #39 (`9ec1bf7`) fusionados en main, sin pase a producción; interruptor apagado en producción (0067 sin aplicar).
+
+### I-012 · Membresías, fase 2 (reservas en la ficha + corrección visual) — 2026-10-09 (en pausa, sin PR)
+
+- **Rama** `membresias/fase-2` (commits 5–12), sin PR y sin pase a producción. Migración **0068** `menu_plegable` aplicada solo en dev (control 52).
+- **Qué cambió:** reservas dentro de la ficha (`FilaReserva`, gestión desde la fila); menú lateral plegable (rail 4,25 rem / desplegado 17 rem); escala única en rem; disposición final de la ficha por container queries; hoja «+ Nueva reserva» con grilla de franjas (`lib/franjasReserva.ts`, `consultarFranjasReserva`, `HojaFranjas`, `SemanaChips`).
+- **Regla de duración (Javier):** al menos `duracion_minima_curso_min`, y de ahí de a `tiempos_incremento_min`.
+- **Revisión de Javier (commits 11, 11b, 12):** cerrar sin confirmar; se puede soltar una franja (tocar el último bloque); la fecha sigue a la semana que se muestra; Cancelar con franjas elegidas solo las suelta y sin elección sale directo; grilla en caché por día y sala. «No puedo volver a entrar» = saldo de la membresía 44 consumido por reservas Solicitada de prueba del e2e (ahora el `finally` las pasa a «reagendar»).
+- **Último punto de la fase:** optimizar la velocidad de la hoja (medir: contexto por sala y relectura por fecha en `consultarFranjasReserva`).
+- **Falta:** e2e con menú fijo y plegado, revisión de `/caja`, `/sala` y `/liquidaciones` plegado (medido: sin scroll horizontal), optimización, PR. Después: 0069 (RLS del Profesor) en su propio PR.
+- **Probado:** `npm test` 450, `tsc`, `eslint` limpios.
