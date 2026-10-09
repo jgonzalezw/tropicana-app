@@ -107,6 +107,8 @@ export default function FilaReserva({
   onReprogramar,
   onAvisos,
   refrescando = false,
+  onReagendar,
+  onIrA,
 }: {
   reserva: ReservaConHistorial;
   tipo: "particular" | "alquiler";
@@ -132,6 +134,10 @@ export default function FilaReserva({
   onAvisos?: (r: Resultado) => boolean;
   /** La página está volviendo a leer los datos tras una acción: la fila sigue ocupada, sin mostrar las opciones de antes. */
   refrescando?: boolean;
+  /** Si viene, una reserva Por reagendar o suspendida sin reserva ligada ofrece «Reagendar» (abre la hoja como reserva nueva). */
+  onReagendar?: () => void;
+  /** Lleva a la fila de la reserva que la reemplazó. */
+  onIrA?: (id: number) => void;
 }) {
   const g = useGestionReserva({
     reserva,
@@ -220,9 +226,33 @@ export default function FilaReserva({
                 ))}
             </div>
           )}
-          {puedeEditar && !g.accion && !g.abrirCortesia && !ocupado && acciones.length === 0 && !reserva.permiteCortesia && !reserva.esCortesia && (
-            <span className="n-res__nota">Estado final: no tiene más acciones.</span>
+          {/* Por reagendar / Suspendida: lo que sigue es una reserva NUEVA ligada a esta (definiciones-v2 8.2). */}
+          {!g.accion && !g.abrirCortesia && !ocupado && (reserva.estado === "reagendar" || reserva.estado === "suspendida") && (
+            reserva.reagendadaA ? (
+              <span className="n-res__nota" data-testid="reagendada-a">
+                {reserva.reagendadaA.tipo === "reagendada" ? "Reagendada" : "Restablecida"} →{" "}
+                <button type="button" className="n-enlace" onClick={() => onIrA?.(reserva.reagendadaA!.id)}>
+                  {fechaTexto(reserva.reagendadaA.fecha, ahoraD)} · {reserva.reagendadaA.hora.slice(0, 5)}
+                </button>
+              </span>
+            ) : puedeEditar && onReagendar ? (
+              <div className="n-res__botones">
+                <button type="button" className="n-res__boton" data-primario="true" data-testid="boton-reagendar" onClick={onReagendar}>
+                  Reagendar
+                </button>
+              </div>
+            ) : null
           )}
+          {puedeEditar &&
+            !g.accion &&
+            !g.abrirCortesia &&
+            !ocupado &&
+            acciones.length === 0 &&
+            !reserva.permiteCortesia &&
+            !reserva.esCortesia &&
+            !(reserva.estado === "reagendar" || reserva.estado === "suspendida") && (
+              <span className="n-res__nota">Estado final: no tiene más acciones.</span>
+            )}
 
           {puedeEditar && g.accion === "reprogramada" && (
             <div className="n-res__form">

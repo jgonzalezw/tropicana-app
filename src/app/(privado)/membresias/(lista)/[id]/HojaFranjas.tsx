@@ -33,6 +33,7 @@ import {
   fh,
   mismoRango,
   rangoActual,
+  lineaTope,
   type ReservaActual,
   horasLibresTexto,
   lineaDeHorario,
@@ -67,17 +68,25 @@ export default function HojaFranjas({
   datos,
   inicial: inicialPedido,
   reprogramar,
+  reagendar,
   onCerrar,
 }: {
   datos: DatosReservas;
   inicial?: { fecha?: string; hora?: string; salaId?: number };
   /** La reserva que se mueve: la hoja pasa a «Reprogramar reserva». */
   reprogramar?: ReservaActual;
+  /** La reserva Por reagendar o suspendida que esta reemplaza: la hoja es de reserva nueva, con su sala y su duración. */
+  reagendar?: ReservaActual;
   onCerrar: () => void;
 }) {
   // Reprogramar abre en el día, la sala y la hora de la reserva.
-  const inicial = reprogramar ? { fecha: reprogramar.fecha, hora: reprogramar.hora, salaId: reprogramar.salaId } : inicialPedido;
-  const externaActual = !!reprogramar && datos.salaExterna?.salaId === reprogramar.salaId;
+  const origen = reprogramar ?? reagendar;
+  const inicial = reprogramar
+    ? { fecha: reprogramar.fecha, hora: reprogramar.hora, salaId: reprogramar.salaId }
+    : reagendar
+      ? { salaId: reagendar.salaId }
+      : inicialPedido;
+  const externaActual = !!origen && datos.salaExterna?.salaId === origen.salaId;
   const router = useRouter();
   const avisosFicha = usePublicarAvisos();
   const [pendiente, startTransition] = useTransition();
@@ -105,7 +114,7 @@ export default function HojaFranjas({
   // Lugar externo: sin grilla, con los campos de hora y duración.
   const [nombreExterna, setNombreExterna] = useState(datos.salaExterna?.nombre ?? "");
   const [horaExterna, setHoraExterna] = useState(inicial?.hora ?? "19:00");
-  const [duracionExterna, setDuracionExterna] = useState(externaActual ? reprogramar!.duracionMin : 0);
+  const [duracionExterna, setDuracionExterna] = useState(externaActual ? origen!.duracionMin : 0);
 
   const avisar = useCallback((texto: string) => {
     clearTimeout(temporizador.current);
@@ -184,7 +193,7 @@ export default function HojaFranjas({
     incrementoMin: lectura?.incrementoMin ?? datos.incrementoMin,
     minimoMin: lectura?.minimoMin ?? datos.minimoMin,
     disponibleMin: lectura?.disponibleMin ?? datos.disponibleMin,
-    propuestaMin: reprogramar?.duracionMin,
+    propuestaMin: origen?.duracionMin,
   };
   const actualEnGrilla = rangoActual(reprogramar, salaId, fecha);
   const salaElegida = lectura?.salas.find((s) => s.id === salaId) ?? null;
@@ -260,10 +269,11 @@ export default function HojaFranjas({
             duracionMin: rango.fin - rango.ini,
             sala: externo ? { tipo: "externa", nombreDescriptivo: nombreExterna } : { tipo: "propia", salaId: salaId! },
             accion,
+            reagendaDe: reagendar?.id,
           });
       const mostrado = !r.error && reprogramar ? { ...r, mensaje: `Reserva movida · ${resumenTexto}` } : r;
       // Los avisos de WhatsApp van a la columna derecha de la ficha, no a la hoja.
-      const aColumna = !r.error && !!avisosFicha && avisosFicha.publicar({ ...mostrado, mensaje: reprogramar ? "Reserva reprogramada" : "Reserva creada" });
+      const aColumna = !r.error && !!avisosFicha && avisosFicha.publicar({ ...mostrado, mensaje: reprogramar ? "Reserva reprogramada" : reagendar ? "Reserva reagendada" : "Reserva creada" });
       setResultado(aColumna ? { ...mostrado, avisoAlumno: undefined, avisoProfesor: undefined } : mostrado);
       if (r.error) {
         // Lo que falló suele ser que el lugar se ocupó: se descarta lo leído, se vuelve a pedir y se avisa.
@@ -285,9 +295,10 @@ export default function HojaFranjas({
   const textoFecha = fechaTexto(fecha);
   const lugarTexto = externo ? (reprogramar ? datos.salaExterna?.nombre : nombreExterna) || "Lugar externo" : sala?.nombre;
   const resumenTexto = rango ? `${textoFecha} · ${aHora(rango.ini)}–${aHora(rango.fin)} · ${fh(rango.fin - rango.ini)} · ${lugarTexto}` : "";
-  const actualTexto = reprogramar
-    ? `${fechaTexto(reprogramar.fecha)} · ${reprogramar.hora}–${aHora((aMinutos(reprogramar.hora) ?? 0) + reprogramar.duracionMin)} · ${reprogramar.salaNombre}`
+  const actualTexto = origen
+    ? `${fechaTexto(origen.fecha)} · ${origen.hora}–${aHora((aMinutos(origen.hora) ?? 0) + origen.duracionMin)} · ${origen.salaNombre}`
     : "";
+  const topeTexto = !externo ? lineaTope(sel, reglas) : null;
   const duracionCambio = !!reprogramar && !!rango && rango.fin - rango.ini !== reprogramar.duracionMin;
   const resumen = rango && (valida || externo || sel) ? (
     <>
@@ -304,6 +315,7 @@ export default function HojaFranjas({
       ) : (
         <small>Quedan {fh(Math.max(0, reglas.disponibleMin - (rango.fin - rango.ini)))} para pedir</small>
       )}
+      {topeTexto && <small data-testid="aviso-tope">{topeTexto}</small>}
     </>
   ) : (
     <>
@@ -319,7 +331,7 @@ export default function HojaFranjas({
   return (
     <HojaLateral
       contexto={`${datos.tipo === "alquiler" ? "Alquiler" : "Clase particular"}`}
-      titulo={reprogramar ? "Reprogramar reserva" : "Nueva reserva"}
+      titulo={reprogramar ? "Reprogramar reserva" : reagendar ? "Reagendar reserva" : "Nueva reserva"}
       onCerrar={onCerrar}
       verCancelar={!creada}
       onCancelar={sel && !externo ? () => setSel(null) : undefined}
@@ -343,7 +355,7 @@ export default function HojaFranjas({
           </>
         )
       }
-      secundaria={sinHoras || creada || reprogramar ? undefined : { txt: pendiente && enCurso === "solicitar" ? textoEspera : "Solicitar", onClick: () => guardar("solicitar"), bloqueada: pendiente || !valida }}
+      secundaria={sinHoras || creada || reprogramar || reagendar ? undefined : { txt: pendiente && enCurso === "solicitar" ? textoEspera : "Solicitar", onClick: () => guardar("solicitar"), bloqueada: pendiente || !valida }}
       primaria={
         creada
           ? { txt: "Listo", onClick: onCerrar }
@@ -351,7 +363,9 @@ export default function HojaFranjas({
             ? undefined
             : reprogramar
               ? { txt: pendiente ? textoEspera : "Mover reserva", onClick: () => guardar("confirmar"), bloqueada: pendiente || !valida }
-              : { txt: pendiente && enCurso === "confirmar" ? textoEspera : "Confirmar directo", onClick: () => guardar("confirmar"), bloqueada: pendiente || !valida }
+              : reagendar
+                ? { txt: pendiente ? textoEspera : "Reagendar", onClick: () => guardar("confirmar"), bloqueada: pendiente || !valida }
+                : { txt: pendiente && enCurso === "confirmar" ? textoEspera : "Confirmar directo", onClick: () => guardar("confirmar"), bloqueada: pendiente || !valida }
       }
     >
       {creada ? (
@@ -362,9 +376,9 @@ export default function HojaFranjas({
         </p>
       ) : (
         <>
-          {reprogramar && (
-            <div className="n-actual-pildora" data-testid="reserva-actual">
-              <span>Actual</span>
+          {origen && (
+            <div className="n-actual-pildora" data-testid={reprogramar ? "reserva-actual" : "reserva-por-reagendar"}>
+              <span>{reprogramar ? "Actual" : "Por reagendar"}</span>
               <strong>{actualTexto}</strong>
             </div>
           )}

@@ -72,6 +72,13 @@ export default function PestanasFicha({
   const [activa, setActiva] = useState<Pestana>("clases");
   const [abierta, setAbierta] = useState<number | null>(null);
   const primera = reservas ? "Reservas" : "Clases";
+  // «Reagendada → …»: abre la fila de la reserva nueva y la lleva a la vista.
+  const irA = (id: number) => {
+    setAbierta(id);
+    requestAnimationFrame(() =>
+      document.querySelector(`[data-testid="fila-reserva"][data-reserva-id="${id}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" })
+    );
+  };
 
   return (
     <div>
@@ -145,6 +152,20 @@ export default function PestanasFicha({
               onCambio={() => iniciarRefresco(() => router.refresh())}
               refrescando={refrescando}
               onAvisos={avisos?.publicar}
+              onIrA={irA}
+              onReagendar={
+                nueva && !reservas.motivoSinAlta
+                  ? () =>
+                      nueva.reagendar({
+                        id: r.id,
+                        fecha: r.fecha,
+                        hora: r.hora.slice(0, 5),
+                        duracionMin: r.duracion_min,
+                        salaId: r.sala_id,
+                        salaNombre: r.salaNombre,
+                      })
+                  : undefined
+              }
               onReprogramar={
                 nueva
                   ? () =>

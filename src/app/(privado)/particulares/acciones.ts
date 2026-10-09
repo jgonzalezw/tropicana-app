@@ -315,6 +315,8 @@ export type ReservaConHistorial = {
   /** El plan de la membresía permite marcar cortesías (`planes.permite_cortesia`). */
   permiteCortesia: boolean;
   transicionesPermitidas: EstadoReserva[];
+  /** La reserva nueva que la reemplazó (Por reagendar o Suspendida): reagendada en otro horario o restablecida en el mismo. */
+  reagendadaA: { id: number; fecha: string; hora: string; tipo: "reagendada" | "restablecida" } | null;
   historial: {
     estado_nuevo: string;
     fecha_nueva: string;
@@ -502,6 +504,8 @@ type FilaReservaConSala = {
   sala_id: number;
   es_cortesia?: boolean;
   cortesia_motivo?: string | null;
+  reagenda_de?: number | null;
+  revierte_reserva_id?: number | null;
   sala: { nombre: string } | null;
 };
 type FilaHistorialReserva = {
@@ -525,7 +529,8 @@ function armarReservaConHistorial(
   salasDeLaMembresia: SalaDeMembresia[],
   etiquetaMotivo: Map<string, string>,
   ahora: Date,
-  permiteCortesia = false
+  permiteCortesia = false,
+  reagendadaA: ReservaConHistorial["reagendadaA"] = null
 ): ReservaConHistorial {
   const estado = r.estado as EstadoReserva;
   const salaNombre = salasDeLaMembresia.find((s) => s.salaId === r.sala_id)?.nombre || r.sala?.nombre || "—";
@@ -543,6 +548,7 @@ function armarReservaConHistorial(
     cortesiaMotivo: r.cortesia_motivo ?? null,
     permiteCortesia,
     transicionesPermitidas: [...TRANSICIONES[estado]],
+    reagendadaA,
     historial: historialDeEsta.map((h) => ({
       estado_nuevo: h.estado_nuevo,
       fecha_nueva: h.fecha_nueva,
@@ -623,7 +629,7 @@ async function obtenerDetalleReservas(
     lector.from("membresia_salas").select("sala_id, nombre_descriptivo, sala:salas(nombre, es_externa)").eq("membresia_id", membresiaId),
     lector
       .from("reservas_sala")
-      .select("id, fecha, hora, duracion_min, estado, solicitada_hasta, sala_id, es_cortesia, cortesia_motivo, sala:salas(nombre)")
+      .select("id, fecha, hora, duracion_min, estado, solicitada_hasta, sala_id, es_cortesia, cortesia_motivo, reagenda_de, revierte_reserva_id, sala:salas(nombre)")
       .eq("membresia_id", membresiaId)
       .order("fecha", { ascending: true })
       .order("hora", { ascending: true }),
@@ -654,6 +660,12 @@ async function obtenerDetalleReservas(
   const etiquetaMotivo = await mapaEtiquetaMotivoSuspension(sb);
 
   const ahora = new Date();
+  // La reserva nueva que reemplazó a cada una (todas las de la membresía ya están leídas).
+  const reemplazoDe = new Map<number, NonNullable<ReservaConHistorial["reagendadaA"]>>();
+  for (const n of reservasRaw) {
+    if (n.reagenda_de != null) reemplazoDe.set(n.reagenda_de, { id: n.id, fecha: n.fecha, hora: n.hora, tipo: "reagendada" });
+    else if (n.revierte_reserva_id != null) reemplazoDe.set(n.revierte_reserva_id, { id: n.id, fecha: n.fecha, hora: n.hora, tipo: "restablecida" });
+  }
   const reservas: ReservaConHistorial[] = reservasRaw.map((r) =>
     armarReservaConHistorial(
       r,
@@ -661,7 +673,8 @@ async function obtenerDetalleReservas(
       salasResueltas,
       etiquetaMotivo,
       ahora,
-      tipoEsperado === "particular" && !!mm.plan?.permite_cortesia
+      tipoEsperado === "particular" && !!mm.plan?.permite_cortesia,
+      reemplazoDe.get(r.id) ?? null
     )
   );
 
@@ -936,6 +949,8 @@ export type EntradaNuevaReserva = {
   duracionMin: number;
   sala: { tipo: "propia"; salaId: number } | { tipo: "externa"; nombreDescriptivo: string };
   accion: "solicitar" | "confirmar";
+  /** Reagendar: la reserva «Por reagendar» o suspendida a la que reemplaza esta (queda ligada en `reagenda_de`). */
+  reagendaDe?: number;
 };
 
 export async function crearReserva(e: EntradaNuevaReserva): Promise<ResultadoAccion> {
@@ -964,6 +979,29 @@ export async function crearReserva(e: EntradaNuevaReserva): Promise<ResultadoAcc
   if (mRow.estado !== "activa") return { error: "Esta membresía no está activa." };
   if (e.fecha < mRow.fecha_inicio || e.fecha > mRow.fecha_fin)
     return { error: `La fecha queda fuera de la vigencia de la membresía (${mRow.fecha_inicio} a ${mRow.fecha_fin}).` };
+
+  // Reagendar: la original tiene que ser de esta membresía, estar Por reagendar o Suspendida y no tener
+  // ya otra reserva ligada (ni por reagenda_de ni por revierte_reserva_id). Las horas ya volvieron al
+  // saldo: la nueva consume como cualquier otra. El plazo para reagendar todavía no se valida.
+  if (e.reagendaDe != null) {
+    if (e.accion !== "confirmar") return { error: "Una reserva reagendada se confirma directo." };
+    const { data: orig, error: errO } = await a
+      .from("reservas_sala")
+      .select("id, tipo, estado, membresia_id")
+      .eq("id", e.reagendaDe)
+      .maybeSingle();
+    if (errO) return { error: `No se pudo leer la reserva a reagendar: ${errO.message}` };
+    if (!orig || orig.membresia_id !== e.membresiaId) return { error: "Esa reserva no es de esta membresía." };
+    if (orig.tipo === "bloqueo" || !["reagendar", "suspendida"].includes(orig.estado))
+      return { error: "Solo se reagenda una reserva Por reagendar o Suspendida." };
+    const { data: ligada, error: errL } = await a
+      .from("reservas_sala")
+      .select("id")
+      .or(`reagenda_de.eq.${orig.id},revierte_reserva_id.eq.${orig.id}`)
+      .limit(1);
+    if (errL) return { error: `No se pudo comprobar si ya fue reagendada: ${errL.message}` };
+    if (ligada && ligada.length > 0) return { error: "Esa reserva ya fue reagendada." };
+  }
 
   const { data: planRow } = await a.from("planes").select("id, salas_modo, permite_sala_externa").eq("id", mRow.plan_id).maybeSingle();
   if (!planRow) return { error: "El plan de esta membresía ya no existe." };
@@ -1052,11 +1090,13 @@ export async function crearReserva(e: EntradaNuevaReserva): Promise<ResultadoAcc
     duracion_min: e.duracionMin,
     estado: e.accion === "solicitar" ? "solicitada" : "confirmada",
     solicitada_hasta: solicitadaHasta,
+    reagenda_de: e.reagendaDe ?? null,
     creado_por: perfil?.id ?? null,
   });
   if (errIns) {
     if ((errIns as { code?: string }).code === "23P01")
       return { error: "La sala se acaba de ocupar con otra reserva en ese horario. Recargá e intentá de nuevo." };
+    if ((errIns as { code?: string }).code === "23505" && e.reagendaDe != null) return { error: "Esa reserva ya fue reagendada." };
     return { error: `No se pudo crear la reserva: ${errIns.message}` };
   }
 
@@ -1077,7 +1117,7 @@ export async function crearReserva(e: EntradaNuevaReserva): Promise<ResultadoAcc
     };
   return {
     ok: true,
-    mensaje: `Confirmada para el ${cuando}.`,
+    mensaje: e.reagendaDe != null ? `Reagendada para el ${cuando}.` : `Confirmada para el ${cuando}.`,
     ...avisos(
       c,
       `Hola! Confirmamos ${c?.tuClase}: ${cuando}, en ${lugar}. ${c ? saldoTexto(c) : ""} ¡Te esperamos!`,
@@ -1523,6 +1563,13 @@ export async function revertirSuspension(reservaId: number): Promise<ResultadoAc
   if (!rRow) return { error: "Esa reserva ya no existe." };
   if (rRow.tipo === "bloqueo") return { error: "Un bloqueo no se revierte: se cancela y se crea de nuevo." };
   if (rRow.estado !== "suspendida") return { error: "Esta reserva no está suspendida: no hay nada que revertir." };
+  const { data: yaLigada, error: errLigada } = await a
+    .from("reservas_sala")
+    .select("id")
+    .or(`reagenda_de.eq.${rRow.id},revierte_reserva_id.eq.${rRow.id}`)
+    .limit(1);
+  if (errLigada) return { error: `No se pudo comprobar si ya fue reagendada: ${errLigada.message}` };
+  if (yaLigada && yaLigada.length > 0) return { error: "Esta reserva ya fue reagendada o restablecida: no hay nada que revertir." };
 
   const { data: mRow } = await a
     .from("membresias")

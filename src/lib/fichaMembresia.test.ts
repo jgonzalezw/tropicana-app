@@ -41,7 +41,7 @@ function ficha(o: { fila?: Partial<FichaMembresia["fila"]>; cuenta?: Partial<Fic
 const reserva = (o: Partial<ReservaConHistorial> & { id: number }): ReservaConHistorial => ({
   fecha: "2026-10-09", hora: "10:00", duracion_min: 60, estado: "confirmada", solicitada_hasta: null,
   sala_id: 1, salaNombre: "Sala 1", ocupaAhora: true, esCortesia: false, cortesiaMotivo: null,
-  permiteCortesia: false, transicionesPermitidas: [], historial: [], ...o,
+  permiteCortesia: false, transicionesPermitidas: [], reagendadaA: null, historial: [], ...o,
 });
 
 // ── indicadores ─────────────────────────────────────────────────────────

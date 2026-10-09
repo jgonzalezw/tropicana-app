@@ -240,6 +240,19 @@ export function clicEnFranja(franjas: Franja[], r: Reglas, sel: Seleccion, m: nu
   return { sel, aviso: `Desde ${aHora(m)} no hay ${fh(min)} libres seguidas` };
 }
 
+/**
+ * La línea fija del resumen cuando el rango elegido ya está en el tope: sumar
+ * otro intervalo pasaría de lo disponible. No bloquea ninguna franja: un clic
+ * en la de abajo empieza un rango nuevo; esto solo explica por qué no aparece
+ * «+ sumar». `null` si no hay rango o todavía se puede alargar.
+ */
+export function lineaTope(sel: Seleccion, r: Reglas): string | null {
+  if (!sel) return null;
+  const duracion = sel.fin - sel.ini;
+  if (duracion + pasoDe(r) <= r.disponibleMin) return null;
+  return `No quedan horas para alargar · disponible ${fh(Math.max(0, r.disponibleMin - duracion))}`;
+}
+
 /** ¿El rango elegido se puede pedir? (Lo ven los botones; el servidor valida de nuevo.) */
 export function seleccionValida(franjas: Franja[], r: Reglas, sel: Seleccion): sel is NonNullable<Seleccion> {
   if (!sel) return false;

@@ -191,7 +191,7 @@ export const ETIQUETA_ESTADO_RESERVA: Record<EstadoReserva, string> = {
   solicitada: "Solicitada",
   confirmada: "Confirmada",
   reprogramada: "Reprogramada",
-  reagendar: "Reagendar",
+  reagendar: "Por reagendar",
   suspendida: "Suspendida",
   ausente: "Ausente",
   realizada: "Realizada",

@@ -25,31 +25,35 @@ const disponible = async (page: Page) => {
   return m ? Number(m[1].replace(",", ".")) : NaN;
 };
 
-/** Abre la ficha de una membresía de prueba recién creada (2 h para pedir: con poco saldo, un clic lejano no puede alargar). */
-async function abrirDePrueba(page: Page): Promise<MembresiaDePrueba | null> {
-  const prueba = await crearMembresiaDePrueba();
+/** Abre la ficha de una membresía de prueba recién creada (por defecto 2 h para pedir: con poco saldo, un clic lejano no puede alargar). */
+async function abrirDePrueba(page: Page, horas = 2): Promise<MembresiaDePrueba | null> {
+  const prueba = await crearMembresiaDePrueba(horas);
   if (!prueba) return null;
   await page.goto(`/membresias/${prueba.membresiaId}?estado=activas`);
   await expect(page.getByTestId("ficha-membresia")).toBeVisible();
-  expect(await disponible(page)).toBe(2);
+  expect(await disponible(page)).toBe(horas);
   return prueba;
 }
 
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
-/** Crea una reserva Confirmada con el mínimo, a más de 48 h, en la primera franja libre; devuelve su id. */
-async function crearReserva(page: Page, membresiaId: number): Promise<number> {
-  await page.getByTestId("boton-nueva-reserva").click();
-  const hoja = page.getByRole("dialog");
+/** En la hoja abierta, va a un día a más de 48 h que tenga franjas libres. */
+async function irAUnDiaLibre(hoja: Locator) {
   await expect(hoja.getByTestId("franjas")).toBeVisible();
   let hayLibre = false;
   for (let dias = 3; dias <= 10 && !hayLibre; dias++) {
     await hoja.getByLabel("Otra fecha").fill(iso(new Date(Date.now() + dias * 86_400_000)));
-    await expect(hoja.locator('[data-testid="franjas"], [data-testid="sala-cerrada"]').first()).toBeVisible();
     await expect(hoja.getByTestId("franjas").locator(".n-franja").first().or(hoja.getByTestId("sala-cerrada"))).toBeVisible();
     hayLibre = (await hoja.locator(LIBRE).count()) > 0;
   }
   test.skip(!hayLibre, "No hay franjas libres a más de 48 h en los próximos días");
+}
+
+/** Crea una reserva Confirmada con el mínimo, a más de 48 h, en la primera franja libre; devuelve su id. */
+async function crearReserva(page: Page, membresiaId: number): Promise<number> {
+  await page.getByTestId("boton-nueva-reserva").click();
+  const hoja = page.getByRole("dialog");
+  await irAUnDiaLibre(hoja);
   await hoja.locator(LIBRE).first().click();
   await hoja.getByRole("button", { name: "Confirmar directo" }).click();
   await expect(hoja.getByRole("button", { name: "Listo" })).toBeVisible({ timeout: 30_000 });
@@ -153,6 +157,10 @@ test("reprogramar: más tarde, más temprano, alargar, acortar, hasta lo disponi
     for (let i = 0; i < 12 && (await hoja.locator('.n-franja[data-sumar="true"]').count()) > 0; i++) {
       await hoja.locator('.n-franja[data-sumar="true"]').first().click();
     }
+    // En el tope: la línea fija del resumen lo explica y "+ sumar" ya no está.
+    if ((await hoja.locator('.n-franja[data-sumar="true"]').count()) === 0) {
+      await expect(hoja.getByTestId("aviso-tope")).toContainText("No quedan horas para alargar · disponible 0 h");
+    }
     // Un clic más allá del tope no alarga: empieza un rango nuevo con la duración mínima o no hace nada.
     const mas = hoja.locator(LIBRE).last();
     if (await mas.count()) await mas.click();
@@ -206,6 +214,101 @@ test("cancelar: el aviso sale en la columna derecha, se puede cerrar y no vuelve
     await page.reload();
     await expect(page.getByTestId("ficha-membresia")).toBeVisible();
     await expect(page.getByTestId("avisos-pendientes")).toHaveCount(0);
+  } finally {
+    await retirarMembresiaDePrueba(prueba);
+  }
+});
+
+/** Cancela la reserva desde su fila y espera a que quede «Por reagendar»; cierra los avisos que dejó. */
+async function cancelarReserva(page: Page, id: number) {
+  const f = fila(page, id);
+  await f.locator(".n-res__fila").click();
+  await f.getByRole("button", { name: /^Cancelar/ }).click();
+  await f.getByRole("button", { name: /Confirmar cancelación/ }).click();
+  await expect.poll(() => leer(id).then((r) => r.estado), { timeout: 60_000 }).toBe("reagendar");
+  const panel = page.getByTestId("avisos-pendientes");
+  await expect(panel).toBeVisible({ timeout: 60_000 });
+  while (await panel.count()) {
+    await panel.getByRole("button", { name: "Cerrar aviso" }).first().click();
+    await page.waitForTimeout(200);
+  }
+}
+
+test("reagendar: una reserva «Por reagendar» se reemplaza por una nueva ligada, con enlace en la fila", async ({ page }) => {
+  test.setTimeout(240_000);
+  let prueba: MembresiaDePrueba | null = null;
+  try {
+    prueba = await abrirDePrueba(page);
+    test.skip(!prueba, "No hay una particular activa de dev que sirva de modelo");
+    const id = await crearReserva(page, prueba!.membresiaId);
+    const original = await leer(id);
+    await cancelarReserva(page, id);
+
+    // La fila dice «Por reagendar» y ofrece «Reagendar» (no «Estado final»).
+    const f = fila(page, id);
+    await expect(f).toContainText("Por reagendar");
+    await f.locator(".n-res__fila").click();
+    await expect(f.getByText("Estado final")).toHaveCount(0);
+    await f.getByTestId("boton-reagendar").click();
+
+    // La hoja es de reserva nueva, con la sala y la duración de la original ya cargadas.
+    const hoja = page.getByRole("dialog");
+    await expect(hoja.getByText("Reagendar reserva")).toBeVisible();
+    await expect(hoja.getByTestId("reserva-por-reagendar")).toContainText(original.hora);
+    await expect(hoja.getByRole("button", { name: "Solicitar" })).toHaveCount(0);
+    await irAUnDiaLibre(hoja);
+    await hoja.locator(LIBRE).first().click();
+    await expect(hoja.getByTestId("resumen-reserva")).toContainText("1 h");
+    await hoja.getByRole("button", { name: "Reagendar", exact: true }).click();
+    await expect(hoja.getByText(/Reagendada para el/)).toBeVisible({ timeout: 30_000 });
+    await hoja.getByRole("button", { name: "Listo" }).click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+
+    // En la base: una reserva nueva, confirmada, ligada a la original; el saldo baja 1 h.
+    const { data } = await sb().from("reservas_sala").select("id, estado, duracion_min, reagenda_de").eq("reagenda_de", id);
+    expect(data?.length).toBe(1);
+    expect(data![0].estado).toBe("confirmada");
+    expect(data![0].duracion_min).toBe(60);
+    await expect.poll(() => disponible(page)).toBe(1);
+
+    // La original muestra «Reagendada →» con enlace a la nueva.
+    await expect(f.getByTestId("reagendada-a")).toBeVisible({ timeout: 30_000 });
+    await expect(f.getByTestId("reagendada-a")).toContainText("Reagendada →");
+    await expect(f.getByRole("button", { name: "Reagendar", exact: true })).toHaveCount(0);
+    await f.getByTestId("reagendada-a").getByRole("button").click();
+    await expect(fila(page, data![0].id)).toHaveAttribute("data-abierta", "true");
+  } finally {
+    await retirarMembresiaDePrueba(prueba);
+  }
+});
+
+test("alargar con saldo justo: la línea del tope se ve y el clic en la franja de abajo mueve sin alargar", async ({ page }) => {
+  test.setTimeout(240_000);
+  let prueba: MembresiaDePrueba | null = null;
+  try {
+    prueba = await abrirDePrueba(page, 1); // 1 h: la reserva de 1 h agota el paquete
+    test.skip(!prueba, "No hay una particular activa de dev que sirva de modelo");
+    const id = await crearReserva(page, prueba!.membresiaId);
+    const creada = await leer(id);
+    await expect.poll(() => disponible(page)).toBe(0);
+
+    const hoja = await abrirReprogramar(page, id);
+    await hoja.locator('.n-franja[data-aspecto="actual"]').first().click();
+    await expect(hoja.getByTestId("aviso-tope")).toContainText("No quedan horas para alargar · disponible 0 h");
+    await expect(hoja.locator('.n-franja[data-sumar="true"]')).toHaveCount(0);
+
+    // La franja inmediata (justo después de la reserva) no está bloqueada: mueve la reserva sin alargarla.
+    const [h, m] = creada.hora.split(":").map(Number);
+    const finMin = h * 60 + m + 60;
+    const siguiente = `${String(Math.floor(finMin / 60)).padStart(2, "0")}:${String(finMin % 60).padStart(2, "0")}`;
+    const inmediata = hoja.locator(`.n-franja[data-hora="${siguiente}"]`);
+    test.skip((await inmediata.count()) === 0 || (await inmediata.getAttribute("aria-disabled")) === "true", "La franja siguiente no está libre");
+    await inmediata.click();
+    await expect(hoja.getByTestId("resumen-reserva")).toContainText(`${siguiente}–`);
+    await expect(hoja.getByTestId("resumen-reserva")).toContainText("1 h");
+    await mover(page, hoja);
+    await expect.poll(() => leer(id).then((r) => r.hora)).toBe(siguiente);
+    expect((await leer(id)).min).toBe(60);
   } finally {
     await retirarMembresiaDePrueba(prueba);
   }

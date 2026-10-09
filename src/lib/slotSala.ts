@@ -77,7 +77,7 @@ const ESTADOS_RESERVA: Record<string, Omit<EstadoSlot, "clave">> = {
   reprogramada: { etiqueta: "Reprogramada", icono: "↻", tono: "exito" },
   ausente: { etiqueta: "Ausente", icono: "✖", tono: "peligro" },
   realizada: { etiqueta: "Realizada", icono: "✔", tono: "tenue" },
-  reagendar: { etiqueta: "Reagendar", icono: "↺", tono: "tenue" },
+  reagendar: { etiqueta: "Por reagendar", icono: "↺", tono: "tenue" },
   suspendida: { etiqueta: "Suspendida", icono: "⏸", tono: "tenue" },
 };
 

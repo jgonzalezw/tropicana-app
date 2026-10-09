@@ -8,6 +8,7 @@ import {
   fh,
   horasLibresTexto,
   lineaDeHorario,
+  lineaTope,
   marcaDia,
   mismoRango,
   minimoEfectivo,
@@ -171,6 +172,11 @@ test("el tope es lo disponible para pedir", () => {
   // Donde ni el mínimo cabe por ocupación, sigue bloqueada.
   const ocupada = base({ ocupadosSala: [bloque("17:00", 120, "curso", "Salsa")] });
   assert.equal(vistaFranjas(ocupada, justo, sj).find((x) => x.inicio === 960)!.habilitada, true);
+  // En el tope: la línea fija lo explica, "+ sumar" no aparece y el clic de abajo mueve sin alargar.
+  assert.equal(lineaTope(s, r), "No quedan horas para alargar · disponible 0 h");
+  assert.equal(lineaTope({ ini: 900, fin: 960 }, r), null); // 1 h de 2,5 h: todavía se puede alargar
+  assert.equal(lineaTope(null, r), null);
+  assert.equal(v.some((x) => x.texto.startsWith("+ sumar")), false);
   assert.equal(seleccionValida(f, r, s), true);
   assert.equal(seleccionValida(f, r, null), false);
   assert.equal(seleccionValida(f, { ...r, disponibleMin: 120 }, s), false);
@@ -309,4 +315,20 @@ test("reprogramar: un alquiler sin plan (sin restricción de salas) arma la gril
   assert.deepEqual(d.salas.map((x) => x.id), [1, 2]);
   assert.equal(d.salas[1].ocupadosSala.length, 0);
   assert.equal(rangoActual(ACTUAL, 2, LUNES), null);
+});
+
+test("reprogramar con saldo justo: la línea del tope se ve y el clic en la franja inmediata mueve la reserva sin alargarla", () => {
+  const f = base();
+  // Reserva de 1 h (17:00–18:00) y solo 1 h de tope (disponible sin contar la propia = 1 h).
+  const r: Reglas = { incrementoMin: 30, minimoMin: 60, disponibleMin: 60, propuestaMin: 60 };
+  const actual = { ini: 1020, fin: 1080 };
+  let s = clicEnFranja(f, r, null, actual.ini).sel;
+  assert.deepEqual(s, actual);
+  assert.equal(lineaTope(s, r), "No quedan horas para alargar · disponible 0 h");
+  const inmediata = vistaFranjas(f, r, s).find((x) => x.inicio === 1080)!;
+  assert.equal(inmediata.habilitada, true);
+  assert.equal(inmediata.texto.startsWith("+ sumar"), false);
+  s = clicEnFranja(f, r, s, 1080).sel; // 18:00 → 18:00–19:00, misma duración
+  assert.deepEqual(s, { ini: 1080, fin: 1140 });
+  assert.equal(mismoRango(s, { id: 1, fecha: LUNES, hora: "17:00", duracionMin: 60, salaId: 1, salaNombre: "S" }, 1, LUNES), false);
 });
