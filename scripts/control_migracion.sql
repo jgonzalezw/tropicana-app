@@ -1024,3 +1024,16 @@ select '53. reserva reagendada cuya original no esta por reagendar/suspendida o 
   join public.reservas_sala o on o.id = r.reagenda_de
  where o.estado not in ('reagendar', 'suspendida')
     or o.membresia_id is distinct from r.membresia_id;
+
+-- ---------------------------------------------------------------------
+-- 54. EL PROFESOR VE AL TITULAR DE SUS PARTICULARES (migracion 0070)
+--     `contacto_visible_por_profesor` debe incluir la condicion de
+--     `membresias.profesor_id`, y conservar EXECUTE solo para authenticated (0050).
+-- ---------------------------------------------------------------------
+select '54. contacto_visible_por_profesor sin la condicion de membresias.profesor_id o con EXECUTE de mas' as control,
+       case when pg_get_functiondef('public.contacto_visible_por_profesor(bigint)'::regprocedure) like '%m.profesor_id = pr.id%'
+             and not has_function_privilege('anon', 'public.contacto_visible_por_profesor(bigint)', 'execute')
+            then 0 else 1 end as n,
+       case when pg_get_functiondef('public.contacto_visible_por_profesor(bigint)'::regprocedure) like '%m.profesor_id = pr.id%'
+             and not has_function_privilege('anon', 'public.contacto_visible_por_profesor(bigint)', 'execute')
+            then 'OK' else 'REVISAR' end as estado;
