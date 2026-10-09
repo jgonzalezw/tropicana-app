@@ -2,8 +2,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   banderas,
+  busquedaMuyCorta,
   chipEstado,
+  coincideMembresia,
+  enOtrosEstados,
   filtrarMembresias,
+  textoMenorFila,
+  membresiaVisible,
   siguienteCiclo,
   tipoDeMembresia,
   usoDelCiclo,
@@ -153,8 +158,9 @@ function fila(o: Partial<FilaMembresia> & { id: number }): FilaMembresia {
     tipo: "regular", estado: "activa",
     chip: { clave: "activa", texto: "Activa" },
     titular: { tipo: "persona", nombre: "Ana", apellido: "Zapata", razon_social: null, whatsapp: "+59171111111" },
-    titularNombre: "Ana Zapata", alumnoId: 1, contactoId: 1, tutorWhatsapp: null,
-    planId: 5, planNombre: "Salsa Intermedio · 8 clases", profesorNombre: "Luis Peña",
+    titularNombre: "Ana Zapata", alumnoId: 1, contactoId: 1, esMenor: false, tutor: null,
+    planId: 5, planNombre: "Salsa Intermedio · 8 clases", estilo: "Salsa", cursos: ["Salsa Intermedio"],
+    profesorNombre: null, profesoresCurso: ["Luis Peña"],
     fechaInicio: "2026-09-01", fechaFin: null, cicloNumero: 1, anteriorId: null, siguienteId: null,
     uso: { hechas: 3, total: 8, unidad: "clases" }, saldo: 0, solicitudesVigentes: 0,
     historica: false, porVencer: false, conDeuda: false, solicitudes: false,
@@ -168,11 +174,11 @@ const persona = (nombre: string, apellido: string, whatsapp: string | null = nul
 
 const filas: FilaMembresia[] = [
   fila({ id: 1, titular: persona("Ana", "Zapata", "+59171111111") }),
-  fila({ id: 2, titular: persona("Beto", "Aguilar", "+59172222222"), tipo: "particular", planNombre: "Particular 4 h", profesorNombre: "Raquel Soto" }),
+  fila({ id: 2, titular: persona("Beto", "Aguilar", "+59172222222"), tipo: "particular", planNombre: "Particular 4 h", profesorNombre: "Raquel Soto", profesoresCurso: [], cursos: [] }),
   fila({ id: 3, titular: persona("Carla", "Mendez"), estado: "completada", historica: true }),
   fila({ id: 4, titular: persona("Dani", "Lopez"), conDeuda: true, saldo: 80 }),
   fila({ id: 5, titular: persona("Eva", "Rojas"), porVencer: true }),
-  fila({ id: 6, titular: persona("Fede", "Vaca"), solicitudes: true, tipo: "particular", titularNombre: "Fede Vaca", tutorWhatsapp: "+59173333333" }),
+  fila({ id: 6, titular: persona("Fede", "Vaca"), solicitudes: true, tipo: "particular", titularNombre: "Fede Vaca", esMenor: true, tutor: { id: 90, nombre: "Marta Vaca", whatsapp: "+59173333333" } }),
   fila({ id: 7, titular: { tipo: "organizacion", nombre: null, apellido: null, razon_social: "Colegio San Andrés", whatsapp: null }, tipo: "alquiler", titularNombre: "Colegio San Andrés", alumnoId: null }),
   fila({ id: 8, titular: persona("Gina", "Ibañez"), estado: "baja", historica: true, tipo: "prueba" }),
 ];
@@ -214,4 +220,139 @@ test("a igual titular, la más reciente primero", () => {
     fila({ id: 11, fechaInicio: "2026-09-15" }),
   ];
   assert.deepEqual(ids(filtrarMembresias(dos)), [11, 10]);
+});
+
+// ── fase 1b: profesor, titulares que no son alumnos, visibilidad ────────
+
+test("el buscador promete «profesor»: buscar por su nombre encuentra la fila", () => {
+  const r = filtrarMembresias(filas, { estado: "todas", q: "raquel" });
+  assert.deepEqual(r.map((m) => m.id), [2]);
+});
+
+test("el titular puede ser una organización, un profesor de la escuela o una persona sin rol", () => {
+  const colegio = fila({
+    id: 20, tipo: "alquiler", alumnoId: null, contactoId: 90, titularNombre: "Colegio San Andrés",
+    titular: { tipo: "organizacion", nombre: null, apellido: null, razon_social: "Colegio San Andrés", whatsapp: "+59174444444" },
+  });
+  const profe = fila({ id: 21, tipo: "alquiler", alumnoId: null, contactoId: 91, titular: persona("Luis", "Peña", "+59175555555"), titularNombre: "Luis Peña" });
+  const externo = fila({ id: 22, tipo: "alquiler", alumnoId: null, contactoId: 92, titular: persona("Marta", "Quiroga"), titularNombre: "Marta Quiroga" });
+  const todas = [colegio, profe, externo];
+  assert.deepEqual(filtrarMembresias(todas, { q: "san andrés" }).map((m) => m.id), [20]);
+  assert.deepEqual(filtrarMembresias(todas, { q: "75555" }).map((m) => m.id), [21]);
+  assert.deepEqual(filtrarMembresias(todas, { q: "quiroga" }).map((m) => m.id), [22]);
+  // Orden por apellido: la razón social cuenta como apellido.
+  assert.deepEqual(filtrarMembresias(todas, {}).map((m) => m.id), [20, 21, 22]);
+});
+
+test("visibilidad: un rol sin el permiso de un tipo no lo ve, y el alcance propio recorta las particulares", () => {
+  const sinAlquileres = { tipos: new Set(["regular", "particular"] as const), profesorIdPropio: null };
+  assert.equal(membresiaVisible(sinAlquileres, { tipo: "alquiler", profesorId: null }), false);
+  assert.equal(membresiaVisible(sinAlquileres, { tipo: "regular", profesorId: null }), true);
+  const propio = { tipos: new Set(["particular"] as const), profesorIdPropio: 7 };
+  assert.equal(membresiaVisible(propio, { tipo: "particular", profesorId: 7 }), true);
+  assert.equal(membresiaVisible(propio, { tipo: "particular", profesorId: 8 }), false);
+  assert.equal(membresiaVisible(propio, { tipo: "particular", profesorId: null }), false);
+});
+
+// ── búsqueda: menores, tutores, WhatsApp, acentos (datos de dev: Bruna y Natalia) ──
+
+const natalia = { id: 6, nombre: "Natalia Salek", whatsapp: "+59177311069" };
+const bruna = fila({
+  id: 30, titular: persona("Bruna", "Marquez"), titularNombre: "Bruna Marquez", esMenor: true, tutor: natalia,
+  planNombre: "CR - TROPICOREOGRAFICO 8CL", estilo: "Tropicoreografico", cursos: ["Tropicoreografico"], profesoresCurso: ["Yubinca Rojas"],
+});
+const nataliaAlumna = fila({
+  id: 31, titular: persona("Natalia", "Salek", "+59177311069"), titularNombre: "Natalia Salek", tipo: "particular",
+  planNombre: "MA-10HS-FIX", estilo: "Salsa", cursos: [], profesorNombre: "Raquel Soto", profesoresCurso: [],
+});
+const familia = [bruna, nataliaAlumna, ...filas];
+const idsDe = (q: string) => ids(filtrarMembresias(familia, { estado: "todas", q }));
+
+test("buscar al tutor por nombre trae su membresía y la de su hijo menor", () => {
+  assert.deepEqual(idsDe("Natalia Salek").sort(), [30, 31]);
+  assert.deepEqual(idsDe("natalia").sort(), [30, 31]);
+});
+
+test("buscar al menor por nombre y apellido, con o sin acento", () => {
+  assert.deepEqual(idsDe("Bruna"), [30]);
+  assert.deepEqual(idsDe("Bruna Marquez"), [30]);
+  assert.deepEqual(idsDe("Márquez"), [30]);
+  assert.deepEqual(idsDe("MARQUEZ"), [30]);
+});
+
+test("el WhatsApp del titular y el del tutor, en cualquier formato y parcial", () => {
+  for (const q of ["77311069", "+59177311069", "+591 773-11069", "591 77311069", "7731", "311069", "773 110"]) {
+    assert.deepEqual(idsDe(q).sort(), [30, 31], q);
+  }
+  assert.deepEqual(idsDe("99999999"), []);
+});
+
+test("el plan, el curso, el estilo y el profesor (del curso o de la particular)", () => {
+  assert.deepEqual(idsDe("tropicoreografico"), [30]);
+  assert.deepEqual(idsDe("TROPICO"), [30]);
+  assert.deepEqual(idsDe("yubinca"), [30]);
+  assert.deepEqual(idsDe("ma-10hs"), [31]);
+  assert.deepEqual(idsDe("raquel soto").sort((a, b) => a - b), [2, 31]);
+});
+
+test("un acento en lo guardado también se encuentra sin escribirlo", () => {
+  const f = fila({ id: 40, titular: persona("José", "Pérez"), titularNombre: "José Pérez", cursos: ["Bachata Básico"] });
+  assert.equal(coincideMembresia("jose perez", f), true);
+  assert.equal(coincideMembresia("JOSÉ", f), true);
+  assert.equal(coincideMembresia("basico", f), true);
+});
+
+test("el menor se muestra como en Alumnos e Inscripción: «Menor · tutor …»", () => {
+  assert.equal(textoMenorFila(bruna), "Menor · tutor Natalia Salek");
+  assert.equal(textoMenorFila(nataliaAlumna), null);
+  assert.equal(textoMenorFila({ esMenor: true, tutor: null }), "Menor · sin tutor cargado");
+});
+
+test("menos de 2 caracteres se avisa; vacío no", () => {
+  assert.equal(busquedaMuyCorta("a"), true);
+  assert.equal(busquedaMuyCorta(" b "), true);
+  assert.equal(busquedaMuyCorta(""), false);
+  assert.equal(busquedaMuyCorta(undefined), false);
+  assert.equal(busquedaMuyCorta("ab"), false);
+});
+
+// ── otros estados: «Hay 6 en Históricas · Ver» ──────────────────────────
+
+test("un tipo sin filas activas dice cuántas hay en Históricas", () => {
+  assert.deepEqual(filtrarMembresias(filas, { tipo: "prueba", estado: "activas" }), []);
+  assert.deepEqual(enOtrosEstados(filas, { tipo: "prueba", estado: "activas" }), [{ estado: "historicas", cantidad: 1 }]);
+});
+
+test("con la búsqueda puesta, cuenta solo lo que coincide en el otro estado", () => {
+  assert.deepEqual(enOtrosEstados(filas, { tipo: "todas", estado: "activas", q: "mendez" }), [{ estado: "historicas", cantidad: 1 }]);
+  assert.deepEqual(enOtrosEstados(filas, { tipo: "todas", estado: "activas", q: "zapata" }), []);
+  assert.deepEqual(enOtrosEstados(filas, { tipo: "todas", estado: "historicas", q: "zapata" }), [{ estado: "activas", cantidad: 1 }]);
+});
+
+test("en un estado de seguimiento (con deuda) sugiere Activas e Históricas con lo que haya", () => {
+  const r = enOtrosEstados(filas, { tipo: "todas", estado: "con_deuda" });
+  assert.deepEqual(r.map((x) => x.estado), ["activas", "historicas"]);
+});
+
+// ── conteo: por cada tipo × estado, lo que se ve es lo que hay ──────────
+
+test("cada combinación de tipo × estado cuenta lo mismo que el recuento directo", () => {
+  const tipos = ["todas", "regular", "prueba", "particular", "alquiler"] as const;
+  const estados = ["activas", "por_vencer", "con_deuda", "solicitudes", "historicas", "todas"] as const;
+  const directo = (t: string, e: string) =>
+    familia.filter(
+      (m) =>
+        (t === "todas" || m.tipo === t) &&
+        (e === "todas" ||
+          (e === "activas" && !m.historica) ||
+          (e === "historicas" && m.historica) ||
+          (e === "por_vencer" && m.porVencer) ||
+          (e === "con_deuda" && m.conDeuda) ||
+          (e === "solicitudes" && m.solicitudes))
+    ).length;
+  for (const t of tipos) for (const e of estados) assert.equal(filtrarMembresias(familia, { tipo: t, estado: e }).length, directo(t, e), `${t} × ${e}`);
+  // Volver a Todas + Activas, después de pasar por cualquier otra, da lo mismo.
+  const inicial = filtrarMembresias(familia, {}).length;
+  for (const t of tipos) for (const e of estados) filtrarMembresias(familia, { tipo: t, estado: e, q: "ab" });
+  assert.equal(filtrarMembresias(familia, { tipo: "todas", estado: "activas", q: "" }).length, inicial);
 });

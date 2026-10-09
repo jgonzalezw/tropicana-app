@@ -22,6 +22,7 @@
  */
 
 import { coincideBusqueda } from "./contactos.ts";
+import { textoMenor, type ContactoResumen } from "./contactoVenta.ts";
 import { compararPorApellido } from "./texto.ts";
 import { solicitudVigente } from "./reservas.ts";
 import type { Contacto } from "./tipos.ts";
@@ -159,6 +160,20 @@ export function chipEstado(e: { estado: string; renovada: boolean } & Banderas):
   return { clave: "activa", texto: "Activa" };
 }
 
+/**
+ * ¿Este acceso puede ver una membresía de este tipo? Con alcance propio, un
+ * profesor ve solo sus particulares. Pura: la regla vive acá y se prueba
+ * sin base de datos.
+ */
+export function membresiaVisible(
+  a: { tipos: ReadonlySet<TipoMembresia>; profesorIdPropio: number | null },
+  m: { tipo: TipoMembresia; profesorId: number | null }
+): boolean {
+  if (!a.tipos.has(m.tipo)) return false;
+  if (m.tipo === "particular" && a.profesorIdPropio != null && m.profesorId !== a.profesorIdPropio) return false;
+  return true;
+}
+
 // ── La fila y el filtro ─────────────────────────────────────────────────
 
 export type FilaMembresia = Banderas & {
@@ -171,11 +186,19 @@ export type FilaMembresia = Banderas & {
   titularNombre: string;
   alumnoId: number | null;
   contactoId: number | null;
-  /** WhatsApp del tutor si el titular es menor: se busca por él también. */
-  tutorWhatsapp: string | null;
+  /** El titular es un alumno menor de edad (se muestra y se busca por su tutor). */
+  esMenor: boolean;
+  /** Su tutor (`contacto_relaciones` tipo `tutor_de`), tal como lo muestran Alumnos e Inscripción. */
+  tutor: ContactoResumen["tutor"];
   planId: number | null;
   planNombre: string;
+  /** Estilo del plan (Salsa, Bachata…): se busca por él. */
+  estilo: string | null;
+  /** Los cursos que toca (varios en una multi-curso); vacío en particular y alquiler. */
+  cursos: string[];
+  /** El profesor de la particular, o el titular de cada curso por asignación (regla 20). */
   profesorNombre: string | null;
+  profesoresCurso: string[];
   fechaInicio: string;
   fechaFin: string | null;
   cicloNumero: number | null;
@@ -191,11 +214,48 @@ function ordenDe(t: FilaMembresia["titular"]) {
   return t.tipo === "organizacion" ? { nombre: null, apellido: t.razon_social } : { nombre: t.nombre, apellido: t.apellido };
 }
 
+/** Minúsculas y sin acentos: «Márquez» y «marquez» son la misma búsqueda. */
+export const sinAcentos = (t: string | null | undefined) =>
+  (t ?? "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+
+type ContactoBusqueda = Pick<Contacto, "tipo" | "nombre" | "apellido" | "razon_social" | "whatsapp">;
+const sinAcentosContacto = (c: ContactoBusqueda): ContactoBusqueda => ({
+  ...c,
+  nombre: c.nombre == null ? null : sinAcentos(c.nombre),
+  apellido: c.apellido == null ? null : sinAcentos(c.apellido),
+  razon_social: c.razon_social == null ? null : sinAcentos(c.razon_social),
+});
+
+/** Menos de 2 letras no busca: la pantalla lo dice en vez de ignorarlo. */
+export const LARGO_MIN_BUSQUEDA = 2;
+export function busquedaMuyCorta(q: string | null | undefined): boolean {
+  const t = (q ?? "").trim();
+  return t.length > 0 && t.length < LARGO_MIN_BUSQUEDA;
+}
+
+/**
+ * ¿Esta membresía responde a la búsqueda? Reutiliza `coincideBusqueda`, el
+ * filtro de Alumnos (nombre; WhatsApp propio y del tutor, con o sin +591,
+ * espacios o guiones, desde 3 dígitos), y lo aplica también al **tutor**
+ * como persona —su nombre y su WhatsApp ubican al menor— y al texto del
+ * plan, el estilo, los cursos y los profesores. Sin acentos ni mayúsculas.
+ */
+export function coincideMembresia(q: string, m: FilaMembresia): boolean {
+  const t = q.trim();
+  if (t.length < LARGO_MIN_BUSQUEDA) return true;
+  const qf = sinAcentos(t);
+  if (coincideBusqueda(qf, { contacto: sinAcentosContacto(m.titular), tutorWhatsapp: m.tutor?.whatsapp })) return true;
+  if (m.tutor) {
+    const comoPersona: ContactoBusqueda = { tipo: "persona", nombre: sinAcentos(m.tutor.nombre), apellido: null, razon_social: null, whatsapp: m.tutor.whatsapp };
+    if (coincideBusqueda(qf, { contacto: comoPersona })) return true;
+  }
+  return [m.planNombre, m.estilo, m.profesorNombre, ...m.cursos, ...m.profesoresCurso].some((x) => sinAcentos(x).includes(qf));
+}
+
 export function filtrarMembresias(filas: FilaMembresia[], f: FiltroMembresias = {}): FilaMembresia[] {
   const tipo = f.tipo ?? "todas";
   const estado = f.estado ?? "activas";
   const q = (f.q ?? "").trim();
-  const buscar = q.length >= 2 ? q.toLowerCase() : null;
 
   return filas
     .filter((m) => {
@@ -205,17 +265,30 @@ export function filtrarMembresias(filas: FilaMembresia[], f: FiltroMembresias = 
       if (estado === "por_vencer" && !m.porVencer) return false;
       if (estado === "con_deuda" && !m.conDeuda) return false;
       if (estado === "solicitudes" && !m.solicitudes) return false;
-      if (buscar) {
-        const porPersona = coincideBusqueda(q, { contacto: m.titular, tutorWhatsapp: m.tutorWhatsapp });
-        const porTexto =
-          m.planNombre.toLowerCase().includes(buscar) || (m.profesorNombre ?? "").toLowerCase().includes(buscar);
-        if (!porPersona && !porTexto) return false;
-      }
-      return true;
+      return coincideMembresia(q, m);
     })
     .sort(
       (a, b) =>
         compararPorApellido(ordenDe(a.titular), ordenDe(b.titular)) ||
         (a.fechaInicio === b.fechaInicio ? b.id - a.id : a.fechaInicio < b.fechaInicio ? 1 : -1)
     );
+}
+
+/** «Menor · tutor Natalia Salek», igual que en Alumnos e Inscripción; `null` si no es menor. */
+export const textoMenorFila = (m: Pick<FilaMembresia, "esMenor" | "tutor">) => textoMenor(m);
+
+/**
+ * Cuántas membresías hay en los otros estados que sí se miran de a uno
+ * (Activas, Históricas) con el mismo tipo y la misma búsqueda. Sirve para no
+ * dejar una lista vacía sin decir dónde están: «Hay 6 en Históricas · Ver».
+ */
+export function enOtrosEstados(
+  filas: FilaMembresia[],
+  f: FiltroMembresias
+): { estado: "activas" | "historicas"; cantidad: number }[] {
+  const actual = f.estado ?? "activas";
+  return (["activas", "historicas"] as const)
+    .filter((e) => e !== actual)
+    .map((e) => ({ estado: e, cantidad: filtrarMembresias(filas, { ...f, estado: e }).length }))
+    .filter((x) => x.cantidad > 0);
 }

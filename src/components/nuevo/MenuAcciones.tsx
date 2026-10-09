@@ -9,6 +9,8 @@ export type ItemMenu = {
   peligro?: boolean;
   /** Línea divisoria arriba (para lo destructivo). */
   separador?: boolean;
+  /** Si está, el ítem se ve deshabilitado y este texto explica por qué (calidad 5: una capacidad no disponible se explica, no desaparece). */
+  motivoBloqueo?: string;
 };
 
 /** Menú ⋯ de «más acciones»: la principal queda a la vista y el resto acá. */
@@ -58,13 +60,14 @@ export default function MenuAcciones({ items }: { items: ItemMenu[] }) {
               className="n-menu__item"
               data-peligro={it.peligro ? "true" : undefined}
               data-separador={it.separador ? "true" : undefined}
+              disabled={!!it.motivoBloqueo}
               onClick={() => {
                 setAbierto(false);
                 it.onClick();
               }}
             >
               <b>{it.label}</b>
-              {it.sub && <small>{it.sub}</small>}
+              {(it.motivoBloqueo ?? it.sub) && <small>{it.motivoBloqueo ?? it.sub}</small>}
             </button>
           ))}
         </div>

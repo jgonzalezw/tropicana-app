@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { alcancePropioDe, tienePermiso } from "@/lib/sesion";
-import { filtrarMembresias, type FilaMembresia, type FiltroMembresias, type TipoMembresia } from "@/lib/listaMembresias";
+import { filtrarMembresias, tipoDeMembresia, type FilaMembresia, type FiltroMembresias, type TipoMembresia, TIPOS_MEMBRESIA } from "@/lib/listaMembresias";
 import { leerFichaMembresia, leerFilasMembresias, type AccesoMembresias, type FichaMembresia } from "@/lib/membresiasLectura";
 import {
   obtenerMembresiaAlquiler,
@@ -23,23 +23,30 @@ async function accesoActual(): Promise<{ acceso: AccesoMembresias } | { error: s
   const tipos = new Set<TipoMembresia>();
   let profesorIdPropio: number | null = null;
 
-  if (await tienePermiso("alumnos", "ver")) {
+  // Los permisos y los alcances no dependen uno del otro: se piden juntos.
+  const [verAlumnos, verParticulares, verAlquileres] = await Promise.all([
+    tienePermiso("alumnos", "ver"),
+    tienePermiso("particulares", "ver"),
+    tienePermiso("alquileres", "ver"),
+  ]);
+  const [alcanceParticulares, alcanceAlquileres] = await Promise.all([
+    verParticulares ? alcancePropioDe("particulares") : null,
+    verAlquileres ? alcancePropioDe("alquileres") : null,
+  ]);
+
+  if (verAlumnos) {
     tipos.add("regular");
     tipos.add("prueba");
   }
-  if (await tienePermiso("particulares", "ver")) {
-    const { propio, profesorId } = await alcancePropioDe("particulares");
-    if (!propio) tipos.add("particular");
-    else if (profesorId != null) {
+  if (alcanceParticulares) {
+    if (!alcanceParticulares.propio) tipos.add("particular");
+    else if (alcanceParticulares.profesorId != null) {
       tipos.add("particular");
-      profesorIdPropio = profesorId;
+      profesorIdPropio = alcanceParticulares.profesorId;
     }
   }
-  if (await tienePermiso("alquileres", "ver")) {
-    // Un alquiler es de gestión de la escuela: con alcance propio no se ve (P17·3).
-    const { propio } = await alcancePropioDe("alquileres");
-    if (!propio) tipos.add("alquiler");
-  }
+  // Un alquiler es de gestión de la escuela: con alcance propio no se ve (P17·3).
+  if (alcanceAlquileres && !alcanceAlquileres.propio) tipos.add("alquiler");
   if (!tipos.size) return { error: "No tenés permiso para ver membresías." };
 
   const sb = await createClient();
@@ -49,6 +56,13 @@ async function accesoActual(): Promise<{ acceso: AccesoMembresias } | { error: s
 }
 
 const mensaje = (e: unknown) => (e instanceof Error ? e.message : "Error desconocido.");
+
+/** Los tipos que el rol puede ver: la lista solo ofrece esos filtros. */
+export async function tiposVisiblesMembresias(): Promise<TipoMembresia[]> {
+  const a = await accesoActual();
+  if ("error" in a) return [];
+  return TIPOS_MEMBRESIA.filter((t) => a.acceso.tipos.has(t));
+}
 
 export async function listarMembresias(
   filtro: FiltroMembresias = {}
@@ -68,16 +82,34 @@ export type FichaMembresiaCompleta = FichaMembresia & {
   detalle: MembresiaParticularDetalle | null;
 };
 
+/**
+ * El tipo de una membresía con una sola consulta liviana, para pedir su detalle
+ * (reservas, saldo de horas) a la vez que la ficha y no después. Solo adelanta
+ * la lectura: quién puede ver la ficha lo sigue decidiendo `leerFichaMembresia`.
+ */
+async function tipoDeLaMembresia(id: number): Promise<TipoMembresia | null> {
+  const sb = await createClient();
+  const { data, error } = await sb.from("membresias").select("es_prueba, curso_id, categoria_aplicada").eq("id", id).maybeSingle();
+  if (error) throw new Error(`No se pudo leer la membresía: ${error.message}`);
+  if (!data) return null;
+  const r = data as { es_prueba: boolean; curso_id: number | null; categoria_aplicada: string | null };
+  return tipoDeMembresia({ esPrueba: r.es_prueba, cursoId: r.curso_id, categoriaAplicada: r.categoria_aplicada });
+}
+
 export async function obtenerMembresia(id: number): Promise<FichaMembresiaCompleta | { error: string }> {
   try {
-    const a = await accesoActual();
+    const [a, tipo] = await Promise.all([accesoActual(), tipoDeLaMembresia(id)]);
     if ("error" in a) return a;
-    const ficha = await leerFichaMembresia(a.acceso, id);
+    if (!tipo) return { error: "Esa membresía no existe o no tenés permiso para verla." };
+
+    const [ficha, d] = await Promise.all([
+      leerFichaMembresia(a.acceso, id),
+      tipo === "particular" ? obtenerMembresiaParticular(id) : tipo === "alquiler" ? obtenerMembresiaAlquiler(id) : null,
+    ]);
     if (!ficha) return { error: "Esa membresía no existe o no tenés permiso para verla." };
 
     let detalle: MembresiaParticularDetalle | null = null;
-    if (ficha.fila.tipo === "particular" || ficha.fila.tipo === "alquiler") {
-      const d = await (ficha.fila.tipo === "particular" ? obtenerMembresiaParticular(id) : obtenerMembresiaAlquiler(id));
+    if (d) {
       if ("error" in d && d.error && !("id" in d)) return { error: d.error };
       detalle = d as MembresiaParticularDetalle;
     }

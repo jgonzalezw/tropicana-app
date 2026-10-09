@@ -210,3 +210,13 @@ D35 (`docs/decisiones/vigentes.md`). **Migración 0064 aplicada en dev (2026-10-
 - **Pendiente antes del pase:** el interruptor debe quedar en `false` en producción (la 0067 lo inserta así). Fuera de la 1a: lista, buscador, filtros y «+ Vender» son de la 1b.
 - **Anotado:** en dev hay nombres con `??` (p. ej. «Yubinca ??»): dato, no de esta fase.
 - **Cierre de la 1a (2026-10-08):** PR #37 fusionado en main (`10f33b4`), sin pase a producción; los `??` de nombres en dev los corrigió Javier.
+
+### I-012 · Membresías, fase 1b (lista y ficha de lectura) — 2026-10-08
+
+- **Qué hay:** `/membresias` (lista persistente con búsqueda «Alumno, WhatsApp, profesor o plan», filtros de tipo y estado en la URL) y `/membresias/[id]` (encabezado, indicadores, pestañas Clases o Reservas · Pagos · Historial, y columna con cuotas y cuenta, saldo de horas, detalle por tipo, lugar externo, profesor o servicio y avisos). Solo lectura: sin migración, sin acciones. Reglas en `src/lib/fichaMembresia.ts` (puro, con pruebas); la lectura se amplió en `membresiasLectura.ts` (pagos, clases, titular, alquiler).
+- **Titular, no alumno:** la lista y la ficha muestran el titular con su rol (alumno, profesor de Tropicana, institución, persona sin rol) y «Avisos a» (tutor si es menor; quien atiende si es una institución).
+- **Acciones de fases futuras:** Cobrar, Renovar y el menú ⋯ (Modificar, Reporte, Nueva reserva, Imprimir/Copiar, Dar de baja) y el lugar externo se ven deshabilitados con «Llega en la fase N». **Provisional:** antes de encender el interruptor en producción deben desaparecer o activarse.
+- **Volumen:** 73 membresías en dev (52 activas) y 81 en producción (62 activas), 0 alquileres. La lista se lee entera una vez; `leerBase` falla con mensaje si la API cortara las filas. Carga medida en dev: 52 filas, 6–10 s con compilación en frío. Disparador: pasar de ~500 membresías → filtrar y paginar en el servidor.
+- **Permisos:** una ficha inexistente y una que el rol no ve dan el mismo texto («Esa membresía no existe o no tenés permiso para verla.»); `membresiaVisible` es pura y está probada.
+- **Probado en dev:** `npm test` (406), `tsc`, `eslint`, `next build`, Playwright 20/20 (lista, filtros y búsqueda, ficha regular y particular, paridad de saldos con la cuenta del alumno y con `/particulares/[id]`, ficha ajena, celular, y alquileres sembrados a nombre de una institución y de un profesor, borrados al terminar; «interruptor apagado» ahora incluye `/membresias/[id]`).
+- **Diferencias con el diseño (a confirmar):** Clases muestra las ya registradas, sin la fila «Próxima»; Pagos no tiene «Pago reportado» (no existe el dato); el profesor de un curso se muestra como «quién dictó» (la membresía no lo guarda); sin «titular desde».
