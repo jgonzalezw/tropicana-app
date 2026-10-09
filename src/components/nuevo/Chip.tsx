@@ -1,4 +1,4 @@
-export type TonoChip = "neutro" | "ambar" | "exito" | "peligro" | "tenue";
+export type TonoChip = "tipo" | "neutro" | "ambar" | "exito" | "peligro" | "tenue";
 
 /** Etiqueta de estado (Activa, Por vencer, Con deuda…). Solo presenta: el
  *  tono lo decide quien la usa. */

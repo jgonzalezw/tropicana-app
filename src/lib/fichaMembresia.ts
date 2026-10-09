@@ -13,7 +13,7 @@ import { formatearHoras } from "./horarios.ts";
  */
 
 export type TonoIndicador = "exito" | "peligro" | "acento";
-export type IndicadorFicha = { etiqueta: string; valor: string; sub?: string; tono?: TonoIndicador; progreso?: number };
+export type IndicadorFicha = { etiqueta: string; valor: string; sub?: string; subAcento?: boolean; tono?: TonoIndicador; progreso?: number };
 
 const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 const DIAS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
@@ -75,6 +75,7 @@ export function indicadoresDe(f: FichaMembresia, hoy: Date = new Date()): Indica
       etiqueta: "Uso del ciclo",
       valor: uso.total != null ? `${formatearHoras(uso.hechas)} de ${horasTexto(uso.total)}` : horasTexto(uso.hechas),
       sub: `Disponible para pedir ${horasTexto(dispMin / 60)}`,
+      subAcento: true,
       progreso: uso.total ? Math.min(100, (uso.hechas / uso.total) * 100) : undefined,
     };
   } else {

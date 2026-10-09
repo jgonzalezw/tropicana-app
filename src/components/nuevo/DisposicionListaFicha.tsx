@@ -25,11 +25,12 @@ export default function DisposicionListaFicha({
   /** A dónde vuelve «‹ Volver» en celular. */
   hrefLista: string;
   /** Texto de la barra superior de la ficha (p. ej. «Membresías › Ana Pérez»). */
-  miga: string;
+  miga: React.ReactNode;
   children: React.ReactNode;
 }) {
   const { id } = useParams<{ id?: string }>();
   return (
+    <div className="n-seccion">
     <div className="n-disposicion" data-vista={id ? "ficha" : "lista"}>
       <aside className="n-lista" aria-label="Lista">
         <div className="n-lista__encabezado">{encabezado}</div>
@@ -42,10 +43,11 @@ export default function DisposicionListaFicha({
           <Link href={hrefLista} className="n-volver">
             ‹ Volver
           </Link>
-          <span>{miga}</span>
+          <div className="n-miga">{miga}</div>
         </div>
         <div className="n-ficha__cuerpo">{children}</div>
       </section>
+    </div>
     </div>
   );
 }

@@ -2,6 +2,8 @@ export type CeldaIndicador = {
   etiqueta: string;
   valor: string;
   sub?: string;
+  /** El detalle va en color acento (p. ej. «Disponible para pedir 1 h»). */
+  subAcento?: boolean;
   tono?: "exito" | "peligro" | "acento";
   /** 0–100: barra de avance bajo el valor. */
   progreso?: number;
@@ -15,7 +17,7 @@ export function Indicadores({ celdas }: { celdas: CeldaIndicador[] }) {
         <div key={c.etiqueta} className="n-indicador" data-tono={c.tono}>
           <div className="n-indicador__etiqueta">{c.etiqueta}</div>
           <div className="n-indicador__valor">{c.valor}</div>
-          {c.sub && <div className="n-indicador__sub">{c.sub}</div>}
+          {c.sub && <div className="n-indicador__sub" data-acento={c.subAcento ? "true" : undefined}>{c.sub}</div>}
           {c.progreso !== undefined && (
             <div
               className="n-indicador__barra"
