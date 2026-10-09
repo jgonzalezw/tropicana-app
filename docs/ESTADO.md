@@ -88,92 +88,9 @@ Dentro de lo archivado hay dos datos de referencia que no viven en otro lado: la
 
 > Las secciones base §1–§7 (estado por hito de Etapa 0/1, handoff de diseño, decisiones de negocio absorbidas, migraciones 0001–0017, protocolo y metodología de release) se archivaron el 2026-10-08 en `docs/archivo/ESTADO-2026-08-09.md`, al final. Lo vigente está en `docs/reglas/`, `docs/DECISIONES.md` §3 y `docs/ENTORNOS_CLAUDE.md`.
 
-## I-001 — Confirmación de inscripción (2026-10-07)
+## I-001, I-009, I-005, I-003, I-005b, I-006, I-007, I-010, I-011 — archivados (2026-10-09)
 
-Registro de nueve pedidos (I-001 a I-009, `INCIDENTES.md`) y activación de D29 junto con I-005. Cierra I-001; **solo dev, sin migración**.
-
-- El texto de WhatsApp de una inscripción regular ahora trae cada curso con días y horario, clases (con bono) o ilimitado, inicio y fin de ciclo, tolerancia de faltas, precio, pagado y saldo con su fecha. Va al tutor si el alumno es menor.
-- Con cobro, la tarjeta suma un aviso «recibo de pago» por WhatsApp (copiable) y «Ver recibo», que abre el recibo imprimible en otra pestaña.
-- Código: `src/lib/venta/mensajeInscripcion.ts` (puro, 6 pruebas), `inscribirYCobrar` y `ConfirmacionVenta`.
-- **Verificado:** `tsc`, `lint`, `npm test` (280/280) y prueba en pantalla de Javier en dev.
-- Prueba, particular y alquiler conservan su texto anterior: reusar la función es seguimiento.
-
----
-
-## I-009 — Número de clase en Asistencia (2026-10-07)
-
-Cierra I-009; **solo dev, sin migración**. Rama `fix/i-009` (sale de `fix/i-001`).
-
-- Cada alumno del padrón muestra «Clase 5 de 12 · quedan 7 · 4/12 tomadas · 1 falta en el ciclo». En un paquete por clase: «Una clase · clase 3 de 8 · quedan 5». En la última: «Última clase (8 de 8)» y la pastilla «Última clase» en color de advertencia, también con la clase ya marcada; pesa más que las de tolerancia.
-- Las tomadas y las faltas del ciclo cuentan hasta la fecha que se mira: una fecha pasada ya no muestra los totales de hoy. No cambió nada de lo que decide el padrón, la tolerancia ni el bono.
-- Código: `src/lib/ordinalClase.ts` (puro, 6 pruebas), `cargarPadron`, `FilaAsistencia.ordinal` y `ClienteAsistencia`.
-- Límite: un alumno con dos cursos el mismo día ve el mismo número en los dos.
-- **Verificado:** `tsc`, `lint`, `npm test` (286/286) y prueba en pantalla de Javier en dev.
-
----
-
-## I-005 — Retiro del profesor y pre-liquidación simulada (2026-10-07)
-
-D34 (`docs/decisiones/vigentes.md`) y D29 activada. **Migración 0063 aplicada en dev (2026-10-07) y en producción (2026-10-08).**
-
-- **Pre-liquidación simulada (D29):** botón «Simular cierre del período» en Liquidaciones → `/liquidaciones/pre-liquidacion?modo=simulacion`. El período en curso sale de `periodicidad_liquidacion` (`rangoEnCurso`: mes o semana). Capa pura `simulacion.ts`: las activas con fin dentro del período y saldo 0 pasan a completadas, las clases y reservas futuras cuentan como dadas; el motor no se tocó. Rótulo «Simulación al <fecha>» y los 3 límites, también en el impreso.
-- **Cierre de particulares:** `calcularDevengosParticulares` acepta `cierre` (avance de horas al corte, solo positivo, tipo `cierre`).
-- **Retiro:** `/profesores/retirar/[id]` (botón «Retirar…» en el listado). Vista simulada (`retiro.ts`, puro) con acciones, liquidación final (regulares + particulares + saldo previo) y trabas; las membresías que la regla 17 deja afuera no traban, se explican. `vistaRetiro` solo lee; `retirarProfesor` recalcula y llama a la función SQL `retirar_profesor` (0063): asignaciones, sustitutos, cierre, ítems, totales e inactivación en una transacción.
-- **Se puede retirar a un profesor ya inactivo con asignaciones abiertas** (dev tenía uno: Caceres).
-- **Control 48** nuevo: profesor inactivo con asignación abierta.
-- **Verificado en dev:** `tsc`, `lint`, `npm test` (312). Simulación mostrada en pantalla sin escribir nada. Función: camino feliz y falla a mitad revertidos en SQL (nada queda escrito). Retiro real de Caceres: coincide con la simulación (Bs. 150, 3 líneas, liquidación 2026-10-01 abierta), control 43 y 48 en 0.
-- **No hecho:** la cifra de liquidez con el saldo adeudado en la simulación; el valor `semana` no está en el catálogo del parámetro (la liquidación real solo sabe `mes`); el botón del retiro está en el listado, no en la ficha. **→ Resuelto en I-005b (2026-10-08):** cifra de liquidez en la simulación y el impreso (por profesor y con piso 0: devengo + saldo previo + suplentes); `semana` no se agrega, queda como D36; botón «Retirar…» también en la ficha del profesor. Sin migración.
-- **Ajuste tras la prueba de Javier (2026-10-07):** la impresión del retiro ya no es la pantalla: `imprimirRetiro.ts` arma un HTML aparte, sobre fondo blanco (con pruebas). El informe suma **«Membresías que quedan inconclusas»**, una línea por membresía (alumno, cursos/plan, inicio, fin, avance con faltantes, estado y saldo; regulares y particulares). Al confirmar, el mismo informe pasa a ser la **liquidación por finalización**, con los datos que el servidor calculó al escribir (N.º de liquidación y fecha de confirmación); se imprime desde la pantalla de retiro confirmado.
-
----
-
-## I-003 — Bono de tolerancia por curso (2026-10-08)
-
-D35 (`docs/decisiones/vigentes.md`). **Migración 0064 aplicada en dev (2026-10-08) y en producción (2026-10-08).**
-
-- **Modelo:** tabla `membresia_bonos` (un bono por membresía de origen y curso, con `vence` y su destino); `membresias.bono_generado` queda como resumen; `bono_redimido` deja de leerse. Respaldo `bono_previo_0064`.
-- **Reglas:** se evalúa y se topa por curso; vence en la renovación bonificada de su curso; se aplica en cualquier plan que incluya el curso (en ilimitado se consume sin efecto); la prueba no genera ni consume bono. Funciones puras en `src/lib/bono.ts` y `calendarioCiclo.ts`.
-- **Pantallas:** venta (vista previa de bonos que aplican, vencidos y que no entran), padrón por curso, cuenta del alumno y mensaje de inscripción.
-- **Control 49** nuevo (bono por curso inconsistente): 0 en dev y en producción.
-- **Corrección de producción:** `scripts/corregir_bonos_i003.sql` para Manuel Aguilar, Jorge Vilca (inicio retroactivo al 1/10 y su asistencia) y Lucas Campero; rollback en `scripts/rollback_corregir_bonos_i003.sql`, probado en dev.
-- **Verificado:** `tsc`, `lint`, `npm test` (333), venta real en dev, rollback de la 0064 y de la corrección fila por fila.
-- **Cierre (2026-10-08):** PR #19, `main` `5b3093d`, deploy Producción `success`; Javier confirmó el chip PROD y los bonos de los 3 alumnos. Tablas de respaldo `bono_previo_0064` y `bono_correccion_i003_previo` borradas de producción con su OK (sin respaldo de rollback en producción).
-
-### I-005b · Pendientes chicos de I-005 — 2026-10-08
-
-- **Cifra de liquidez** en la simulación (D29) y en el impreso: por profesor y con piso 0, devengo + saldo previo de liquidaciones anteriores + suplentes. Saldo previo cruzado contra SQL en dev. Sin migración.
-- **«Retirar…» en la ficha** del profesor (misma condición de permiso que el listado). **`semana`** no se agrega al catálogo: D36 postergada.
-- PR #21 en producción; `tsc`, `lint`, `npm test` (338).
-
-### I-006 · Baja de profesor por Retirar (control 48) — 2026-10-08
-
-- **Causa:** «Desactivar» solo apagaba `activo`: dejaba un titular inactivo con la asignación abierta (en producción, Caceres, Angel desde el 14/09, curso Danza Comercial). **Migración 0065 aplicada en dev y en producción (2026-10-08).**
-- **Prevención:** triggers en `profesores` (no se inactiva con asignaciones abiertas) y `asignaciones` (no se abre una a un inactivo); `eliminarODesactivarProfesor` y `crearAsignacion` lo validan antes; con cursos a cargo la ficha y el listado ofrecen solo «Retirar…». Regla 25 de negocio.
-- **Verificado:** triggers probados en dev en una transacción deshecha (baja con cursos y alta a inactivo se rechazan; tras cerrar la asignación, inactivar pasa). **Producción (2026-10-08):** Caceres, Angel retirado con la pantalla Retirar (corte 14/09, sin sustituto: Danza Comercial espera nuevo profesor). Antes/después contra respaldo: asignación 3 abierta → cerrada 14/09; membresías 25–27 sin cambios; cierre de 3 × Bs. 25 en la liquidación N° 4 (Bs. 75, abierta, por pagar en Caja); control 48: 1 → 0; triggers 0065 activos. Las tablas de respaldo `resp_i006_*` se borraron de producción con OK de Javier (2026-10-08): el rollback ya no tiene respaldo.
-
-### I-007 · Fecha efectiva del retiro en la liquidación — 2026-10-08
-
-- **Pedido de Javier:** la liquidación de retiro no decía hasta cuándo se calculó; esa fecha es la efectiva del retiro. **Migración 0066 aplicada en dev y en producción (2026-10-08).**
-- **Cambio:** columna `liquidaciones.retiro_hasta` (null = liquidación normal). `retirar_profesor` la escribe con el mismo corte con que cierra las asignaciones; lo ya retirado se rellena desde el «corte dd/mm» del cierre. Se ve en el comprobante (pantalla e impreso: «Retiro efectivo: hasta el dd/mm/aaaa (último día a cargo)»), en el listado y en el campo de la pantalla Retirar. Control 50 nuevo.
-- **Producción (2026-10-08, OK de Javier):** antes, 4 liquidaciones sin la columna; después, N° 1 (Gongora) → 10/09/2026 y N° 4 (Caceres) → 14/09/2026, N° 2 y N° 3 sin fecha; el resto de cada fila idéntico al respaldo; control 50 en 0; `retirar_profesor` ya escribe la fecha. Los respaldos `resp_i007_*` se borraron de producción con OK de Javier (2026-10-08): el rollback ya no tiene respaldo.
-- **Verificado en dev:** `tsc`, `lint`, `npm test` (339), relleno de las liquidaciones de retiro, control 50 en 0 y el comprobante N° 5 en pantalla (hasta el 07/10/2026).
-
-
-### I-010 · Bono de Raquel López (asistencia mal tipeada) — 2026-10-08
-
-- **Causa:** la asistencia de Raquel (membresía 21) se tipeó mal: 14/09 ausente (Lucas, presente) y 16/09 ausente sin licencia (Lucas, con licencia). Con una falta sin licencia el curso no genera bono. Era el último caso de este tipo.
-- **Arreglo:** `scripts/corregir_bono_i010.sql` (sin migración, con respaldo `resp_i010_previo` y rollback `scripts/rollback_corregir_bono_i010.sql`): asistencias 121 y 143 igualadas a las de Lucas, bono de 1 clase de la 21 aplicado a la 62 (clases 4 → 5, fin 19/10 → 21/10, igual que la 63) y recuento de la 21 (7 hechas).
-- **Producción (2026-10-08, OK de Javier):** antes/después verificado; control 49 en 0 para las membresías 20, 21, 62 y 63; sin comisiones ni liquidaciones afectadas. Probado antes en dev: corrida doble idempotente y rollback sin diferencias. El respaldo `resp_i010_previo` se borró de producción con OK de Javier (2026-10-08). En dev el refresh no copia `membresia_bonos`: el control 49 da 9 allí (membresías ajenas), no en producción.
-
-### I-011 · Retiro con fecha pasada: datos completos y avance al corte — 2026-10-08
-
-- **Pedido de Javier:** al simular el retiro de Oscar Nuñez al 06/10/2026 faltaba información y dos cifras parecían mal (S2). La simulación a fecha futura queda para otro incidente.
-- **Causa:** el avance de las membresías inconclusas leía `clases_hechas` (solo presentes): Luz Marina Araujo daba 1 de 8 aunque la clase del 06/10 (falta) era su segunda. El cierre de Yubinca (Bs. 250 a la fecha) ya tenía Bs. 150 en la liquidación N° 3; la línea mostraba solo la diferencia (100).
-- **Cambio (sin migración, sin tocar montos):** `avanceAlCorte` (`src/lib/ordinalClase.ts`) comparte regla con `ordinalDeClase` y con Asistencia; `lecturaRetiro` lee cuenta (`cobroPorMembresia` ahora devuelve precio y descuento), bonos de `membresia_bonos` y lo ya devengado con su `liquidacion_id`. La vista y el impreso muestran A la fecha / Ya liquidado / Este cierre, cuenta del alumno, bono aplicado y para renovar, y sigla del criterio. Interruptor para esconder solo la liquidación del que se retira.
-- **Un solo catálogo de criterios:** `src/lib/liquidacion/criterios.ts` reemplaza los de Planes, Comprobante y pre-liquidación.
-- **Verificado en dev:** `tsc`, `lint`, `npm test` (353), y en pantalla Nuñez al 06/10 (Luz Marina 2 de 8; Yubinca 250 / 150 N° 3 / 100) y Salek (bono +1). Falta la reconfirmación de Javier y el pase.
-- **Anotado:** unificar los flujos de cálculo (decisión de Javier sobre D34 pendiente) y `desasignar` con `clases_hechas`.
-- **Ajuste de pantalla (2026-10-08):** inconclusas con ciclo en dos líneas, avance en dos líneas, sin Estado y con «con saldo»; el ciclo junto al curso en las líneas de liquidación; columna Bono también en particulares. El bono de ventas anteriores a la 0064 (`aplicado='historico'`, sin `redimido_en_membresia_id`) se lee como el excedente de `clases_plan` sobre el plan (Yubinca: 7/9, +1).
+Pasaron a `docs/archivo/ESTADO-2026-10.md` para que este archivo se pueda leer. Lo vigente de cada uno está en `docs/RETOMAR.md` y en `docs/reglas/`.
 
 ### L-01 · Un solo proceso de liquidación y una sola exposición — 2026-10-08
 
@@ -219,4 +136,16 @@ D35 (`docs/decisiones/vigentes.md`). **Migración 0064 aplicada en dev (2026-10-
 - **Volumen:** 73 membresías en dev (52 activas) y 81 en producción (62 activas), 0 alquileres. La lista se lee entera una vez; `leerBase` falla con mensaje si la API cortara las filas. Carga medida en dev: 52 filas, 6–10 s con compilación en frío. Disparador: pasar de ~500 membresías → filtrar y paginar en el servidor.
 - **Permisos:** una ficha inexistente y una que el rol no ve dan el mismo texto («Esa membresía no existe o no tenés permiso para verla.»); `membresiaVisible` es pura y está probada.
 - **Probado en dev:** `npm test` (406), `tsc`, `eslint`, `next build`, Playwright 20/20 (lista, filtros y búsqueda, ficha regular y particular, paridad de saldos con la cuenta del alumno y con `/particulares/[id]`, ficha ajena, celular, y alquileres sembrados a nombre de una institución y de un profesor, borrados al terminar; «interruptor apagado» ahora incluye `/membresias/[id]`).
-- **Diferencias con el diseño (a confirmar):** Clases muestra las ya registradas, sin la fila «Próxima»; Pagos no tiene «Pago reportado» (no existe el dato); el profesor de un curso se muestra como «quién dictó» (la membresía no lo guarda); sin «titular desde».
+- **Diferencias con el diseño (a confirmar):** Clases muestra las ya registradas, sin la fila «Próxima»; Pagos no tiene «Pago reportado» (no existe el dato); el profesor de un curso se muestra como «quién dictó» (la membresía no lo guarda) (➜ hoy 2026-10-09: titular del curso por asignación, y quién dictó va por clase); sin «titular desde».
+
+### I-012 · Membresías, fase 1b: revisión de Javier — 2026-10-09
+
+- **Qué cambió:** la búsqueda reutiliza `coincideBusqueda` (la de Alumnos) y la aplica también al **tutor** (nombre y WhatsApp), sin acentos; busca además por plan, estilo, cursos y profesor titular. La `q` se lee siempre de la URL; con menos de 2 caracteres la lista lo dice. Lista vacía o con resultados avisan de los otros estados («Hay N en Históricas · Ver», «También hay N…»).
+- **Menores:** la fila y la ficha dicen «Menor · tutor …» (`textoMenor`, como Alumnos e Inscripción; «tutor» genérico, decidido) y la ficha muestra el WhatsApp de avisos con enlace `wa.me` (`destinatarioAviso`).
+- **Profesor:** la ficha muestra el titular de cada curso por asignación (`titularVigente`); en Clases, quién dictó y el sustituto = quien dictó sin ser el titular de ese día (`esSustituto`, regla 20).
+- **Velocidad (sin cambiar datos):** `obtenerMembresia(id)` lee solo esa membresía (más las demás en columnas mínimas, para saber si la renuevan); consultas independientes en paralelo; `loading.tsx` con esqueleto. Medido en build local contra dev (clic → ficha): regular 4,9→4,4 s, particular 6,9→4,4 s, alquiler 7,9→4,9 s; ~300 ms por consulta desde esa máquina. No se midió en Vercel (preview con login de Vercel). Medición cerrada por Javier.
+- **Interruptor:** `zz-interruptor-apagado` anota el valor original en `playwright/.interruptor-original.json` y lo repone `login.setup` si el proceso se cortó.
+- **Filtros trabados:** no se reprodujo (25 combinaciones y volver a Todas + Activas dieron la cantidad inicial); si vuelve, se reabre.
+- **Probado:** `npm test` 419, `tsc`, `eslint`, Playwright 35/35 en dev; conteos tipo × estado = consulta directa a la base. Javier probó a mano y aprobó.
+- **RLS (pendiente de cierre):** un Profesor con alcance propio no ve el titular de una de sus particulares (`contacto_visible_por_profesor` no cubre `membresias.profesor_id`); Gerente y Asistente sí lo ven. Antes de la fase 2: explicarle a Javier qué cambio hace falta (migración 0068).
+- **Cierre:** PR #38 (`a6af127`) y #39 (`9ec1bf7`) fusionados en main, sin pase a producción; interruptor apagado en producción (0067 sin aplicar).
