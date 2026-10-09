@@ -9,6 +9,7 @@
  * hay equivalente («Rechazar solicitud», «No se presentó»).
  */
 
+import { useEffect, useRef } from "react";
 import AvisoWhatsapp from "@/components/AvisoWhatsapp";
 import {
   efectoDestino,
@@ -51,7 +52,7 @@ function fechaDeEvento(iso: string): string {
   return fechaTexto(dia);
 }
 
-function ResultadoFila({ r }: { r: Resultado }) {
+function ResultadoFila({ r, conAvisos }: { r: Resultado; conAvisos: boolean }) {
   return (
     <div className="n-res__resultado">
       {r.error && (
@@ -61,8 +62,8 @@ function ResultadoFila({ r }: { r: Resultado }) {
       )}
       {r.mensaje && <p className="n-ok">{r.mensaje}</p>}
       <div className="n-wa">
-        {r.avisoAlumno && <AvisoWhatsapp nombre={r.avisoAlumno.nombre} whatsapp={r.avisoAlumno.whatsapp} mensaje={r.avisoAlumno.mensaje} />}
-        {r.avisoProfesor && <AvisoWhatsapp nombre={r.avisoProfesor.nombre} whatsapp={r.avisoProfesor.whatsapp} mensaje={r.avisoProfesor.mensaje} />}
+        {conAvisos && r.avisoAlumno && <AvisoWhatsapp nombre={r.avisoAlumno.nombre} whatsapp={r.avisoAlumno.whatsapp} mensaje={r.avisoAlumno.mensaje} />}
+        {conAvisos && r.avisoProfesor && <AvisoWhatsapp nombre={r.avisoProfesor.nombre} whatsapp={r.avisoProfesor.whatsapp} mensaje={r.avisoProfesor.mensaje} />}
       </div>
     </div>
   );
@@ -86,6 +87,7 @@ export default function FilaReserva({
   onToggle,
   onCambio,
   onReprogramar,
+  onAvisos,
 }: {
   reserva: ReservaConHistorial;
   tipo: "particular" | "alquiler";
@@ -107,6 +109,8 @@ export default function FilaReserva({
   onCambio: () => void;
   /** Si viene, «Reprogramar» lo llama en vez de abrir el formulario de la fila (la ficha abre la hoja de franjas). */
   onReprogramar?: () => void;
+  /** Si viene, los avisos de WhatsApp que deja una acción se mandan ahí (la columna derecha de la ficha) en vez de dibujarse en la fila; devuelve `true` si los tomó. */
+  onAvisos?: (r: Resultado) => boolean;
 }) {
   const g = useGestionReserva({
     reserva,
@@ -118,6 +122,14 @@ export default function FilaReserva({
     minimoMin,
     onCambio,
   });
+  // Los avisos de una acción van a la columna derecha y la fila vuelve a cerrarse, con sus opciones como nuevas.
+  const publicado = useRef<Resultado | null>(null);
+  const resultado = g.resultado;
+  useEffect(() => {
+    if (!onAvisos || !resultado || resultado.error || publicado.current === resultado) return;
+    publicado.current = resultado;
+    if (onAvisos(resultado) && abierta) onToggle();
+  }, [onAvisos, resultado, abierta, onToggle]);
   const ahoraD = new Date(ahora);
   const pastilla = pastillaDeReserva(reserva, ahoraD);
   const ultimo = reserva.historial[reserva.historial.length - 1];
@@ -130,7 +142,7 @@ export default function FilaReserva({
   const ocupado = g.pendiente;
 
   return (
-    <div className="n-res" data-testid="fila-reserva" data-estado={reserva.estado} data-abierta={abierta ? "true" : undefined}>
+    <div className="n-res" data-testid="fila-reserva" data-reserva-id={reserva.id} data-estado={reserva.estado} data-abierta={abierta ? "true" : undefined}>
       <button type="button" className="n-res__fila" aria-expanded={abierta} onClick={onToggle}>
         <span className="n-res__fecha">{fechaTexto(reserva.fecha, ahoraD)}</span>
         <span className="n-res__centro">
@@ -317,7 +329,7 @@ export default function FilaReserva({
             </div>
           )}
 
-          {g.resultado && <ResultadoFila r={g.resultado} />}
+          {g.resultado && <ResultadoFila r={g.resultado} conAvisos={!onAvisos} />}
 
           {reserva.historial.length > 0 && (
             <ul className="n-res__historial" aria-label="Historial de la reserva">

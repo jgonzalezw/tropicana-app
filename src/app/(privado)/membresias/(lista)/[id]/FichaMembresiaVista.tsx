@@ -22,6 +22,7 @@ import { ETIQUETA_TIPO, TONO_CHIP } from "../../presentacion";
 import AccionesFicha from "./AccionesFicha";
 import PestanasFicha, { type DatosReservas } from "./PestanasFicha";
 import ProveedorNuevaReserva from "./NuevaReservaFicha";
+import { ProveedorAvisos, TarjetaParaAvisar } from "./AvisosFicha";
 
 const horas = (min: number) => `${formatearHoras(min / 60)} h`;
 
@@ -84,6 +85,7 @@ export default function FichaMembresiaVista({
   const pagado = cuenta.cuotas.reduce((a, c) => a + c.cobrado, 0);
 
   return (
+    <ProveedorAvisos>
     <ProveedorNuevaReserva datos={reservas}>
     <article data-testid="ficha-membresia" data-membresia-id={fila.id}>
       <div className="n-enc-cab">
@@ -125,6 +127,7 @@ export default function FichaMembresiaVista({
         />
 
         <aside>
+          <TarjetaParaAvisar />
           <Tarjeta titulo="Cuotas y cuenta" testid="bloque-cuotas">
             {cuenta.cuotas.map((c) => (
               <Fila
@@ -273,5 +276,6 @@ export default function FichaMembresiaVista({
       </div>
     </article>
     </ProveedorNuevaReserva>
+    </ProveedorAvisos>
   );
 }

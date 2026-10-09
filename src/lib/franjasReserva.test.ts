@@ -157,13 +157,20 @@ test("el tope es lo disponible para pedir", () => {
   const f = base();
   const r: Reglas = { incrementoMin: 30, minimoMin: 60, disponibleMin: 150 };
   let s = clicEnFranja(f, r, null, 900).sel; // 15:00–16:00
-  for (const m of [960, 990, 1020, 1050]) s = clicEnFranja(f, r, s, m).sel; // suma hasta 17:30 (150 min); el último clic ya no cabe
+  for (const m of [960, 990, 1020]) s = clicEnFranja(f, r, s, m).sel; // suma hasta 17:30 (150 min)
   assert.deepEqual(s, { ini: 900, fin: 1050 });
   const v = vistaFranjas(f, r, s);
   const sig = v.find((x) => x.inicio === 1050)!;
-  assert.equal(sig.texto, "Supera lo disponible para pedir");
-  assert.equal(sig.habilitada, false);
-  assert.equal(clicEnFranja(f, r, s, 1050).aviso, "Te quedan 2,5 h para pedir");
+  // Sumar pasaría del tope: ya no invita a sumar, pero ahí se puede empezar un rango nuevo.
+  assert.equal(sig.habilitada, true);
+  assert.notEqual(sig.texto, "+ sumar 30 min");
+  assert.deepEqual(clicEnFranja(f, r, s, 1050).sel, { ini: 1050, fin: 1110 });
+  const justo: Reglas = { ...r, disponibleMin: 60 };
+  const sj = clicEnFranja(f, justo, null, 900).sel; // 15:00–16:00, todo lo disponible
+  assert.equal(vistaFranjas(f, justo, sj).find((x) => x.inicio === 990)!.habilitada, true); // empezaría un rango nuevo
+  // Donde ni el mínimo cabe por ocupación, sigue bloqueada.
+  const ocupada = base({ ocupadosSala: [bloque("17:00", 120, "curso", "Salsa")] });
+  assert.equal(vistaFranjas(ocupada, justo, sj).find((x) => x.inicio === 960)!.habilitada, true);
   assert.equal(seleccionValida(f, r, s), true);
   assert.equal(seleccionValida(f, r, null), false);
   assert.equal(seleccionValida(f, { ...r, disponibleMin: 120 }, s), false);

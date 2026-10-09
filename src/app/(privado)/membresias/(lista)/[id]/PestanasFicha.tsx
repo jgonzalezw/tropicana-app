@@ -11,6 +11,7 @@ import type { ClaseFicha } from "@/lib/membresiasLectura";
 import { formatearHoras } from "@/lib/horarios";
 import type { ReservaConHistorial } from "../../../particulares/acciones";
 import { useNuevaReserva } from "./NuevaReservaFicha";
+import { usePublicarAvisos } from "./AvisosFicha";
 
 type Pestana = "clases" | "pagos" | "historial";
 
@@ -65,6 +66,7 @@ export default function PestanasFicha({
 }) {
   const router = useRouter();
   const nueva = useNuevaReserva();
+  const avisos = usePublicarAvisos();
   const [activa, setActiva] = useState<Pestana>("clases");
   const [abierta, setAbierta] = useState<number | null>(null);
   const primera = reservas ? "Reservas" : "Clases";
@@ -139,6 +141,7 @@ export default function PestanasFicha({
               abierta={abierta === r.id}
               onToggle={() => setAbierta(abierta === r.id ? null : r.id)}
               onCambio={() => router.refresh()}
+              onAvisos={avisos?.publicar}
               onReprogramar={
                 nueva
                   ? () =>

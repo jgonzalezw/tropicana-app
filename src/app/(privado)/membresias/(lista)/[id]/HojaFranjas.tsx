@@ -45,6 +45,7 @@ import {
 import { armarDatosFranjas, rangoDeSemana, type BaseFranjas, type SemanaFranjas } from "@/lib/ocupacionSemana";
 import { consultarFranjasApertura, consultarSemanaFranjas, crearReserva, moverReserva } from "@/app/(privado)/particulares/acciones";
 import SemanaChips from "./SemanaChips";
+import { usePublicarAvisos } from "./AvisosFicha";
 import type { DatosReservas } from "./PestanasFicha";
 
 const MS_DIA = 86_400_000;
@@ -78,6 +79,7 @@ export default function HojaFranjas({
   const inicial = reprogramar ? { fecha: reprogramar.fecha, hora: reprogramar.hora, salaId: reprogramar.salaId } : inicialPedido;
   const externaActual = !!reprogramar && datos.salaExterna?.salaId === reprogramar.salaId;
   const router = useRouter();
+  const avisosFicha = usePublicarAvisos();
   const [pendiente, startTransition] = useTransition();
   // Reloj del navegador, fijo mientras la hoja está abierta: solo marca las franjas «Pasada» de hoy.
   const [ahora] = useState(() => new Date());
@@ -256,7 +258,10 @@ export default function HojaFranjas({
             sala: externo ? { tipo: "externa", nombreDescriptivo: nombreExterna } : { tipo: "propia", salaId: salaId! },
             accion,
           });
-      setResultado(!r.error && reprogramar ? { ...r, mensaje: `Reserva movida · ${resumenTexto}` } : r);
+      const mostrado = !r.error && reprogramar ? { ...r, mensaje: `Reserva movida · ${resumenTexto}` } : r;
+      // Los avisos de WhatsApp van a la columna derecha de la ficha, no a la hoja.
+      const aColumna = !r.error && !!avisosFicha && avisosFicha.publicar({ ...mostrado, mensaje: reprogramar ? "Reserva reprogramada" : "Reserva creada" });
+      setResultado(aColumna ? { ...mostrado, avisoAlumno: undefined, avisoProfesor: undefined } : mostrado);
       if (r.error) {
         // Lo que falló suele ser que el lugar se ocupó: se descarta lo leído, se vuelve a pedir y se avisa.
         setSel(null);
@@ -317,6 +322,11 @@ export default function HojaFranjas({
         creada ? undefined : (
           <>
             {aviso && <div className="n-aviso-flotante" role="status">{aviso}</div>}
+            {resultado?.error && (
+              <p className="n-error" role="alert" data-testid="error-guardar">
+                {resultado.error}
+              </p>
+            )}
             <div className="n-resumen-caja" data-ok={resumenOk} data-testid="resumen-reserva">
               <span>{resumen}</span>
               {sel && !externo && (
@@ -501,7 +511,6 @@ export default function HojaFranjas({
               </div>
             </div>
           )}
-          {resultado?.error && <PanelResultado r={resultado} />}
         </>
       )}
     </HojaLateral>

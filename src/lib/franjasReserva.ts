@@ -192,13 +192,13 @@ export function vistaFranjas(franjas: Franja[], r: Reglas, sel: Seleccion): Fran
         habilitada: false,
         aspecto: "bloqueada",
       };
-    else if (sel != null && m >= sel.fin && m + paso - sel.ini > r.disponibleMin)
+    else if (sel != null && m >= sel.fin && m + paso - sel.ini > r.disponibleMin && !entraElMinimo(franjas, r, m))
       v = { ...v, texto: "Supera lo disponible para pedir", titulo: `Te quedan ${fh(r.disponibleMin)} para pedir`, habilitada: false, aspecto: "bloqueada" };
 
     if (v.aspecto === "libre" && f.actual) v = { ...v, texto: "Actual", derecha: "Reserva actual", aspecto: "actual" };
 
     if (enRango) v = { ...v, texto: sel!.ini === m ? "Inicio" : "Elegida", derecha: `${aHora(m)}–${aHora(m + paso)}`, habilitada: true, aspecto: "elegida", titulo: "" };
-    else if (v.habilitada && sel != null && m === sel.fin) v = { ...v, texto: `+ sumar ${paso} min` };
+    else if (v.habilitada && sel != null && m === sel.fin && m + paso - sel.ini <= r.disponibleMin) v = { ...v, texto: `+ sumar ${paso} min` };
     return v;
   });
 }
@@ -213,7 +213,9 @@ export function vistaFranjas(franjas: Franja[], r: Reglas, sel: Seleccion): Fran
  * - Dentro del rango: lo acorta hasta ahí, nunca por debajo del mínimo.
  * - En la franja siguiente: suma un intervalo.
  * - Más lejos: extiende hasta ahí si todo el tramo está libre y entra en lo
- *   disponible; si no, empieza de nuevo ahí si desde ahí entra el mínimo.
+ *   disponible; si no, empieza de nuevo ahí si desde ahí entra el mínimo (con
+ *   la duración actual al reprogramar). Lo mismo vale para la franja siguiente
+ *   cuando sumarla pasaría de lo disponible.
  */
 export function clicEnFranja(franjas: Franja[], r: Reglas, sel: Seleccion, m: number): { sel: Seleccion; aviso: string | null } {
   const paso = pasoDe(r);
@@ -231,7 +233,7 @@ export function clicEnFranja(franjas: Franja[], r: Reglas, sel: Seleccion, m: nu
     const fin = Math.max(sel.ini + min, m + paso);
     return { sel: fin === sel.fin ? null : { ini: sel.ini, fin }, aviso: null };
   }
-  if (m === sel.fin) return { sel: { ini: sel.ini, fin: m + paso }, aviso: null };
+  if (m === sel.fin && m + paso - sel.ini <= r.disponibleMin) return { sel: { ini: sel.ini, fin: m + paso }, aviso: null };
   if (m > sel.fin && bloqueLibre(franjas, sel.fin, m + paso, paso) && m + paso - sel.ini <= r.disponibleMin)
     return { sel: { ini: sel.ini, fin: m + paso }, aviso: null };
   if (entraElMinimo(franjas, r, m)) return { sel: { ini: m, fin: m + propuestaDesde(franjas, r, m) }, aviso: null };
