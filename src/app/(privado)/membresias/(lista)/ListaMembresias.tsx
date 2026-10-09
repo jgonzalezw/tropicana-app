@@ -15,6 +15,7 @@ import {
   type FiltroEstadoMembresia,
   type TipoMembresia,
 } from "@/lib/listaMembresias";
+import { nombreVisible } from "@/lib/formato";
 import { ETIQUETA_TIPO, TONO_CHIP, usoTexto } from "../presentacion";
 
 const FILTRO_TIPO: Record<TipoMembresia, string> = {
@@ -96,7 +97,7 @@ export default function ListaMembresias({
 
   const encabezado = (
     <>
-      <h1 className="text-lg font-semibold m-0">Membresías</h1>
+      <h1 className="n-lista__titulo">Membresías</h1>
       <input
         className="n-buscar"
         type="search"
@@ -156,12 +157,12 @@ export default function ListaMembresias({
           </span>
           <span className="n-fila__uso">{usoTexto(f.uso)}</span>
         </div>
-        <div className="n-fila__abajo">
-          <span className="n-fila__plan">{f.planNombre}</span>
+        <span className="n-fila__plan">{nombreVisible(f.planNombre)}</span>
+        <span className="n-fila__estado">
           <Chip tono={TONO_CHIP[f.chip.clave]} chico>
             {f.chip.texto}
           </Chip>
-        </div>
+        </span>
       </Link>
     ))
   ) : null;
@@ -201,7 +202,19 @@ export default function ListaMembresias({
       filas={error ? <div className="n-lista__vacio n-error" role="alert">{error}</div> : lista}
       vacio="Ninguna membresía coincide con los filtros."
       hrefLista={`/membresias${consulta}`}
-      miga={abierta ? `Membresías › ${abierta.titularNombre} · ${abierta.planNombre}` : "Membresías"}
+      miga={
+        abierta ? (
+          <>
+            <span>Membresías</span>
+            <span>›</span>
+            <span className="n-miga__fuerte">{abierta.titularNombre}</span>
+            <span>·</span>
+            <span>{nombreVisible(abierta.planNombre)}</span>
+          </>
+        ) : (
+          "Membresías"
+        )
+      }
     >
       {children}
     </DisposicionListaFicha>

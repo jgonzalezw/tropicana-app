@@ -24,9 +24,11 @@ export default function HojaLateral({
   pie,
   pieTono,
   verCancelar = true,
+  onCancelar,
   secundaria,
   primaria,
   sucia = false,
+  resumen,
   children,
 }: {
   contexto?: string;
@@ -36,10 +38,14 @@ export default function HojaLateral({
   pie?: string;
   pieTono?: "error";
   verCancelar?: boolean;
+  /** Qué hace «Cancelar» si no es cerrar (p. ej. soltar lo elegido). */
+  onCancelar?: () => void;
   secundaria?: AccionHoja;
   primaria?: AccionHoja;
   /** Hay datos sin guardar: cerrar pide confirmación. */
   sucia?: boolean;
+  /** Franja fija sobre los botones (p. ej. el resumen de la reserva elegida). */
+  resumen?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const [preguntando, setPreguntando] = useState(false);
@@ -73,12 +79,13 @@ export default function HojaLateral({
           </button>
         </div>
         <div className="n-hoja__cuerpo">{children}</div>
+        {resumen && <div className="n-hoja__resumen">{resumen}</div>}
         <div className="n-hoja__pie">
           <div className="n-hoja__motivo" data-tono={pieTono}>
             {pie}
           </div>
           {verCancelar && (
-            <button type="button" className="n-boton" onClick={intentarCerrar}>
+            <button type="button" className="n-boton" onClick={onCancelar ?? intentarCerrar}>
               Cancelar
             </button>
           )}

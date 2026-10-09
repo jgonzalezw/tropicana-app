@@ -129,7 +129,7 @@ export default function Muestrario() {
               value={nombre}
               onChange={(e) => setNombre(e.target.value)}
               className="n-boton"
-              style={{ height: 36, textAlign: "left" }}
+              style={{ height: "2.5714rem", textAlign: "left" }}
             />
           </label>
         </HojaLateral>

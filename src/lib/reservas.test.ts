@@ -2,11 +2,14 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   validarReservaSala,
+  faltaNuevaReserva,
   ocupacionDeProfesor,
   puedeTransicionar,
   solicitudVigente,
   ocupaAhora,
   evaluarCancelacion,
+  pastillaDeReserva,
+  textoCancelarAPedido,
   saldoMembresia,
   reservasAfectadasPorExcepciones,
   reservasQueChocanCon,
@@ -37,14 +40,17 @@ test("validarReservaSala: ok cuando no hay nada que choque", () => {
   assert.deepEqual(validarReservaSala(BASE), { ok: true });
 });
 
-test("validarReservaSala: duración que no es múltiplo del mínimo", () => {
-  const r = validarReservaSala({ ...BASE, duracionMin: 90, minimoMin: 60 });
-  assert.equal(r.ok, false);
-  assert.match((r as { motivo: string }).motivo, /múltiplo de 1 h/);
-});
-
-test("validarReservaSala: 2 h con mínimo de 1 h es válida (múltiplo del mínimo)", () => {
+test("validarReservaSala: la duración es el mínimo y de ahí sube de a un intervalo (2026-10-09)", () => {
+  // 1,5 h con mínimo 1 h e intervalo 30: válida (antes se rechazaba por no ser múltiplo del mínimo)
+  assert.deepEqual(validarReservaSala({ ...BASE, duracionMin: 90, minimoMin: 60 }), { ok: true });
   assert.deepEqual(validarReservaSala({ ...BASE, duracionMin: 120, minimoMin: 60 }), { ok: true });
+  // 1 h 15 no cae en un paso de 30 después del mínimo
+  const r = validarReservaSala({ ...BASE, duracionMin: 75, minimoMin: 60 });
+  assert.equal(r.ok, false);
+  assert.match((r as { motivo: string }).motivo, /suma de a 30 minutos/);
+  // con mínimo 90 e intervalo 60 los pasos son 1,5 h · 2,5 h
+  assert.deepEqual(validarReservaSala({ ...BASE, duracionMin: 150, minimoMin: 90, incrementoMin: 60, hora: "19:00" }), { ok: true });
+  assert.equal(validarReservaSala({ ...BASE, duracionMin: 120, minimoMin: 90, incrementoMin: 60 }).ok, false);
 });
 
 test("validarReservaSala: la hora de inicio tiene que caer en el intervalo", () => {
@@ -451,4 +457,43 @@ test("saldoMembresia: una reserva de cortesía no descuenta el saldo (H5)", () =
   });
   assert.equal(s.consumidasMin, 60);
   assert.equal(s.sinAgendarMin, 180);
+});
+
+test("faltaNuevaReserva: dice qué falta y se calla cuando ya se puede", () => {
+  const ok = { fecha: "2026-10-12", hora: "18:00", duracionMin: 60, incrementoMin: 30, minimoMin: 30, salaTipo: "propia" as const, salaId: 1, nombreExterna: "" };
+  assert.equal(faltaNuevaReserva(ok), null);
+  assert.equal(faltaNuevaReserva({ ...ok, fecha: "" }), "Elegí la fecha.");
+  assert.match(faltaNuevaReserva({ ...ok, hora: "18:10" }) ?? "", /intervalos de 30 minutos/);
+  assert.match(faltaNuevaReserva({ ...ok, duracionMin: 45 }) ?? "", /suma de a 30/);
+  assert.equal(faltaNuevaReserva({ ...ok, salaId: null }), "Elegí la sala.");
+  assert.equal(faltaNuevaReserva({ ...ok, salaTipo: "externa", salaId: null, nombreExterna: "  " }), "Escribí el nombre del lugar externo.");
+  assert.equal(faltaNuevaReserva({ ...ok, salaTipo: "externa", salaId: null, nombreExterna: "Salón X" }), null);
+});
+
+// ── fila de reserva de la ficha (spec visual v3) ───────────────────────────
+
+const AHORA_FILA = new Date("2026-10-08T12:00:00");
+const filaRes = (o: Partial<Parameters<typeof pastillaDeReserva>[0]>) =>
+  ({ estado: "confirmada" as const, fecha: "2026-10-09", hora: "10:00", duracion_min: 60, ocupaAhora: true, ...o });
+
+test("pastilla: confirmada futura es éxito; si ya pasó su hora y sigue confirmada, «Por cerrar»", () => {
+  assert.deepEqual(pastillaDeReserva(filaRes({}), AHORA_FILA), { texto: "Confirmada", tono: "exito", porCerrar: false });
+  assert.deepEqual(pastillaDeReserva(filaRes({ fecha: "2026-10-08", hora: "09:00" }), AHORA_FILA), { texto: "Por cerrar", tono: "ambar", porCerrar: true });
+  assert.equal(pastillaDeReserva(filaRes({ estado: "reprogramada", fecha: "2026-10-01" }), AHORA_FILA).texto, "Por cerrar");
+  // Una realizada de la semana pasada ya está cerrada.
+  assert.equal(pastillaDeReserva(filaRes({ estado: "realizada", fecha: "2026-10-01" }), AHORA_FILA).texto, "Realizada");
+});
+
+test("pastilla: tono por estado y solicitud vencida", () => {
+  assert.equal(pastillaDeReserva(filaRes({ estado: "solicitada" }), AHORA_FILA).tono, "ambar");
+  assert.equal(pastillaDeReserva(filaRes({ estado: "ausente" }), AHORA_FILA).tono, "peligro");
+  assert.equal(pastillaDeReserva(filaRes({ estado: "suspendida" }), AHORA_FILA).tono, "tenue");
+  assert.equal(pastillaDeReserva(filaRes({ estado: "reagendar" }), AHORA_FILA).tono, "tenue");
+  assert.deepEqual(pastillaDeReserva(filaRes({ estado: "solicitada", ocupaAhora: false }), AHORA_FILA), { texto: "Solicitud vencida", tono: "tenue", porCerrar: false });
+});
+
+test("«Cancelar a pedido»: devuelve la hora dentro del plazo del parámetro, la consume fuera", () => {
+  const inicio = new Date("2026-10-08T22:00:00"); // 10 h después
+  assert.equal(textoCancelarAPedido(AHORA_FILA, inicio, 8), "Cancelar a pedido · devuelve la hora");
+  assert.equal(textoCancelarAPedido(AHORA_FILA, inicio, 12), "Cancelar a pedido · consume la hora");
 });

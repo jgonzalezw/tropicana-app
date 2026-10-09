@@ -112,7 +112,7 @@ export type FichaMembresia = {
   clases: ClaseFicha[];
   titular: TitularFicha;
   /** El titular de cada curso por asignación (regla 20); vacío en particular y alquiler. */
-  profesoresCurso: { curso: string; profesor: string | null }[];
+  profesoresCurso: { curso: string; profesor: string | null; whatsapp: string | null }[];
   /** Solo en alquiler. */
   alquiler: AlquilerFicha | null;
   ciclo: { anteriorId: number | null; siguienteId: number | null };
@@ -138,6 +138,7 @@ type FilaBase = FilaParaCuenta & {
   alquiler_ruta: string | null;
   precio_aplicado: number | null;
   alumno: { es_menor: boolean; contacto_id: number; contacto: Contacto | null } | null;
+  profesor: { contacto: { nombre: string | null; apellido: string | null; whatsapp: string | null } | null } | null;
   titular: Contacto | null;
 };
 
@@ -147,7 +148,7 @@ const SELECT =
   "categoria_propuesta, categoria_motivo, categoria_glosa, alquiler_personas, alquiler_ruta, precio_aplicado, " +
   "alumno:alumnos(es_menor, contacto_id, contacto:contactos(tipo, nombre, apellido, razon_social, whatsapp)), " +
   "titular:contactos(tipo, nombre, apellido, razon_social, whatsapp), " +
-  "profesor:profesores(contacto:contactos(nombre, apellido)), " +
+  "profesor:profesores(contacto:contactos(nombre, apellido, whatsapp)), " +
   "plan:planes(nombre, estilo), curso:cursos(nombre, dias_semana)";
 
 const tipoDe = (r: Pick<FilaBase, "es_prueba" | "curso_id" | "categoria_aplicada">) =>
@@ -231,7 +232,7 @@ async function leerBase(
 const nombreDe = (c: { nombre: string | null; apellido: string | null } | null | undefined) =>
   c ? `${c.nombre ?? ""} ${c.apellido ?? ""}`.trim() || null : null;
 
-type ProfesorDeCurso = { cursoId: number; curso: string; profesor: string | null };
+type ProfesorDeCurso = { cursoId: number; curso: string; profesor: string | null; whatsapp: string | null };
 
 /** Las reservas (estado y vencimiento de la solicitud) de las membresías por horas. */
 async function leerReservasDe(lector: Lector, ids: number[]) {
@@ -289,7 +290,7 @@ async function leerProfesoresDeCursos(lector: Lector, regulares: FilaBase[]): Pr
     if (!cursosDe.get(r.id)?.length && r.curso_id != null) cursosDe.set(r.id, [{ cursoId: r.curso_id, curso: r.curso?.nombre ?? "—" }]);
 
   const cursoIds = [...new Set([...cursosDe.values()].flat().map((c) => c.cursoId))];
-  const titularDe = new Map<number, string | null>();
+  const titularDe = new Map<number, { nombre: string | null; whatsapp: string | null }>();
   if (cursoIds.length) {
     const ra = await lector.from("asignaciones").select(COLUMNAS_ASIGNACION).in("curso_id", cursoIds).is("hasta", null);
     const asignaciones = exigir(ra, "las asignaciones de los cursos") as unknown as AsignacionVigencia[];
@@ -298,10 +299,24 @@ async function leerProfesoresDeCursos(lector: Lector, regulares: FilaBase[]): Pr
       const t = titularVigente(asignaciones.filter((x) => x.curso_id === cid));
       if (t) vigentes.set(cid, t.profesor_id);
     }
-    const nombres = await nombresDeProfesores(lector, [...new Set(vigentes.values())]);
-    for (const cid of cursoIds) titularDe.set(cid, vigentes.has(cid) ? (nombres.get(vigentes.get(cid)!) ?? null) : null);
+    const idsProfesores = [...new Set(vigentes.values())];
+    const [nombres, whatsapps] = await Promise.all([nombresDeProfesores(lector, idsProfesores), whatsappsDeProfesores(lector, idsProfesores)]);
+    for (const cid of cursoIds) {
+      const pid = vigentes.get(cid);
+      titularDe.set(cid, { nombre: pid != null ? (nombres.get(pid) ?? null) : null, whatsapp: pid != null ? (whatsapps.get(pid) ?? null) : null });
+    }
   }
-  for (const [mid, cursos] of cursosDe) out.set(mid, cursos.map((c) => ({ ...c, profesor: titularDe.get(c.cursoId) ?? null })));
+  for (const [mid, cursos] of cursosDe) out.set(mid, cursos.map((c) => ({ ...c, profesor: titularDe.get(c.cursoId)?.nombre ?? null, whatsapp: titularDe.get(c.cursoId)?.whatsapp ?? null })));
+  return out;
+}
+
+/** El WhatsApp del contacto de cada profesor (el mismo dato que muestra la ficha de una particular). */
+async function whatsappsDeProfesores(lector: Lector, ids: number[]): Promise<Map<number, string | null>> {
+  const out = new Map<number, string | null>();
+  if (!ids.length) return out;
+  const rp = await lector.from("profesores").select("id, contacto:contactos(whatsapp)").in("id", ids);
+  for (const p of exigir(rp, "los WhatsApp de los profesores") as unknown as { id: number; contacto: { whatsapp: string | null } | null }[])
+    out.set(p.id, p.contacto?.whatsapp ?? null);
   return out;
 }
 
@@ -411,6 +426,7 @@ export async function leerFilasMembresias(
         estilo: r.plan?.estilo ?? null,
         cursos: cuenta.cursos.map((c) => c.nombre),
         profesorNombre: pc ? `${pc.nombre ?? ""} ${pc.apellido ?? ""}`.trim() || null : null,
+        profesorWhatsapp: pc?.whatsapp ?? null,
         profesoresCurso: delCurso.map((d) => d.profesor).filter((x): x is string => !!x),
         fechaInicio: r.fecha_inicio,
         fechaFin: cuenta.fechaFin,
@@ -544,7 +560,7 @@ export async function leerFichaMembresia(a: AccesoMembresias, id: number): Promi
     pagos: pagosFicha,
     clases,
     titular,
-    profesoresCurso: (profesoresCurso.get(id) ?? []).map(({ curso, profesor }) => ({ curso, profesor })),
+    profesoresCurso: (profesoresCurso.get(id) ?? []).map(({ curso, profesor, whatsapp }) => ({ curso, profesor, whatsapp })),
     alquiler,
     ciclo: { anteriorId: fila.anteriorId, siguienteId: fila.siguienteId },
     extensiones: [],

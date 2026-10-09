@@ -995,3 +995,32 @@ select '51. interruptor membresias_nuevas ausente o mal formado' as control,
        case when (select count(*) from public.parametros
                    where clave = 'membresias_nuevas' and tipo = 'booleano'
                      and valor in ('true', 'false')) = 1 then 'OK' else 'REVISAR' end as estado;
+
+-- ---------------------------------------------------------------------
+-- 52. INTERRUPTOR DEL MENU PLEGABLE (migracion 0068)
+--     Tiene que existir exactamente un parametro `menu_plegable`, de tipo
+--     booleano y con valor 'true' o 'false'. En produccion arranca 'false'.
+-- ---------------------------------------------------------------------
+select '52. interruptor menu_plegable ausente o mal formado' as control,
+       case when (select count(*) from public.parametros
+                   where clave = 'menu_plegable' and tipo = 'booleano'
+                     and valor in ('true', 'false')) = 1 then 0 else 1 end as n,
+       case when (select count(*) from public.parametros
+                   where clave = 'menu_plegable' and tipo = 'booleano'
+                     and valor in ('true', 'false')) = 1 then 'OK' else 'REVISAR' end as estado;
+
+-- ---------------------------------------------------------------------
+-- 53. UNA RESERVA REAGENDADA APUNTA A SU ORIGINAL (migracion 0069)
+--     `reagenda_de` solo se escribe al reagendar una reserva que en ese
+--     momento estaba `reagendar` o `suspendida` (estados finales: siguen
+--     siendolo) y de la misma membresia. Si esto da mas de 0, se ligo una
+--     reserva contra algo que no era la original o se movio de estado una
+--     original que debia quedar congelada.
+-- ---------------------------------------------------------------------
+select '53. reserva reagendada cuya original no esta por reagendar/suspendida o es de otra membresia' as control,
+       count(*) as n,
+       case when count(*) = 0 then 'OK' else 'REVISAR' end as estado
+  from public.reservas_sala r
+  join public.reservas_sala o on o.id = r.reagenda_de
+ where o.estado not in ('reagendar', 'suspendida')
+    or o.membresia_id is distinct from r.membresia_id;

@@ -1,27 +1,52 @@
-import { cache } from "react";
+import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import type { Alcance, PerfilConRol } from "@/lib/tipos";
 import { seccionesVisibles, type SeccionesVisibles } from "@/lib/secciones";
 
-// Todo lo de abajo se memoriza con `cache` de React: vive SOLO durante una
-// petición (página o acción) y se descarta al terminar; nunca se comparte entre
-// peticiones ni entre usuarios. La identidad se sigue verificando igual
-// (`auth.getUser()`), solo que una vez por petición en vez de una por chequeo.
+// Todo lo de abajo se memoriza POR PETICIÓN (página o acción de servidor) y se
+// descarta al terminar; nunca se comparte entre peticiones ni entre usuarios. La
+// identidad se sigue verificando igual (`auth.getClaims()`), solo que una vez por
+// petición en vez de una por chequeo. `cache` de React no sirve en las acciones
+// (no hay render que lo delimite): la petición se identifica por su objeto
+// `headers()`, que Next mantiene estable durante toda la petición.
+
+const memorias = new WeakMap<object, Map<string, Promise<unknown>>>();
+
+function porPeticion<A extends unknown[], R>(nombre: string, fn: (...args: A) => Promise<R>): (...args: A) => Promise<R> {
+  return async (...args: A) => {
+    const clave = `${nombre}:${JSON.stringify(args)}`;
+    const peticion = await headers();
+    let memoria = memorias.get(peticion);
+    if (!memoria) {
+      memoria = new Map();
+      memorias.set(peticion, memoria);
+    }
+    let promesa = memoria.get(clave) as Promise<R> | undefined;
+    if (!promesa) {
+      promesa = fn(...args);
+      memoria.set(clave, promesa);
+    }
+    return promesa;
+  };
+}
 
 /** Devuelve el perfil (con su rol) del usuario autenticado, o null. */
-export const obtenerPerfilActual = cache(async (): Promise<PerfilConRol | null> => {
+export const obtenerPerfilActual = porPeticion("perfil", async (): Promise<PerfilConRol | null> => {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Identidad por `getClaims` (JWT verificado con la clave pública; sin ida a la red salvo que
+  // la clave sea simétrica o el token venza). La baja del perfil (`activo`) se lee abajo en cada
+  // petición; lo único que no se ve al instante es una sesión revocada en Auth, hasta que
+  // venza el token.
+  const { data: claims } = await supabase.auth.getClaims();
+  const userId = claims?.claims?.sub;
 
-  if (!user) return null;
+  if (!userId) return null;
 
   const { data } = await supabase
     .from("perfiles")
     .select("*, rol:roles(*)")
-    .eq("id", user.id)
+    .eq("id", userId)
     .single();
 
   return (data as PerfilConRol) ?? null;
@@ -45,7 +70,7 @@ export async function obtenerParametro(clave: string): Promise<string | null> {
 
 /** ¿El usuario actual puede ejecutar `accion` sobre `modulo`? El
  *  Administrador siempre puede; el resto, según su matriz de permisos. */
-export const tienePermiso = cache(async (
+export const tienePermiso = porPeticion("permiso", async (
   modulo: string,
   accion: string
 ): Promise<boolean> => {
@@ -70,7 +95,7 @@ export const tienePermiso = cache(async (
  * todo. **Sin fila en `rol_visibilidad` → 'todo'**: es el default
  * retrocompatible (sin esta config, todo se ve como antes de la 0043).
  */
-export const alcanceDe = cache(async (modulo: string): Promise<Alcance> => {
+export const alcanceDe = porPeticion("alcance", async (modulo: string): Promise<Alcance> => {
   const perfil = await obtenerPerfilActual();
   if (!perfil || !perfil.activo) return "todo";
   if (perfil.rol?.clave === "administrador") return "todo";
@@ -92,7 +117,7 @@ export const alcanceDe = cache(async (modulo: string): Promise<Alcance> => {
  * filtrar a lo propio (asistencia, liquidaciones): el vínculo 1-a-1 vive en
  * `profesores.usuario_id` (0005) desde siempre, pero nada lo usaba.
  */
-export const obtenerProfesorActual = cache(async (): Promise<{ id: number } | null> => {
+export const obtenerProfesorActual = porPeticion("profesor", async (): Promise<{ id: number } | null> => {
   const perfil = await obtenerPerfilActual();
   if (!perfil) return null;
   const supabase = await createClient();
@@ -149,7 +174,7 @@ export async function errorAccesoCurso(cursoId: number): Promise<string | null> 
 
 /** Secciones del shell que ve el usuario actual: permisos (`tienePermiso`) +
  *  interruptor `membresias_nuevas`. La lógica pura vive en `secciones.ts`. */
-export const obtenerSeccionesVisibles = cache(async (): Promise<SeccionesVisibles> => {
+export const obtenerSeccionesVisibles = porPeticion("secciones", async (): Promise<SeccionesVisibles> => {
   const [alumnos, particulares, alquileres, interruptor] = await Promise.all([
     tienePermiso("alumnos", "ver"),
     tienePermiso("particulares", "ver"),

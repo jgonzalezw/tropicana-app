@@ -32,7 +32,8 @@ import {
   type ReservaSalaOcupa,
   type ResultadoHorario,
 } from "./sala.ts";
-import { aMinutos, esMultiploDe, formatearHoras, horaAlineada, seSolapan } from "./horarios.ts";
+import { aMinutos, formatearHoras, horaAlineada, seSolapan } from "./horarios.ts";
+import { minimoEfectivo } from "./franjasReserva.ts";
 
 /** Todo lo que ocupa el tiempo de un profesor una fecha dada: sus cursos
  *  regulares (de cualquier sala) más sus propias reservas. A diferencia de
@@ -85,9 +86,11 @@ export type EntradaValidarReserva = {
  * "no se puede" a secas (regla de calidad 1 y 5).
  */
 /**
- * La regla de tiempos de una reserva (Javier, 2026-09-26): la **duración** va
- * en múltiplos del mínimo (`duracion_minima_curso_min`) y la **hora de
- * inicio** en múltiplos del intervalo estándar (`tiempos_incremento_min`).
+ * La regla de tiempos de una reserva: la **hora de inicio** va en múltiplos
+ * del intervalo estándar (`tiempos_incremento_min`) y la **duración** es al
+ * menos el mínimo (`duracion_minima_curso_min`) y de ahí sube de a un
+ * intervalo (Javier, 2026-10-09; antes, 2026-09-26, iba en múltiplos del
+ * mínimo: con mínimo 1 h no dejaba pedir 1,5 h).
  * Pura y compartida: la pantalla la usa para deshabilitar el botón y decir
  * qué falta, el servidor para decidir (regla de calidad 9).
  */
@@ -102,9 +105,33 @@ export function validarTiempoReserva(e: {
     return `La hora de inicio tiene que caer en intervalos de ${e.incrementoMin} minutos (ej. 18:00${
       e.incrementoMin < 60 ? `, 18:${String(e.incrementoMin).padStart(2, "0")}` : ""
     }).`;
-  if (!esMultiploDe(e.duracionMin, e.minimoMin))
-    return `La duración tiene que ser un múltiplo de ${formatearHoras(e.minimoMin / 60)} h (la duración mínima de una reserva).`;
+  const piso = minimoEfectivo(e.incrementoMin, e.minimoMin);
+  if (e.duracionMin < piso) return `La duración mínima de una reserva es ${formatearHoras(piso / 60)} h.`;
+  if ((e.duracionMin - piso) % Math.max(1, e.incrementoMin) !== 0)
+    return `Pasado el mínimo, la duración suma de a ${e.incrementoMin} minutos (ej. ${formatearHoras(piso / 60)} h, ${formatearHoras((piso + e.incrementoMin) / 60)} h).`;
   return null;
+}
+
+/**
+ * Qué falta para poder pedir una reserva nueva, o `null` si ya se puede. Una
+ * sola función para el formulario de `NuevaReserva` en cualquier marco
+ * (regla de calidad 9): deshabilita los botones y dice por qué.
+ */
+export function faltaNuevaReserva(e: {
+  fecha: string;
+  hora: string;
+  duracionMin: number;
+  incrementoMin: number;
+  minimoMin: number;
+  salaTipo: "propia" | "externa";
+  salaId: number | null;
+  nombreExterna: string;
+}): string | null {
+  if (!e.fecha) return "Elegí la fecha.";
+  const tiempo = validarTiempoReserva(e);
+  if (tiempo) return tiempo;
+  if (e.salaTipo === "externa") return e.nombreExterna.trim() ? null : "Escribí el nombre del lugar externo.";
+  return e.salaId == null ? "Elegí la sala." : null;
 }
 
 export function validarReservaSala(e: EntradaValidarReserva): ResultadoHorario {
@@ -164,7 +191,7 @@ export const ETIQUETA_ESTADO_RESERVA: Record<EstadoReserva, string> = {
   solicitada: "Solicitada",
   confirmada: "Confirmada",
   reprogramada: "Reprogramada",
-  reagendar: "Reagendar",
+  reagendar: "Por reagendar",
   suspendida: "Suspendida",
   ausente: "Ausente",
   realizada: "Realizada",
@@ -265,6 +292,40 @@ export function ocupaAhora(r: ReservaOcupaEntrada, ahora: Date): boolean {
   if ((ESTADOS_QUE_OCUPAN as string[]).includes(r.estado)) return true;
   if (r.estado === "solicitada") return solicitudVigente(r.solicitadaHasta ?? null, ahora);
   return false;
+}
+
+export type TonoPastilla = "neutro" | "ambar" | "exito" | "peligro" | "tenue";
+
+/**
+ * Cómo se ve una reserva en la fila de la ficha (spec visual v3): el texto y el
+ * tono de la pastilla de estado. «Por cerrar» es una reserva confirmada o
+ * reprogramada cuya hora ya pasó: falta marcarla realizada o ausente. Se calcula
+ * al leer, como la vigencia de una Solicitada. Pura, para probarla.
+ */
+export function pastillaDeReserva(
+  r: { estado: EstadoReserva; fecha: string; hora: string; duracion_min: number; ocupaAhora: boolean },
+  ahora: Date
+): { texto: string; tono: TonoPastilla; porCerrar: boolean } {
+  const fin = new Date(new Date(`${r.fecha}T${r.hora}`).getTime() + r.duracion_min * 60_000);
+  if ((r.estado === "confirmada" || r.estado === "reprogramada") && fin <= ahora)
+    return { texto: "Por cerrar", tono: "ambar", porCerrar: true };
+  if (r.estado === "solicitada" && !r.ocupaAhora) return { texto: "Solicitud vencida", tono: "tenue", porCerrar: false };
+  const tono: TonoPastilla =
+    r.estado === "solicitada"
+      ? "ambar"
+      : r.estado === "ausente"
+        ? "peligro"
+        : r.estado === "reagendar" || r.estado === "suspendida"
+          ? "tenue"
+          : "exito";
+  return { texto: ETIQUETA_ESTADO_RESERVA[r.estado], tono, porCerrar: false };
+}
+
+/** «Cancelar a pedido · devuelve la hora» / «· consume la hora», según el plazo del parámetro (`evaluarCancelacion`). */
+export function textoCancelarAPedido(ahora: Date, inicioReserva: Date, plazoHoras: number): string {
+  return evaluarCancelacion(ahora, inicioReserva, plazoHoras).destino === "reagendar"
+    ? "Cancelar a pedido · devuelve la hora"
+    : "Cancelar a pedido · consume la hora";
 }
 
 export type ResultadoCancelacion = { destino: "reagendar" | "ausente"; fueraDePlazo: boolean };

@@ -25,9 +25,10 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // `getClaims` verifica el JWT en el servidor con la clave pública (JWKS, en memoria) y solo
+  // va a la red si la clave es simétrica o el token venció (ahí refresca la sesión).
+  const { data: claims } = await supabase.auth.getClaims();
+  const user = claims?.claims?.sub ? { id: claims.claims.sub } : null;
 
   const path = request.nextUrl.pathname;
   const esRutaPublica = path.startsWith("/login") || path.startsWith("/auth");
