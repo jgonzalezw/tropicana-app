@@ -7,7 +7,6 @@ import EncabezadoPagina from "@/components/EncabezadoPagina";
 import Pagina from "@/components/Pagina";
 import { obtenerMembresiaParticular } from "../acciones";
 import ReservasDeMembresia from "@/components/ReservasDeMembresia";
-import EnlaceWhatsapp from "@/components/entidades/EnlaceWhatsapp";
 
 export const dynamic = "force-dynamic";
 
@@ -85,11 +84,6 @@ export default async function PaginaMembresiaParticular({ params }: { params: Pr
         titulo={detalle.alumnoNombre || `Membresía #${detalle.id}`}
         descripcion={`${detalle.estilo} · ${detalle.profesorNombre || "—"} · vigente ${fecha(detalle.fechaInicio)} a ${fecha(detalle.fechaFin)} · ${detalle.planNombre}`}
       />
-      {detalle.tipo !== "alquiler" && detalle.profesorNombre && (
-        <p className="text-sm text-[var(--texto-tenue)] mb-4" data-testid="profesor-whatsapp">
-          Profesor: {detalle.profesorNombre} · <EnlaceWhatsapp numero={detalle.profesorWhatsapp} vacio="Sin WhatsApp cargado" />
-        </p>
-      )}
       <ReservasDeMembresia
         detalle={detalle}
         salas={salas}

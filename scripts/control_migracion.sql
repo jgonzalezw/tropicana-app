@@ -995,3 +995,16 @@ select '51. interruptor membresias_nuevas ausente o mal formado' as control,
        case when (select count(*) from public.parametros
                    where clave = 'membresias_nuevas' and tipo = 'booleano'
                      and valor in ('true', 'false')) = 1 then 'OK' else 'REVISAR' end as estado;
+
+-- ---------------------------------------------------------------------
+-- 52. INTERRUPTOR DEL MENU PLEGABLE (migracion 0068)
+--     Tiene que existir exactamente un parametro `menu_plegable`, de tipo
+--     booleano y con valor 'true' o 'false'. En produccion arranca 'false'.
+-- ---------------------------------------------------------------------
+select '52. interruptor menu_plegable ausente o mal formado' as control,
+       case when (select count(*) from public.parametros
+                   where clave = 'menu_plegable' and tipo = 'booleano'
+                     and valor in ('true', 'false')) = 1 then 0 else 1 end as n,
+       case when (select count(*) from public.parametros
+                   where clave = 'menu_plegable' and tipo = 'booleano'
+                     and valor in ('true', 'false')) = 1 then 'OK' else 'REVISAR' end as estado;

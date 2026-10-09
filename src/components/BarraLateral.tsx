@@ -7,9 +7,10 @@ import type { PerfilConRol } from "@/lib/tipos";
 import type { InfoRelease } from "@/lib/version";
 import SelectorTema from "@/components/SelectorTema";
 import InfoReleaseChip from "@/components/InfoRelease";
+import RielPlegable from "@/components/RielPlegable";
 
-type ItemNav = { href: string; etiqueta: string; mostrar: boolean };
-type OpcionTema = { clave: string; nombre: string };
+export type ItemNav = { href: string; etiqueta: string; mostrar: boolean };
+export type OpcionTema = { clave: string; nombre: string };
 
 export default function BarraLateral({
   perfil,
@@ -29,6 +30,7 @@ export default function BarraLateral({
   puedeParticulares,
   puedeAlquileres,
   puedeMembresias,
+  plegable,
   temas,
   temaActual,
   infoRelease,
@@ -53,6 +55,8 @@ export default function BarraLateral({
   puedeAlquileres: boolean;
   /** Sección nueva Membresías (I-012): interruptor `membresias_nuevas` + permisos. */
   puedeMembresias: boolean;
+  /** Interruptor `menu_plegable` (0068). Apagado, la barra es la de siempre. */
+  plegable: boolean;
   temas: OpcionTema[];
   temaActual: string;
   infoRelease: InfoRelease;
@@ -261,6 +265,21 @@ export default function BarraLateral({
       </div>
     </>
   );
+
+  if (!esMovil && plegable) {
+    return (
+      <RielPlegable
+        secciones={secciones}
+        pathname={pathname}
+        clavePreferencia={`tropicana.menu_fijo.${perfil.id}`}
+        nombreMostrado={nombreMostrado}
+        rol={perfil.rol?.nombre}
+        temas={temas}
+        temaActual={temaActual}
+        infoRelease={infoRelease}
+      />
+    );
+  }
 
   if (!esMovil) {
     return (

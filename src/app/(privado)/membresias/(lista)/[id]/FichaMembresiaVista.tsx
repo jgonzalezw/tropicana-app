@@ -209,13 +209,13 @@ export default function FichaMembresiaVista({
 
           <Tarjeta titulo={fila.tipo === "alquiler" ? "Servicio" : conHoras ? "Profesor titular" : "Profesor"}>
             {fila.tipo === "alquiler" ? (
-              <p style={{ margin: 0, fontSize: 13 }}>Alquiler de sala · sin profesor</p>
+              <p style={{ margin: 0, fontSize: "0.9286rem" }}>Alquiler de sala · sin profesor</p>
             ) : conHoras ? (
               <>
                 <p style={{ margin: 0, fontWeight: 500 }}>{fila.profesorNombre ?? detalle?.profesorNombre ?? "Sin profesor"}</p>
                 {detalle?.estilo && <small style={{ color: "var(--n-fg3)" }}>{detalle.estilo}</small>}
                 {(fila.profesorNombre ?? detalle?.profesorNombre) && (
-                  <p style={{ margin: "4px 0 0", fontSize: 13 }} data-testid="profesor-whatsapp">
+                  <p style={{ margin: "0.2857rem 0 0", fontSize: "0.9286rem" }} data-testid="profesor-whatsapp">
                     <EnlaceWhatsapp numero={fila.profesorWhatsapp} vacio="Sin WhatsApp cargado" />
                   </p>
                 )}
@@ -226,9 +226,14 @@ export default function FichaMembresiaVista({
               <>
                 {ficha.profesoresCurso.length ? (
                   ficha.profesoresCurso.map((p) => (
-                    <p key={p.curso} style={{ margin: "0 0 6px", fontWeight: 500 }} data-testid="profesor-titular">
+                    <p key={p.curso} style={{ margin: "0 0 0.4286rem", fontWeight: 500 }} data-testid="profesor-titular">
                       {p.profesor ?? "Sin titular asignado"}
                       <small style={{ display: "block", color: "var(--n-fg3)", fontWeight: 400 }}>Titular de {nombreVisible(p.curso)}</small>
+                      {p.profesor && (
+                        <span style={{ display: "block", fontSize: "0.9286rem", fontWeight: 400, marginTop: "0.2857rem" }} data-testid="profesor-whatsapp">
+                          <EnlaceWhatsapp numero={p.whatsapp} vacio="Sin WhatsApp cargado" />
+                        </span>
+                      )}
                     </p>
                   ))
                 ) : (
@@ -242,7 +247,7 @@ export default function FichaMembresiaVista({
           {titular.avisarA && (
             <Tarjeta titulo="Avisos por WhatsApp" testid="bloque-whatsapp">
               <p style={{ margin: 0, fontWeight: 500 }} data-testid="whatsapp-destinatario">{titular.avisarA.nombre}</p>
-              <p style={{ margin: "4px 0 0", fontSize: 13 }} data-testid="whatsapp-numero">
+              <p style={{ margin: "0.2857rem 0 0", fontSize: "0.9286rem" }} data-testid="whatsapp-numero">
                 <EnlaceWhatsapp numero={titular.avisarA.whatsapp} vacio="Sin WhatsApp cargado" />
               </p>
               {titular.esMenor && <small style={{ color: "var(--n-fg3)" }}>Es menor: los avisos van a su tutor.</small>}

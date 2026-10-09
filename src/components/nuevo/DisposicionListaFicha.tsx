@@ -22,7 +22,7 @@ export default function DisposicionListaFicha({
   filas: React.ReactNode;
   /** Texto cuando la lista no tiene filas. */
   vacio: string;
-  /** A dónde vuelve «‹ Volver» en celular. */
+  /** A dónde vuelve «← Membresías» cuando la lista no entra. */
   hrefLista: string;
   /** Texto de la barra superior de la ficha (p. ej. «Membresías › Ana Pérez»). */
   miga: React.ReactNode;
@@ -41,7 +41,7 @@ export default function DisposicionListaFicha({
       <section className="n-ficha">
         <div className="n-ficha__miga">
           <Link href={hrefLista} className="n-volver">
-            ‹ Volver
+            ← Membresías
           </Link>
           <div className="n-miga">{miga}</div>
         </div>
