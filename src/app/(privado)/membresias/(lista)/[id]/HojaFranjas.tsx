@@ -76,7 +76,6 @@ export default function HojaFranjas({
   const [recarga, setRecarga] = useState(0);
   const [resultado, setResultado] = useState<ResultadoNueva | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
-  const [tocada, setTocada] = useState(false);
   const temporizador = useRef<ReturnType<typeof setTimeout>>(undefined);
   // Lugar externo: sin grilla, con los campos de hora y duración.
   const [nombreExterna, setNombreExterna] = useState(datos.salaExterna?.nombre ?? "");
@@ -92,16 +91,30 @@ export default function HojaFranjas({
 
   const externo = salaTipo === "externa";
 
-  // La grilla se pide de nuevo al cambiar fecha, sala o semana, y después de un error al guardar.
+  // La grilla se pide al cambiar fecha, sala o semana, y de nuevo tras un error al guardar.
+  // Lo ya pedido en esta apertura se reutiliza (volver a un día es instantáneo); el error al guardar lo descarta.
+  const cache = useRef(new Map<string, DatosFranjas>());
+  const [cargando, setCargando] = useState(false);
   useEffect(() => {
     if (externo || salaId == null) return;
+    const clave = `${salaId}|${fecha}|${semanaDesde}|${recarga}`;
+    const guardada = cache.current.get(clave);
+    if (guardada) {
+      setErrorLectura(null);
+      setLectura(guardada);
+      setCargando(false);
+      return;
+    }
     let vigente = true;
+    setCargando(true);
     consultarFranjasReserva({ membresiaId: datos.membresiaId, fecha, salaId, semanaDesde }).then((r) => {
       if (!vigente) return;
+      setCargando(false);
       if ("error" in r) {
         setErrorLectura(r.error);
         setLectura(null);
       } else {
+        cache.current.set(clave, r);
         setErrorLectura(null);
         setLectura(r);
       }
@@ -163,7 +176,6 @@ export default function HojaFranjas({
 
   function elegir<T>(poner: (v: T) => void, reiniciar = true) {
     return (v: T) => {
-      setTocada(true);
       if (reiniciar) setSel(null);
       setResultado(null);
       poner(v);
@@ -189,7 +201,6 @@ export default function HojaFranjas({
         setSel(null);
         setRecarga((n) => n + 1);
       } else {
-        setTocada(false);
         router.refresh();
       }
     });
@@ -218,7 +229,6 @@ export default function HojaFranjas({
       contexto={`${datos.tipo === "alquiler" ? "Alquiler" : "Clase particular"}`}
       titulo="Nueva reserva"
       onCerrar={onCerrar}
-      sucia={tocada && !creada}
       verCancelar={!creada}
       resumen={
         creada ? undefined : (
@@ -263,7 +273,13 @@ export default function HojaFranjas({
               irA(f);
               setSemanaDesde(semanaDe(f, desde));
             }}
-            onSemana={(d) => elegir<string>(setSemanaDesde, false)(d)}
+            onSemana={(d) => {
+              // La fecha elegida acompaña a la semana que se ve: el mismo día de la semana, dentro de la vigencia.
+              const salto = Math.round((aUTC(d) - aUTC(semanaDesde)) / MS_DIA);
+              const nueva = sumar(fecha, salto);
+              irA([datos.fechaFin, [nueva, desde].sort()[1]].sort()[0]);
+              setSemanaDesde(d);
+            }}
             onAviso={avisar}
           />
 
@@ -355,7 +371,7 @@ export default function HojaFranjas({
                   {lineaDeHorario({ ventanas: salaElegida?.ventanas ?? [], excepcionMotivo: lectura.excepcionMotivo, incrementoMin: reglas.incrementoMin, minimoMin: reglas.minimoMin })}
                 </span>
               </span>
-              <div className="n-franjas" data-testid="franjas">
+              <div className="n-franjas" data-testid="franjas" aria-busy={cargando} style={cargando ? { opacity: 0.5, pointerEvents: "none" } : undefined}>
                 {vista.map((f) => (
                   <button
                     key={f.inicio}
@@ -370,7 +386,6 @@ export default function HojaFranjas({
                     onClick={() => {
                       const r = clicEnFranja(franjas, reglas, sel, f.inicio);
                       if (r.aviso) return avisar(r.aviso);
-                      setTocada(true);
                       setResultado(null);
                       setSel(r.sel);
                     }}

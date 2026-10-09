@@ -178,7 +178,11 @@ export function clicEnFranja(franjas: Franja[], r: Reglas, sel: Seleccion, m: nu
 
   if (sel == null) return { sel: { ini: m, fin: m + min }, aviso: null };
   if (m === sel.ini) return { sel: null, aviso: null };
-  if (m >= sel.ini && m < sel.fin) return { sel: { ini: sel.ini, fin: Math.max(sel.ini + min, m + paso) }, aviso: null };
+  if (m >= sel.ini && m < sel.fin) {
+    // Tocar el último bloque de lo elegido lo suelta; tocar uno anterior acorta.
+    const fin = Math.max(sel.ini + min, m + paso);
+    return { sel: fin === sel.fin ? null : { ini: sel.ini, fin }, aviso: null };
+  }
   if (m === sel.fin) return { sel: { ini: sel.ini, fin: m + paso }, aviso: null };
   if (m > sel.fin && bloqueLibre(franjas, sel.fin, m + paso, paso) && m + paso - sel.ini <= r.disponibleMin)
     return { sel: { ini: sel.ini, fin: m + paso }, aviso: null };

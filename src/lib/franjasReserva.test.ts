@@ -114,8 +114,7 @@ test("después del mínimo se suma de a un intervalo y acortar no baja del míni
   assert.deepEqual(s, { ini: 900, fin: 1020 });
   s = clicEnFranja(f, R, s, 930).sel; // clic dentro: acorta, pero no baja de 1 h
   assert.deepEqual(s, { ini: 900, fin: 960 });
-  s = clicEnFranja(f, R, s, 990 - 60).sel; // 15:30 sigue dentro
-  assert.deepEqual(s, { ini: 900, fin: 960 });
+  assert.equal(clicEnFranja(f, R, s, 930).sel, null); // tocar el último bloque de lo elegido lo suelta
   assert.equal(clicEnFranja(f, R, s, 900).sel, null); // clic en el inicio deshace
 });
 
