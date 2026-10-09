@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { Chip } from "@/components/nuevo/Chip";
 import FilaReserva from "@/components/nuevo/FilaReserva";
 import { nombreVisible } from "@/lib/formato";
@@ -65,6 +65,8 @@ export default function PestanasFicha({
   historial: EventoHistorial[];
 }) {
   const router = useRouter();
+  // Tras una acción la página vuelve a leer los datos; mientras tanto las filas siguen ocupadas.
+  const [refrescando, iniciarRefresco] = useTransition();
   const nueva = useNuevaReserva();
   const avisos = usePublicarAvisos();
   const [activa, setActiva] = useState<Pestana>("clases");
@@ -140,7 +142,8 @@ export default function PestanasFicha({
               ahora={reservas.ahora}
               abierta={abierta === r.id}
               onToggle={() => setAbierta(abierta === r.id ? null : r.id)}
-              onCambio={() => router.refresh()}
+              onCambio={() => iniciarRefresco(() => router.refresh())}
+              refrescando={refrescando}
               onAvisos={avisos?.publicar}
               onReprogramar={
                 nueva

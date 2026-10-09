@@ -46,6 +46,24 @@ function textoAccion(destino: EstadoReserva, actual: EstadoReserva, tipo: "parti
   }
 }
 
+/** Lo que dice la fila mientras espera al servidor (o a que la página se actualice). */
+function textoEnCurso(accion: EstadoReserva | null, cortesia: boolean, esperandoServidor: boolean): string {
+  if (!esperandoServidor) return "Actualizando…";
+  if (cortesia && !accion) return "Guardando…";
+  switch (accion) {
+    case "reagendar":
+      return "Cancelando…";
+    case "suspendida":
+      return "Suspendiendo…";
+    case "reprogramada":
+      return "Moviendo…";
+    case "confirmada":
+      return "Confirmando…";
+    default:
+      return "Guardando…";
+  }
+}
+
 /** «2026-10-05T01:00:00Z» → «Dom 4 oct» en hora de Bolivia (el día no se corre por la zona). */
 function fechaDeEvento(iso: string): string {
   const dia = new Date(iso).toLocaleDateString("en-CA", { timeZone: "America/La_Paz" });
@@ -88,6 +106,7 @@ export default function FilaReserva({
   onCambio,
   onReprogramar,
   onAvisos,
+  refrescando = false,
 }: {
   reserva: ReservaConHistorial;
   tipo: "particular" | "alquiler";
@@ -111,6 +130,8 @@ export default function FilaReserva({
   onReprogramar?: () => void;
   /** Si viene, los avisos de WhatsApp que deja una acción se mandan ahí (la columna derecha de la ficha) en vez de dibujarse en la fila; devuelve `true` si los tomó. */
   onAvisos?: (r: Resultado) => boolean;
+  /** La página está volviendo a leer los datos tras una acción: la fila sigue ocupada, sin mostrar las opciones de antes. */
+  refrescando?: boolean;
 }) {
   const g = useGestionReserva({
     reserva,
@@ -139,7 +160,8 @@ export default function FilaReserva({
   const cancelar = textoCancelarAPedido(ahoraD, new Date(`${reserva.fecha}T${reserva.hora}`), plazoCancelacionHoras);
   const acciones = ORDEN.filter((d) => reserva.transicionesPermitidas.includes(d));
   const sugerida: EstadoReserva | null = reserva.estado === "solicitada" ? "confirmada" : pastilla.porCerrar ? "realizada" : null;
-  const ocupado = g.pendiente;
+  const ocupado = g.pendiente || refrescando;
+  const enCurso = ocupado ? textoEnCurso(g.accion, g.abrirCortesia, g.pendiente) : null;
 
   return (
     <div className="n-res" data-testid="fila-reserva" data-reserva-id={reserva.id} data-estado={reserva.estado} data-abierta={abierta ? "true" : undefined}>
@@ -168,7 +190,7 @@ export default function FilaReserva({
             </p>
           )}
 
-          {puedeEditar && !g.accion && !g.abrirCortesia && (
+          {puedeEditar && !g.accion && !g.abrirCortesia && !ocupado && (
             <div className="n-res__botones">
               {acciones.map((d) => (
                 <button
@@ -198,7 +220,7 @@ export default function FilaReserva({
                 ))}
             </div>
           )}
-          {puedeEditar && !g.accion && !g.abrirCortesia && acciones.length === 0 && !reserva.permiteCortesia && !reserva.esCortesia && (
+          {puedeEditar && !g.accion && !g.abrirCortesia && !ocupado && acciones.length === 0 && !reserva.permiteCortesia && !reserva.esCortesia && (
             <span className="n-res__nota">Estado final: no tiene más acciones.</span>
           )}
 
@@ -233,7 +255,7 @@ export default function FilaReserva({
                 </select>
               </label>
               <button type="button" className="n-res__boton" data-primario="true" disabled={ocupado || !!g.faltaReprogramar} onClick={g.confirmarReprogramar}>
-                Guardar
+                {ocupado ? enCurso : "Guardar"}
               </button>
               <button type="button" className="n-res__boton" disabled={ocupado} onClick={() => g.setAccion(null)}>
                 Volver
@@ -267,7 +289,7 @@ export default function FilaReserva({
                   disabled={ocupado || !g.motivoSuspension}
                   onClick={() => g.transicionar("suspendida", { motivo: g.motivoSuspension })}
                 >
-                  {reserva.estado === "solicitada" ? "Rechazar solicitud" : "Suspender y devolver la hora"}
+                  {ocupado ? enCurso : reserva.estado === "solicitada" ? "Rechazar solicitud" : "Suspender y devolver la hora"}
                 </button>
                 <button type="button" className="n-res__boton" disabled={ocupado} onClick={() => g.setAccion(null)}>
                   Volver
@@ -289,7 +311,7 @@ export default function FilaReserva({
                   disabled={ocupado}
                   onClick={() => g.transicionar(g.accion!)}
                 >
-                  {etiquetaPrimaria(g.accion, reserva.estado, tipo)}
+                  {ocupado ? enCurso : etiquetaPrimaria(g.accion, reserva.estado, tipo)}
                 </button>
                 <button type="button" className="n-res__boton" disabled={ocupado} onClick={() => g.setAccion(null)}>
                   Volver
@@ -312,7 +334,7 @@ export default function FilaReserva({
                   disabled={ocupado || !g.motivoCortesia.trim()}
                   onClick={() => g.guardarCortesia(g.motivoCortesia)}
                 >
-                  Guardar cortesía
+                  {ocupado ? enCurso : "Guardar cortesía"}
                 </button>
                 <button
                   type="button"
@@ -327,6 +349,12 @@ export default function FilaReserva({
                 </button>
               </div>
             </div>
+          )}
+
+          {enCurso && !g.accion && !g.abrirCortesia && (
+            <span className="n-res__nota" role="status" data-testid="reserva-en-curso">
+              {enCurso}
+            </span>
           )}
 
           {g.resultado && <ResultadoFila r={g.resultado} conAvisos={!onAvisos} />}

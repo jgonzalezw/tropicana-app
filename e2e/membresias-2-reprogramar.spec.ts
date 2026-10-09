@@ -1,10 +1,13 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
+import { crearMembresiaDePrueba, retirarMembresiaDePrueba, type MembresiaDePrueba } from "./membresiaDePrueba";
 
 // Fase 2 (I-012): reprogramar y cancelar desde la ficha. Supone el interruptor
-// `membresias_nuevas` = true en dev. Cada test crea su propia reserva en una
-// particular activa con saldo (nunca una existente) y la libera en `finally`,
-// solo contra dev y con la llave de servicio.
+// `membresias_nuevas` = true en dev. Cada test crea su propia membresía de
+// prueba (`membresiaDePrueba.ts`: contacto, alumno, 2 h) y la retira al terminar:
+// nunca toca una membresía real. Las reservas de prueba van a más de 48 h, así
+// cancelar no cae en «Ausente» ni consume horas. Solo contra dev y con la llave
+// de servicio.
 
 const DEV = "hyhijzuomqpylcmrzdvw";
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
@@ -22,33 +25,36 @@ const disponible = async (page: Page) => {
   return m ? Number(m[1].replace(",", ".")) : NaN;
 };
 
-/** Abre la ficha de la primera particular activa con al menos `minimoH` horas para pedir; devuelve su id (0 si no hay). */
-async function abrirParticular(page: Page, minimoH: number): Promise<number> {
-  await page.goto("/membresias?estado=activas");
-  const particulares = () => page.getByTestId("fila-membresia").filter({ has: page.locator('.n-punto[data-tipo="particular"]') });
-  const total = await particulares().count();
-  for (let i = 0; i < total; i++) {
-    await page.goto("/membresias?estado=activas");
-    await particulares().nth(i).click();
-    const ficha = page.getByTestId("ficha-membresia");
-    await expect(ficha).toBeVisible();
-    if ((await disponible(page)) >= minimoH) return Number(await ficha.getAttribute("data-membresia-id"));
-  }
-  return 0;
+/** Abre la ficha de una membresía de prueba recién creada (2 h para pedir: con poco saldo, un clic lejano no puede alargar). */
+async function abrirDePrueba(page: Page): Promise<MembresiaDePrueba | null> {
+  const prueba = await crearMembresiaDePrueba();
+  if (!prueba) return null;
+  await page.goto(`/membresias/${prueba.membresiaId}?estado=activas`);
+  await expect(page.getByTestId("ficha-membresia")).toBeVisible();
+  expect(await disponible(page)).toBe(2);
+  return prueba;
 }
 
-/** Crea una reserva Confirmada con el mínimo en la primera franja libre y devuelve su id. */
-async function crearReserva(page: Page, membresiaId: number, inicio: string): Promise<number> {
+const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+/** Crea una reserva Confirmada con el mínimo, a más de 48 h, en la primera franja libre; devuelve su id. */
+async function crearReserva(page: Page, membresiaId: number): Promise<number> {
   await page.getByTestId("boton-nueva-reserva").click();
   const hoja = page.getByRole("dialog");
   await expect(hoja.getByTestId("franjas")).toBeVisible();
-  const libres = hoja.locator(LIBRE);
-  test.skip((await libres.count()) === 0, "El día por defecto no tiene franjas libres; no hay qué elegir");
-  await libres.first().click();
+  let hayLibre = false;
+  for (let dias = 3; dias <= 10 && !hayLibre; dias++) {
+    await hoja.getByLabel("Otra fecha").fill(iso(new Date(Date.now() + dias * 86_400_000)));
+    await expect(hoja.locator('[data-testid="franjas"], [data-testid="sala-cerrada"]').first()).toBeVisible();
+    await expect(hoja.getByTestId("franjas").locator(".n-franja").first().or(hoja.getByTestId("sala-cerrada"))).toBeVisible();
+    hayLibre = (await hoja.locator(LIBRE).count()) > 0;
+  }
+  test.skip(!hayLibre, "No hay franjas libres a más de 48 h en los próximos días");
+  await hoja.locator(LIBRE).first().click();
   await hoja.getByRole("button", { name: "Confirmar directo" }).click();
   await expect(hoja.getByRole("button", { name: "Listo" })).toBeVisible({ timeout: 30_000 });
   await hoja.getByRole("button", { name: "Listo" }).click();
-  const { data } = await sb().from("reservas_sala").select("id").eq("membresia_id", membresiaId).gte("creado_en", inicio).order("id", { ascending: false }).limit(1);
+  const { data } = await sb().from("reservas_sala").select("id").eq("membresia_id", membresiaId).order("id", { ascending: false }).limit(1);
   const id = data?.[0]?.id as number;
   expect(id, "se creó la reserva").toBeTruthy();
   return id;
@@ -84,25 +90,13 @@ async function mover(page: Page, hoja: Locator) {
   await expect(page.getByRole("dialog")).toHaveCount(0);
 }
 
-const liberar = async (membresiaId: number, inicio: string) => {
-  if (!membresiaId) return;
-  // La base no deja borrar una reserva con historial: se libera el saldo pasándola a «reagendar».
-  await sb()
-    .from("reservas_sala")
-    .update({ estado: "reagendar", solicitada_hasta: null })
-    .eq("membresia_id", membresiaId)
-    .gte("creado_en", inicio)
-    .in("estado", ["confirmada", "reprogramada", "solicitada", "ausente"]);
-};
-
 test("reprogramar: más tarde, más temprano, alargar, acortar, hasta lo disponible y el mismo rango", async ({ page }) => {
   test.setTimeout(300_000);
-  const inicio = new Date().toISOString();
-  let membresiaId = 0;
+  let prueba: MembresiaDePrueba | null = null;
   try {
-    membresiaId = await abrirParticular(page, 2);
-    test.skip(!membresiaId, "No hay una particular con al menos 2 h para pedir");
-    const id = await crearReserva(page, membresiaId, inicio);
+    prueba = await abrirDePrueba(page);
+    test.skip(!prueba, "No hay una particular activa de dev que sirva de modelo");
+    const id = await crearReserva(page, prueba!.membresiaId);
     const creada = await leer(id);
     expect(creada.min).toBe(60);
 
@@ -167,18 +161,17 @@ test("reprogramar: más tarde, más temprano, alargar, acortar, hasta lo disponi
     if (await hoja.getByRole("button", { name: "Mover reserva" }).isEnabled()) await mover(page, hoja);
     expect((await leer(id)).min / 60, "lo guardado no pasa de lo disponible").toBeLessThanOrEqual(tope + 1e-9);
   } finally {
-    await liberar(membresiaId, inicio);
+    await retirarMembresiaDePrueba(prueba);
   }
 });
 
 test("cancelar: el aviso sale en la columna derecha, se puede cerrar y no vuelve al refrescar", async ({ page }) => {
   test.setTimeout(180_000);
-  const inicio = new Date().toISOString();
-  let membresiaId = 0;
+  let prueba: MembresiaDePrueba | null = null;
   try {
-    membresiaId = await abrirParticular(page, 1);
-    test.skip(!membresiaId, "No hay una particular con saldo");
-    const id = await crearReserva(page, membresiaId, inicio);
+    prueba = await abrirDePrueba(page);
+    test.skip(!prueba, "No hay una particular activa de dev que sirva de modelo");
+    const id = await crearReserva(page, prueba!.membresiaId);
 
     // Los avisos de la hoja al crear también van a la columna derecha; se cierran antes de cancelar.
     const panel = page.getByTestId("avisos-pendientes");
@@ -192,6 +185,10 @@ test("cancelar: el aviso sale en la columna derecha, se puede cerrar y no vuelve
     await f.locator(".n-res__fila").click();
     await f.getByRole("button", { name: /^Cancelar/ }).click();
     await f.getByRole("button", { name: /Confirmar cancelación/ }).click();
+
+    // A más de 48 h cancelar devuelve la hora: queda «reagendar», nunca «Ausente».
+    await expect.poll(() => leer(id).then((r) => r.estado), { timeout: 60_000 }).toBe("reagendar");
+    await expect.poll(() => disponible(page)).toBe(2);
 
     // El aviso va a la columna derecha (no dentro de la fila) y la fila se cierra con sus opciones como nuevas.
     await expect(panel).toBeVisible({ timeout: 60_000 });
@@ -210,6 +207,6 @@ test("cancelar: el aviso sale en la columna derecha, se puede cerrar y no vuelve
     await expect(page.getByTestId("ficha-membresia")).toBeVisible();
     await expect(page.getByTestId("avisos-pendientes")).toHaveCount(0);
   } finally {
-    await liberar(membresiaId, inicio);
+    await retirarMembresiaDePrueba(prueba);
   }
 });

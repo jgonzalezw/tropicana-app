@@ -97,6 +97,8 @@ export default function HojaFranjas({
   );
   const [sel, setSel] = useState<Seleccion>(null);
   const [recarga, setRecarga] = useState(0);
+  // Qué botón se apretó, para que solo ese diga «Guardando…» / «Moviendo…» mientras espera al servidor.
+  const [enCurso, setEnCurso] = useState<"solicitar" | "confirmar" | null>(null);
   const [resultado, setResultado] = useState<ResultadoNueva | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const temporizador = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -247,6 +249,7 @@ export default function HojaFranjas({
   function guardar(accion: "solicitar" | "confirmar") {
     if (!valida || !rango) return;
     setResultado(null);
+    setEnCurso(accion);
     startTransition(async () => {
       const r = reprogramar
         ? await moverReserva({ reservaId: reprogramar.id, fecha, hora: aHora(rango.ini), duracionMin: rango.fin - rango.ini, salaId: salaDestino! })
@@ -274,8 +277,10 @@ export default function HojaFranjas({
       } else {
         router.refresh();
       }
+      setEnCurso(null);
     });
   }
+  const textoEspera = reprogramar ? "Moviendo…" : "Guardando…";
 
   const textoFecha = fechaTexto(fecha);
   const lugarTexto = externo ? (reprogramar ? datos.salaExterna?.nombre : nombreExterna) || "Lugar externo" : sala?.nombre;
@@ -338,15 +343,15 @@ export default function HojaFranjas({
           </>
         )
       }
-      secundaria={sinHoras || creada || reprogramar ? undefined : { txt: "Solicitar", onClick: () => guardar("solicitar"), bloqueada: pendiente || !valida }}
+      secundaria={sinHoras || creada || reprogramar ? undefined : { txt: pendiente && enCurso === "solicitar" ? textoEspera : "Solicitar", onClick: () => guardar("solicitar"), bloqueada: pendiente || !valida }}
       primaria={
         creada
           ? { txt: "Listo", onClick: onCerrar }
           : sinHoras
             ? undefined
             : reprogramar
-              ? { txt: "Mover reserva", onClick: () => guardar("confirmar"), bloqueada: pendiente || !valida }
-              : { txt: "Confirmar directo", onClick: () => guardar("confirmar"), bloqueada: pendiente || !valida }
+              ? { txt: pendiente ? textoEspera : "Mover reserva", onClick: () => guardar("confirmar"), bloqueada: pendiente || !valida }
+              : { txt: pendiente && enCurso === "confirmar" ? textoEspera : "Confirmar directo", onClick: () => guardar("confirmar"), bloqueada: pendiente || !valida }
       }
     >
       {creada ? (
