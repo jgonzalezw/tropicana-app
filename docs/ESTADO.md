@@ -209,3 +209,4 @@ D35 (`docs/decisiones/vigentes.md`). **Migración 0064 aplicada en dev (2026-10-
 - **Probado en dev:** `npm test` (391), `tsc`, `eslint`, Playwright 11/11 (`npm run e2e`: entrada, muestrario, celular a 390 px y «interruptor apagado», que solo corre contra dev y restaura el valor). Con el interruptor apagado, recorrido en Chrome de Particulares, Alquileres, Alumnos y su cuenta, Sala, Caja y Liquidaciones: sin entrada nueva en la barra, `/membresias` da 404 y el resto igual.
 - **Pendiente antes del pase:** el interruptor debe quedar en `false` en producción (la 0067 lo inserta así). Fuera de la 1a: lista, buscador, filtros y «+ Vender» son de la 1b.
 - **Anotado:** en dev hay nombres con `??` (p. ej. «Yubinca ??»): dato, no de esta fase.
+- **Cierre de la 1a (2026-10-08):** PR #37 fusionado en main (`10f33b4`), sin pase a producción; los `??` de nombres en dev los corrigió Javier.
