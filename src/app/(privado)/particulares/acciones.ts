@@ -25,6 +25,7 @@ import { createClient } from "@/lib/supabase/server";
 import { tienePermiso, obtenerParametro, obtenerPerfilActual, alcancePropioDe } from "@/lib/sesion";
 import { apellidoDe, nombreCompleto } from "@/lib/contactos";
 import { destinatarioDeTitular } from "@/lib/destinatarioTitular";
+import { destinatarioAviso } from "@/lib/venta/destinatarioAviso";
 import { recalcularMembresia } from "@/lib/membresias";
 import { formatearHoras, aMinutos, horaFin } from "@/lib/horarios";
 import {
@@ -122,44 +123,35 @@ async function autorizarSobre(
 }
 
 /**
- * A quién avisar por el alumno: a él mismo, o a su tutor si es menor — igual
- * criterio que `calcularAgendaParticular` en `inscribir/acciones.ts` (H2).
- * Se repite acá (en vez de exportarla desde ese módulo) para no tocar código
- * ya validado por Javier en dev por un cambio que no le hace falta.
+ * A quién avisar por el alumno: a él mismo, o a su tutor si es menor, con el
+ * mismo criterio que las ventas (`destinatarioAviso`, regla de proceso 12).
+ * Lee con el cliente de servicio —un profesor de alcance propio no ve el
+ * contacto del alumno por RLS— y por eso SOLO se llama desde `contextoAviso`,
+ * que exige que la acción ya haya validado en el servidor el permiso sobre la
+ * membresía. El cliente de servicio arma el aviso; nunca reemplaza el permiso.
  */
 async function destinatarioDeAlumno(
-  sb: Awaited<ReturnType<typeof createClient>>,
+  a: ReturnType<typeof admin>,
   alumnoId: number
 ): Promise<{ nombre: string; whatsapp: string | null } | null> {
-  const { data: alumnoRow } = await sb
+  const { data: alumnoRow, error } = await a
     .from("alumnos")
     .select("contacto_id, es_menor, contacto:contactos(nombre, apellido, whatsapp)")
     .eq("id", alumnoId)
     .maybeSingle();
+  if (error) throw new Error(`No se pudo leer al alumno para armar el aviso: ${error.message}`);
   const alumnoData = alumnoRow as unknown as {
     contacto_id: number;
     es_menor: boolean;
     contacto: { nombre: string | null; apellido: string | null; whatsapp: string | null } | null;
   } | null;
   if (!alumnoData) return null;
-
-  let destinatario = {
+  return destinatarioAviso(a, {
+    contactoId: alumnoData.contacto_id,
+    esMenor: alumnoData.es_menor,
     nombre: `${alumnoData.contacto?.nombre ?? ""} ${alumnoData.contacto?.apellido ?? ""}`.trim(),
     whatsapp: alumnoData.contacto?.whatsapp ?? null,
-  };
-  if (alumnoData.es_menor) {
-    const { data: rel } = await sb
-      .from("contacto_relaciones")
-      .select("tutor:contactos!contacto_relaciones_desde_id_fkey(nombre, apellido, whatsapp)")
-      .eq("tipo", "tutor_de")
-      .eq("hacia_id", alumnoData.contacto_id)
-      .maybeSingle();
-    const tutor = (
-      rel as unknown as { tutor: { nombre: string | null; apellido: string | null; whatsapp: string | null } } | null
-    )?.tutor;
-    if (tutor) destinatario = { nombre: `${tutor.nombre ?? ""} ${tutor.apellido ?? ""}`.trim(), whatsapp: tutor.whatsapp };
-  }
-  return destinatario;
+  });
 }
 
 function fechaHoraCorta(fecha: string, hora: string): string {
@@ -201,9 +193,13 @@ type ContextoAviso = {
 
 async function contextoAviso(
   a: ReturnType<typeof admin>,
-  sb: Awaited<ReturnType<typeof createClient>>,
-  membresiaId: number
+  membresiaId: number,
+  /** Precondición, no un dato: quien llama ya validó en el servidor que el
+   *  usuario puede operar esta membresía (`autorizarSobre` o el permiso
+   *  operativo de sala). Acá se lee con el cliente de servicio. */
+  autorizado: true
 ): Promise<ContextoAviso | null> {
+  if (autorizado !== true) return null;
   const { data: mRow } = await a
     .from("membresias")
     .select(
@@ -240,7 +236,7 @@ async function contextoAviso(
           })
         : Promise.resolve(null)
       : m.alumno_id != null
-        ? destinatarioDeAlumno(sb, m.alumno_id)
+        ? destinatarioDeAlumno(a, m.alumno_id)
         : Promise.resolve(null),
   ]);
   const salas = (salasR.data as { id: number; nombre: string }[]) ?? [];
@@ -326,6 +322,8 @@ export type MembresiaParticularDetalle = {
   planNombre: string;
   estilo: string;
   profesorNombre: string;
+  /** Para avisarle al profesor, como al alumno; `null` si no tiene WhatsApp. */
+  profesorWhatsapp: string | null;
   profesorId: number | null;
   fechaInicio: string;
   fechaFin: string;
@@ -581,7 +579,7 @@ async function obtenerDetalleReservas(
         "alumno:alumnos(contacto:contactos(nombre, apellido)), " +
         "titular:contactos(tipo, nombre, apellido, razon_social), " +
         "plan:planes(nombre, estilo, permite_sala_externa, permite_cortesia), " +
-        "profesor:profesores(contacto:contactos(nombre, apellido))"
+        "profesor:profesores(contacto:contactos(nombre, apellido, whatsapp))"
     )
     .eq("id", membresiaId)
     .is("curso_id", null);
@@ -599,7 +597,7 @@ async function obtenerDetalleReservas(
     alumno: { contacto: { nombre: string | null; apellido: string | null } | null } | null;
     titular: { tipo: "persona" | "organizacion"; nombre: string | null; apellido: string | null; razon_social: string | null } | null;
     plan: { nombre: string; estilo: string | null; permite_sala_externa: boolean; permite_cortesia: boolean } | null;
-    profesor: { contacto: { nombre: string | null; apellido: string | null } | null } | null;
+    profesor: { contacto: { nombre: string | null; apellido: string | null; whatsapp: string | null } | null } | null;
   };
   const mm = m as unknown as M;
   if (propio && mm.profesor_id !== profesorId) return { error: "Esta membresía es de otro profesor: no tenés acceso a ella." };
@@ -671,6 +669,7 @@ async function obtenerDetalleReservas(
     estilo: (estRow as { nombre: string } | null)?.nombre ?? mm.plan?.estilo ?? "—",
     profesorId: mm.profesor_id,
     profesorNombre: `${mm.profesor?.contacto?.nombre ?? ""} ${mm.profesor?.contacto?.apellido ?? ""}`.trim(),
+    profesorWhatsapp: mm.profesor?.contacto?.whatsapp ?? null,
     fechaInicio: mm.fecha_inicio,
     fechaFin: mm.fecha_fin,
     estado: mm.estado,
@@ -932,7 +931,6 @@ export async function crearReserva(e: EntradaNuevaReserva): Promise<ResultadoAcc
 
   const perfil = await obtenerPerfilActual();
   const a = admin();
-  const sb = await createClient();
 
   const { data: mRow, error: errM } = await a
     .from("membresias")
@@ -1050,7 +1048,7 @@ export async function crearReserva(e: EntradaNuevaReserva): Promise<ResultadoAcc
 
   revalidarReservas(ctxM.tipo, e.membresiaId);
 
-  const c = await contextoAviso(a, sb, e.membresiaId);
+  const c = await contextoAviso(a, e.membresiaId, true);
   const cuando = horario(e.fecha, e.hora, e.duracionMin);
   const lugar = c?.lugar(salaId) ?? "Tropicana";
   if (e.accion === "solicitar")
@@ -1085,7 +1083,6 @@ export async function cambiarEstadoReserva(
 
   const perfil = await obtenerPerfilActual();
   const a = admin();
-  const sb = await createClient();
 
   const { data: rRow, error: errR } = await a
     .from("reservas_sala")
@@ -1174,7 +1171,7 @@ export async function cambiarEstadoReserva(
   if (destino !== "confirmada" && destino !== "suspendida")
     return { ok: true, mensaje: `Marcada ${ETIQUETA_ESTADO_RESERVA[destino]}.` };
 
-  const c = await contextoAviso(a, sb, rRow.membresia_id);
+  const c = await contextoAviso(a, rRow.membresia_id, true);
   const cuando = horario(rRow.fecha, rRow.hora, rRow.duracion_min);
   const lugar = c?.lugar(rRow.sala_id) ?? "Tropicana";
   if (destino === "confirmada")
@@ -1220,7 +1217,6 @@ export async function suspenderReservaOperativa(
   registradoPorId: string | null
 ): Promise<{ ok: true; avisoAlumno?: AvisoPersona; avisoProfesor?: AvisoPersona } | { ok: false; error: string }> {
   const a = admin();
-  const sb = await createClient();
 
   const { data: rRow } = await a
     .from("reservas_sala")
@@ -1251,7 +1247,7 @@ export async function suspenderReservaOperativa(
   if (!actualizado || actualizado.length === 0)
     return { ok: false, error: `La reserva #${reservaId} cambió de estado mientras tanto.` };
 
-  const c = await contextoAviso(a, sb, rRow.membresia_id);
+  const c = await contextoAviso(a, rRow.membresia_id, true);
   const cuando = horario(rRow.fecha, rRow.hora, rRow.duracion_min);
   const lugar = c?.lugar(rRow.sala_id) ?? "Tropicana";
   return {
@@ -1285,7 +1281,6 @@ export async function revertirSuspension(reservaId: number): Promise<ResultadoAc
 
   const perfil = await obtenerPerfilActual();
   const a = admin();
-  const sb = await createClient();
 
   const { data: rRow, error: errR } = await a
     .from("reservas_sala")
@@ -1358,7 +1353,7 @@ export async function revertirSuspension(reservaId: number): Promise<ResultadoAc
   revalidatePath("/particulares");
   revalidatePath("/administracion/sala");
 
-  const c = await contextoAviso(a, sb, rRow.membresia_id);
+  const c = await contextoAviso(a, rRow.membresia_id, true);
   const cuando = horario(rRow.fecha, rRow.hora, rRow.duracion_min);
   const lugar = c?.lugar(rRow.sala_id) ?? "Tropicana";
   return {
@@ -1389,7 +1384,6 @@ export async function reprogramarReserva(e: EntradaReprogramar): Promise<Resulta
 
   const perfil = await obtenerPerfilActual();
   const a = admin();
-  const sb = await createClient();
 
   const { data: rRow, error: errR } = await a
     .from("reservas_sala")
@@ -1504,7 +1498,7 @@ export async function reprogramarReserva(e: EntradaReprogramar): Promise<Resulta
   await recalcularMembresia(a, rRow.membresia_id);
   revalidarReservas(ctxM.tipo, rRow.membresia_id);
 
-  const c = await contextoAviso(a, sb, rRow.membresia_id);
+  const c = await contextoAviso(a, rRow.membresia_id, true);
   const antes = horario(rRow.fecha, rRow.hora, rRow.duracion_min);
   const ahoraEs = horario(e.fecha, e.hora, e.duracionMin);
   const lugar = c?.lugar(e.salaId) ?? "Tropicana";
@@ -1526,7 +1520,6 @@ export async function cancelarAPedido(reservaId: number): Promise<ResultadoAccio
 
   const perfil = await obtenerPerfilActual();
   const a = admin();
-  const sb = await createClient();
 
   const { data: rRow, error: errR } = await a
     .from("reservas_sala")
@@ -1588,7 +1581,7 @@ export async function cancelarAPedido(reservaId: number): Promise<ResultadoAccio
   await recalcularMembresia(a, rRow.membresia_id);
   revalidarReservas(ctxM.tipo, rRow.membresia_id);
 
-  const c = await contextoAviso(a, sb, rRow.membresia_id);
+  const c = await contextoAviso(a, rRow.membresia_id, true);
   const cuando = horario(rRow.fecha, rRow.hora, rRow.duracion_min);
   const lugar = c?.lugar(rRow.sala_id) ?? "Tropicana";
   if (fueraDePlazo)
