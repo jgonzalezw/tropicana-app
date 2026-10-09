@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { avisosDe, cuotaMasAntiguaConSaldo, esSustituto, fechaTexto, historialDe, indicadoresDe, lineasDePagos, permisosReservasFicha } from "./fichaMembresia.ts";
+import { avisosDe, cuotaMasAntiguaConSaldo, esSustituto, fechaTexto, historialDe, indicadoresDe, iniciales, lineasDePagos, montoCorto, permisosReservasFicha } from "./fichaMembresia.ts";
 import type { FichaMembresia } from "./membresiasLectura.ts";
 import type { ReservaConHistorial } from "../app/(privado)/particulares/acciones.ts";
 
@@ -47,18 +47,19 @@ const reserva = (o: Partial<ReservaConHistorial> & { id: number }): ReservaConHi
 // ── indicadores ─────────────────────────────────────────────────────────
 
 test("regular: uso en clases, ciclo y saldo; «Cuotas pagadas» cuando no debe nada", () => {
-  const [uso, ciclo, saldo] = indicadoresDe(ficha());
+  const [uso, ciclo, saldo] = indicadoresDe(ficha(), AHORA);
   assert.equal(uso.valor, "3 de 8 clases");
   assert.equal(uso.sub, "Quedan 5 clases");
-  assert.equal(ciclo.valor, "27 oct 2026");
+  assert.equal(ciclo.valor, "Mar 27 oct");
+  assert.equal(ciclo.sub, "Desde Mar 1 sep · vigencia de 56 días");
   assert.equal(saldo.sub, "Cuotas pagadas");
   assert.equal(saldo.tono, undefined);
 });
 
 test("regular: queda 1, agotada y bono al renovar", () => {
-  assert.equal(indicadoresDe(ficha({ fila: { uso: { hechas: 7, total: 8, unidad: "clases" } } }))[0].sub, "Queda 1 clase");
-  assert.equal(indicadoresDe(ficha({ fila: { uso: { hechas: 8, total: 8, unidad: "clases" } } }))[0].sub, "Agotada");
-  assert.match(indicadoresDe(ficha({ cuenta: { bono: 2 } }))[0].sub!, /\+2 de bono al renovar/);
+  assert.equal(indicadoresDe(ficha({ fila: { uso: { hechas: 7, total: 8, unidad: "clases" } } }), AHORA)[0].sub, "Queda 1 clase");
+  assert.equal(indicadoresDe(ficha({ fila: { uso: { hechas: 8, total: 8, unidad: "clases" } } }), AHORA)[0].sub, "Agotada");
+  assert.match(indicadoresDe(ficha({ cuenta: { bono: 2 } }), AHORA)[0].sub!, /\+2 de bono al renovar/);
 });
 
 test("horas: uso en horas y lo disponible para pedir", () => {
@@ -66,7 +67,7 @@ test("horas: uso en horas y lo disponible para pedir", () => {
     fila: { tipo: "particular", uso: { hechas: 1.5, total: 4, unidad: "h" } },
     cuenta: { horas: { contratadasMin: 240, consumidasMin: 90, disponibleMin: 120 } },
   });
-  const [uso] = indicadoresDe(f);
+  const [uso] = indicadoresDe(f, AHORA);
   assert.equal(uso.valor, "1.5 de 4 h");
   assert.equal(uso.sub, "Disponible para pedir 2 h");
 });
@@ -78,22 +79,42 @@ test("el saldo mira la cuota más antigua con saldo y se pinta de peligro", () =
     cuota({ id: 3, saldo: 0 }),
   ];
   assert.equal(cuotaMasAntiguaConSaldo(cuotas)?.id, 1);
-  const saldo = indicadoresDe(ficha({ cuenta: { cuotas, saldo: 80 } }))[2];
+  const saldo = indicadoresDe(ficha({ cuenta: { cuotas, saldo: 80 } }), AHORA)[2];
   assert.equal(saldo.tono, "peligro");
-  assert.equal(saldo.sub, "Vence 10 oct 2026");
+  assert.equal(saldo.sub, "Vence Sáb 10 oct");
 });
 
 test("sin fecha de fin el ciclo dice que termina con la última clase; ningún texto trae un plazo escrito", () => {
-  const ciclo = indicadoresDe(ficha({ cuenta: { fechaFin: null } }))[1];
+  const ciclo = indicadoresDe(ficha({ cuenta: { fechaFin: null } }), AHORA)[1];
   assert.equal(ciclo.valor, "—");
   assert.match(ciclo.sub!, /termina con la última clase/);
-  const todo = JSON.stringify(indicadoresDe(ficha()));
-  assert.doesNotMatch(todo, /\b\d+ días\b/);
+  const todo = JSON.stringify(indicadoresDe(ficha(), AHORA));
+  // La única duración es la vigencia que sale de las fechas del ciclo (1 sep → 27 oct), nunca un plazo escrito.
+  assert.deepEqual(todo.match(/\b\d+ días\b/g), ["56 días"]);
 });
 
 test("fechaTexto no se corre de día por la zona horaria", () => {
-  assert.equal(fechaTexto("2026-10-01"), "1 oct 2026");
+  assert.equal(fechaTexto("2026-10-01", AHORA), "Jue 1 oct");
   assert.equal(fechaTexto(null), "—");
+});
+
+test("fechaTexto: sin año en el año actual, con año en otro", () => {
+  assert.equal(fechaTexto("2026-12-27", AHORA), "Dom 27 dic");
+  assert.equal(fechaTexto("2027-01-03", AHORA), "Dom 3 ene 2027");
+});
+
+test("montoCorto: sin ,00 vacío; con centavos los muestra", () => {
+  assert.equal(montoCorto(250), "Bs. 250");
+  assert.equal(montoCorto(250.5), "Bs. 250,50");
+  assert.equal(montoCorto(0), "Bs. 0");
+  assert.equal(montoCorto(1250), "Bs. 1.250");
+});
+
+test("iniciales: nombre y último apellido", () => {
+  assert.equal(iniciales("Manuel Aguilar"), "MA");
+  assert.equal(iniciales("Luz Marina Araujo"), "LA");
+  assert.equal(iniciales("Colegio"), "C");
+  assert.equal(iniciales("  "), "?");
 });
 
 // ── avisos ──────────────────────────────────────────────────────────────
@@ -110,7 +131,7 @@ test("queda 1 clase, saldo con vencimiento", () => {
   const a = avisosDe(f, null, AHORA);
   assert.deepEqual(a.map((x) => x.clave), ["por-vencer", "saldo"]);
   assert.equal(a[0].titulo, "Queda 1 clase");
-  assert.match(a[1].sub, /Vence 12 oct 2026/);
+  assert.match(a[1].sub, /Vence Lun 12 oct/);
 });
 
 test("reserva solicitada vigente y reserva por cerrar; una solicitud vencida no avisa", () => {
@@ -139,7 +160,7 @@ test("el historial junta venta, pagos, licencias, sustitutos y reservas, de lo m
     },
     fila: { siguienteId: 7 },
   });
-  const h = historialDe(f, null);
+  const h = historialDe(f, null, AHORA);
   assert.deepEqual(h.map((e) => e.etiqueta), ["Renovación", "Sustituto", "Licencia", "Pago", "Descuento", "Venta"]);
   assert.equal(h.find((e) => e.etiqueta === "Sustituto")?.sub, "Salsa · Oscar Nuñez");
 });
@@ -150,9 +171,9 @@ test("el historial incluye lo que cambió en cada reserva", () => {
     id: 4,
     historial: [{ estado_nuevo: "confirmada", fecha_nueva: "2026-10-09", hora_nueva: "10:00:00", motivo: null, glosa: "Pedida por WhatsApp", fuera_de_plazo: false, creado_en: "2026-10-05T10:00:00Z" }],
   });
-  const h = historialDe(f, [r]);
+  const h = historialDe(f, [r], AHORA);
   const ev = h.find((e) => e.etiqueta === "Reserva");
-  assert.match(ev!.titulo, /Reserva 9 oct 2026 10:00: /);
+  assert.match(ev!.titulo, /Reserva Vie 9 oct 10:00: /);
   assert.equal(ev!.sub, "Pedida por WhatsApp");
 });
 

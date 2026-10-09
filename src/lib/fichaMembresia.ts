@@ -2,7 +2,6 @@ import type { FichaMembresia, PagoFicha } from "./membresiasLectura.ts";
 import type { ReservaConHistorial } from "../app/(privado)/particulares/acciones.ts";
 import { ETIQUETA_ESTADO_RESERVA, solicitudVigente, type EstadoReserva } from "./reservas.ts";
 import { formatearHoras } from "./horarios.ts";
-import { gs } from "./inscripcion.ts";
 
 /**
  * La regla de la ficha de una membresía (I-012, fase 1b): qué dicen los
@@ -17,12 +16,42 @@ export type TonoIndicador = "exito" | "peligro" | "acento";
 export type IndicadorFicha = { etiqueta: string; valor: string; sub?: string; tono?: TonoIndicador; progreso?: number };
 
 const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+const DIAS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 
-/** «8 oct 2026» desde una fecha ISO (solo calendario, sin zona horaria). */
-export function fechaTexto(iso: string | null | undefined): string {
+/**
+ * «Jue 15 oct» desde una fecha ISO (solo calendario, sin zona horaria): formato
+ * corto de la spec visual de la ficha. Sin año si es el año actual; con año
+ * solo si es otro. `hoy` se inyecta para probarla.
+ */
+export function fechaTexto(iso: string | null | undefined, hoy: Date = new Date()): string {
   if (!iso) return "—";
   const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
-  return `${d} ${MESES[m - 1]} ${y}`;
+  const dia = DIAS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
+  return `${dia} ${d} ${MESES[m - 1]}${y === hoy.getFullYear() ? "" : ` ${y}`}`;
+}
+
+/** «Bs. 250» (sin ,00 vacío); con centavos, «Bs. 250,50». Los demás montos de la app siguen con `gs`. */
+export function montoCorto(n: number): string {
+  const v = Math.round((Number(n) || 0) * 100) / 100;
+  return `Bs. ${v.toLocaleString("es-BO", { minimumFractionDigits: Number.isInteger(v) ? 0 : 2, maximumFractionDigits: 2 })}`;
+}
+
+/** Iniciales para el avatar del titular: primera letra del nombre y del último apellido («Manuel Aguilar» → «MA»). */
+export function iniciales(nombre: string): string {
+  const partes = nombre.trim().split(/\s+/).filter(Boolean);
+  if (partes.length === 0) return "?";
+  const a = partes[0][0];
+  const b = partes.length > 1 ? partes[partes.length - 1][0] : "";
+  return (a + b).toUpperCase();
+}
+
+/** Días corridos entre dos fechas ISO (solo calendario). */
+function diasEntre(desdeISO: string, hastaISO: string): number {
+  const t = (iso: string) => {
+    const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
+    return Date.UTC(y, m - 1, d);
+  };
+  return Math.round((t(hastaISO) - t(desdeISO)) / 86_400_000);
 }
 
 const horasTexto = (h: number) => `${formatearHoras(h)} h`;
@@ -34,7 +63,7 @@ export function cuotaMasAntiguaConSaldo(cuotas: FichaMembresia["cuenta"]["cuotas
     .sort((a, b) => (a.vencimiento ?? "9999") < (b.vencimiento ?? "9999") ? -1 : (a.vencimiento ?? "9999") > (b.vencimiento ?? "9999") ? 1 : a.id - b.id)[0];
 }
 
-export function indicadoresDe(f: FichaMembresia): IndicadorFicha[] {
+export function indicadoresDe(f: FichaMembresia, hoy: Date = new Date()): IndicadorFicha[] {
   const { fila, cuenta } = f;
   const { uso } = fila;
 
@@ -62,16 +91,20 @@ export function indicadoresDe(f: FichaMembresia): IndicadorFicha[] {
   // 2 · Ciclo (fin real o estimado; nunca un plazo escrito fijo)
   const cicloInd: IndicadorFicha = {
     etiqueta: "Ciclo",
-    valor: cuenta.fechaFin ? fechaTexto(cuenta.fechaFin) : "—",
-    sub: `Desde ${fechaTexto(fila.fechaInicio)}${cuenta.fechaFin ? (cuenta.fechaFinEstimada ? " · fin estimado" : "") : " · termina con la última clase"}`,
+    valor: cuenta.fechaFin ? fechaTexto(cuenta.fechaFin, hoy) : "—",
+    sub: `Desde ${fechaTexto(fila.fechaInicio, hoy)}${
+      cuenta.fechaFin
+        ? ` · vigencia de ${diasEntre(fila.fechaInicio, cuenta.fechaFin)} días${cuenta.fechaFinEstimada ? " · fin estimado" : ""}`
+        : " · termina con la última clase"
+    }`,
   };
 
   // 3 · Saldo
   const pendiente = cuotaMasAntiguaConSaldo([...cuenta.cuotas]);
   const saldoInd: IndicadorFicha = {
     etiqueta: "Saldo",
-    valor: gs(cuenta.saldo),
-    sub: pendiente ? (pendiente.vencimiento ? `Vence ${fechaTexto(pendiente.vencimiento)}` : "Sin vencimiento") : "Cuotas pagadas",
+    valor: montoCorto(cuenta.saldo),
+    sub: pendiente ? (pendiente.vencimiento ? `Vence ${fechaTexto(pendiente.vencimiento, hoy)}` : "Sin vencimiento") : "Cuotas pagadas",
     tono: cuenta.saldo > 0 ? "peligro" : undefined,
   };
   return [usoInd, cicloInd, saldoInd];
@@ -99,7 +132,7 @@ export function avisosDe(f: FichaMembresia, reservas: ReservaConHistorial[] | nu
       out.push({
         clave: `solicitada-${r.id}`,
         titulo: "Reserva solicitada por vencer",
-        sub: `${fechaTexto(r.fecha)} ${r.hora.slice(0, 5)} · vence ${r.solicitada_hasta ? new Date(r.solicitada_hasta).toLocaleString("es-BO", { dateStyle: "short", timeStyle: "short", timeZone: "America/La_Paz" }) : "—"}`,
+        sub: `${fechaTexto(r.fecha, ahora)} ${r.hora.slice(0, 5)} · vence ${r.solicitada_hasta ? new Date(r.solicitada_hasta).toLocaleString("es-BO", { dateStyle: "short", timeStyle: "short", timeZone: "America/La_Paz" }) : "—"}`,
       });
   }
   for (const r of reservas ?? []) {
@@ -107,12 +140,12 @@ export function avisosDe(f: FichaMembresia, reservas: ReservaConHistorial[] | nu
       out.push({
         clave: `por-cerrar-${r.id}`,
         titulo: "Reserva por cerrar",
-        sub: `${fechaTexto(r.fecha)} ${r.hora.slice(0, 5)} · ya pasó la hora: falta marcarla realizada o ausente`,
+        sub: `${fechaTexto(r.fecha, ahora)} ${r.hora.slice(0, 5)} · ya pasó la hora: falta marcarla realizada o ausente`,
       });
   }
   if (cuenta.saldo > 0) {
     const p = cuotaMasAntiguaConSaldo([...cuenta.cuotas]);
-    out.push({ clave: "saldo", titulo: `Saldo ${gs(cuenta.saldo)}`, sub: p?.vencimiento ? `Vence ${fechaTexto(p.vencimiento)}` : "Sin vencimiento" });
+    out.push({ clave: "saldo", titulo: `Saldo ${montoCorto(cuenta.saldo)}`, sub: p?.vencimiento ? `Vence ${fechaTexto(p.vencimiento, ahora)}` : "Sin vencimiento" });
   }
   return out;
 }
@@ -135,7 +168,7 @@ function eventosDePago(p: PagoFicha): EventoHistorial[] {
     {
       clave: `pago-${p.id}`,
       fecha: p.fecha,
-      titulo: `Pago ${gs(p.monto)}`,
+      titulo: `Pago ${montoCorto(p.monto)}`,
       sub: p.medio ?? undefined,
       etiqueta: "Pago",
     },
@@ -144,7 +177,7 @@ function eventosDePago(p: PagoFicha): EventoHistorial[] {
     base.push({
       clave: `desc-${p.id}`,
       fecha: p.fecha,
-      titulo: `Descuento ${gs(p.descuento)}`,
+      titulo: `Descuento ${montoCorto(p.descuento)}`,
       sub: p.descuentoMotivo ?? undefined,
       etiqueta: "Descuento",
     });
@@ -156,7 +189,7 @@ function eventosDePago(p: PagoFicha): EventoHistorial[] {
  * licencias y sustitutos, el historial de cada reserva y la renovación. No es
  * el registro de eventos de la membresía (nace con las fases 5–7).
  */
-export function historialDe(f: FichaMembresia, reservas: ReservaConHistorial[] | null): EventoHistorial[] {
+export function historialDe(f: FichaMembresia, reservas: ReservaConHistorial[] | null, hoy: Date = new Date()): EventoHistorial[] {
   const out: EventoHistorial[] = [
     {
       clave: "venta",
@@ -181,7 +214,7 @@ export function historialDe(f: FichaMembresia, reservas: ReservaConHistorial[] |
       out.push({
         clave: `res-${r.id}-${i}`,
         fecha: h.creado_en,
-        titulo: `Reserva ${fechaTexto(h.fecha_nueva)} ${h.hora_nueva.slice(0, 5)}: ${etiquetaReserva(h.estado_nuevo)}`,
+        titulo: `Reserva ${fechaTexto(h.fecha_nueva, hoy)} ${h.hora_nueva.slice(0, 5)}: ${etiquetaReserva(h.estado_nuevo)}`,
         sub: [h.motivo, h.glosa, h.fuera_de_plazo ? "Fuera de plazo" : null].filter(Boolean).join(" · ") || undefined,
         etiqueta: "Reserva",
       });
@@ -222,7 +255,7 @@ export function lineasDePagos(f: FichaMembresia): LineaPago[] {
     if (c.descuentoAdelanto > 0)
       out.push({ clave: `adel-${c.id}`, fecha: inicio, titulo: "Descuento por adelanto", monto: -c.descuentoAdelanto, tono: "tenue" });
     if (c.saldo > 0 && c.fechaCompromiso)
-      out.push({ clave: `comp-${c.id}`, fecha: c.fechaCompromiso, titulo: "Compromiso", sub: `Saldo pendiente ${gs(c.saldo)}`, monto: c.saldo, tono: "ambar" });
+      out.push({ clave: `comp-${c.id}`, fecha: c.fechaCompromiso, titulo: "Compromiso", sub: `Saldo pendiente ${montoCorto(c.saldo)}`, monto: c.saldo, tono: "ambar" });
   }
   for (const p of f.pagos) {
     if (p.descuento > 0)

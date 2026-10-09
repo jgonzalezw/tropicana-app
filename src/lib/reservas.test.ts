@@ -8,6 +8,8 @@ import {
   solicitudVigente,
   ocupaAhora,
   evaluarCancelacion,
+  pastillaDeReserva,
+  textoCancelarAPedido,
   saldoMembresia,
   reservasAfectadasPorExcepciones,
   reservasQueChocanCon,
@@ -463,4 +465,32 @@ test("faltaNuevaReserva: dice qué falta y se calla cuando ya se puede", () => {
   assert.equal(faltaNuevaReserva({ ...ok, salaId: null }), "Elegí la sala.");
   assert.equal(faltaNuevaReserva({ ...ok, salaTipo: "externa", salaId: null, nombreExterna: "  " }), "Escribí el nombre del lugar externo.");
   assert.equal(faltaNuevaReserva({ ...ok, salaTipo: "externa", salaId: null, nombreExterna: "Salón X" }), null);
+});
+
+// ── fila de reserva de la ficha (spec visual v3) ───────────────────────────
+
+const AHORA_FILA = new Date("2026-10-08T12:00:00");
+const filaRes = (o: Partial<Parameters<typeof pastillaDeReserva>[0]>) =>
+  ({ estado: "confirmada" as const, fecha: "2026-10-09", hora: "10:00", duracion_min: 60, ocupaAhora: true, ...o });
+
+test("pastilla: confirmada futura es éxito; si ya pasó su hora y sigue confirmada, «Por cerrar»", () => {
+  assert.deepEqual(pastillaDeReserva(filaRes({}), AHORA_FILA), { texto: "Confirmada", tono: "exito", porCerrar: false });
+  assert.deepEqual(pastillaDeReserva(filaRes({ fecha: "2026-10-08", hora: "09:00" }), AHORA_FILA), { texto: "Por cerrar", tono: "ambar", porCerrar: true });
+  assert.equal(pastillaDeReserva(filaRes({ estado: "reprogramada", fecha: "2026-10-01" }), AHORA_FILA).texto, "Por cerrar");
+  // Una realizada de la semana pasada ya está cerrada.
+  assert.equal(pastillaDeReserva(filaRes({ estado: "realizada", fecha: "2026-10-01" }), AHORA_FILA).texto, "Realizada");
+});
+
+test("pastilla: tono por estado y solicitud vencida", () => {
+  assert.equal(pastillaDeReserva(filaRes({ estado: "solicitada" }), AHORA_FILA).tono, "ambar");
+  assert.equal(pastillaDeReserva(filaRes({ estado: "ausente" }), AHORA_FILA).tono, "peligro");
+  assert.equal(pastillaDeReserva(filaRes({ estado: "suspendida" }), AHORA_FILA).tono, "tenue");
+  assert.equal(pastillaDeReserva(filaRes({ estado: "reagendar" }), AHORA_FILA).tono, "tenue");
+  assert.deepEqual(pastillaDeReserva(filaRes({ estado: "solicitada", ocupaAhora: false }), AHORA_FILA), { texto: "Solicitud vencida", tono: "tenue", porCerrar: false });
+});
+
+test("«Cancelar a pedido»: devuelve la hora dentro del plazo del parámetro, la consume fuera", () => {
+  const inicio = new Date("2026-10-08T22:00:00"); // 10 h después
+  assert.equal(textoCancelarAPedido(AHORA_FILA, inicio, 8), "Cancelar a pedido · devuelve la hora");
+  assert.equal(textoCancelarAPedido(AHORA_FILA, inicio, 12), "Cancelar a pedido · consume la hora");
 });

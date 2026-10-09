@@ -289,6 +289,40 @@ export function ocupaAhora(r: ReservaOcupaEntrada, ahora: Date): boolean {
   return false;
 }
 
+export type TonoPastilla = "neutro" | "ambar" | "exito" | "peligro" | "tenue";
+
+/**
+ * Cómo se ve una reserva en la fila de la ficha (spec visual v3): el texto y el
+ * tono de la pastilla de estado. «Por cerrar» es una reserva confirmada o
+ * reprogramada cuya hora ya pasó: falta marcarla realizada o ausente. Se calcula
+ * al leer, como la vigencia de una Solicitada. Pura, para probarla.
+ */
+export function pastillaDeReserva(
+  r: { estado: EstadoReserva; fecha: string; hora: string; duracion_min: number; ocupaAhora: boolean },
+  ahora: Date
+): { texto: string; tono: TonoPastilla; porCerrar: boolean } {
+  const fin = new Date(new Date(`${r.fecha}T${r.hora}`).getTime() + r.duracion_min * 60_000);
+  if ((r.estado === "confirmada" || r.estado === "reprogramada") && fin <= ahora)
+    return { texto: "Por cerrar", tono: "ambar", porCerrar: true };
+  if (r.estado === "solicitada" && !r.ocupaAhora) return { texto: "Solicitud vencida", tono: "tenue", porCerrar: false };
+  const tono: TonoPastilla =
+    r.estado === "solicitada"
+      ? "ambar"
+      : r.estado === "ausente"
+        ? "peligro"
+        : r.estado === "reagendar" || r.estado === "suspendida"
+          ? "tenue"
+          : "exito";
+  return { texto: ETIQUETA_ESTADO_RESERVA[r.estado], tono, porCerrar: false };
+}
+
+/** «Cancelar a pedido · devuelve la hora» / «· consume la hora», según el plazo del parámetro (`evaluarCancelacion`). */
+export function textoCancelarAPedido(ahora: Date, inicioReserva: Date, plazoHoras: number): string {
+  return evaluarCancelacion(ahora, inicioReserva, plazoHoras).destino === "reagendar"
+    ? "Cancelar a pedido · devuelve la hora"
+    : "Cancelar a pedido · consume la hora";
+}
+
 export type ResultadoCancelacion = { destino: "reagendar" | "ausente"; fueraDePlazo: boolean };
 
 /**
