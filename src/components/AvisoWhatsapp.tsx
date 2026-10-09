@@ -30,11 +30,14 @@ export default function AvisoWhatsapp({
   whatsapp,
   mensaje,
   className,
+  onEnviado,
 }: {
   nombre: string;
   whatsapp: string | null | undefined;
   mensaje: string;
   className?: string;
+  /** Se llama al abrir WhatsApp con el mensaje (envío manual: la pantalla lo registra). */
+  onEnviado?: () => void;
 }) {
   const [copiado, setCopiado] = useState(false);
   const url = urlChatWhatsapp(whatsapp, mensaje);
@@ -75,6 +78,7 @@ export default function AvisoWhatsapp({
             onClick={(e) => {
               e.preventDefault();
               abrirWhatsapp(urlApp, url);
+              onEnviado?.();
             }}
           >
             Enviar por WhatsApp

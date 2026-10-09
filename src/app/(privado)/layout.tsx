@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { obtenerPerfilActual, tienePermiso } from "@/lib/sesion";
+import { obtenerPerfilActual, obtenerSeccionesVisibles, tienePermiso } from "@/lib/sesion";
 import { obtenerTemas, TEMA_DEFECTO } from "@/lib/temas";
 import { puedeIniciarSesion } from "@/lib/acceso";
 import { obtenerInfoRelease } from "@/lib/version";
@@ -61,6 +61,7 @@ export default async function LayoutPrivado({
     puedeParticulares,
     puedeAlquileres,
     temas,
+    seccionesNuevas,
   ] = await Promise.all([
     tienePermiso("usuarios", "ver"),
     tienePermiso("administracion", "ver"),
@@ -80,6 +81,7 @@ export default async function LayoutPrivado({
     tienePermiso("particulares", "ver"),
     tienePermiso("alquileres", "ver"),
     obtenerTemas(),
+    obtenerSeccionesVisibles(),
   ]);
 
   return (
@@ -101,6 +103,7 @@ export default async function LayoutPrivado({
         puedeDisponibilidadSala={puedeDisponibilidadSala}
         puedeParticulares={puedeParticulares}
         puedeAlquileres={puedeAlquileres}
+        puedeMembresias={seccionesNuevas.membresias}
         temas={temas.map((t) => ({ clave: t.clave, nombre: t.nombre }))}
         temaActual={perfil.tema ?? TEMA_DEFECTO}
         infoRelease={obtenerInfoRelease()}

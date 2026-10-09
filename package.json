@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "e2e": "playwright test",
     "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test",
     "sync-design": "node scripts/sync-design.mjs",
     "predev": "node scripts/chequeo-entorno.mjs",
@@ -20,6 +21,7 @@
     "react-dom": "19.2.8"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

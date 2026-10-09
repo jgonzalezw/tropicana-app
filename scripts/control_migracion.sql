@@ -981,3 +981,17 @@ select '50. liquidacion de retiro sin fecha efectiva o fuera de su mes' as contr
  where (exists (select 1 from public.comisiones_devengadas d where d.liquidacion_id = l.id and d.tipo = 'cierre')
         and l.retiro_hasta is null)
     or (l.retiro_hasta is not null and date_trunc('month', l.retiro_hasta)::date <> l.periodo);
+
+-- ---------------------------------------------------------------------
+-- 51. INTERRUPTOR DE LA SECCION NUEVA MEMBRESIAS (migracion 0067)
+--     Tiene que existir exactamente un parametro `membresias_nuevas`, de
+--     tipo booleano y con valor 'true' o 'false'. En produccion arranca
+--     'false' hasta que Javier pida prenderlo.
+-- ---------------------------------------------------------------------
+select '51. interruptor membresias_nuevas ausente o mal formado' as control,
+       case when (select count(*) from public.parametros
+                   where clave = 'membresias_nuevas' and tipo = 'booleano'
+                     and valor in ('true', 'false')) = 1 then 0 else 1 end as n,
+       case when (select count(*) from public.parametros
+                   where clave = 'membresias_nuevas' and tipo = 'booleano'
+                     and valor in ('true', 'false')) = 1 then 'OK' else 'REVISAR' end as estado;
