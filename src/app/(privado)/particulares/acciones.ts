@@ -37,7 +37,7 @@ import {
   TRANSICIONES,
   type EstadoReserva,
 } from "@/lib/reservas";
-import { cargarContextoValidacion, validarFranja } from "./validacionReserva";
+import { cargarContextoOError, validarFranja } from "./validacionReserva";
 
 const ISO_FECHA = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -1014,7 +1014,9 @@ export async function crearReserva(e: EntradaNuevaReserva): Promise<ResultadoAcc
     };
 
   // ── Validar sala y profesor ────────────────────────────────────────────
-  const ctx = await cargarContextoValidacion(a, esExterna ? null : salaId, mRow.profesor_id, e.fecha);
+  const rCtx = await cargarContextoOError(a, esExterna ? null : salaId, mRow.profesor_id, e.fecha);
+  if (rCtx.error !== undefined) return { error: rCtx.error };
+  const ctx = rCtx.ctx;
   const personas =
     ctxM.tipo === "alquiler"
       ? (mRow.alquiler_personas ?? undefined)
@@ -1127,7 +1129,9 @@ export async function cambiarEstadoReserva(
   // Pasar de 'solicitada' a un estado que ocupa de verdad exige revalidar:
   // mientras estuvo Solicitada, la franja no tenía la protección del EXCLUDE.
   if (actual === "solicitada" && destino === "confirmada") {
-    const ctx = await cargarContextoValidacion(a, rRow.sala_id, rRow.profesor_id, rRow.fecha, rRow.id);
+    const rCtx = await cargarContextoOError(a, rRow.sala_id, rRow.profesor_id, rRow.fecha, rRow.id);
+    if (rCtx.error !== undefined) return { error: rCtx.error };
+    const ctx = rCtx.ctx;
     const { data: salaRow } = await a.from("salas").select("es_externa").eq("id", rRow.sala_id).maybeSingle();
     const esExterna = salaRow?.es_externa ?? false;
     const validacion = validarFranja(ctx, rRow.fecha, rRow.hora, rRow.duracion_min, esExterna, undefined, ahora);
@@ -1305,7 +1309,9 @@ export async function revertirSuspension(reservaId: number): Promise<ResultadoAc
   const esExterna = salaRow?.es_externa ?? false;
 
   const ahora = new Date();
-  const ctx = await cargarContextoValidacion(a, esExterna ? null : rRow.sala_id, rRow.profesor_id, rRow.fecha, rRow.id);
+  const rCtx = await cargarContextoOError(a, esExterna ? null : rRow.sala_id, rRow.profesor_id, rRow.fecha, rRow.id);
+  if (rCtx.error !== undefined) return { error: rCtx.error };
+  const ctx = rCtx.ctx;
   const validacion = validarFranja(ctx, rRow.fecha, rRow.hora, rRow.duracion_min, esExterna, undefined, ahora);
   if (!validacion.ok)
     return { error: `No se puede restablecer esta clase: ${validacion.motivo}` };
@@ -1460,7 +1466,9 @@ export async function reprogramarReserva(e: EntradaReprogramar): Promise<Resulta
   }
 
   const ahora = new Date();
-  const ctx = await cargarContextoValidacion(a, esExterna ? null : e.salaId, rRow.profesor_id, e.fecha, rRow.id);
+  const rCtx = await cargarContextoOError(a, esExterna ? null : e.salaId, rRow.profesor_id, e.fecha, rRow.id);
+  if (rCtx.error !== undefined) return { error: rCtx.error };
+  const ctx = rCtx.ctx;
   const validacion = validarFranja(ctx, e.fecha, e.hora, e.duracionMin, esExterna, undefined, ahora);
   if (!validacion.ok) return { error: validacion.motivo };
 

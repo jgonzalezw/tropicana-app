@@ -13,6 +13,7 @@
 
 import type { createAdminClient } from "@/lib/supabase/admin";
 import { obtenerParametro } from "@/lib/sesion";
+import { exigir } from "@/lib/datos";
 import { COLS_VIGENCIA } from "@/lib/vigencia";
 import { COLUMNAS_ASIGNACION } from "@/lib/asignaciones";
 import {
@@ -86,20 +87,23 @@ export async function cargarContextoValidacion(
       a.from("cursos").select(`id, nombre, dias_semana, hora, duracion_min, sala_id, ${COLS_VIGENCIA}`).eq("sala_id", salaId).eq("activo", true),
       resSalaQ,
     ]);
-    patronSala = (patronR.data as FranjaPatron[]) ?? [];
-    excepcionesSala = (excR.data as ExcepcionHorario[]) ?? [];
-    cursosSala = (cursosR.data as unknown as CursoOcupa[]) ?? [];
-    reservasSala = (resR.data as unknown as ReservaConEstado[]) ?? [];
+    // Un fallo no se disfraza de ausencia (calidad 1): sin el horario o sin las
+    // excepciones, la sala parecería cerrada o libre y la validación mentiría.
+    patronSala = exigir(patronR, "el horario semanal de la sala") as FranjaPatron[];
+    excepcionesSala = exigir(excR, "las excepciones del horario de la sala") as ExcepcionHorario[];
+    cursosSala = exigir(cursosR, "los cursos de la sala") as unknown as CursoOcupa[];
+    reservasSala = exigir(resR, "las reservas de la sala") as unknown as ReservaConEstado[];
 
     const cursoIds = cursosSala.map((c) => c.id);
     if (cursoIds.length) {
-      const { data: susRows } = await a
+      const { data: susRows, error: errSusSala } = await a
         .from("sesiones")
         .select("curso_id")
         .in("curso_id", cursoIds)
         .eq("estado", "suspendida")
         .eq("fecha", fecha);
-      suspendidasSala = new Set(((susRows as { curso_id: number }[]) ?? []).map((s) => s.curso_id));
+      const susSala = exigir({ data: susRows, error: errSusSala }, "las clases suspendidas de la sala") as { curso_id: number }[];
+      suspendidasSala = new Set(susSala.map((s) => s.curso_id));
     }
   }
 
@@ -108,8 +112,10 @@ export async function cargarContextoValidacion(
   let suspendidasProfesor = new Set<number>();
 
   if (profesorId != null) {
-    const { data: asigRows } = await a.from("asignaciones").select(COLUMNAS_ASIGNACION).eq("profesor_id", profesorId).is("hasta", null);
-    const cursoIdsProfesor = ((asigRows as { curso_id: number }[]) ?? []).map((r) => r.curso_id);
+    const { data: asigRows, error: errAsig } = await a.from("asignaciones").select(COLUMNAS_ASIGNACION).eq("profesor_id", profesorId).is("hasta", null);
+    const cursoIdsProfesor = (exigir({ data: asigRows, error: errAsig }, "las asignaciones del profesor") as { curso_id: number }[]).map(
+      (r) => r.curso_id
+    );
     let resProfQ = a
       .from("reservas_sala")
       .select("id, tipo, motivo, glosa, hora, duracion_min, estado, solicitada_hasta")
@@ -124,18 +130,19 @@ export async function cargarContextoValidacion(
         : Promise.resolve({ data: [] as unknown[] }),
       resProfQ,
     ]);
-    cursosProfesor = (cursosProfR.data as unknown as CursoOcupa[]) ?? [];
-    reservasProfesor = (reservasProfR.data as unknown as ReservaConEstado[]) ?? [];
+    cursosProfesor = exigir(cursosProfR as Parameters<typeof exigir>[0], "los cursos del profesor") as unknown as CursoOcupa[];
+    reservasProfesor = exigir(reservasProfR, "la agenda del profesor") as unknown as ReservaConEstado[];
 
     const cursoIdsSusProf = cursosProfesor.map((c) => c.id);
     if (cursoIdsSusProf.length) {
-      const { data: susRows } = await a
+      const { data: susRows, error: errSusProf } = await a
         .from("sesiones")
         .select("curso_id")
         .in("curso_id", cursoIdsSusProf)
         .eq("estado", "suspendida")
         .eq("fecha", fecha);
-      suspendidasProfesor = new Set(((susRows as { curso_id: number }[]) ?? []).map((s) => s.curso_id));
+      const susProf = exigir({ data: susRows, error: errSusProf }, "las clases suspendidas del profesor") as { curso_id: number }[];
+      suspendidasProfesor = new Set(susProf.map((s) => s.curso_id));
     }
   }
 
@@ -152,6 +159,22 @@ export async function cargarContextoValidacion(
     reservasProfesor,
     suspendidasProfesor,
   };
+}
+
+/**
+ * `cargarContextoValidacion` para las acciones: si una lectura falla, devuelve
+ * el error como texto para el panel rojo de siempre, en vez de dejar caer la
+ * acción con una excepción. Nada se guarda: la validación no se pudo hacer.
+ */
+export async function cargarContextoOError(
+  ...args: Parameters<typeof cargarContextoValidacion>
+): Promise<{ ctx: ContextoValidacion; error?: undefined } | { ctx?: undefined; error: string }> {
+  try {
+    return { ctx: await cargarContextoValidacion(...args) };
+  } catch (e) {
+    const detalle = e instanceof Error ? e.message : String(e);
+    return { error: `No se pudo validar el horario de la sala, así que no se guardó nada. ${detalle}. Probá de nuevo; si se repite, avisá.` };
+  }
 }
 
 /** Filtra las reservas ya traídas (sin los estados que liberan) a las que de
