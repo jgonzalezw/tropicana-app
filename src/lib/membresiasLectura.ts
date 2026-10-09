@@ -46,7 +46,7 @@ export type AccesoMembresias = {
   tipos: ReadonlySet<TipoMembresia>;
   /** Si el rol ve solo lo propio en particulares: el profesor. */
   profesorIdPropio: number | null;
-  /** Si el rol ve solo lo propio en alumnos: los cursos donde el profesor es o fue titular (null = todos). */
+  /** Si el rol ve solo lo propio en contactos: los cursos donde el profesor es o fue titular (null = todos). */
   cursosPropios: ReadonlySet<number> | null;
 };
 

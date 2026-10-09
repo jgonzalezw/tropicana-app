@@ -171,7 +171,7 @@ export function membresiaVisible(
 ): boolean {
   if (!a.tipos.has(m.tipo)) return false;
   if (m.tipo === "particular" && a.profesorIdPropio != null && m.profesorId !== a.profesorIdPropio) return false;
-  // Con alumnos en alcance propio, una regular o prueba solo si alguno de sus cursos es del profesor
+  // Con contactos en alcance propio, una regular o prueba solo si alguno de sus cursos es del profesor
   // (la misma regla con la que la base le muestra el nombre del titular).
   if ((m.tipo === "regular" || m.tipo === "prueba") && a.cursosPropios && !(m.cursoIds ?? []).some((c) => a.cursosPropios!.has(c))) return false;
   return true;

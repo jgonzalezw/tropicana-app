@@ -30,12 +30,12 @@ async function accesoActual(): Promise<{ acceso: AccesoMembresias } | { error: s
     tienePermiso("alquileres", "ver"),
   ]);
   const [alcanceAlumnos, alcanceParticulares, alcanceAlquileres] = await Promise.all([
-    verAlumnos ? alcancePropioDe("alumnos") : null,
+    verAlumnos ? alcancePropioDe("contactos") : null,
     verParticulares ? alcancePropioDe("particulares") : null,
     verAlquileres ? alcancePropioDe("alquileres") : null,
   ]);
 
-  // Con alumnos en alcance propio, el profesor ve las regulares y pruebas de los cursos que dicta (o dictó):
+  // Con contactos en alcance propio (es lo que oculta el nombre del titular; «alumnos» no tiene selector de visibilidad), el profesor ve las regulares y pruebas de los cursos que dicta (o dictó):
   // las demás no entran, así nunca aparece una fila sin titular. Sin profesor vinculado no ve ninguna.
   let cursosPropios: Set<number> | null = null;
   if (alcanceAlumnos) {

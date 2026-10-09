@@ -254,7 +254,7 @@ test("visibilidad: un rol sin el permiso de un tipo no lo ve, y el alcance propi
   assert.equal(membresiaVisible(propio, { tipo: "particular", profesorId: null }), false);
 });
 
-test("visibilidad: con alumnos en alcance propio, una regular o prueba solo si alguno de sus cursos es del profesor", () => {
+test("visibilidad: con contactos en alcance propio, una regular o prueba solo si alguno de sus cursos es del profesor", () => {
   const profesor = { tipos: new Set(["regular", "prueba", "particular"] as const), profesorIdPropio: 7, cursosPropios: new Set([3, 4]) };
   assert.equal(membresiaVisible(profesor, { tipo: "regular", profesorId: null, cursoIds: [3] }), true);
   assert.equal(membresiaVisible(profesor, { tipo: "regular", profesorId: null, cursoIds: [9, 4] }), true);
