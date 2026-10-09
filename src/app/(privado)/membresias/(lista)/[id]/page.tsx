@@ -1,6 +1,6 @@
 import { tienePermiso } from "@/lib/sesion";
 import { createClient } from "@/lib/supabase/server";
-import { avisosDe, historialDe, indicadoresDe, lineasDePagos } from "@/lib/fichaMembresia";
+import { avisosDe, historialDe, indicadoresDe, lineasDePagos, permisosReservasFicha } from "@/lib/fichaMembresia";
 import { obtenerMembresia } from "../../acciones";
 import FichaMembresiaVista from "./FichaMembresiaVista";
 import type { DatosReservas } from "./PestanasFicha";
@@ -25,11 +25,17 @@ export default async function PaginaFicha({ params }: { params: Promise<{ id: st
   const ahora = new Date();
   const detalle = ficha.detalle;
 
-  // Lo que `GestionReserva` necesita para mostrar (sin editar) cada reserva.
+  // Lo que necesitan `GestionReserva` y `NuevaReserva` para operar las reservas.
   let reservas: DatosReservas | null = null;
   const puedeVerReciboP = tienePermiso("caja", "ver");
+  // Los permisos son del módulo del tipo (`particulares` o `alquileres`).
   if (detalle && (ficha.fila.tipo === "particular" || ficha.fila.tipo === "alquiler")) {
-    const sb = await createClient();
+    const modulo = ficha.fila.tipo === "alquiler" ? "alquileres" : "particulares";
+    const [puedeCrear, puedeEditar, sb] = await Promise.all([
+      tienePermiso(modulo, "crear"),
+      tienePermiso(modulo, "editar"),
+      createClient(),
+    ]);
     const [salasR, catalogoR, incR, minR] = await Promise.all([
       sb.from("salas").select("id, nombre, activa, es_externa").eq("activa", true).order("orden"),
       sb
@@ -48,16 +54,26 @@ export default async function PaginaFicha({ params }: { params: Promise<{ id: st
       .filter((v) => v.activo)
       .sort((x, y) => x.orden - y.orden);
     const externa = detalle.salasDeLaMembresia.find((s) => s.esExterna);
+    const salasLeidas = (salasR.data as { id: number; nombre: string; es_externa: boolean }[]) ?? [];
+    const permisos = permisosReservasFicha({
+      estado: ficha.fila.estado,
+      puedeCrear,
+      puedeEditar,
+      planPermiteExterna: detalle.permiteSalaExterna,
+      hayExternaActiva: salasLeidas.some((s) => s.es_externa),
+    });
     reservas = {
       membresiaId,
       tipo: detalle.tipo,
+      contratadasMin: detalle.saldo.contratadasMin,
       disponibleMin: detalle.saldo.disponibleMin,
       fechaInicio: detalle.fechaInicio,
       fechaFin: detalle.fechaFin,
-      salasPropias: ((salasR.data as { id: number; nombre: string; es_externa: boolean }[]) ?? [])
-        .filter((s) => !s.es_externa)
-        .map((s) => ({ id: s.id, nombre: s.nombre })),
+      salasPropias: salasLeidas.filter((s) => !s.es_externa).map((s) => ({ id: s.id, nombre: s.nombre })),
       salaExterna: externa ? { salaId: externa.salaId, nombre: externa.nombre } : null,
+      puedeEditar: permisos.editar,
+      ofrecerExterna: permisos.ofrecerExterna,
+      motivoSinAlta: permisos.motivo,
       motivosSuspension: motivos.map(({ valor, etiqueta }) => ({ valor, etiqueta })),
       incrementoMin: Math.max(1, Number((incR.data as { valor: string } | null)?.valor) || 30),
       minimoMin: Math.max(1, Number((minR.data as { valor: string } | null)?.valor) || 30),

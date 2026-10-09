@@ -198,6 +198,8 @@ export type FilaMembresia = Banderas & {
   cursos: string[];
   /** El profesor de la particular, o el titular de cada curso por asignación (regla 20). */
   profesorNombre: string | null;
+  /** WhatsApp del profesor de la particular (para avisarle, como al alumno); `null` si no tiene. */
+  profesorWhatsapp?: string | null;
   profesoresCurso: string[];
   fechaInicio: string;
   fechaFin: string | null;

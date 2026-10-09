@@ -2,8 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import MenuAcciones, { type ItemMenu } from "@/components/nuevo/MenuAcciones";
+import { useNuevaReserva } from "./NuevaReservaFicha";
 
-// Las acciones llegan con sus fases (2 reservas · 3 cobrar · 4 reporte ·
+// Las acciones llegan con sus fases (2 reservas, ya activa · 3 cobrar · 4 reporte ·
 // 5 modificar · 6 baja · 7 renovar). Mientras tanto se ven deshabilitadas y
 // dicen por qué (calidad 5). PROVISIONAL: antes de encender `membresias_nuevas`
 // en producción estos textos deben desaparecer o activarse (RETOMAR, pendiente
@@ -21,11 +22,19 @@ export default function AccionesFicha({
   conReservas: boolean;
 }) {
   const router = useRouter();
+  const nueva = useNuevaReserva();
   const items: ItemMenu[] = [
     { label: "Modificar…", sub: "Días, curso, plan o fechas", motivoBloqueo: llega(5), onClick: () => {} },
     { label: "Reporte de la membresía", sub: "Estado general para el alumno", motivoBloqueo: llega(4), onClick: () => {} },
     ...(conReservas
-      ? [{ label: "Nueva reserva…", sub: "Fecha, hora, duración y sala", motivoBloqueo: llega(2), onClick: () => {} }]
+      ? [
+          {
+            label: "Nueva reserva…",
+            sub: "Fecha, hora, duración y sala",
+            motivoBloqueo: nueva?.motivo ?? undefined,
+            onClick: () => nueva?.abrir(),
+          },
+        ]
       : []),
     { label: "Imprimir estado de cuenta", sub: "Cuotas, pagos y saldo", motivoBloqueo: llega(4), onClick: () => {} },
     { label: "Copiar estado de cuenta", sub: "Para enviar por WhatsApp", motivoBloqueo: llega(4), onClick: () => {} },

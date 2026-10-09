@@ -1,4 +1,5 @@
 import EnlaceWhatsapp from "@/components/entidades/EnlaceWhatsapp";
+import LugarExterno from "@/components/LugarExterno";
 import { Chip } from "@/components/nuevo/Chip";
 import { Indicadores } from "@/components/nuevo/Indicador";
 import { gs, rotuloDiasMembresia } from "@/lib/inscripcion";
@@ -17,6 +18,7 @@ import type { FichaMembresiaCompleta } from "../../acciones";
 import { ETIQUETA_TIPO, TONO_CHIP } from "../../presentacion";
 import AccionesFicha from "./AccionesFicha";
 import PestanasFicha, { type DatosReservas } from "./PestanasFicha";
+import ProveedorNuevaReserva from "./NuevaReservaFicha";
 
 const horas = (min: number) => `${formatearHoras(min / 60)} h`;
 
@@ -41,9 +43,10 @@ function Tarjeta({ titulo, children, testid }: { titulo: string; children: React
 const ROL: Record<string, string> = { alumno: "Alumno", profesor: "Profesor de Tropicana", sin_rol: "" };
 
 /**
- * La ficha de una membresía, solo lectura (I-012, fase 1b). Dibuja lo que ya
- * calculó `fichaMembresia.ts` y lo que leyó `obtenerMembresia`; no decide
- * nada ni cambia ningún dato. Las acciones están deshabilitadas con su fase.
+ * La ficha de una membresía (I-012). Dibuja lo que ya calculó
+ * `fichaMembresia.ts` y lo que leyó `obtenerMembresia`; no decide nada. Las
+ * reservas (fase 2) son lo único que se opera desde acá; el resto de las
+ * acciones está deshabilitado con su fase.
  */
 export default function FichaMembresiaVista({
   ficha,
@@ -78,6 +81,7 @@ export default function FichaMembresiaVista({
   const pagado = cuenta.cuotas.reduce((a, c) => a + c.cobrado, 0);
 
   return (
+    <ProveedorNuevaReserva datos={reservas}>
     <article data-testid="ficha-membresia" data-membresia-id={fila.id}>
       <div className="n-enc">
         <div>
@@ -191,19 +195,12 @@ export default function FichaMembresiaVista({
 
           {detalle?.permiteSalaExterna && (
             <Tarjeta titulo="Lugar externo" testid="bloque-lugar-externo">
-              {(() => {
-                const externa = detalle.salasDeLaMembresia.find((s) => s.esExterna);
-                return (
-                  <>
-                    <p style={{ margin: "0 0 10px", fontSize: 13 }}>
-                      {externa ? externa.nombre : "Todavía no tiene un lugar externo registrado."}
-                    </p>
-                    <button type="button" className="n-boton n-boton--chico" disabled title="Llega en la fase 2">
-                      {externa ? "Editar" : "Incluir"}
-                    </button>
-                  </>
-                );
-              })()}
+              <LugarExterno
+                variante="nuevo"
+                membresiaId={fila.id}
+                nombre={detalle.salasDeLaMembresia.find((s) => s.esExterna)?.nombre ?? null}
+                puedeEditar={reservas?.puedeEditar ?? false}
+              />
             </Tarjeta>
           )}
 
@@ -214,6 +211,11 @@ export default function FichaMembresiaVista({
               <>
                 <p style={{ margin: 0, fontWeight: 500 }}>{fila.profesorNombre ?? detalle?.profesorNombre ?? "Sin profesor"}</p>
                 {detalle?.estilo && <small style={{ color: "var(--n-fg3)" }}>{detalle.estilo}</small>}
+                {(fila.profesorNombre ?? detalle?.profesorNombre) && (
+                  <p style={{ margin: "4px 0 0", fontSize: 13 }} data-testid="profesor-whatsapp">
+                    <EnlaceWhatsapp numero={fila.profesorWhatsapp} vacio="Sin WhatsApp cargado" />
+                  </p>
+                )}
               </>
             ) : (
               // En un curso el profesor es el titular del curso (asignación, regla 20); quién dictó
@@ -262,5 +264,6 @@ export default function FichaMembresiaVista({
         </aside>
       </div>
     </article>
+    </ProveedorNuevaReserva>
   );
 }

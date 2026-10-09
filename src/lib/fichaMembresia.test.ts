@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { avisosDe, cuotaMasAntiguaConSaldo, esSustituto, fechaTexto, historialDe, indicadoresDe, lineasDePagos } from "./fichaMembresia.ts";
+import { avisosDe, cuotaMasAntiguaConSaldo, esSustituto, fechaTexto, historialDe, indicadoresDe, lineasDePagos, permisosReservasFicha } from "./fichaMembresia.ts";
 import type { FichaMembresia } from "./membresiasLectura.ts";
 import type { ReservaConHistorial } from "../app/(privado)/particulares/acciones.ts";
 
@@ -179,4 +179,24 @@ test("sin titular asignado ese día, vale el motivo de reemplazo anotado", () =>
   assert.equal(esSustituto(null, 9, true), true);
   assert.equal(esSustituto(null, 9, false), false);
   assert.equal(esSustituto(7, null, true), true);
+});
+
+test("permisosReservasFicha: el alta se explica cuando no se puede", () => {
+  const base = { estado: "activa", puedeCrear: true, puedeEditar: true, planPermiteExterna: true, hayExternaActiva: true };
+  assert.deepEqual(permisosReservasFicha(base), { crear: true, editar: true, ofrecerExterna: true, motivo: null });
+  // sin permiso de crear: no hay alta y dice por qué (aunque pueda editar)
+  const sinCrear = permisosReservasFicha({ ...base, puedeCrear: false });
+  assert.equal(sinCrear.crear, false);
+  assert.equal(sinCrear.editar, true);
+  assert.match(sinCrear.motivo ?? "", /permiso/);
+  // membresía no activa: sin alta, con su motivo; las acciones sobre lo existente siguen según el permiso
+  const baja = permisosReservasFicha({ ...base, estado: "baja" });
+  assert.equal(baja.crear, false);
+  assert.match(baja.motivo ?? "", /no está activa/);
+  // solo ver: nada de acciones
+  const soloVer = permisosReservasFicha({ ...base, puedeCrear: false, puedeEditar: false });
+  assert.equal(soloVer.editar, false);
+  // el lugar externo se ofrece si el plan lo permite Y hay una sala externa activa
+  assert.equal(permisosReservasFicha({ ...base, planPermiteExterna: false }).ofrecerExterna, false);
+  assert.equal(permisosReservasFicha({ ...base, hayExternaActiva: false }).ofrecerExterna, false);
 });

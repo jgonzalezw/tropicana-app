@@ -242,3 +242,30 @@ export function esSustituto(titularProfesorId: number | null, dictoProfesorId: n
   if (titularProfesorId != null && dictoProfesorId != null) return titularProfesorId !== dictoProfesorId;
   return tieneMotivoReemplazo;
 }
+
+/**
+ * Qué puede hacer quien mira la ficha con las reservas de una membresía por
+ * horas. Pura: la página lee los permisos del módulo que corresponde al tipo
+ * (`particulares` o `alquileres`) y esto decide qué se ofrece y qué se explica
+ * (calidad 5: una capacidad no disponible dice por qué). El servidor vuelve a
+ * validar todo, incluido el alcance propio del profesor.
+ */
+export function permisosReservasFicha(e: {
+  estado: string;
+  puedeCrear: boolean;
+  puedeEditar: boolean;
+  planPermiteExterna: boolean;
+  hayExternaActiva: boolean;
+}): { crear: boolean; editar: boolean; ofrecerExterna: boolean; motivo: string | null } {
+  const motivo = !e.puedeCrear
+    ? "No tenés permiso para crear reservas."
+    : e.estado !== "activa"
+      ? "La membresía no está activa: no admite reservas nuevas."
+      : null;
+  return {
+    crear: motivo === null,
+    editar: e.puedeEditar,
+    ofrecerExterna: e.planPermiteExterna && e.hayExternaActiva,
+    motivo,
+  };
+}

@@ -8,18 +8,26 @@ import GestionReserva from "@/components/GestionReserva";
 import { gs } from "@/lib/inscripcion";
 import { fechaTexto, type EventoHistorial, type LineaPago } from "@/lib/fichaMembresia";
 import type { ClaseFicha } from "@/lib/membresiasLectura";
+import { formatearHoras } from "@/lib/horarios";
 import type { ReservaConHistorial } from "../../../particulares/acciones";
+import { useNuevaReserva } from "./NuevaReservaFicha";
 
 type Pestana = "clases" | "pagos" | "historial";
 
 export type DatosReservas = {
   membresiaId: number;
   tipo: "particular" | "alquiler";
+  contratadasMin: number;
   disponibleMin: number;
   fechaInicio: string;
   fechaFin: string;
   salasPropias: { id: number; nombre: string }[];
   salaExterna: { salaId: number; nombre: string } | null;
+  /** `permisosReservasFicha`: qué se puede hacer y, si no, por qué. */
+  puedeEditar: boolean;
+  ofrecerExterna: boolean;
+  /** `null` si se puede crear una reserva; si no, el motivo. */
+  motivoSinAlta: string | null;
   motivosSuspension: { valor: string; etiqueta: string }[];
   incrementoMin: number;
   minimoMin: number;
@@ -33,8 +41,9 @@ function chipClase(c: ClaseFicha): { tono: "exito" | "ambar" | "peligro" | "tenu
 }
 
 /**
- * Clases o Reservas · Pagos · Historial. Solo lectura: las reservas se
- * montan con `GestionReserva` sin permiso de editar (la fase 2 lo enciende).
+ * Clases o Reservas · Pagos · Historial. Las reservas se montan con
+ * `GestionReserva` (con el permiso real, fase 2) y arriba van el resumen del
+ * saldo y «+ Nueva reserva», que abre la hoja lateral.
  */
 export default function PestanasFicha({
   clases,
@@ -51,6 +60,7 @@ export default function PestanasFicha({
   historial: EventoHistorial[];
 }) {
   const router = useRouter();
+  const nueva = useNuevaReserva();
   const [activa, setActiva] = useState<Pestana>("clases");
   const primera = reservas ? "Reservas" : "Clases";
 
@@ -88,6 +98,24 @@ export default function PestanasFicha({
 
       {activa === "clases" && reservas && (
         <div role="tabpanel" aria-label="Reservas" className="flex flex-col gap-3 pt-3">
+          <div className="n-linea" data-testid="resumen-reservas">
+            <div>
+              <div className="n-linea__titulo">
+                Disponible para pedir {formatearHoras(reservas.disponibleMin / 60)} h de {formatearHoras(reservas.contratadasMin / 60)} h
+              </div>
+              {reservas.motivoSinAlta && <div className="n-linea__sub">{reservas.motivoSinAlta}</div>}
+            </div>
+            <button
+              type="button"
+              className="n-boton n-boton--primario n-boton--chico"
+              data-testid="boton-nueva-reserva"
+              disabled={!!reservas.motivoSinAlta}
+              title={reservas.motivoSinAlta ?? undefined}
+              onClick={() => nueva?.abrir()}
+            >
+              + Nueva reserva
+            </button>
+          </div>
           {!reservas.reservas.length && <p className="n-vacio">Todavía no hay reservas.</p>}
           {reservas.reservas.map((r) => (
             <GestionReserva
@@ -103,7 +131,7 @@ export default function PestanasFicha({
               motivosSuspension={reservas.motivosSuspension}
               incrementoMin={reservas.incrementoMin}
               minimoMin={reservas.minimoMin}
-              puedeEditar={false}
+              puedeEditar={reservas.puedeEditar}
               onCambio={() => router.refresh()}
             />
           ))}

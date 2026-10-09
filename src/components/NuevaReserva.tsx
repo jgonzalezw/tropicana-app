@@ -151,7 +151,7 @@ export default function NuevaReserva({
   };
 
   const campos = (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+    <div className={marco === "hoja" ? "grid grid-cols-2 gap-3" : "grid grid-cols-2 sm:grid-cols-4 gap-3"}>
       <div>
         <label className={etiqueta}>Fecha</label>
         <input

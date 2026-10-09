@@ -138,6 +138,7 @@ type FilaBase = FilaParaCuenta & {
   alquiler_ruta: string | null;
   precio_aplicado: number | null;
   alumno: { es_menor: boolean; contacto_id: number; contacto: Contacto | null } | null;
+  profesor: { contacto: { nombre: string | null; apellido: string | null; whatsapp: string | null } | null } | null;
   titular: Contacto | null;
 };
 
@@ -147,7 +148,7 @@ const SELECT =
   "categoria_propuesta, categoria_motivo, categoria_glosa, alquiler_personas, alquiler_ruta, precio_aplicado, " +
   "alumno:alumnos(es_menor, contacto_id, contacto:contactos(tipo, nombre, apellido, razon_social, whatsapp)), " +
   "titular:contactos(tipo, nombre, apellido, razon_social, whatsapp), " +
-  "profesor:profesores(contacto:contactos(nombre, apellido)), " +
+  "profesor:profesores(contacto:contactos(nombre, apellido, whatsapp)), " +
   "plan:planes(nombre, estilo), curso:cursos(nombre, dias_semana)";
 
 const tipoDe = (r: Pick<FilaBase, "es_prueba" | "curso_id" | "categoria_aplicada">) =>
@@ -411,6 +412,7 @@ export async function leerFilasMembresias(
         estilo: r.plan?.estilo ?? null,
         cursos: cuenta.cursos.map((c) => c.nombre),
         profesorNombre: pc ? `${pc.nombre ?? ""} ${pc.apellido ?? ""}`.trim() || null : null,
+        profesorWhatsapp: pc?.whatsapp ?? null,
         profesoresCurso: delCurso.map((d) => d.profesor).filter((x): x is string => !!x),
         fechaInicio: r.fecha_inicio,
         fechaFin: cuenta.fechaFin,

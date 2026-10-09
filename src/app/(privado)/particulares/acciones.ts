@@ -97,6 +97,8 @@ function revalidarReservas(tipo: TipoMembresiaReservas, membresiaId: number) {
   const base = tipo === "alquiler" ? "/alquileres" : "/particulares";
   revalidatePath(`${base}/${membresiaId}`);
   revalidatePath(base);
+  // La ficha de /membresias y su lista (marca «Solicitada por vencer», saldo).
+  revalidatePath("/membresias", "layout");
 }
 
 /**
