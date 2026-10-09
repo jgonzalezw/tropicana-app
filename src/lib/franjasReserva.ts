@@ -224,7 +224,7 @@ export function lineaDeHorario(e: { ventanas: Ventana[]; excepcionMotivo: string
   return `Abierta ${rangos}${e.excepcionMotivo ? ` · ${e.excepcionMotivo}` : ""} · mínimo ${fh(min)}, luego de a ${e.incrementoMin} min`;
 }
 
-// ── lo que devuelve el servidor (`consultarFranjasReserva`) ───────────────
+// ── lo que arma `armarDatosFranjas` (lib/ocupacionSemana) ───────────────
 
 export type SalaDelDia = { id: number; nombre: string; ventanas: Ventana[]; ocupadosSala: BloqueOcupado[] };
 export type DiaSemana = { fecha: string; marca: MarcaDia; motivo: string | null };

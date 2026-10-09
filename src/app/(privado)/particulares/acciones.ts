@@ -38,11 +38,14 @@ import {
   TRANSICIONES,
   type EstadoReserva,
 } from "@/lib/reservas";
-import { bloquesDelContexto, cargarContextoOError, validarFranja } from "./validacionReserva";
-import { marcaDia, type DatosFranjas, type DiaSemana, type SalaDelDia } from "@/lib/franjasReserva";
-import { salasPermitidasDeMembresia } from "@/lib/salasDelPlan";
+import { cargarContextoOError, validarFranja } from "./validacionReserva";
+import type { BaseFranjas, ReservaDeSemana, SemanaFranjas } from "@/lib/ocupacionSemana";
+import { salasPermitidasDelPlan } from "@/lib/salasDelPlan";
+import { FILTRO_ESTADOS_QUE_LIBERAN } from "@/lib/reservas";
 import { sumarDiasISO } from "@/lib/calendarioCiclo";
-import { ventanasDelDia } from "@/lib/sala";
+import type { CursoOcupa, ExcepcionHorario, FranjaPatron } from "@/lib/sala";
+import { COLS_VIGENCIA } from "@/lib/vigencia";
+import { exigir } from "@/lib/datos";
 
 const ISO_FECHA = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -77,16 +80,22 @@ type ContextoMembresia = {
   profesorId: number | null;
 };
 
+type FilaTipoMembresia = { profesor_id: number | null; categoria_aplicada: string | null; curso_id: number | null };
+
+/** El contexto de una fila de `membresias` ya leída (quien ya la leyó no la vuelve a leer). */
+function contextoDeFila(m: FilaTipoMembresia | null): ContextoMembresia | null {
+  if (!m || m.curso_id != null) return null;
+  const tipo: TipoMembresiaReservas = m.categoria_aplicada != null ? "alquiler" : "particular";
+  return { tipo, modulo: tipo === "alquiler" ? "alquileres" : "particulares", profesorId: m.profesor_id };
+}
+
 async function contextoReservaMembresia(a: ReturnType<typeof admin>, membresiaId: number): Promise<ContextoMembresia | null> {
   const { data } = await a
     .from("membresias")
     .select("profesor_id, categoria_aplicada, curso_id")
     .eq("id", membresiaId)
     .maybeSingle();
-  const m = data as { profesor_id: number | null; categoria_aplicada: string | null; curso_id: number | null } | null;
-  if (!m || m.curso_id != null) return null;
-  const tipo: TipoMembresiaReservas = m.categoria_aplicada != null ? "alquiler" : "particular";
-  return { tipo, modulo: tipo === "alquiler" ? "alquileres" : "particulares", profesorId: m.profesor_id };
+  return contextoDeFila(data as FilaTipoMembresia | null);
 }
 
 /** Corte barato antes de leer nada: ¿tiene el permiso en alguno de los dos módulos? */
@@ -1076,116 +1085,113 @@ export async function crearReserva(e: EntradaNuevaReserva): Promise<ResultadoAcc
   };
 }
 
-// ── Franjas de un día (hoja «Nueva reserva» de la ficha) ───────────────────
+// ── Franjas (hoja «Nueva reserva» de la ficha) ─────────────────────────────
 
 /**
- * Lo que necesita la grilla de franjas: por cada sala que el plan permite, su
- * horario y su ocupación ese día; de la sala elegida, además la agenda del
- * profesor y el motivo de la excepción; los 7 días de la semana pedida con su
- * marca; y la próxima fecha abierta si el día está cerrado. Lee con
- * `cargarContextoValidacion` y `bloquesDelContexto`, los mismos que usa
- * `crearReserva` al guardar: no hay reglas nuevas, solo se muestra lo que el
- * servidor va a validar. Mismo control de acceso que `crearReserva`.
+ * La hoja de franjas pide dos cosas y arma la grilla en el navegador
+ * (`lib/ocupacionSemana`, con la misma ocupación que valida `crearReserva` al
+ * guardar, que sigue leyendo de la base y no usa nada de lo que mande el
+ * cliente):
+ *  - `consultarBaseFranjas`: lo que no cambia mientras la hoja está abierta
+ *    (reglas, horarios, cursos, saldo), una vez por apertura;
+ *  - `consultarSemanaFranjas`: las reservas y clases suspendidas de un rango.
+ * Mismo control de acceso que `crearReserva` en las dos.
  */
-export async function consultarFranjasReserva(e: {
-  membresiaId: number;
-  fecha: string;
-  salaId: number;
-  /** Primer día de la semana que se muestra (la hoja lo conoce: son 7 chips seguidos). */
-  semanaDesde: string;
-}): Promise<{ error: string } | DatosFranjas> {
-  if (!(await permisoEnAlguno("crear"))) return { error: "No tenés permiso para crear reservas." };
-  if (!ISO_FECHA.test(e.fecha) || !ISO_FECHA.test(e.semanaDesde)) return { error: "La fecha no es válida." };
 
+const MAX_DIAS_RANGO = 60;
+const SIN_PERMISO_CREAR = {
+  sinPermiso: "No tenés permiso para crear reservas.",
+  otroProfesor: "Esta membresía es de otro profesor: no podés crear reservas en ella.",
+};
+
+export async function consultarBaseFranjas(e: { membresiaId: number }): Promise<{ error: string } | BaseFranjas> {
   const a = admin();
-  const { data: mRow, error: errM } = await a
-    .from("membresias")
-    .select("id, fecha_inicio, fecha_fin, horas_contratadas, profesor_id")
-    .eq("id", e.membresiaId)
-    .is("curso_id", null)
-    .maybeSingle();
-  if (errM) return { error: `No se pudo leer la membresía: ${errM.message}` };
-  if (!mRow) return { error: "Esa membresía no existe." };
-  const ctxM = await contextoReservaMembresia(a, e.membresiaId);
-  if (!ctxM) return { error: "Esa membresía no existe." };
-  const errAut = await autorizarSobre(ctxM, "crear", {
-    sinPermiso: "No tenés permiso para crear reservas.",
-    otroProfesor: "Esta membresía es de otro profesor: no podés crear reservas en ella.",
-  });
-  if (errAut) return { error: errAut };
+  const [permiso, mR] = await Promise.all([
+    permisoEnAlguno("crear"),
+    a
+      .from("membresias")
+      .select("id, fecha_inicio, fecha_fin, horas_contratadas, profesor_id, categoria_aplicada, curso_id, plan_id")
+      .eq("id", e.membresiaId)
+      .is("curso_id", null)
+      .maybeSingle(),
+  ]);
+  if (!permiso) return { error: "No tenés permiso para crear reservas." };
+  if (mR.error) return { error: `No se pudo leer la membresía: ${mR.error.message}` };
+  const mRow = mR.data;
+  const ctxM = contextoDeFila(mRow as FilaTipoMembresia | null);
+  if (!mRow || !ctxM) return { error: "Esa membresía no existe." };
 
   try {
-    const permitidas = await salasPermitidasDeMembresia(a, e.membresiaId);
-    const { data: salasRows, error: errS } = await a.from("salas").select("id, nombre").eq("activa", true).eq("es_externa", false).order("orden");
-    if (errS) return { error: `No se pudieron leer las salas: ${errS.message}` };
-    const salas = (salasRows ?? []).filter((s) => permitidas === null || permitidas.includes(s.id as number)) as { id: number; nombre: string }[];
-    if (!salas.some((s) => s.id === e.salaId)) return { error: "Esa sala no está entre las que permite el plan." };
-
-    const [catBloqueo, catExc, resRows] = await Promise.all([
-      etiquetasDeCatalogo(a, "motivo_bloqueo_sala"),
-      etiquetasDeCatalogo(a, "motivo_excepcion_horario"),
+    const profesorId = mRow.profesor_id as number | null;
+    const columnasCurso = `id, nombre, dias_semana, hora, duracion_min, sala_id, ${COLS_VIGENCIA}`;
+    const [errAut, permitidas, salasR, incP, minP, catR, resR, patronR, excR, cursosR, asigR] = await Promise.all([
+      autorizarSobre(ctxM, "crear", SIN_PERMISO_CREAR),
+      salasPermitidasDelPlan(a, e.membresiaId, mRow.plan_id as number | null),
+      a.from("salas").select("id, nombre").eq("activa", true).eq("es_externa", false).order("orden"),
+      obtenerParametro("tiempos_incremento_min"),
+      obtenerParametro("duracion_minima_curso_min"),
+      a
+        .from("catalogo_valores")
+        .select("valor, etiqueta, catalogos!inner(clave)")
+        .in("catalogos.clave", ["motivo_bloqueo_sala", "motivo_excepcion_horario"]),
       a.from("reservas_sala").select("estado, duracion_min, solicitada_hasta, es_cortesia").eq("membresia_id", e.membresiaId),
+      a.from("sala_horario_patron").select("sala_id, dia_semana, desde, hasta"),
+      a.from("sala_horario_excepciones").select("sala_id, fecha, hasta_fecha, cerrado, desde, hasta, motivo, glosa"),
+      a.from("cursos").select(columnasCurso).eq("activo", true).not("sala_id", "is", null),
+      profesorId != null
+        ? a.from("asignaciones").select("curso_id").eq("profesor_id", profesorId).is("hasta", null)
+        : Promise.resolve({ data: [] as unknown[], error: null }),
     ]);
-    if (resRows.error) return { error: `No se pudo leer el saldo de la membresía: ${resRows.error.message}` };
-    const ahora = new Date();
-    const saldo = saldoMembresia({ horasContratadas: Number(mRow.horas_contratadas) || 0, reservas: resRows.data ?? [], ahora });
-    const etiquetaMotivo = (v: string) => catBloqueo.get(v) ?? v;
-    const motivoDe = (x: { motivo: string | null; glosa: string | null } | null) =>
-      x ? [x.motivo ? (catExc.get(x.motivo) ?? x.motivo) : null, x.glosa].filter(Boolean).join(" · ") || null : null;
-
-    // La sala elegida lleva también al profesor; las demás, solo su propia ocupación.
-    const contextos = await Promise.all(
-      salas.map(async (s) => {
-        const r = await cargarContextoOError(a, s.id, s.id === e.salaId ? mRow.profesor_id : null, e.fecha);
-        if (r.error !== undefined) throw new Error(r.error);
-        return { sala: s, ctx: r.ctx };
-      })
+    if (errAut) return { error: errAut };
+    // Un fallo no se disfraza de ausencia (calidad 1): sin el horario o sin las clases la sala parecería libre.
+    const salasTodas = exigir(salasR, "las salas") as unknown as { id: number; nombre: string }[];
+    const catalogos = exigir(catR, "los motivos") as unknown as { valor: string; etiqueta: string; catalogos: { clave: string } | null }[];
+    const reservasSaldo = exigir(resR, "el saldo de la membresía") as unknown as Parameters<typeof saldoMembresia>[0]["reservas"];
+    const patron = exigir(patronR, "el horario semanal de las salas") as unknown as (FranjaPatron & { sala_id: number })[];
+    const excepciones = exigir(excR, "las excepciones del horario de las salas") as unknown as (ExcepcionHorario & { sala_id: number })[];
+    const cursos = exigir(cursosR, "los cursos de las salas") as unknown as CursoOcupa[];
+    const idsCursosProfesor = (exigir(asigR as Parameters<typeof exigir>[0], "las asignaciones del profesor") as unknown as { curso_id: number }[]).map(
+      (r) => r.curso_id
     );
-    const salasDelDia: SalaDelDia[] = contextos.map(({ sala, ctx }) => ({
-      id: sala.id,
-      nombre: sala.nombre,
-      ventanas: ventanasDelDia(ctx.patronSala, ctx.excepcionesSala, e.fecha).ventanas,
-      ocupadosSala: bloquesDelContexto(ctx, e.fecha, ahora, false, etiquetaMotivo).ocupadosSala,
-    }));
-    const elegida = contextos.find((c) => c.sala.id === e.salaId)!.ctx;
-    const delDia = ventanasDelDia(elegida.patronSala, elegida.excepcionesSala, e.fecha);
 
-    let ocupadosProfesor = bloquesDelContexto(elegida, e.fecha, ahora, false, etiquetaMotivo).ocupadosProfesor;
-    if (ocupadosProfesor.length && mRow.profesor_id != null) {
-      const { data: prof } = await a.from("profesores").select("contacto:contactos(nombre)").eq("id", mRow.profesor_id).maybeSingle();
-      const nombre = ((prof?.contacto as unknown as { nombre: string | null } | null)?.nombre ?? "").trim().split(/\s+/)[0] || "El profesor";
-      ocupadosProfesor = ocupadosProfesor.map((b) => ({ ...b, etiqueta: `${nombre} da ${b.tipo === "curso" ? b.etiqueta : b.etiqueta.toLowerCase()}` }));
-    }
+    const [cursosProfR, profR] = await Promise.all([
+      idsCursosProfesor.length
+        ? a.from("cursos").select(columnasCurso).in("id", idsCursosProfesor)
+        : Promise.resolve({ data: [] as unknown[], error: null }),
+      profesorId != null
+        ? a.from("profesores").select("contacto:contactos(nombre)").eq("id", profesorId).maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+    ]);
+    const cursosProfesor = exigir(cursosProfR as Parameters<typeof exigir>[0], "los cursos del profesor") as unknown as CursoOcupa[];
+    const nombreProfesor =
+      ((profR.data as unknown as { contacto: { nombre: string | null } | null } | null)?.contacto?.nombre ?? "").trim().split(/\s+/)[0] || null;
 
-    const dias: DiaSemana[] = Array.from({ length: 7 }, (_, i) => {
-      const fecha = sumarDiasISO(e.semanaDesde, i);
-      const d = ventanasDelDia(elegida.patronSala, elegida.excepcionesSala, fecha);
-      return {
-        fecha,
-        marca: marcaDia({ ventanas: d.ventanas, excepcion: d.excepcion, fueraDeVigencia: fecha < mRow.fecha_inicio || fecha > mRow.fecha_fin }),
-        motivo: motivoDe(d.excepcion),
-      };
-    });
-
-    let proxima: string | null = null;
-    if (delDia.ventanas.length === 0) {
-      for (let f = sumarDiasISO(e.fecha, 1), n = 0; f <= mRow.fecha_fin && n < 400; f = sumarDiasISO(f, 1), n++) {
-        if (ventanasDelDia(elegida.patronSala, elegida.excepcionesSala, f).ventanas.length > 0) {
-          proxima = f;
-          break;
-        }
-      }
-    }
+    const etiquetasDe = (clave: string) =>
+      Object.fromEntries(catalogos.filter((v) => v.catalogos?.clave === clave).map((v) => [v.valor, v.etiqueta]));
+    const saldo = saldoMembresia({ horasContratadas: Number(mRow.horas_contratadas) || 0, reservas: reservasSaldo, ahora: new Date() });
 
     return {
-      incrementoMin: elegida.incrementoMin,
-      minimoMin: elegida.minimoMin,
+      incrementoMin: Math.max(1, Number(incP) || 30),
+      minimoMin: Math.max(1, Number(minP) || 30),
       disponibleMin: saldo.disponibleMin,
-      salas: salasDelDia,
-      excepcionMotivo: motivoDe(delDia.excepcion),
-      ocupadosProfesor,
-      dias,
-      proxima,
+      fechaInicio: mRow.fecha_inicio as string,
+      fechaFin: mRow.fecha_fin as string,
+      profesorId,
+      profesorNombre: nombreProfesor,
+      salas: salasTodas
+        .filter((s) => permitidas === null || permitidas.includes(s.id))
+        .map((s) => ({
+          id: s.id,
+          nombre: s.nombre,
+          patron: patron.filter((p) => p.sala_id === s.id).map(({ dia_semana, desde, hasta }) => ({ dia_semana, desde, hasta })),
+          excepciones: excepciones
+            .filter((x) => x.sala_id === s.id)
+            .map(({ fecha, hasta_fecha, cerrado, desde, hasta, motivo, glosa }) => ({ fecha, hasta_fecha, cerrado, desde, hasta, motivo, glosa })),
+          cursos: cursos.filter((c) => c.sala_id === s.id),
+        })),
+      cursosProfesor,
+      etiquetasBloqueo: etiquetasDe("motivo_bloqueo_sala"),
+      etiquetasExcepcion: etiquetasDe("motivo_excepcion_horario"),
     };
   } catch (err) {
     const detalle = err instanceof Error ? err.message : String(err);
@@ -1193,12 +1199,59 @@ export async function consultarFranjasReserva(e: {
   }
 }
 
-/** valor → etiqueta de un catálogo (para no mostrar nunca la clave cruda, calidad 6). */
-async function etiquetasDeCatalogo(a: ReturnType<typeof admin>, clave: string): Promise<Map<string, string>> {
-  const { data: cat } = await a.from("catalogos").select("id").eq("clave", clave).maybeSingle();
-  if (!cat) return new Map();
-  const { data } = await a.from("catalogo_valores").select("valor, etiqueta").eq("catalogo_id", cat.id);
-  return new Map(((data as { valor: string; etiqueta: string }[]) ?? []).map((v) => [v.valor, v.etiqueta]));
+const COLUMNAS_RESERVA_SEMANA = "id, sala_id, profesor_id, fecha, tipo, motivo, glosa, hora, duracion_min, estado, solicitada_hasta";
+
+/** Las reservas que ocupan (sin los estados que liberan) y las clases suspendidas del rango. */
+export async function consultarSemanaFranjas(e: { membresiaId: number; desde: string; hasta: string }): Promise<{ error: string } | SemanaFranjas> {
+  if (!ISO_FECHA.test(e.desde) || !ISO_FECHA.test(e.hasta) || e.desde > e.hasta || e.hasta > sumarDiasISO(e.desde, MAX_DIAS_RANGO))
+    return { error: "La fecha no es válida." };
+  const a = admin();
+  const [permiso, mR] = await Promise.all([
+    permisoEnAlguno("crear"),
+    a.from("membresias").select("profesor_id, categoria_aplicada, curso_id").eq("id", e.membresiaId).is("curso_id", null).maybeSingle(),
+  ]);
+  if (!permiso) return { error: "No tenés permiso para crear reservas." };
+  if (mR.error) return { error: `No se pudo leer la membresía: ${mR.error.message}` };
+  const ctxM = contextoDeFila(mR.data as FilaTipoMembresia | null);
+  if (!mR.data || !ctxM) return { error: "Esa membresía no existe." };
+  const profesorId = mR.data.profesor_id as number | null;
+
+  try {
+    const [errAut, enSalas, delProfesor, susR] = await Promise.all([
+      autorizarSobre(ctxM, "crear", SIN_PERMISO_CREAR),
+      // Las de las salas propias activas…
+      a
+        .from("reservas_sala")
+        .select(`${COLUMNAS_RESERVA_SEMANA}, salas!inner(activa, es_externa)`)
+        .eq("salas.activa", true)
+        .eq("salas.es_externa", false)
+        .gte("fecha", e.desde)
+        .lte("fecha", e.hasta)
+        .not("estado", "in", FILTRO_ESTADOS_QUE_LIBERAN),
+      // …y las del profesor, estén donde estén (también en un lugar externo).
+      profesorId != null
+        ? a
+            .from("reservas_sala")
+            .select(COLUMNAS_RESERVA_SEMANA)
+            .eq("profesor_id", profesorId)
+            .gte("fecha", e.desde)
+            .lte("fecha", e.hasta)
+            .not("estado", "in", FILTRO_ESTADOS_QUE_LIBERAN)
+        : Promise.resolve({ data: [] as unknown[], error: null }),
+      a.from("sesiones").select("curso_id, fecha").eq("estado", "suspendida").gte("fecha", e.desde).lte("fecha", e.hasta),
+    ]);
+    if (errAut) return { error: errAut };
+    const deSalas = exigir(enSalas, "las reservas de las salas") as unknown as (ReservaDeSemana & { salas?: unknown })[];
+    const deProfesor = exigir(delProfesor as Parameters<typeof exigir>[0], "la agenda del profesor") as unknown as ReservaDeSemana[];
+    const suspendidas = exigir(susR, "las clases suspendidas") as unknown as { curso_id: number; fecha: string }[];
+    const porId = new Map<number, ReservaDeSemana>();
+    for (const { salas: _salas, ...r } of deSalas) porId.set(r.id, r);
+    for (const r of deProfesor) porId.set(r.id, r);
+    return { desde: e.desde, hasta: e.hasta, reservas: [...porId.values()], suspendidas };
+  } catch (err) {
+    const detalle = err instanceof Error ? err.message : String(err);
+    return { error: `No se pudo leer la ocupación de las salas. ${detalle}` };
+  }
 }
 
 // ── Cambiar de estado ─────────────────────────────────────────────────────

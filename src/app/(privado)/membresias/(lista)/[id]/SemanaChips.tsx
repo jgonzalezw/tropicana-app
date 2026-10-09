@@ -13,7 +13,7 @@ const dow = (iso: string) => fechaTexto(iso).split(" ")[0];
  * número y marca «Cerrada», «Reducido» o «Fuera vig.»), ‹ › para cambiar de
  * semana y «Otra fecha» con el calendario. Todo dentro de la vigencia de la
  * membresía: no se puede ir antes del primer día pedible ni después del
- * vencimiento. Las marcas las manda el servidor (`consultarFranjasReserva`).
+ * vencimiento. Las marcas salen de `armarDatosFranjas`.
  */
 export default function SemanaChips({
   semanaDesde,

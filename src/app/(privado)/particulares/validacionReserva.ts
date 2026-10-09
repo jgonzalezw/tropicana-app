@@ -16,35 +16,16 @@ import { obtenerParametro } from "@/lib/sesion";
 import { exigir } from "@/lib/datos";
 import { COLS_VIGENCIA } from "@/lib/vigencia";
 import { COLUMNAS_ASIGNACION } from "@/lib/asignaciones";
-import {
-  ocupacionDelDia,
-  type BloqueOcupado,
-  type CursoOcupa,
-  type ExcepcionHorario,
-  type FranjaPatron,
-  type ReservaSalaOcupa,
-  type ResultadoHorario,
-} from "@/lib/sala";
-import { FILTRO_ESTADOS_QUE_LIBERAN, ocupaAhora, ocupacionDeProfesor, validarReservaSala } from "@/lib/reservas";
+import type { CursoOcupa, ExcepcionHorario, FranjaPatron, ResultadoHorario } from "@/lib/sala";
+import { FILTRO_ESTADOS_QUE_LIBERAN, validarReservaSala } from "@/lib/reservas";
+import { bloquesDelContexto, type ContextoValidacion, type ReservaConEstado } from "@/lib/ocupacionSemana";
+
+// La ocupación del día vive en `lib/ocupacionSemana` (la hoja de franjas la arma en el navegador);
+// acá se re-exporta para las acciones que ya la importan de este módulo.
+export { bloquesDelContexto };
+export type { ContextoValidacion };
 
 export type Admin = NonNullable<ReturnType<typeof createAdminClient>>;
-
-type ReservaConEstado = ReservaSalaOcupa & { estado: string; solicitada_hasta: string | null };
-
-export type ContextoValidacion = {
-  /** `null` cuando la sala es externa — no se valida su horario ni choque. */
-  salaId: number | null;
-  incrementoMin: number;
-  minimoMin: number;
-  patronSala: FranjaPatron[];
-  excepcionesSala: ExcepcionHorario[];
-  cursosSala: CursoOcupa[];
-  reservasSala: ReservaConEstado[];
-  suspendidasSala: Set<number>;
-  cursosProfesor: CursoOcupa[];
-  reservasProfesor: ReservaConEstado[];
-  suspendidasProfesor: Set<number>;
-};
 
 /** Trae todo lo que hace falta para validar una franja: horario/ocupación de
  *  la sala (si es propia) y del profesor, ya con los estados que liberan
@@ -176,41 +157,6 @@ export async function cargarContextoOError(
     const detalle = e instanceof Error ? e.message : String(e);
     return { error: `No se pudo validar el horario de la sala, así que no se guardó nada. ${detalle}. Probá de nuevo; si se repite, avisá.` };
   }
-}
-
-/** Filtra las reservas ya traídas (sin los estados que liberan) a las que de
- *  verdad ocupan AHORA — descarta una Solicitada vencida (regla de negocio 4:
- *  se calcula al leer, no se guarda paso a paso). */
-function ocupandoAhora<T extends { tipo: ReservaSalaOcupa["tipo"]; estado: string; solicitada_hasta: string | null }>(
-  reservas: T[],
-  ahora: Date
-): T[] {
-  // El tipo real de cada fila: un bloqueo ocupa con estado `reservada`, que
-  // para una particular no ocupa. Con el tipo fijo el bloqueo se descartaba y
-  // el choque lo frenaba recién la base (23P01), con un mensaje genérico.
-  return reservas.filter((r) => ocupaAhora({ tipo: r.tipo, estado: r.estado, solicitadaHasta: r.solicitada_hasta }, ahora));
-}
-
-/**
- * Lo que ocupa la sala y el profesor esa fecha, con lo que ocupa AHORA (una
- * Solicitada vencida y una clase suspendida no ocupan). Lo usan `validarFranja`
- * (al guardar) y la grilla de franjas de la hoja «Nueva reserva»: la misma
- * ocupación en los dos, sin reglas aparte.
- */
-export function bloquesDelContexto(
-  ctx: ContextoValidacion,
-  fecha: string,
-  ahora: Date,
-  esExterna = false,
-  /** Cómo se lee el motivo de un bloqueo (catálogo `motivo_bloqueo_sala`). */
-  etiquetaMotivo?: (valor: string) => string
-): { ocupadosSala: BloqueOcupado[]; ocupadosProfesor: BloqueOcupado[] } {
-  const ocupadosSala =
-    esExterna || ctx.salaId == null
-      ? []
-      : ocupacionDelDia(ctx.cursosSala, ocupandoAhora(ctx.reservasSala, ahora), fecha, ctx.suspendidasSala, ctx.salaId, etiquetaMotivo);
-  const ocupadosProfesor = ocupacionDeProfesor(ctx.cursosProfesor, fecha, ctx.suspendidasProfesor, ocupandoAhora(ctx.reservasProfesor, ahora), etiquetaMotivo);
-  return { ocupadosSala, ocupadosProfesor };
 }
 
 export function validarFranja(

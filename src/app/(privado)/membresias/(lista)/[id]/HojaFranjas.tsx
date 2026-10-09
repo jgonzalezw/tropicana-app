@@ -3,11 +3,14 @@
 /**
  * «+ Nueva reserva» de la ficha de Membresías, como `Nueva reserva franjas.dc.html`
  * (handoff v4): la fecha por semana, la sala, la grilla de franjas con lo libre
- * y lo ocupado, y un resumen fijo sobre los botones. La ocupación sale del
- * servidor con la misma lógica que valida al guardar (`consultarFranjasReserva`);
- * acá solo se arma la grilla y la selección (`lib/franjasReserva.ts`, pura y
- * con pruebas). Al guardar, `crearReserva` valida de nuevo. La pantalla vieja
- * (`NuevaReserva` en `marco="pagina"`) no cambia.
+ * y lo ocupado, y un resumen fijo sobre los botones. Los datos fijos (horarios,
+ * cursos, reglas, saldo) se piden una vez al abrir y las reservas por semana
+ * (`consultarBaseFranjas`, `consultarSemanaFranjas`); cambiar de día dentro de la
+ * semana no va al servidor. La grilla se arma acá con la misma ocupación que
+ * valida al guardar (`lib/ocupacionSemana.ts`, `lib/franjasReserva.ts`, puras y
+ * con pruebas). Lo guardado vive mientras la hoja está abierta. Al guardar,
+ * `crearReserva` valida de nuevo en el servidor, sin confiar en nada de esto.
+ * La pantalla vieja (`NuevaReserva` en `marco="pagina"`) no cambia.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
@@ -30,7 +33,8 @@ import {
   type DatosFranjas,
   type Seleccion,
 } from "@/lib/franjasReserva";
-import { consultarFranjasReserva, crearReserva } from "@/app/(privado)/particulares/acciones";
+import { armarDatosFranjas, rangoDeSemana, type BaseFranjas, type SemanaFranjas } from "@/lib/ocupacionSemana";
+import { consultarBaseFranjas, consultarSemanaFranjas, crearReserva } from "@/app/(privado)/particulares/acciones";
 import SemanaChips from "./SemanaChips";
 import type { DatosReservas } from "./PestanasFicha";
 
@@ -71,8 +75,6 @@ export default function HojaFranjas({
   const [salaTipo, setSalaTipo] = useState<"propia" | "externa">("propia");
   const [salaId, setSalaId] = useState<number | null>(inicial?.salaId ?? datos.salasPropias[0]?.id ?? null);
   const [sel, setSel] = useState<Seleccion>(null);
-  const [lectura, setLectura] = useState<DatosFranjas | null>(null);
-  const [errorLectura, setErrorLectura] = useState<string | null>(null);
   const [recarga, setRecarga] = useState(0);
   const [resultado, setResultado] = useState<ResultadoNueva | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
@@ -91,38 +93,63 @@ export default function HojaFranjas({
 
   const externo = salaTipo === "externa";
 
-  // La grilla se pide al cambiar fecha, sala o semana, y de nuevo tras un error al guardar.
-  // Lo ya pedido en esta apertura se reutiliza (volver a un día es instantáneo); el error al guardar lo descarta.
-  const cache = useRef(new Map<string, DatosFranjas>());
-  const [cargando, setCargando] = useState(false);
+  // Datos fijos: una vez por apertura. Reservas: una vez por semana. Las promesas se guardan para que
+  // el doble efecto de React en desarrollo no repita la consulta; al guardar con error se descarta todo
+  // (puede haberse ocupado la franja o cambiado el saldo) y se vuelve a leer.
+  const baseP = useRef<Promise<{ error: string } | BaseFranjas> | null>(null);
+  const semanasP = useRef(new Map<string, Promise<{ error: string } | SemanaFranjas>>());
+  const [base, setBase] = useState<BaseFranjas | null>(null);
+  const [semanas, setSemanas] = useState<Record<string, SemanaFranjas>>({});
+  const [errorCarga, setErrorCarga] = useState<string | null>(null);
+  const rangoSemana = rangoDeSemana(semanaDesde, fecha);
+  const claveSemana = `${rangoSemana.desde}|${rangoSemana.hasta}`;
   useEffect(() => {
     if (externo || salaId == null) return;
-    const clave = `${salaId}|${fecha}|${semanaDesde}|${recarga}`;
-    const guardada = cache.current.get(clave);
-    if (guardada) {
-      setErrorLectura(null);
-      setLectura(guardada);
-      setCargando(false);
-      return;
-    }
     let vigente = true;
-    setCargando(true);
-    consultarFranjasReserva({ membresiaId: datos.membresiaId, fecha, salaId, semanaDesde }).then((r) => {
+    baseP.current ??= consultarBaseFranjas({ membresiaId: datos.membresiaId });
+    let pSemana = semanasP.current.get(claveSemana);
+    if (!pSemana) {
+      pSemana = consultarSemanaFranjas({ membresiaId: datos.membresiaId, desde: claveSemana.split("|")[0], hasta: claveSemana.split("|")[1] });
+      semanasP.current.set(claveSemana, pSemana);
+    }
+    Promise.all([baseP.current, pSemana]).then(([b, s]) => {
       if (!vigente) return;
-      setCargando(false);
-      if ("error" in r) {
-        setErrorLectura(r.error);
-        setLectura(null);
-      } else {
-        cache.current.set(clave, r);
-        setErrorLectura(null);
-        setLectura(r);
+      if ("error" in b) {
+        baseP.current = null;
+        return setErrorCarga(b.error);
       }
+      if ("error" in s) {
+        semanasP.current.delete(claveSemana);
+        return setErrorCarga(s.error);
+      }
+      setErrorCarga(null);
+      setBase(b);
+      setSemanas((prev) => (prev[claveSemana] === s ? prev : { ...prev, [claveSemana]: s }));
     });
     return () => {
       vigente = false;
     };
-  }, [externo, salaId, fecha, semanaDesde, datos.membresiaId, recarga]);
+  }, [externo, salaId, claveSemana, datos.membresiaId, recarga]);
+
+  // La grilla del día sale de lo ya leído: cambiar de día dentro de la semana no consulta nada.
+  const calculo = useMemo(() => {
+    const semana = semanas[claveSemana];
+    if (externo || salaId == null || !base || !semana) return null;
+    try {
+      return { datos: armarDatosFranjas(base, semana, { salaId, fecha, semanaDesde, ahora }) };
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : String(e) };
+    }
+  }, [externo, salaId, base, semanas, claveSemana, fecha, semanaDesde, ahora]);
+  const [previa, setPrevia] = useState<DatosFranjas | null>(null);
+  const calculada = calculo && "datos" in calculo ? calculo.datos : null;
+  useEffect(() => {
+    if (calculada) setPrevia(calculada);
+  }, [calculada]);
+  // Al cambiar de semana se sigue viendo la anterior, atenuada, hasta que llega la nueva.
+  const lectura = calculada ?? previa;
+  const errorLectura = errorCarga ?? (calculo && "error" in calculo ? calculo.error : null);
+  const cargando = !externo && !calculada && !errorLectura;
 
   const reglas = {
     incrementoMin: lectura?.incrementoMin ?? datos.incrementoMin,
@@ -197,9 +224,14 @@ export default function HojaFranjas({
       });
       setResultado(r);
       if (r.error) {
-        // Se refresca la grilla: lo que falló suele ser que el lugar se ocupó.
+        // Lo que falló suele ser que el lugar se ocupó: se descarta lo leído, se vuelve a pedir y se avisa.
         setSel(null);
+        baseP.current = null;
+        semanasP.current.clear();
+        setBase(null);
+        setSemanas({});
         setRecarga((n) => n + 1);
+        if (!externo) avisar("Recargué la semana: puede que esa franja se haya ocupado mientras tanto.");
       } else {
         router.refresh();
       }
