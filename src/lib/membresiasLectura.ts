@@ -46,6 +46,8 @@ export type AccesoMembresias = {
   tipos: ReadonlySet<TipoMembresia>;
   /** Si el rol ve solo lo propio en particulares: el profesor. */
   profesorIdPropio: number | null;
+  /** Si el rol ve solo lo propio en alumnos: los cursos donde el profesor es o fue titular (null = todos). */
+  cursosPropios: ReadonlySet<number> | null;
 };
 
 export type ExtensionMembresia = {
@@ -131,6 +133,7 @@ type FilaBase = FilaParaCuenta & {
   membresia_anterior_id: number | null;
   ciclo_numero: number | null;
   profesor_id: number | null;
+  cursos_m: { curso_id: number }[] | null;
   categoria_propuesta: string | null;
   categoria_motivo: string | null;
   categoria_glosa: string | null;
@@ -144,7 +147,7 @@ type FilaBase = FilaParaCuenta & {
 
 const SELECT =
   "id, estado, es_prueba, curso_id, categoria_aplicada, alumno_id, contacto_id, plan_id, membresia_anterior_id, ciclo_numero, " +
-  "fecha_inicio, fecha_fin, clases_plan, clases_total, horas_contratadas, profesor_id, " +
+  "fecha_inicio, fecha_fin, clases_plan, clases_total, horas_contratadas, profesor_id, cursos_m:membresia_cursos(curso_id), " +
   "categoria_propuesta, categoria_motivo, categoria_glosa, alquiler_personas, alquiler_ruta, precio_aplicado, " +
   "alumno:alumnos(es_menor, contacto_id, contacto:contactos(tipo, nombre, apellido, razon_social, whatsapp)), " +
   "titular:contactos(tipo, nombre, apellido, razon_social, whatsapp), " +
@@ -168,10 +171,10 @@ const entradaCiclo = (r: FilaCiclo): EntradaCiclo => ({
 
 /** Lo mínimo de una membresía para saber si otra la renueva (sin ninguna relación). */
 const SELECT_CICLO =
-  "id, es_prueba, curso_id, categoria_aplicada, alumno_id, contacto_id, plan_id, membresia_anterior_id, fecha_inicio, profesor_id";
+  "id, es_prueba, curso_id, categoria_aplicada, alumno_id, contacto_id, plan_id, membresia_anterior_id, fecha_inicio, profesor_id, cursos_m:membresia_cursos(curso_id)";
 type FilaCiclo = Pick<
   FilaBase,
-  "id" | "es_prueba" | "curso_id" | "categoria_aplicada" | "alumno_id" | "contacto_id" | "plan_id" | "membresia_anterior_id" | "fecha_inicio" | "profesor_id"
+  "id" | "es_prueba" | "curso_id" | "categoria_aplicada" | "alumno_id" | "contacto_id" | "plan_id" | "membresia_anterior_id" | "fecha_inicio" | "profesor_id" | "cursos_m"
 >;
 
 /**
@@ -190,7 +193,7 @@ async function leerBase(
     grupos.push({ lector: a.admin, alquiler: true });
   }
 
-  const visible = (r: FilaCiclo) => membresiaVisible(a, { tipo: tipoDe(r), profesorId: r.profesor_id });
+  const visible = (r: FilaCiclo) => membresiaVisible(a, { tipo: tipoDe(r), profesorId: r.profesor_id, cursoIds: (r.cursos_m ?? []).map((c) => c.curso_id) });
   // El tope de filas de la API corta en silencio: una lista truncada mentiría.
   const sinTruncar = (raw: { count: number | null }, n: number) => {
     if (raw.count != null && n < raw.count) throw new Error(`No se pudieron cargar las membresías completas (${n} de ${raw.count}).`);

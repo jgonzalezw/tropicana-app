@@ -254,6 +254,17 @@ test("visibilidad: un rol sin el permiso de un tipo no lo ve, y el alcance propi
   assert.equal(membresiaVisible(propio, { tipo: "particular", profesorId: null }), false);
 });
 
+test("visibilidad: con alumnos en alcance propio, una regular o prueba solo si alguno de sus cursos es del profesor", () => {
+  const profesor = { tipos: new Set(["regular", "prueba", "particular"] as const), profesorIdPropio: 7, cursosPropios: new Set([3, 4]) };
+  assert.equal(membresiaVisible(profesor, { tipo: "regular", profesorId: null, cursoIds: [3] }), true);
+  assert.equal(membresiaVisible(profesor, { tipo: "regular", profesorId: null, cursoIds: [9, 4] }), true);
+  assert.equal(membresiaVisible(profesor, { tipo: "regular", profesorId: null, cursoIds: [9] }), false);
+  assert.equal(membresiaVisible(profesor, { tipo: "prueba", profesorId: null, cursoIds: [] }), false);
+  assert.equal(membresiaVisible(profesor, { tipo: "particular", profesorId: 7 }), true);
+  // Con alcance todo (cursosPropios null) no se recorta nada.
+  assert.equal(membresiaVisible({ ...profesor, cursosPropios: null }, { tipo: "regular", profesorId: null, cursoIds: [9] }), true);
+});
+
 // ── búsqueda: menores, tutores, WhatsApp, acentos (datos de dev: Bruna y Natalia) ──
 
 const natalia = { id: 6, nombre: "Natalia Salek", whatsapp: "+59177311069" };

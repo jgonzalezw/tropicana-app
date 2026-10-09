@@ -29,14 +29,27 @@ async function accesoActual(): Promise<{ acceso: AccesoMembresias } | { error: s
     tienePermiso("particulares", "ver"),
     tienePermiso("alquileres", "ver"),
   ]);
-  const [alcanceParticulares, alcanceAlquileres] = await Promise.all([
+  const [alcanceAlumnos, alcanceParticulares, alcanceAlquileres] = await Promise.all([
+    verAlumnos ? alcancePropioDe("alumnos") : null,
     verParticulares ? alcancePropioDe("particulares") : null,
     verAlquileres ? alcancePropioDe("alquileres") : null,
   ]);
 
-  if (verAlumnos) {
-    tipos.add("regular");
-    tipos.add("prueba");
+  // Con alumnos en alcance propio, el profesor ve las regulares y pruebas de los cursos que dicta (o dictó):
+  // las demás no entran, así nunca aparece una fila sin titular. Sin profesor vinculado no ve ninguna.
+  let cursosPropios: Set<number> | null = null;
+  if (alcanceAlumnos) {
+    if (!alcanceAlumnos.propio) {
+      tipos.add("regular");
+      tipos.add("prueba");
+    } else if (alcanceAlumnos.profesorId != null) {
+      tipos.add("regular");
+      tipos.add("prueba");
+      const supabase = await createClient();
+      const r = await supabase.from("asignaciones").select("curso_id").eq("profesor_id", alcanceAlumnos.profesorId);
+      if (r.error) return { error: `No se pudieron leer los cursos del profesor: ${r.error.message}` };
+      cursosPropios = new Set((r.data as { curso_id: number }[]).map((x) => x.curso_id));
+    }
   }
   if (alcanceParticulares) {
     if (!alcanceParticulares.propio) tipos.add("particular");
@@ -52,7 +65,7 @@ async function accesoActual(): Promise<{ acceso: AccesoMembresias } | { error: s
   const sb = await createClient();
   const admin = tipos.has("alquiler") ? createAdminClient() : null;
   if (tipos.has("alquiler") && !admin) return { error: "No se pudieron leer los alquileres: falta la clave de servicio." };
-  return { acceso: { sb, admin: admin as unknown as AccesoMembresias["admin"], tipos, profesorIdPropio } };
+  return { acceso: { sb, admin: admin as unknown as AccesoMembresias["admin"], tipos, profesorIdPropio, cursosPropios } };
 }
 
 const mensaje = (e: unknown) => (e instanceof Error ? e.message : "Error desconocido.");

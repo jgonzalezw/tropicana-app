@@ -1026,14 +1026,18 @@ select '53. reserva reagendada cuya original no esta por reagendar/suspendida o 
     or o.membresia_id is distinct from r.membresia_id;
 
 -- ---------------------------------------------------------------------
--- 54. EL PROFESOR VE AL TITULAR DE SUS PARTICULARES (migracion 0070)
---     `contacto_visible_por_profesor` debe incluir la condicion de
---     `membresias.profesor_id`, y conservar EXECUTE solo para authenticated (0050).
+-- 54. EL PROFESOR VE AL TITULAR DE SUS PARTICULARES Y AL TUTOR DE SUS MENORES (migracion 0070)
+--     `contacto_visible_directo_por_profesor` incluye la condicion de `membresias.profesor_id`,
+--     `contacto_visible_por_profesor` suma el tutor (`tutor_de`), y ninguna se ejecuta como anon (0050).
 -- ---------------------------------------------------------------------
-select '54. contacto_visible_por_profesor sin la condicion de membresias.profesor_id o con EXECUTE de mas' as control,
-       case when pg_get_functiondef('public.contacto_visible_por_profesor(bigint)'::regprocedure) like '%m.profesor_id = pr.id%'
+select '54. funciones del profesor sin particulares/tutor o con EXECUTE de mas' as control,
+       case when pg_get_functiondef('public.contacto_visible_directo_por_profesor(bigint)'::regprocedure) like '%m.profesor_id = pr.id%'
+             and pg_get_functiondef('public.contacto_visible_por_profesor(bigint)'::regprocedure) like '%tutor_de%'
+             and not has_function_privilege('anon', 'public.contacto_visible_directo_por_profesor(bigint)', 'execute')
              and not has_function_privilege('anon', 'public.contacto_visible_por_profesor(bigint)', 'execute')
             then 0 else 1 end as n,
-       case when pg_get_functiondef('public.contacto_visible_por_profesor(bigint)'::regprocedure) like '%m.profesor_id = pr.id%'
+       case when pg_get_functiondef('public.contacto_visible_directo_por_profesor(bigint)'::regprocedure) like '%m.profesor_id = pr.id%'
+             and pg_get_functiondef('public.contacto_visible_por_profesor(bigint)'::regprocedure) like '%tutor_de%'
+             and not has_function_privilege('anon', 'public.contacto_visible_directo_por_profesor(bigint)', 'execute')
              and not has_function_privilege('anon', 'public.contacto_visible_por_profesor(bigint)', 'execute')
             then 'OK' else 'REVISAR' end as estado;

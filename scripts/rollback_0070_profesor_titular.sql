@@ -1,5 +1,5 @@
--- Rollback de la 0070: vuelve la funcion a su definicion de la 0048 (sin la condicion
--- de membresias.profesor_id). No toca datos.
+-- Rollback de la 0070: vuelve la funcion a su definicion de la 0048 y borra el ayudante
+-- contacto_visible_directo_por_profesor. No toca datos.
 create or replace function public.contacto_visible_por_profesor(p_contacto_id bigint)
 returns boolean
 language sql
@@ -22,4 +22,5 @@ as $$
        where pr.usuario_id = auth.uid() and al.contacto_id = p_contacto_id
     );
 $$;
+drop function if exists public.contacto_visible_directo_por_profesor(bigint);
 notify pgrst, 'reload schema';

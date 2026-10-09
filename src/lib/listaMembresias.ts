@@ -166,11 +166,14 @@ export function chipEstado(e: { estado: string; renovada: boolean } & Banderas):
  * sin base de datos.
  */
 export function membresiaVisible(
-  a: { tipos: ReadonlySet<TipoMembresia>; profesorIdPropio: number | null },
-  m: { tipo: TipoMembresia; profesorId: number | null }
+  a: { tipos: ReadonlySet<TipoMembresia>; profesorIdPropio: number | null; cursosPropios?: ReadonlySet<number> | null },
+  m: { tipo: TipoMembresia; profesorId: number | null; cursoIds?: readonly number[] }
 ): boolean {
   if (!a.tipos.has(m.tipo)) return false;
   if (m.tipo === "particular" && a.profesorIdPropio != null && m.profesorId !== a.profesorIdPropio) return false;
+  // Con alumnos en alcance propio, una regular o prueba solo si alguno de sus cursos es del profesor
+  // (la misma regla con la que la base le muestra el nombre del titular).
+  if ((m.tipo === "regular" || m.tipo === "prueba") && a.cursosPropios && !(m.cursoIds ?? []).some((c) => a.cursosPropios!.has(c))) return false;
   return true;
 }
 
