@@ -159,6 +159,16 @@ Pasaron a `docs/archivo/ESTADO-2026-10.md` para que este archivo se pueda leer. 
 - **Avisos de WhatsApp** de las acciones de la ficha: tarjeta «Para avisar» en la columna derecha, cerrable, solo en memoria.
 - **Velocidad (commit 13):** sesión memorizada por petición (`porPeticion` en `sesion.ts`), identidad por `getClaims()` en el proxy y las acciones, precarga de la semana siguiente. Abrir la hoja 2,5 s → ~1,7 s; semana siguiente ~0,3–0,45 s.
 - **E2E:** membresía de prueba propia (`e2e/membresiaDePrueba.ts`), reservas a más de 48 h; el barrido de datos de prueba es por SQL, solo en dev.
-- **Antes del pase a producción:** JWKS de producción asimétrico; duración del token de acceso en dev y producción; pruebas intermitentes del muestrario anotadas como conocidas.
-- **Falta:** e2e con el menú plegado, PR. Después: RLS del Profesor (migración **0070**) en su propio PR.
+- **Antes del pase a producción (➜ hoy 2026-10-09: hecho, ver bloque de abajo):** JWKS de producción asimétrico; duración del token de acceso en dev y producción; pruebas intermitentes del muestrario anotadas como conocidas.
+- **Falta (➜ hoy 2026-10-09: e2e con el menú plegado, PR #41 y 0070 hechos, todo en producción):** e2e con el menú plegado, PR. Después: RLS del Profesor (migración **0070**) en su propio PR.
 - **Probado:** `npm test` 465, `tsc` y `eslint` limpios; e2e de `membresias-2-reprogramar` (5 casos).
+
+### I-012 · Pase a producción (fase 2 + RLS del Profesor) — 2026-10-09
+
+- **PR #41** (`c58133b`, migraciones 0067, 0068, 0069) y **PR #44** (`ae427b3`, migración 0070). Producción en **0001–0070**; `membresias_nuevas` y `menu_plegable` en `true` para todos. Sin 1.0 ni interruptor por rol (proceso simple: dev → producción).
+- **Respaldo del PR #41:** `reservas_sala_previo_0069` y `parametros_previo_0069`; rollback `scripts/rollback_0067_0069_membresias.sql` probado fila por fila en dev y en seco en producción. Validado por Javier con la membresía «PRUEBA» (id 88), retirada con el barrido SQL (trigger `reservas_historial_no_update` apagado dentro de una transacción, verificado en `O`); tablas `*_previo_0069` borradas con su OK.
+- **Token de producción** (leído por Javier): ES256 (clave `5bbd09b5…`), 3600 s, igual que dev; JWKS público coincide.
+- **0070 (solo funciones):** `contacto_visible_por_profesor` ve al titular de las particulares que dicta (`membresias.profesor_id`) y al tutor de un menor visible (`tutor_de`); ayudante `contacto_visible_directo_por_profesor`; control 54; rollback `scripts/rollback_0070_profesor_titular.sql` (probado en dev, misma huella que la 0048 en producción).
+- **Código del PR #44:** con **contactos** en alcance propio, la lista y la ficha de Membresías solo muestran regulares y pruebas de cursos del profesor (`cursosPropios`, `membresiaVisible`). Primer intento con `alumnos` falló: ese módulo no tiene selector en `rol_visibilidad`.
+- **Probado:** prueba técnica en producción (login, `/membresias`, ficha, `/caja`, `/sala`, `/liquidaciones`); `npm test` 466, `tsc` y ESLint limpios; cuenta de Oscar Nuñez en dev (12 activas, 3 históricas) y confirmación de Javier en producción.
+- **Anotado:** aviso React #418 (hidratación de texto) una vez al cargar `/caja`; sin reproducir.

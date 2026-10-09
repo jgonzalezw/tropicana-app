@@ -124,6 +124,14 @@
     el retiro no mostraba las multicurso ya liquidadas que la liquidación del
     período sí mostraba, y las excepciones quedaban fuera de vista.*
 
+11. **Un alcance «propio» solo se pregunta por un módulo que tiene selector.**
+    `alcanceDe(modulo)` devuelve `todo` si no hay fila en `rol_visibilidad`: preguntar
+    por un módulo sin selector nunca recorta nada y no avisa (con selector hoy:
+    asistencia, caja, contactos, liquidaciones, particulares). Filtrá por el módulo que realmente
+    oculta el dato (para nombres de personas, `contactos`).
+    *Costó una vuelta: la lista de Membresías del profesor preguntaba por `alumnos`, que
+    no tiene selector, y seguía mostrando filas sin titular.*
+
 ## 5. Controles
 
 `scripts/control_migracion.sql` — controles de solo lectura que verifican
