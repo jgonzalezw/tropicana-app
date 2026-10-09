@@ -5,7 +5,7 @@
  * (handoff v4): la fecha por semana, la sala, la grilla de franjas con lo libre
  * y lo ocupado, y un resumen fijo sobre los botones. Los datos fijos (horarios,
  * cursos, reglas, saldo) se piden una vez al abrir y las reservas por semana
- * (`consultarBaseFranjas`, `consultarSemanaFranjas`); cambiar de día dentro de la
+ * (`consultarFranjasApertura`, `consultarSemanaFranjas`); cambiar de día dentro de la
  * semana no va al servidor. La grilla se arma acá con la misma ocupación que
  * valida al guardar (`lib/ocupacionSemana.ts`, `lib/franjasReserva.ts`, puras y
  * con pruebas). Lo guardado vive mientras la hoja está abierta. Al guardar,
@@ -34,7 +34,7 @@ import {
   type Seleccion,
 } from "@/lib/franjasReserva";
 import { armarDatosFranjas, rangoDeSemana, type BaseFranjas, type SemanaFranjas } from "@/lib/ocupacionSemana";
-import { consultarBaseFranjas, consultarSemanaFranjas, crearReserva } from "@/app/(privado)/particulares/acciones";
+import { consultarFranjasApertura, consultarSemanaFranjas, crearReserva } from "@/app/(privado)/particulares/acciones";
 import SemanaChips from "./SemanaChips";
 import type { DatosReservas } from "./PestanasFicha";
 
@@ -106,7 +106,12 @@ export default function HojaFranjas({
   useEffect(() => {
     if (externo || salaId == null) return;
     let vigente = true;
-    baseP.current ??= consultarBaseFranjas({ membresiaId: datos.membresiaId });
+    if (!baseP.current) {
+      // Datos fijos y primera semana en una sola llamada (dos seguidas se encolan).
+      const apertura = consultarFranjasApertura({ membresiaId: datos.membresiaId, desde: claveSemana.split("|")[0], hasta: claveSemana.split("|")[1] });
+      baseP.current = apertura.then((r) => ("error" in r ? r : r.base));
+      semanasP.current.set(claveSemana, apertura.then((r) => ("error" in r ? r : r.semana)));
+    }
     let pSemana = semanasP.current.get(claveSemana);
     if (!pSemana) {
       pSemana = consultarSemanaFranjas({ membresiaId: datos.membresiaId, desde: claveSemana.split("|")[0], hasta: claveSemana.split("|")[1] });
@@ -116,6 +121,7 @@ export default function HojaFranjas({
       if (!vigente) return;
       if ("error" in b) {
         baseP.current = null;
+        semanasP.current.delete(claveSemana);
         return setErrorCarga(b.error);
       }
       if ("error" in s) {
