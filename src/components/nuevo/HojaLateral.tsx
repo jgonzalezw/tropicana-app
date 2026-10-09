@@ -24,6 +24,7 @@ export default function HojaLateral({
   pie,
   pieTono,
   verCancelar = true,
+  onCancelar,
   secundaria,
   primaria,
   sucia = false,
@@ -37,6 +38,8 @@ export default function HojaLateral({
   pie?: string;
   pieTono?: "error";
   verCancelar?: boolean;
+  /** Qué hace «Cancelar» si no es cerrar (p. ej. soltar lo elegido). */
+  onCancelar?: () => void;
   secundaria?: AccionHoja;
   primaria?: AccionHoja;
   /** Hay datos sin guardar: cerrar pide confirmación. */
@@ -82,7 +85,7 @@ export default function HojaLateral({
             {pie}
           </div>
           {verCancelar && (
-            <button type="button" className="n-boton" onClick={intentarCerrar}>
+            <button type="button" className="n-boton" onClick={onCancelar ?? intentarCerrar}>
               Cancelar
             </button>
           )}

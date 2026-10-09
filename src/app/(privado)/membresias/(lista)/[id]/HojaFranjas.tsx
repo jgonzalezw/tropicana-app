@@ -230,6 +230,7 @@ export default function HojaFranjas({
       titulo="Nueva reserva"
       onCerrar={onCerrar}
       verCancelar={!creada}
+      onCancelar={sel && !externo ? () => setSel(null) : undefined}
       resumen={
         creada ? undefined : (
           <>
