@@ -62,7 +62,9 @@
    Los cortes dependen del ancho REAL de la sección (container queries), no
    del de la ventana: la barra lateral de la app ocupa 256 px y se los resta.
    · sección < 820 px (300 de lista + 520 de ficha no entran): dos pantallas.
-   · ficha < 1100 px: la columna derecha pasa abajo (`.n-cols`).
+   · ficha < 920 px: la columna derecha pasa abajo (`.n-cols`).
+     920 = 520 (columna principal mínima) + 24 (separación) + 320 (columna
+     derecha) + 56 (padding 28 + 28 de `.n-ficha__cuerpo`).
    Nunca scroll horizontal. */
 .n-seccion { container: seccion / inline-size; }
 .n-disposicion { display: grid; grid-template-columns: 300px minmax(0, 1fr); height: 100dvh; }
@@ -228,7 +230,7 @@
 .n-indicadores-bloque { margin-top: 20px; }
 .n-cols { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; margin-top: 20px; align-items: start; }
 .n-cols > aside { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
-@container ficha (min-width: 1100px) { .n-cols { grid-template-columns: minmax(520px, 1fr) 320px; } }
+@container ficha (min-width: 920px) { .n-cols { grid-template-columns: minmax(520px, 1fr) 320px; } }
 .n-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--n-linea); margin-top: 20px; }
 .n-tab { padding: 10px 12px; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; background: transparent; color: var(--n-fg2); font-weight: 400; }
 .n-tab[aria-selected="true"] { color: var(--n-fg); font-weight: 600; border-bottom-color: var(--n-acc); }
