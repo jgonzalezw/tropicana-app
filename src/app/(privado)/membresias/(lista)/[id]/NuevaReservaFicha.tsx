@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState } from "react";
-import NuevaReserva from "@/components/NuevaReserva";
+import HojaFranjas from "./HojaFranjas";
 import type { DatosReservas } from "./PestanasFicha";
 
 /**
@@ -31,22 +31,7 @@ export default function ProveedorNuevaReserva({ datos, children }: { datos: Dato
     <NuevaReservaContexto.Provider value={valor}>
       {children}
       {abierta && datos.motivoSinAlta === null && (
-        <NuevaReserva
-          marco="hoja"
-          membresiaId={datos.membresiaId}
-          tipo={datos.tipo}
-          fechaInicio={datos.fechaInicio}
-          fechaFin={datos.fechaFin}
-          contratadasMin={datos.contratadasMin}
-          disponibleMin={datos.disponibleMin}
-          salas={datos.salasPropias}
-          tieneExterna={datos.ofrecerExterna}
-          nombreExterna={datos.salaExterna?.nombre ?? null}
-          incrementoMin={datos.incrementoMin}
-          minimoMin={datos.minimoMin}
-          inicial={abierta}
-          onCerrar={() => setAbierta(null)}
-        />
+        <HojaFranjas datos={datos} inicial={abierta} onCerrar={() => setAbierta(null)} />
       )}
     </NuevaReservaContexto.Provider>
   );

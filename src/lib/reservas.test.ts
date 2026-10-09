@@ -40,14 +40,17 @@ test("validarReservaSala: ok cuando no hay nada que choque", () => {
   assert.deepEqual(validarReservaSala(BASE), { ok: true });
 });
 
-test("validarReservaSala: duración que no es múltiplo del mínimo", () => {
-  const r = validarReservaSala({ ...BASE, duracionMin: 90, minimoMin: 60 });
-  assert.equal(r.ok, false);
-  assert.match((r as { motivo: string }).motivo, /múltiplo de 1 h/);
-});
-
-test("validarReservaSala: 2 h con mínimo de 1 h es válida (múltiplo del mínimo)", () => {
+test("validarReservaSala: la duración es el mínimo y de ahí sube de a un intervalo (2026-10-09)", () => {
+  // 1,5 h con mínimo 1 h e intervalo 30: válida (antes se rechazaba por no ser múltiplo del mínimo)
+  assert.deepEqual(validarReservaSala({ ...BASE, duracionMin: 90, minimoMin: 60 }), { ok: true });
   assert.deepEqual(validarReservaSala({ ...BASE, duracionMin: 120, minimoMin: 60 }), { ok: true });
+  // 1 h 15 no cae en un paso de 30 después del mínimo
+  const r = validarReservaSala({ ...BASE, duracionMin: 75, minimoMin: 60 });
+  assert.equal(r.ok, false);
+  assert.match((r as { motivo: string }).motivo, /suma de a 30 minutos/);
+  // con mínimo 90 e intervalo 60 los pasos son 1,5 h · 2,5 h
+  assert.deepEqual(validarReservaSala({ ...BASE, duracionMin: 150, minimoMin: 90, incrementoMin: 60, hora: "19:00" }), { ok: true });
+  assert.equal(validarReservaSala({ ...BASE, duracionMin: 120, minimoMin: 90, incrementoMin: 60 }).ok, false);
 });
 
 test("validarReservaSala: la hora de inicio tiene que caer en el intervalo", () => {
@@ -461,7 +464,7 @@ test("faltaNuevaReserva: dice qué falta y se calla cuando ya se puede", () => {
   assert.equal(faltaNuevaReserva(ok), null);
   assert.equal(faltaNuevaReserva({ ...ok, fecha: "" }), "Elegí la fecha.");
   assert.match(faltaNuevaReserva({ ...ok, hora: "18:10" }) ?? "", /intervalos de 30 minutos/);
-  assert.match(faltaNuevaReserva({ ...ok, duracionMin: 45 }) ?? "", /múltiplo/);
+  assert.match(faltaNuevaReserva({ ...ok, duracionMin: 45 }) ?? "", /suma de a 30/);
   assert.equal(faltaNuevaReserva({ ...ok, salaId: null }), "Elegí la sala.");
   assert.equal(faltaNuevaReserva({ ...ok, salaTipo: "externa", salaId: null, nombreExterna: "  " }), "Escribí el nombre del lugar externo.");
   assert.equal(faltaNuevaReserva({ ...ok, salaTipo: "externa", salaId: null, nombreExterna: "Salón X" }), null);

@@ -32,7 +32,8 @@ import {
   type ReservaSalaOcupa,
   type ResultadoHorario,
 } from "./sala.ts";
-import { aMinutos, esMultiploDe, formatearHoras, horaAlineada, seSolapan } from "./horarios.ts";
+import { aMinutos, formatearHoras, horaAlineada, seSolapan } from "./horarios.ts";
+import { minimoEfectivo } from "./franjasReserva.ts";
 
 /** Todo lo que ocupa el tiempo de un profesor una fecha dada: sus cursos
  *  regulares (de cualquier sala) más sus propias reservas. A diferencia de
@@ -85,9 +86,11 @@ export type EntradaValidarReserva = {
  * "no se puede" a secas (regla de calidad 1 y 5).
  */
 /**
- * La regla de tiempos de una reserva (Javier, 2026-09-26): la **duración** va
- * en múltiplos del mínimo (`duracion_minima_curso_min`) y la **hora de
- * inicio** en múltiplos del intervalo estándar (`tiempos_incremento_min`).
+ * La regla de tiempos de una reserva: la **hora de inicio** va en múltiplos
+ * del intervalo estándar (`tiempos_incremento_min`) y la **duración** es al
+ * menos el mínimo (`duracion_minima_curso_min`) y de ahí sube de a un
+ * intervalo (Javier, 2026-10-09; antes, 2026-09-26, iba en múltiplos del
+ * mínimo: con mínimo 1 h no dejaba pedir 1,5 h).
  * Pura y compartida: la pantalla la usa para deshabilitar el botón y decir
  * qué falta, el servidor para decidir (regla de calidad 9).
  */
@@ -102,8 +105,10 @@ export function validarTiempoReserva(e: {
     return `La hora de inicio tiene que caer en intervalos de ${e.incrementoMin} minutos (ej. 18:00${
       e.incrementoMin < 60 ? `, 18:${String(e.incrementoMin).padStart(2, "0")}` : ""
     }).`;
-  if (!esMultiploDe(e.duracionMin, e.minimoMin))
-    return `La duración tiene que ser un múltiplo de ${formatearHoras(e.minimoMin / 60)} h (la duración mínima de una reserva).`;
+  const piso = minimoEfectivo(e.incrementoMin, e.minimoMin);
+  if (e.duracionMin < piso) return `La duración mínima de una reserva es ${formatearHoras(piso / 60)} h.`;
+  if ((e.duracionMin - piso) % Math.max(1, e.incrementoMin) !== 0)
+    return `Pasado el mínimo, la duración suma de a ${e.incrementoMin} minutos (ej. ${formatearHoras(piso / 60)} h, ${formatearHoras((piso + e.incrementoMin) / 60)} h).`;
   return null;
 }
 

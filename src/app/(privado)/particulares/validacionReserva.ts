@@ -18,6 +18,7 @@ import { COLS_VIGENCIA } from "@/lib/vigencia";
 import { COLUMNAS_ASIGNACION } from "@/lib/asignaciones";
 import {
   ocupacionDelDia,
+  type BloqueOcupado,
   type CursoOcupa,
   type ExcepcionHorario,
   type FranjaPatron,
@@ -190,6 +191,28 @@ function ocupandoAhora<T extends { tipo: ReservaSalaOcupa["tipo"]; estado: strin
   return reservas.filter((r) => ocupaAhora({ tipo: r.tipo, estado: r.estado, solicitadaHasta: r.solicitada_hasta }, ahora));
 }
 
+/**
+ * Lo que ocupa la sala y el profesor esa fecha, con lo que ocupa AHORA (una
+ * Solicitada vencida y una clase suspendida no ocupan). Lo usan `validarFranja`
+ * (al guardar) y la grilla de franjas de la hoja «Nueva reserva»: la misma
+ * ocupación en los dos, sin reglas aparte.
+ */
+export function bloquesDelContexto(
+  ctx: ContextoValidacion,
+  fecha: string,
+  ahora: Date,
+  esExterna = false,
+  /** Cómo se lee el motivo de un bloqueo (catálogo `motivo_bloqueo_sala`). */
+  etiquetaMotivo?: (valor: string) => string
+): { ocupadosSala: BloqueOcupado[]; ocupadosProfesor: BloqueOcupado[] } {
+  const ocupadosSala =
+    esExterna || ctx.salaId == null
+      ? []
+      : ocupacionDelDia(ctx.cursosSala, ocupandoAhora(ctx.reservasSala, ahora), fecha, ctx.suspendidasSala, ctx.salaId, etiquetaMotivo);
+  const ocupadosProfesor = ocupacionDeProfesor(ctx.cursosProfesor, fecha, ctx.suspendidasProfesor, ocupandoAhora(ctx.reservasProfesor, ahora), etiquetaMotivo);
+  return { ocupadosSala, ocupadosProfesor };
+}
+
 export function validarFranja(
   ctx: ContextoValidacion,
   fecha: string,
@@ -199,11 +222,7 @@ export function validarFranja(
   personas: number | undefined,
   ahora: Date
 ): ResultadoHorario {
-  const ocupadosSala =
-    esExterna || ctx.salaId == null
-      ? []
-      : ocupacionDelDia(ctx.cursosSala, ocupandoAhora(ctx.reservasSala, ahora), fecha, ctx.suspendidasSala, ctx.salaId);
-  const ocupadosProfesor = ocupacionDeProfesor(ctx.cursosProfesor, fecha, ctx.suspendidasProfesor, ocupandoAhora(ctx.reservasProfesor, ahora));
+  const { ocupadosSala, ocupadosProfesor } = bloquesDelContexto(ctx, fecha, ahora, esExterna);
   return validarReservaSala({
     fecha,
     hora,

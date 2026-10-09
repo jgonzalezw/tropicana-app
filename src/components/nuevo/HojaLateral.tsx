@@ -27,6 +27,7 @@ export default function HojaLateral({
   secundaria,
   primaria,
   sucia = false,
+  resumen,
   children,
 }: {
   contexto?: string;
@@ -40,6 +41,8 @@ export default function HojaLateral({
   primaria?: AccionHoja;
   /** Hay datos sin guardar: cerrar pide confirmación. */
   sucia?: boolean;
+  /** Franja fija sobre los botones (p. ej. el resumen de la reserva elegida). */
+  resumen?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const [preguntando, setPreguntando] = useState(false);
@@ -73,6 +76,7 @@ export default function HojaLateral({
           </button>
         </div>
         <div className="n-hoja__cuerpo">{children}</div>
+        {resumen && <div className="n-hoja__resumen">{resumen}</div>}
         <div className="n-hoja__pie">
           <div className="n-hoja__motivo" data-tono={pieTono}>
             {pie}

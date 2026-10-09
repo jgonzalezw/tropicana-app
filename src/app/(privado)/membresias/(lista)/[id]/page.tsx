@@ -1,6 +1,8 @@
 import { tienePermiso } from "@/lib/sesion";
 import { createClient } from "@/lib/supabase/server";
 import { avisosDe, historialDe, indicadoresDe, lineasDePagos, permisosReservasFicha } from "@/lib/fichaMembresia";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { salasPermitidasDeMembresia } from "@/lib/salasDelPlan";
 import { obtenerMembresia } from "../../acciones";
 import FichaMembresiaVista from "./FichaMembresiaVista";
 import type { DatosReservas } from "./PestanasFicha";
@@ -55,6 +57,9 @@ export default async function PaginaFicha({ params }: { params: Promise<{ id: st
     )
       .filter((v) => v.activo)
       .sort((x, y) => x.orden - y.orden);
+    // Solo las salas que el plan permite: no se ofrece lo que el servidor va a rechazar.
+    const admin = createAdminClient();
+    const permitidas = admin ? await salasPermitidasDeMembresia(admin, membresiaId) : null;
     const externa = detalle.salasDeLaMembresia.find((s) => s.esExterna);
     const salasLeidas = (salasR.data as { id: number; nombre: string; es_externa: boolean }[]) ?? [];
     const permisos = permisosReservasFicha({
@@ -71,7 +76,7 @@ export default async function PaginaFicha({ params }: { params: Promise<{ id: st
       disponibleMin: detalle.saldo.disponibleMin,
       fechaInicio: detalle.fechaInicio,
       fechaFin: detalle.fechaFin,
-      salasPropias: salasLeidas.filter((s) => !s.es_externa).map((s) => ({ id: s.id, nombre: s.nombre })),
+      salasPropias: salasLeidas.filter((s) => !s.es_externa && (permitidas === null || permitidas.includes(s.id))).map((s) => ({ id: s.id, nombre: s.nombre })),
       salaExterna: externa ? { salaId: externa.salaId, nombre: externa.nombre } : null,
       puedeEditar: permisos.editar,
       ofrecerExterna: permisos.ofrecerExterna,

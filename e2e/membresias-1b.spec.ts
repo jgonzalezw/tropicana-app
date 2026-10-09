@@ -106,11 +106,12 @@ test("paridad de lectura: el saldo de la ficha regular aparece en la cuenta del 
   await expect(page.locator("body")).toContainText(saldo);
 });
 
-test("ficha particular: reservas sin controles de edición y saldo de horas igual al de /particulares", async ({ page }) => {
+test("ficha particular: reservas y saldo de horas igual al de /particulares", async ({ page }) => {
   const id = await abrirPrimeraDe(page, "particular");
   await expect(page.getByTestId("bloque-saldo-horas")).toBeVisible();
   await expect(page.getByRole("tab", { name: "Reservas" })).toHaveAttribute("aria-selected", "true");
-  await expect(page.getByRole("button", { name: /Nueva reserva/ })).toHaveCount(0);
+  // Desde la fase 2 la ficha da de alta reservas (+ Nueva reserva); lo que sigue sin existir acá son los controles de edición de la reserva.
+  await expect(page.getByRole("button", { name: /Nueva reserva/ })).toHaveCount(1);
 
   const texto = async () => {
     const t = await page.locator("body").innerText();
@@ -145,7 +146,7 @@ test.describe("celular (390 px)", () => {
     await filas(page).first().click();
     await expect(page.getByTestId("ficha-membresia")).toBeVisible();
     await expect(lista).toBeHidden();
-    await page.getByRole("link", { name: "‹ Volver" }).click();
+    await page.getByRole("link", { name: "← Membresías" }).click();
     await expect(lista).toBeVisible();
   });
 });

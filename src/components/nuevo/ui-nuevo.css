@@ -335,3 +335,59 @@
 .n-segmentado { display: inline-flex; border: 1px solid var(--n-linea); border-radius: var(--n-r-control); overflow: hidden; }
 .n-segmentado button { height: 2.2857rem; padding: 0 0.8571rem; border: 0; background: transparent; font-size: 0.9286rem; }
 .n-segmentado button[aria-pressed="true"] { background: var(--n-sel); font-weight: 600; }
+
+/* ── hoja «Nueva reserva»: semana, salas y grilla de franjas ──────────────
+   Igual a `Nueva reserva franjas.dc.html` (handoff v4); 14 px del mockup = 1rem. */
+.ui-nuevo { --n-prof-bg: oklch(0.3 0.04 250); --n-prof-fg: oklch(0.85 0.05 250); --n-prof-fg2: oklch(0.8 0.05 250); }
+[data-theme="tropicana_alto_contraste"] .ui-nuevo { --n-prof-bg: oklch(0.34 0.06 250); --n-prof-fg: oklch(0.96 0.03 250); --n-prof-fg2: oklch(0.92 0.04 250); }
+.n-grupo { display: flex; flex-direction: column; gap: 0.5714rem; }
+.n-grupo__cab { display: flex; align-items: center; gap: 0.4286rem; }
+.n-grupo__titulo { flex: 1; font-size: 0.9286rem; font-weight: 600; }
+.n-grupo__titulo small { font-weight: 400; color: var(--n-fg3); font-size: inherit; }
+.n-icono-boton { width: 2.1429rem; height: 2.1429rem; border-radius: 0.5714rem; border: 1px solid var(--n-linea); background: transparent; }
+.n-icono-boton[aria-disabled="true"] { opacity: 0.35; cursor: not-allowed; }
+.n-otra-fecha { position: relative; height: 2.1429rem; padding: 0 0.7143rem; border-radius: 0.5714rem; border: 1px solid var(--n-linea); display: flex; align-items: center; font-size: 0.8571rem; color: var(--n-fg2); cursor: pointer; }
+.n-otra-fecha input { position: absolute; inset: 0; opacity: 0; cursor: pointer; color-scheme: dark; width: 100%; }
+.n-semana { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0.2857rem; }
+.n-dia { height: 3.7143rem; line-height: 1.1; border-radius: 0.5714rem; border: 1px solid var(--n-linea); background: transparent; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 0; min-width: 0; }
+.n-dia[aria-pressed="true"] { border-color: var(--n-acc); background: var(--n-sel); }
+.n-dia[data-fuera="true"] { color: var(--n-fg3); cursor: not-allowed; }
+.n-dia__dow { font-size: 0.7857rem; color: var(--n-fg3); }
+.n-dia__n { font-size: 1.0714rem; font-weight: 600; }
+.n-dia__marca { font-size: 0.6429rem; color: var(--n-fg3); min-height: 0.7143rem; white-space: nowrap; }
+.n-sala-chip { height: 2.2857rem; padding: 0 0.8571rem; border-radius: 999px; border: 1px solid var(--n-linea); background: transparent; display: flex; align-items: center; gap: 0.4286rem; font-size: 0.9286rem; }
+.n-sala-chip[aria-pressed="true"] { border-color: var(--n-acc); background: var(--n-sel); }
+.n-sala-chip small { font-size: 0.7857rem; color: var(--n-fg3); }
+.n-horario-linea { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5714rem; }
+.n-horario-linea span:last-child { font-size: 0.8571rem; color: var(--n-fg3); text-align: right; }
+.n-franjas { display: flex; flex-direction: column; gap: 0.2143rem; }
+.n-franja { height: 2.2857rem; box-sizing: border-box; border-radius: 0.4286rem; border: 1px solid var(--n-linea); background: transparent; color: var(--n-fg); font-size: 0.9286rem; display: grid; grid-template-columns: 3.7143rem minmax(0, 1fr) auto; align-items: center; gap: 0.7143rem; padding: 0 0.7143rem; text-align: left; }
+.n-franja > span:first-child { font-weight: 500; font-variant-numeric: tabular-nums; }
+.n-franja > span:nth-child(2) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--n-fg3); }
+.n-franja > span:last-child { font-size: 0.7857rem; color: var(--n-fg3); }
+.n-franja[data-aspecto="pasada"] { border-color: transparent; color: var(--n-fg3); cursor: not-allowed; }
+.n-franja[data-aspecto="ocupada"] { background: var(--n-hover); border-color: transparent; color: var(--n-fg3); cursor: not-allowed; }
+.n-franja[data-aspecto="profesor"] { background: var(--n-prof-bg); border-color: transparent; color: var(--n-prof-fg); cursor: not-allowed; }
+.n-franja[data-aspecto="profesor"] > span:nth-child(2), .n-franja[data-aspecto="profesor"] > span:last-child { color: var(--n-prof-fg2); }
+.n-franja[data-aspecto="bloqueada"] { cursor: not-allowed; color: var(--n-fg3); }
+.n-franja[data-aspecto="elegida"] { background: var(--n-sel); border-color: var(--n-acc); }
+.n-franja[data-aspecto="elegida"] > span:first-child { font-weight: 600; }
+.n-franja[data-aspecto="elegida"] > span:nth-child(2), .n-franja[data-aspecto="elegida"] > span:last-child { color: var(--n-acc-txt); }
+.n-franja[data-sumar="true"] > span:nth-child(2) { color: var(--n-acc-txt); }
+.n-leyenda { display: flex; flex-wrap: wrap; gap: 0.7143rem; font-size: 0.7857rem; color: var(--n-fg3); }
+.n-leyenda span { display: flex; align-items: center; gap: 0.2857rem; }
+.n-leyenda i { width: 0.7143rem; height: 0.7143rem; border-radius: 0.2143rem; border: 1px solid transparent; display: inline-block; }
+.n-cerrada { padding: 1rem; border-radius: 0.5714rem; border: 1px solid var(--n-linea); background: var(--n-bg); display: flex; flex-direction: column; gap: 0.4286rem; }
+.n-cerrada > span:first-child { font-weight: 600; }
+.n-cerrada > span:nth-child(2) { font-size: 0.9286rem; color: var(--n-fg2); }
+.n-cerrada button { align-self: flex-start; border: 0; background: transparent; color: var(--n-acc-txt); font-size: 0.9286rem; font-weight: 600; padding: 0; }
+.n-hoja__resumen { padding: 0.8571rem 1.5714rem 0; border-top: 1px solid var(--n-linea); position: relative; }
+.n-hoja__resumen + .n-hoja__pie { border-top: 0; padding-top: 0.7143rem; }
+.n-resumen-caja { display: flex; align-items: center; gap: 0.7143rem; min-height: 2.5714rem; padding: 0.5714rem 0.8571rem; border-radius: 0.5714rem; border: 1px solid var(--n-linea); background: var(--n-bg); }
+.n-resumen-caja[data-ok="true"] { background: var(--n-sel); border-color: var(--n-acc); }
+.n-resumen-caja > span:first-child { flex: 1; display: flex; flex-direction: column; gap: 1px; }
+.n-resumen-caja strong { font-weight: 600; color: var(--n-fg2); }
+.n-resumen-caja[data-ok="true"] strong { color: var(--n-fg); }
+.n-resumen-caja small { font-size: 0.8571rem; color: var(--n-fg3); }
+.n-resumen-caja button { border: 0; background: transparent; color: var(--n-fg2); font-size: 0.8571rem; }
+.n-aviso-flotante { position: absolute; left: 1.5714rem; right: 1.5714rem; bottom: calc(100% + 0.5rem); background: var(--n-fg); color: var(--n-bg); border-radius: 0.7143rem; padding: 0.7143rem 1rem; font-size: 0.9286rem; }

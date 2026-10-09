@@ -32,9 +32,9 @@ const botonTenue =
 const etiqueta = "text-sm text-[var(--texto-tenue)] block mb-1";
 
 type Aviso = { nombre: string; whatsapp: string | null; mensaje: string };
-type ResultadoNueva = { error?: string; mensaje?: string; avisoAlumno?: Aviso; avisoProfesor?: Aviso };
+export type ResultadoNueva = { error?: string; mensaje?: string; avisoAlumno?: Aviso; avisoProfesor?: Aviso };
 
-function PanelResultado({ r }: { r: ResultadoNueva }) {
+export function PanelResultado({ r }: { r: ResultadoNueva }) {
   return (
     <div className="mt-3 space-y-2">
       {r.error && (

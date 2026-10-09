@@ -22,7 +22,7 @@ const disponible = async (page: Page) => {
   return m ? Number(m[1].replace(",", ".")) : NaN;
 };
 
-test("fuera de horario no guarda; una franja válida se solicita y baja el saldo", async ({ page }) => {
+test("elegir franjas en la grilla, solicitar y comprobar que baja el saldo", async ({ page }) => {
   const inicio = new Date().toISOString();
   let membresiaId = 0;
   try {
@@ -40,18 +40,25 @@ test("fuera de horario no guarda; una franja válida se solicita y baja el saldo
     await page.getByTestId("boton-nueva-reserva").click();
     const hoja = page.getByRole("dialog");
     await expect(hoja).toBeVisible();
+    await expect(hoja.getByTestId("franjas")).toBeVisible();
 
-    // Fuera de horario: la sala no abre a las 03:00; el servidor lo niega y dice por qué.
-    await hoja.locator('input[type="time"]').fill("03:00");
-    await hoja.getByRole("button", { name: "Solicitar" }).click();
-    const error = hoja.getByRole("alert");
-    await expect(error).toContainText(/La sala (abre|no abre)|Todavía no está cargado/);
-    expect(await disponible(page), "un rechazo no toca el saldo").toBe(antes);
+    // Sin elección: los botones están apagados y el resumen pide la hora de inicio.
+    const resumen = hoja.getByTestId("resumen-reserva");
+    await expect(resumen).toContainText("Elegí la hora de inicio");
+    await expect(hoja.getByRole("button", { name: "Solicitar" })).toBeDisabled();
 
-    // De ahí sale el comienzo de la ventana válida de ese día.
-    const abre = /La sala abre (\d{2}:\d{2})–/.exec((await error.innerText()) ?? "");
-    test.skip(!abre, "El día por defecto no tiene ventana de apertura; no hay franja válida que probar");
-    await hoja.locator('input[type="time"]').fill(abre![1]);
+    // Primer clic: inicio con el mínimo; la franja siguiente invita a sumar un intervalo.
+    const libres = hoja.locator('.n-franja[data-aspecto="libre"]');
+    test.skip((await libres.count()) === 0, "El día por defecto no tiene franjas libres; no hay qué elegir");
+    await libres.first().click();
+    await expect(resumen).toContainText(/\d{2}:\d{2}–\d{2}:\d{2}/);
+    const sumar = hoja.locator('.n-franja[data-sumar="true"]');
+    if (await sumar.count()) {
+      // Segundo clic: suma un intervalo (solo si lo que queda para pedir lo permite).
+      await sumar.first().click();
+    }
+    await expect(hoja.getByRole("button", { name: "Solicitar" })).toBeEnabled();
+
     await hoja.getByRole("button", { name: "Solicitar" }).click();
     await expect(hoja.getByText(/Solicitada para el/)).toBeVisible();
 
