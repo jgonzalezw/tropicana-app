@@ -13,6 +13,9 @@ test("la entrada Membresías aparece y abre la disposición lista + ficha", asyn
   await page.goto("/");
   const entrada = page.getByRole("link", { name: "Membresías" });
   await expect(entrada).toBeVisible();
+  // Con el menú plegado el rail se despliega al pasar el mouse y el enlace se vuelve a dibujar: se pasa primero y se hace clic ya desplegado.
+  await page.getByRole("complementary", { name: "Menú principal" }).hover();
+  await page.waitForTimeout(300);
   await entrada.click();
   await expect(page).toHaveURL(/\/membresias$/);
   await expect(page.getByRole("complementary", { name: "Lista" })).toBeVisible();

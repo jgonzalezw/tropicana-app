@@ -14,7 +14,7 @@ type Admin = NonNullable<ReturnType<typeof createAdminClient>>;
 export async function salasPermitidasDeMembresia(a: Admin, membresiaId: number): Promise<number[] | null> {
   const { data: m, error: errM } = await a.from("membresias").select("plan_id").eq("id", membresiaId).maybeSingle();
   if (errM) throw new Error(`No se pudo leer la membresía: ${errM.message}`);
-  if (!m) return null;
+  if (!m || m.plan_id == null) return null; // sin plan (p. ej. un alquiler): sin restricción
   const { data: plan, error: errP } = await a.from("planes").select("salas_modo").eq("id", m.plan_id).maybeSingle();
   if (errP) throw new Error(`No se pudo leer el plan: ${errP.message}`);
   if (plan?.salas_modo !== "solo") return null;
