@@ -55,3 +55,9 @@ Cada caso cubre particular y alquiler, lugar externo, sala o «Tropicana», sald
 
 ## Evidencia complementaria
 `tsc` limpio. e2e de humo en verde: «reprogramar», «cancelar» y «reagendar» (4 de 4).
+
+## Conteo de variantes: únicas y compartidas
+- **161 variantes únicas** en `reservas.json` (N07–N08 21, N11–N12 52, N13–N14 21, N15–N16 21, N17–N18 46) **más 23** de N09–N10 en `N09-N10.json`: **184 variantes únicas** del grupo.
+- **Compartidas:** cada variante produce el texto del alumno o titular **y** el del profesor, así que una entrada sirve a dos casos (N07/N08, N09/N10, …). Contadas por caso son 368 filas; las variantes distintas son 184.
+- Las N11–N12 suman 52 porque se capturan dos orígenes (cambio de estado y suspensión operativa: 26 + 26); N17–N18, 46 porque se capturan cancelación fuera y dentro de plazo (23 + 23).
+- Variantes sin aviso a alguien: 2 por evento sin destinatario ni profesor, 6 sin profesor (alquiler) y 1 sin destinatario.

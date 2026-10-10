@@ -42,3 +42,7 @@ La ausencia de destinatario o de WhatsApp no cambia el texto: el botón queda de
 - Verificar en vivo que el destinatario registrado coincide con el del botón (titular, tutor, persona de contacto, profesor).
 - Los importes (`gs`) y las fechas (`fechaLarga`, `formatearAgenda`) los siguen formateando las acciones; son entradas de la plantilla.
 - Comportamiento ante fallos de resolución (definirlo antes de conectar).
+
+## Conteo de variantes: únicas y compartidas
+- **62 variantes únicas** (entradas de `ventas.json`; la tabla del recibo no es una variante). Casos: N01 24, N02 7, N03 11, N04-N05 12, N06 8.
+- **Compartidas:** las 12 de «N04-N05» son las **mismas entradas** para N04 (alumno) y N05 (profesor): una entrada produce los dos textos. Contadas por caso son 74 filas (el inventario las muestra así), pero hay 62 variantes distintas. No hay otras compartidas.

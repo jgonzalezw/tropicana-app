@@ -38,3 +38,7 @@ Cubre: una, dos y tres clases (plural, motivo de la primera, ciclo tomado de la 
 - Verificar en vivo que el destinatario registrado coincide con el del botón (alumno, tutor, profesor).
 - Comportamiento ante fallos de resolución de contactos (definirlo antes de conectar).
 - C5 no avisa al profesor titular: decisión de negocio a confirmar antes de unificar.
+
+## Conteo de variantes: únicas y compartidas
+- **38 variantes únicas**: N19 17, N20 10, N21 11. **Ninguna se comparte** entre casos; cada entrada tiene su propia referencia.
+- Dentro de ellas hay variantes sin aviso (N19 y N21 con resultado vacío; N20 sin titular o sin contacto, `null`).
