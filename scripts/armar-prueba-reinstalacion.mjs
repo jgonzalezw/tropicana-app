@@ -6,15 +6,15 @@
 //
 // Todo corre en UNA transaccion que se DESCARTA: la ultima instruccion es una excepcion que trae los
 // resultados. Parte A: cada tipo de trabajo editorial hace que el rollback ABORTE (nada se borra).
-// Parte B: con el estado limpio (24 borradores, 24 asignaciones en legado) se guarda una foto de los
-// datos y de la estructura, se revierte, se reinstalan 0071 y 0073 (los archivos, textuales), se
-// vuelve a cargar lo que importa la 0072 desde la foto y se comparan estructura y datos.
-// La 0072 no se pega aqui (44 KB): su equivalencia con el codigo la prueba `npm test` (DERIVA).
+// Parte B: con el estado limpio (24 borradores, 24 asignaciones en legado) se guarda una huella de los
+// datos y de la estructura, se revierte, se reinstalan 0071, 0072 y 0073 (los archivos reales, textuales)
+// y se comparan estructura y datos. No se usa ninguna copia de los datos para reponerlos.
 import { readFileSync } from "node:fs";
 
 const leer = (f) => readFileSync(new URL(`../${f}`, import.meta.url), "utf8").replace(/\r\n/g, "\n");
 const rollback = leer("scripts/rollback_0071_comunicaciones.sql");
 const m0071 = leer("supabase/migrations/0071_comunicaciones_contenidos.sql");
+const m0072 = leer("supabase/migrations/0072_comunicaciones_predeterminados_inicial.sql");
 const m0073 = leer("supabase/migrations/0073_comunicaciones_historial_versiones.sql");
 
 // La guarda es el primer bloque do $$ ... $$; del rollback; el resto son los drops.
@@ -38,7 +38,7 @@ select p_momento, k, v from (
   select 'trg', t.relname || ':' || g.tgname || ':' || pg_get_triggerdef(g.oid)
     from pg_trigger g join pg_class t on t.oid = g.tgrelid where not g.tgisinternal and t.relnamespace = 'public'::regnamespace and t.relname like 'contenido%'
   union all
-  select 'fn', p.proname || ':' || md5(pg_get_functiondef(p.oid)) || ':' || coalesce(p.proacl::text, '')
+  select 'fn', p.proname || ':' || md5(regexp_replace(pg_get_functiondef(p.oid), '(--[^\\n]*)|\\s+', '', 'g')) || ':' || coalesce(p.proacl::text, '')
     from pg_proc p where p.pronamespace = 'public'::regnamespace and (p.proname like 'contenido%' or p.proname in ('cambiar_estado_version', 'liberar_contenido'))
   union all
   select 'pol', tablename || ':' || policyname || ':' || cmd || ':' || roles::text || ':' || coalesce(qual, '')
@@ -137,9 +137,6 @@ $$;
 
 -- ===== PARTE B: revertir y reinstalar con el estado limpio =====
 select pg_temp.firma_de('antes');
-create temp table foto_c as select * from public.contenidos;
-create temp table foto_v as select v.*, c.clave as clave from public.contenido_versiones v join public.contenidos c on c.id = v.contenido_id;
-create temp table foto_u as select u.*, c.clave as clave from public.contenido_usos u join public.contenidos c on c.id = u.contenido_id;
 create temp table dato_antes as select pg_temp.firma_datos() as h;
 
 -- reversion (el script de rollback, textual, menos su guarda: la guarda ya se probo arriba)
@@ -154,13 +151,8 @@ insert into res(t) select case when to_regclass('public.contenidos') is null and
 ${m0071}
 ${m0073}
 
--- lo que importa la 0072, desde la foto (la equivalencia con el codigo la prueba npm test)
-insert into public.contenidos (clave, caso, variante, canal, tipo, finalidad, nombre, descripcion)
-select clave, caso, variante, canal, tipo, finalidad, nombre, descripcion from foto_c order by id;
-insert into public.contenido_versiones (contenido_id, numero, cuerpo, asunto, esquema, hash, origen)
-select (select id from public.contenidos x where x.clave = f.clave), numero, cuerpo, asunto, esquema, hash, origen from foto_v f order by f.id;
-insert into public.contenido_usos (uso, variante, canal, contenido_id)
-select f.uso, f.variante, f.canal, (select id from public.contenidos x where x.clave = f.clave) from foto_u f order by f.id;
+-- 0072 real (archivo textual): importa los 24 predeterminados
+${m0072}
 
 select pg_temp.firma_de('despues');
 insert into res(t) select case when (select count(*) from firma where momento = 'antes') = (select count(*) from firma where momento = 'despues')
