@@ -1,0 +1,3 @@
+
+# R20 E4a: las migraciones generadas llevan textos exactos (con saltos de linea): sin conversion de fin de linea.
+supabase/migrations/*_comunicaciones_predeterminados_*.sql -text

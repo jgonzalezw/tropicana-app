@@ -1041,3 +1041,69 @@ select '54. funciones del profesor sin particulares/tutor o con EXECUTE de mas' 
              and not has_function_privilege('anon', 'public.contacto_visible_directo_por_profesor(bigint)', 'execute')
              and not has_function_privilege('anon', 'public.contacto_visible_por_profesor(bigint)', 'execute')
             then 'OK' else 'REVISAR' end as estado;
+
+-- ---------------------------------------------------------------------
+-- 55-60. CONTENIDOS DE COMUNICACIONES (migraciones 0071 y 0072, R20 E4a)
+--     Una asignacion liberada tiene su historial, su version publicada y nada
+--     se libera por descuido (E5 no esta autorizada); nadie escribe directo.
+-- ---------------------------------------------------------------------
+select '55. asignacion con version liberada sin la fila de historial correspondiente (misma version, modo y hash)' as control,
+       count(*) as n,
+       case when count(*) = 0 then 'OK' else 'REVISAR' end as estado
+  from public.contenido_usos u
+ where u.version_id is not null
+   and not exists (
+     select 1 from public.contenido_usos_historial h
+      where h.id = (select max(h2.id) from public.contenido_usos_historial h2 where h2.uso_id = u.id)
+        and h.a_version = u.version_id and h.a_modo = u.modo
+        and h.hash_aprobado = (select v.hash from public.contenido_versiones v where v.id = u.version_id));
+
+select '56. asignacion liberada con una version que no esta publicada' as control,
+       count(*) as n,
+       case when count(*) = 0 then 'OK' else 'REVISAR' end as estado
+  from public.contenido_usos u
+  join public.contenido_versiones v on v.id = u.version_id
+ where v.estado <> 'publicado';
+
+select '57. version con estados y datos de cada paso (aprobado/publicado/retirado) que no coinciden' as control,
+       count(*) as n,
+       case when count(*) = 0 then 'OK' else 'REVISAR' end as estado
+  from public.contenido_versiones v
+ where (v.estado = 'publicado' and (v.publicado_en is null or v.publicado_por is null))
+    or (v.estado in ('aprobado', 'publicado') and (v.aprobado_en is null or v.aprobado_por is null))
+    or (v.estado = 'retirado' and (v.retirado_en is null or v.retirado_por is null or v.retirado_motivo is null))
+    or (v.estado = 'retirado' and v.publicado_en is not null and v.aprobado_en is null)
+    or (v.estado in ('borrador', 'en_revision') and (v.aprobado_en is not null or v.publicado_en is not null or v.retirado_en is not null));
+
+with faltas as (
+  select (select count(*) from public.contenidos c
+           where c.canal = 'whatsapp'
+             and (not exists (select 1 from public.contenido_versiones v where v.contenido_id = c.id and v.origen = 'predeterminado')
+               or not exists (select 1 from public.contenido_usos u where u.contenido_id = c.id)))
+         + (select count(*) from generate_series(1, 21) g
+             where not exists (select 1 from public.contenidos c where c.caso = 'N' || lpad(g::text, 2, '0'))) as n
+)
+select '58. contenido de WhatsApp sin version predeterminada o sin asignacion, o caso N01-N21 sin contenido' as control,
+       n, case when n = 0 then 'OK' else 'REVISAR' end as estado
+  from faltas;
+
+select '59. asignacion en modo modulo (no hay conexion autorizada: E5)' as control,
+       count(*) as n,
+       case when count(*) = 0 then 'OK' else 'REVISAR' end as estado
+  from public.contenido_usos where modo = 'modulo';
+
+with malos as (
+  select (select count(*) from (values ('anon'), ('authenticated')) a(ro),
+                 (values ('public.contenidos'), ('public.contenido_versiones'), ('public.contenido_usos'), ('public.contenido_usos_historial')) b(t),
+                 (values ('insert'), ('update'), ('delete'), ('truncate')) c(p)
+           where has_table_privilege(a.ro, b.t, c.p))
+         + (select count(*) from pg_proc p
+             where p.oid in ('public.liberar_contenido(text,text,text,bigint,text,text,text,text)'::regprocedure,
+                             'public.cambiar_estado_version(bigint,text,text,text,text,text)'::regprocedure)
+               and (has_function_privilege('anon', p.oid, 'execute')
+                 or exists (select 1 from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+                             where a.grantee = 0 and a.privilege_type = 'EXECUTE'))) as n
+)
+select '60. permisos efectivos: escritura directa para anon/authenticated o execute de las funciones para anon/public' as control,
+       n, case when n = 0 then 'OK' else 'REVISAR' end as estado
+  from malos;
