@@ -187,3 +187,9 @@ Pasaron a `docs/archivo/ESTADO-2026-10.md` para que este archivo se pueda leer. 
 - Medido en dev (solo lectura): `no_contactar` en 0 de 67 contactos y nadie lo escribe; 5 consentimientos (3 otorgados, 2 rechazos), que hoy no frenan ningún aviso. Producción sin medir (M1).
 - Certificaciones pasan a entrega 7a, con plan propio; el plan viejo de la fase 4 queda archivado.
 - Autorizado: E2 en hitos, en dev. Sin migraciones, sin conectar casos, sin tocar consentimiento ni producción.
+
+## R20 — E2 · H3 completo: reservas, clases y ventas (2026-10-10)
+- Los 21 casos (N01–N21) tienen referencia capturada del código anterior, función pura y plantilla predeterminada, con equivalencia en tres vías y condiciones de no-aviso: reservas 161 variantes (+23 de N09–N10), clases 38, ventas 62. 0 diferencias. Informes: `2026-10-10-r20-equivalencia-{reservas,clases,ventas}.md`.
+- Motivo de suspensión vacío o nulo: la función movida ya imprimía «()»/«null»; solo la plantilla lo detenía. Corregido con `permiteVacia` y referencias nuevas; la validación mejor queda como cambio posterior.
+- `npm run inventario:avisos` (`scripts/inventario-avisos.mjs`): falla si aparece un consumidor de `AvisoWhatsapp` fuera de los 9, falta una de las 16 operaciones o un caso sin referencias o plantilla.
+- `tsc` limpio, `npm test` 791/791, e2e de humo 14/14 (membresías 1a y reprogramar/cancelar/reagendar). Sin migraciones, sin conectar casos, sin tocar consentimiento ni producción.

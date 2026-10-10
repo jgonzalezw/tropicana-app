@@ -9,6 +9,7 @@
     "lint": "eslint",
     "e2e": "playwright test",
     "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test",
+    "inventario:avisos": "node scripts/inventario-avisos.mjs",
     "sync-design": "node scripts/sync-design.mjs",
     "predev": "node scripts/chequeo-entorno.mjs",
     "dev:limpio": "node scripts/limpiar-build.mjs && next dev -p 3000"

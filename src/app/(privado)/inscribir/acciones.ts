@@ -20,6 +20,15 @@ import {
 import { recalcularFinDeCiclo, recalcularMembresia, registrarCorrimientosPendientes, toleranciaDe } from "@/lib/membresias";
 import { bonosAplicables, clasesDeBono, type BonoPendiente, type ResultadoBonos } from "@/lib/bono";
 import { mensajeConfirmacionInscripcion, mensajeReciboPago } from "@/lib/venta/mensajeInscripcion";
+import {
+  avisaRecibo,
+  clasesDePrueba,
+  gentePrueba,
+  introsDeAgenda,
+  mensajePrueba,
+  mensajesParticular,
+  restoCoordina,
+} from "@/lib/comunicaciones/legado/venta";
 import { exigir } from "@/lib/datos";
 import {
   COLS_VIGENCIA,
@@ -495,7 +504,7 @@ export async function inscribirYCobrar(e: EntradaInscripcion): Promise<Resultado
       ...(saldo > 0 && fechaCompromiso ? [{ etiqueta: "Saldo", valor: `${gs(saldo)} hasta el ${fechaLarga(parseFechaISO(fechaCompromiso) ?? inicio)}` }] : []),
     ],
     avisoAlumno: { nombre: dest.nombre, whatsapp: dest.whatsapp, mensaje },
-    ...(porPlata > 0
+    ...(avisaRecibo(porPlata)
       ? {
           avisoRecibo: {
             nombre: dest.nombre,
@@ -937,7 +946,7 @@ export async function venderPrueba(
 
   revalidatePath("/inscribir");
   const quien = `${alumno.nombre} ${alumno.apellido}`;
-  const gente = personas === 1 ? "1 persona" : `${personas} personas`;
+  const gente = gentePrueba(personas);
   const cursosTxt = cursoIds.length === 1 ? "1 curso" : `${cursoIds.length} cursos`;
 
   // Cuándo asiste: se leen las fechas que quedaron guardadas, no las que la
@@ -952,10 +961,7 @@ export async function venderPrueba(
     "las clases de la prueba"
   ) as { curso_id: number; fecha: string | null }[];
   const nombreCurso = new Map(cursoRows.map((c) => [c.id, c.nombre]));
-  const clases = guardadas
-    .filter((g) => g.fecha)
-    .sort((x, y) => (x.fecha! < y.fecha! ? -1 : 1))
-    .map((g) => `${nombreCurso.get(g.curso_id) ?? "curso"} el ${fechaLarga(new Date(g.fecha! + "T00:00:00"))}`);
+  const clases = clasesDePrueba(guardadas, nombreCurso);
   // Pasada la fecha ya ocurrió: decir "asiste" sobre una fecha vieja hace
   // dudar de si el sistema entendió bien. Y si vienen varios, van en plural.
   const todasPasadas = guardadas.every((g) => g.fecha && g.fecha < isoFecha(hoyLocal()));
@@ -968,7 +974,6 @@ export async function venderPrueba(
     : "";
 
   const dest = await destinatarioAviso(a, { contactoId: titular.contactoId, esMenor: titular.esMenor, nombre: quien.trim(), whatsapp: titular.whatsapp });
-  const sujetoP = titular.esMenor ? `la clase de prueba de ${quien.trim()}` : "tu clase de prueba";
   return {
     ok: true,
     datos: [
@@ -982,7 +987,7 @@ export async function venderPrueba(
     avisoAlumno: {
       nombre: dest.nombre,
       whatsapp: dest.whatsapp,
-      mensaje: `Hola! Confirmamos ${sujetoP} (${plan.nombre}, ${gente}):${clases.length ? ` ${clases.join(" y ")}` : ""}. ¡Te esperamos!`,
+      mensaje: mensajePrueba({ esMenor: titular.esMenor, quien, planNombre: plan.nombre, personas, guardadas, nombreCurso }),
     },
     resumen:
       `Clase de prueba de ${quien} — ${cursosTxt}, ${gente}, ${gs(referencia)}.${asiste} ` +
@@ -1629,26 +1634,32 @@ export async function venderParticular(e: EntradaParticular): Promise<ResultadoP
   // "El resto se coordina después" solo si de verdad queda algo del paquete
   // sin agendar — con flexible y un tramo que se cubre justo con la primera
   // clase (leftoverMin === 0), decirlo era falso (hallazgo de Javier, 26/09).
-  const restoCoordina = !!leftoverMin ? " El resto se coordina después." : "";
-  const introAlumno = esFija
-    ? sesiones.length === 1
-      ? "Tu clase reservada es"
-      : "Tus clases reservadas son"
-    : "Tu primera clase reservada es";
-  const introProfesor = esFija ? (sesiones.length === 1 ? "La clase es" : "Las clases son") : "La primera clase es";
+  const resto = restoCoordina(leftoverMin);
+  const { introAlumno } = introsDeAgenda(esFija, sesiones.length);
+  const mensajes = mensajesParticular({
+    horasContratadas,
+    planNombre,
+    nombreProfesor,
+    dondeTexto,
+    esFija,
+    nSesiones: sesiones.length,
+    agendaTexto,
+    leftoverMin,
+    alumnoNombre: alumno.nombre,
+  });
 
   return {
     ok: true,
-    resumen: `Membresía particular de ${alumno.nombre || `alumno #${alumnoId}`} — ${planNombre}, ${horasContratadas} h con ${nombreProfesor}. ${introAlumno}: ${agendaTexto}.${restoCoordina} ${mueve > 0 ? `Cobrado ${gs(mueve)}.` : "Sin cobro por ahora."}`,
+    resumen: `Membresía particular de ${alumno.nombre || `alumno #${alumnoId}`} — ${planNombre}, ${horasContratadas} h con ${nombreProfesor}. ${introAlumno}: ${agendaTexto}.${resto} ${mueve > 0 ? `Cobrado ${gs(mueve)}.` : "Sin cobro por ahora."}`,
     avisoAlumno: {
       nombre: alumno.nombre,
       whatsapp: alumno.whatsapp,
-      mensaje: `Hola! Confirmamos tu paquete de ${horasContratadas} h de clases particulares (${planNombre}) con ${nombreProfesor} en ${dondeTexto}. ${introAlumno}: ${agendaTexto}.${restoCoordina} ¡Te esperamos!`,
+      mensaje: mensajes.alumno,
     },
     avisoProfesor: {
       nombre: nombreProfesor ?? "",
       whatsapp: whatsappProfesor ?? null,
-      mensaje: `Hola! Se te agendó una clase particular (${planNombre}) con ${alumno.nombre || "un alumno"} en ${dondeTexto}. ${introProfesor}: ${agendaTexto}.${restoCoordina}`,
+      mensaje: mensajes.profesor,
     },
   };
 }
