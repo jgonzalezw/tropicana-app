@@ -1,5 +1,5 @@
 -- =====================================================================
--- TROPICANA - prueba de la 0071/0072 (R20 E4a). SOLO DEV.
+-- TROPICANA - prueba de la 0071/0072/0073 (R20 E4a). SOLO DEV.
 -- ---------------------------------------------------------------------
 -- Prueba con roles reales (anon, authenticated no administrador y
 -- authenticated Administrador) los triggers, los permisos y las funciones de
@@ -187,6 +187,49 @@ begin
     format('insert into public.contenido_versiones (contenido_id,numero,cuerpo,esquema,hash,origen,estado,etiqueta,publicado_en,publicado_por,aprobado_en,aprobado_por) values (%s,9,''x'',''{}''::jsonb,%L,''editado'',''publicado'',''e'',now(),%L,now(),%L)', c9, repeat('2', 64), adm, adm), 'nace en borrador');
   r := r || pg_temp.prueba('WhatsApp no lleva asunto', 'postgres', null,
     format('insert into public.contenido_versiones (contenido_id,numero,cuerpo,asunto,esquema,hash,origen) values (%s,9,''x'',''a'',''{}''::jsonb,%L,''editado'')', c9, repeat('3', 64)), 'no lleva asunto');
+
+  -- ---- 0073: historial editorial de versiones ----
+  r := r || pg_temp.prueba('enviar a revision', 'authenticated', adm, format('select public.cambiar_estado_version(%s, ''en_revision'')', v10), null);
+  r := r || pg_temp.prueba('volver a borrador', 'authenticated', adm, format('select public.cambiar_estado_version(%s, ''borrador'', null, ''falta corregir un dato'')', v10), null);
+  r := r || case when (select count(*) from public.contenido_versiones_historial
+                        where version_id = v10 and de_estado = 'borrador' and a_estado = 'en_revision' and actor = adm
+                          and creado_en > now() - interval '1 minute') = 1
+                  and (select count(*) from public.contenido_versiones_historial
+                        where version_id = v10 and de_estado = 'en_revision' and a_estado = 'borrador' and actor = adm
+                          and motivo = 'falta corregir un dato' and creado_en > now() - interval '1 minute') = 1
+                 then 'OK    el retorno de en_revision a borrador deja actor, fecha y motivo' else 'FALLO historial de versiones: retorno a borrador' end;
+  r := r || case when (select count(*) from public.contenido_versiones_historial where version_id = v9) >= 1
+                  and not exists (select 1 from public.contenido_versiones x where x.estado <> 'borrador'
+                                   and not exists (select 1 from public.contenido_versiones_historial h where h.version_id = x.id and h.a_estado = x.estado))
+                 then 'OK    todo estado distinto de borrador tiene su paso en el historial' else 'FALLO versiones sin su paso en el historial' end;
+  r := r || pg_temp.prueba('el historial de versiones no se edita', 'postgres', null, 'update public.contenido_versiones_historial set motivo = ''x''', 'solo agregar');
+  r := r || pg_temp.prueba('el historial de versiones no se borra', 'postgres', null, 'delete from public.contenido_versiones_historial', 'solo agregar');
+  r := r || pg_temp.prueba('no administrador no ve el historial de versiones', 'authenticated', noadm,
+    'do $q$ begin if (select count(*) from public.contenido_versiones_historial) <> 0 then raise exception ''ve filas''; end if; end $q$', null);
+  r := r || pg_temp.prueba('authenticated no escribe el historial de versiones', 'authenticated', adm,
+    format('insert into public.contenido_versiones_historial (version_id,de_estado,a_estado,actor) values (%s,''borrador'',''en_revision'',%L)', v10, adm), 'permission denied');
+  -- atomicidad: si el historial de versiones falla, el estado no cambia
+  execute 'create trigger zz_rompe2 before insert on public.contenido_versiones_historial for each row execute function pg_temp.rompe()';
+  r := r || pg_temp.prueba('cambio de estado con el historial roto falla', 'authenticated', adm, format('select public.cambiar_estado_version(%s, ''en_revision'')', v10), 'roto a proposito');
+  r := r || case when (select estado from public.contenido_versiones where id = v10) = 'borrador'
+                 then 'OK    un cambio de estado que falla no deja cambio' else 'FALLO el cambio fallido dejo rastro' end;
+  execute 'drop trigger zz_rompe2 on public.contenido_versiones_historial';
+
+  -- ---- email y asunto: modelados (no se importan plantillas de email) ----
+  insert into public.contenidos (clave, caso, variante, canal, tipo, finalidad, nombre)
+  values ('N98.prueba.email', 'N98', 'prueba', 'email', 'aviso', 'servicio', 'Prueba email');
+  r := r || pg_temp.prueba('email sin asunto', 'postgres', null,
+    format('insert into public.contenido_versiones (contenido_id,numero,cuerpo,esquema,hash,origen) values (%s,1,''x'',''{}''::jsonb,%L,''editado'')',
+           (select id from public.contenidos where clave = 'N98.prueba.email'), repeat('4', 64)), 'email lleva asunto');
+  r := r || pg_temp.prueba('email con asunto', 'postgres', null,
+    format('insert into public.contenido_versiones (contenido_id,numero,cuerpo,asunto,esquema,hash,origen) values (%s,1,''x'',''Asunto'',''{}''::jsonb,%L,''editado'')',
+           (select id from public.contenidos where clave = 'N98.prueba.email'), repeat('4', 64)), null);
+  r := r || pg_temp.prueba('el email pasa a revision', 'postgres', null,
+    format('update public.contenido_versiones set estado=''en_revision'' where contenido_id = %s', (select id from public.contenidos where clave = 'N98.prueba.email')), null);
+  r := r || pg_temp.prueba('aprobar el email', 'postgres', null,
+    format('update public.contenido_versiones set estado=''aprobado'', aprobado_en=now(), aprobado_por=%L where contenido_id = %s', adm, (select id from public.contenidos where clave = 'N98.prueba.email')), null);
+  r := r || pg_temp.prueba('cambiar el asunto despues de aprobar', 'postgres', null,
+    format('update public.contenido_versiones set asunto=''Otro'' where contenido_id = %s', (select id from public.contenidos where clave = 'N98.prueba.email')), 'desde aprobado');
 
   -- fin: cuantos fallaron
   fallos := (select count(*) from unnest(r) t where t like 'FALLO%');

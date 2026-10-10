@@ -1043,7 +1043,7 @@ select '54. funciones del profesor sin particulares/tutor o con EXECUTE de mas' 
             then 'OK' else 'REVISAR' end as estado;
 
 -- ---------------------------------------------------------------------
--- 55-60. CONTENIDOS DE COMUNICACIONES (migraciones 0071 y 0072, R20 E4a)
+-- 55-62. CONTENIDOS DE COMUNICACIONES (migraciones 0071, 0072 y 0073, R20 E4a)
 --     Una asignacion liberada tiene su historial, su version publicada y nada
 --     se libera por descuido (E5 no esta autorizada); nadie escribe directo.
 -- ---------------------------------------------------------------------
@@ -1094,7 +1094,7 @@ select '59. asignacion en modo modulo (no hay conexion autorizada: E5)' as contr
 
 with malos as (
   select (select count(*) from (values ('anon'), ('authenticated')) a(ro),
-                 (values ('public.contenidos'), ('public.contenido_versiones'), ('public.contenido_usos'), ('public.contenido_usos_historial')) b(t),
+                 (values ('public.contenidos'), ('public.contenido_versiones'), ('public.contenido_usos'), ('public.contenido_usos_historial'), ('public.contenido_versiones_historial')) b(t),
                  (values ('insert'), ('update'), ('delete'), ('truncate')) c(p)
            where has_table_privilege(a.ro, b.t, c.p))
          + (select count(*) from pg_proc p
@@ -1107,3 +1107,17 @@ with malos as (
 select '60. permisos efectivos: escritura directa para anon/authenticated o execute de las funciones para anon/public' as control,
        n, case when n = 0 then 'OK' else 'REVISAR' end as estado
   from malos;
+
+select '61. version fuera de borrador sin su paso en el historial editorial (0073)' as control,
+       count(*) as n,
+       case when count(*) = 0 then 'OK' else 'REVISAR' end as estado
+  from public.contenido_versiones v
+ where v.estado <> 'borrador'
+   and not exists (select 1 from public.contenido_versiones_historial h where h.version_id = v.id and h.a_estado = v.estado);
+
+select '62. version cuyo ultimo paso del historial no es su estado actual (0073)' as control,
+       count(*) as n,
+       case when count(*) = 0 then 'OK' else 'REVISAR' end as estado
+  from public.contenido_versiones v
+ where exists (select 1 from public.contenido_versiones_historial h where h.version_id = v.id)
+   and (select h.a_estado from public.contenido_versiones_historial h where h.version_id = v.id order by h.id desc limit 1) <> v.estado;

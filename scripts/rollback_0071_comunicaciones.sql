@@ -1,4 +1,4 @@
--- Rollback de la 0071 y la 0072 (R20 E4a). SOLO DEV: en produccion no hay reversion
+-- Rollback de la 0071, la 0072 y la 0073 (R20 E4a). SOLO DEV: en produccion no hay reversion
 -- destructiva una vez que haya datos.
 -- ABORTA si hay CUALQUIER trabajo editorial de usuarios: una version que no este en
 -- borrador, que no sea predeterminada, creada por una persona o con datos de
@@ -18,6 +18,10 @@ begin
     select count(*) into n from public.contenido_usos_historial;
     if n > 0 then raise exception 'Rollback 0071 abortado: % fila(s) de historial', n; end if;
   end if;
+  if to_regclass('public.contenido_versiones_historial') is not null then
+    select count(*) into n from public.contenido_versiones_historial;
+    if n > 0 then raise exception 'Rollback 0073 abortado: % fila(s) de historial de versiones', n; end if;
+  end if;
   if to_regclass('public.contenido_usos') is not null then
     select count(*) into n from public.contenido_usos where version_id is not null or modo <> 'legado';
     if n > 0 then raise exception 'Rollback 0071 abortado: % asignacion(es) liberada(s)', n; end if;
@@ -29,6 +33,7 @@ $$;
 -- (con sus triggers) y, al final, las funciones de los triggers.
 drop function if exists public.liberar_contenido(text, text, text, bigint, text, text, text, text);
 drop function if exists public.cambiar_estado_version(bigint, text, text, text, text, text);
+drop table if exists public.contenido_versiones_historial;
 drop table if exists public.contenido_usos_historial;
 drop table if exists public.contenido_usos;
 drop table if exists public.contenido_versiones;
@@ -37,4 +42,5 @@ drop function if exists public.contenidos_guardia();
 drop function if exists public.contenido_versiones_guardia();
 drop function if exists public.contenido_usos_guardia();
 drop function if exists public.contenido_usos_historial_solo_insert();
+drop function if exists public.contenido_versiones_historial_solo_insert();
 notify pgrst, 'reload schema';

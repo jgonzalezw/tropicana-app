@@ -149,3 +149,39 @@ test("0071: tabla de transiciones, sin escritura directa y funciones solo para a
   assert.match(sql0071, /if not public\.es_admin\(\)/);
   assert.ok(!/insert into public\.contenido_versiones|insert into public\.contenidos\b/.test(sql0071), "la 0071 no importa nada");
 });
+
+// ── 0073: historial editorial de versiones, y email/asunto modelados ──
+const sql0073 = migraciones.find((m) => m.f.startsWith("0073_"))?.sql ?? "";
+test("0073: cada cambio de estado deja actor y fecha en un historial de solo agregar", () => {
+  assert.ok(sql0073, "existe la 0073");
+  assert.match(sql0073, /create table if not exists public\.contenido_versiones_historial/);
+  assert.match(sql0073, /insert into public\.contenido_versiones_historial \(version_id, de_estado, a_estado, motivo, actor\)/);
+  assert.match(sql0073, /values \(v\.id, v_de, v\.estado, [^;]*auth\.uid\(\)\)/);
+  assert.match(sql0073, /revoke all on table public\.contenido_versiones_historial from public, anon, authenticated/);
+  assert.match(sql0073, /before update or delete on public\.contenido_versiones_historial/);
+  assert.ok(/notify pgrst, 'reload schema'/.test(sql0073));
+});
+test("email: el asunto está modelado, entra al hash y la base lo exige (sin importar plantillas de email)", () => {
+  const esq = { condiciones: [], listas: [], variables: [] };
+  assert.notEqual(
+    hashContenido({ cuerpo: "x", asunto: "Hola", esquema: esq }),
+    hashContenido({ cuerpo: "x", asunto: "Chau", esquema: esq })
+  );
+  assert.notEqual(hashContenido({ cuerpo: "x", asunto: null, esquema: esq }), hashContenido({ cuerpo: "x", asunto: "Hola", esquema: esq }));
+  assert.match(sql0071, /canal\s+text not null check \(canal in \('whatsapp', 'email'\)\)/);
+  assert.match(sql0071, /v_canal = 'email' and btrim\(coalesce\(new\.asunto, ''\)\) = ''/);
+  assert.match(sql0071, /v_canal = 'whatsapp' and new\.asunto is not null/);
+});
+
+test("la prueba de los controles 55-62 usa los controles textuales de control_migracion.sql", () => {
+  const norm = (s: string) => s.replace(/\s+/g, " ").trim();
+  const control = readFileSync("scripts/control_migracion.sql", "utf8");
+  const prueba = norm(readFileSync("scripts/prueba_controles_55_62.sql", "utf8"));
+  const bloque = control.slice(control.indexOf("-- 55-62."));
+  const sentencias = bloque
+    .split(/;\s*\n/)
+    .map((x) => x.replace(/^(--.*\n)+/gm, "").trim())
+    .filter(Boolean);
+  assert.equal(sentencias.length, 8, "los controles 55 a 62");
+  for (const s of sentencias) assert.ok(prueba.includes(norm(s)), `falta en la prueba: ${s.slice(0, 60)}`);
+});
