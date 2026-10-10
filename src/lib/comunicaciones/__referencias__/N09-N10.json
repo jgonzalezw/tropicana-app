@@ -1,0 +1,370 @@
+{
+  "particular.base": {
+    "entrada": {
+      "esAlquiler": false,
+      "planNombre": "Paquete 10 h",
+      "profesorNombre": "Mario Rojas",
+      "alumnoNombre": "Ana Pérez",
+      "contratadasMin": 600,
+      "disponibleMin": 450,
+      "fecha": "2026-10-02",
+      "hora": "15:00:00",
+      "duracionMin": 60,
+      "lugar": "Tropicana (Sala 1)"
+    },
+    "alumno": "Hola! Confirmamos tu clase particular (Paquete 10 h) con Mario Rojas: vie 02/10 de 15:00 a 16:00, en Tropicana (Sala 1). Te quedan 7.5 h de tu paquete de 10 h. ¡Te esperamos!",
+    "profesor": "Hola! Se te confirmó una clase particular (Paquete 10 h) con Ana Pérez: vie 02/10 de 15:00 a 16:00, en Tropicana (Sala 1)."
+  },
+  "particular.lugar_externo": {
+    "entrada": {
+      "esAlquiler": false,
+      "planNombre": "Paquete 10 h",
+      "profesorNombre": "Mario Rojas",
+      "alumnoNombre": "Ana Pérez",
+      "contratadasMin": 600,
+      "disponibleMin": 450,
+      "fecha": "2026-10-02",
+      "hora": "15:00:00",
+      "duracionMin": 60,
+      "lugar": "Estudio Luna"
+    },
+    "alumno": "Hola! Confirmamos tu clase particular (Paquete 10 h) con Mario Rojas: vie 02/10 de 15:00 a 16:00, en Estudio Luna. Te quedan 7.5 h de tu paquete de 10 h. ¡Te esperamos!",
+    "profesor": "Hola! Se te confirmó una clase particular (Paquete 10 h) con Ana Pérez: vie 02/10 de 15:00 a 16:00, en Estudio Luna."
+  },
+  "particular.lugar_tropicana_sin_sala": {
+    "entrada": {
+      "esAlquiler": false,
+      "planNombre": "Paquete 10 h",
+      "profesorNombre": "Mario Rojas",
+      "alumnoNombre": "Ana Pérez",
+      "contratadasMin": 600,
+      "disponibleMin": 450,
+      "fecha": "2026-10-02",
+      "hora": "15:00:00",
+      "duracionMin": 60,
+      "lugar": "Tropicana"
+    },
+    "alumno": "Hola! Confirmamos tu clase particular (Paquete 10 h) con Mario Rojas: vie 02/10 de 15:00 a 16:00, en Tropicana. Te quedan 7.5 h de tu paquete de 10 h. ¡Te esperamos!",
+    "profesor": "Hola! Se te confirmó una clase particular (Paquete 10 h) con Ana Pérez: vie 02/10 de 15:00 a 16:00, en Tropicana."
+  },
+  "particular.hora_sin_segundos": {
+    "entrada": {
+      "esAlquiler": false,
+      "planNombre": "Paquete 10 h",
+      "profesorNombre": "Mario Rojas",
+      "alumnoNombre": "Ana Pérez",
+      "contratadasMin": 600,
+      "disponibleMin": 450,
+      "fecha": "2026-10-02",
+      "hora": "15:00",
+      "duracionMin": 90,
+      "lugar": "Tropicana (Sala 1)"
+    },
+    "alumno": "Hola! Confirmamos tu clase particular (Paquete 10 h) con Mario Rojas: vie 02/10 de 15:00 a 16:30, en Tropicana (Sala 1). Te quedan 7.5 h de tu paquete de 10 h. ¡Te esperamos!",
+    "profesor": "Hola! Se te confirmó una clase particular (Paquete 10 h) con Ana Pérez: vie 02/10 de 15:00 a 16:30, en Tropicana (Sala 1)."
+  },
+  "particular.domingo": {
+    "entrada": {
+      "esAlquiler": false,
+      "planNombre": "Paquete 10 h",
+      "profesorNombre": "Mario Rojas",
+      "alumnoNombre": "Ana Pérez",
+      "contratadasMin": 600,
+      "disponibleMin": 450,
+      "fecha": "2026-10-04",
+      "hora": "15:00:00",
+      "duracionMin": 60,
+      "lugar": "Tropicana (Sala 1)"
+    },
+    "alumno": "Hola! Confirmamos tu clase particular (Paquete 10 h) con Mario Rojas: dom 04/10 de 15:00 a 16:00, en Tropicana (Sala 1). Te quedan 7.5 h de tu paquete de 10 h. ¡Te esperamos!",
+    "profesor": "Hola! Se te confirmó una clase particular (Paquete 10 h) con Ana Pérez: dom 04/10 de 15:00 a 16:00, en Tropicana (Sala 1)."
+  },
+  "particular.fin_de_anio": {
+    "entrada": {
+      "esAlquiler": false,
+      "planNombre": "Paquete 10 h",
+      "profesorNombre": "Mario Rojas",
+      "alumnoNombre": "Ana Pérez",
+      "contratadasMin": 600,
+      "disponibleMin": 450,
+      "fecha": "2026-12-31",
+      "hora": "09:30:00",
+      "duracionMin": 45,
+      "lugar": "Tropicana (Sala 1)"
+    },
+    "alumno": "Hola! Confirmamos tu clase particular (Paquete 10 h) con Mario Rojas: jue 31/12 de 09:30 a 10:15, en Tropicana (Sala 1). Te quedan 7.5 h de tu paquete de 10 h. ¡Te esperamos!",
+    "profesor": "Hola! Se te confirmó una clase particular (Paquete 10 h) con Ana Pérez: jue 31/12 de 09:30 a 10:15, en Tropicana (Sala 1)."
+  },
+  "particular.cambio_de_mes": {
+    "entrada": {
+      "esAlquiler": false,
+      "planNombre": "Paquete 10 h",
+      "profesorNombre": "Mario Rojas",
+      "alumnoNombre": "Ana Pérez",
+      "contratadasMin": 600,
+      "disponibleMin": 450,
+      "fecha": "2026-03-01",
+      "hora": "08:00:00",
+      "duracionMin": 60,
+      "lugar": "Tropicana (Sala 1)"
+    },
+    "alumno": "Hola! Confirmamos tu clase particular (Paquete 10 h) con Mario Rojas: dom 01/03 de 08:00 a 09:00, en Tropicana (Sala 1). Te quedan 7.5 h de tu paquete de 10 h. ¡Te esperamos!",
+    "profesor": "Hola! Se te confirmó una clase particular (Paquete 10 h) con Ana Pérez: dom 01/03 de 08:00 a 09:00, en Tropicana (Sala 1)."
+  },
+  "particular.cruza_medianoche": {
+    "entrada": {
+      "esAlquiler": false,
+      "planNombre": "Paquete 10 h",
+      "profesorNombre": "Mario Rojas",
+      "alumnoNombre": "Ana Pérez",
+      "contratadasMin": 600,
+      "disponibleMin": 450,
+      "fecha": "2026-10-02",
+      "hora": "23:30:00",
+      "duracionMin": 60,
+      "lugar": "Tropicana (Sala 1)"
+    },
+    "alumno": "Hola! Confirmamos tu clase particular (Paquete 10 h) con Mario Rojas: vie 02/10 de 23:30 a 00:30, en Tropicana (Sala 1). Te quedan 7.5 h de tu paquete de 10 h. ¡Te esperamos!",
+    "profesor": "Hola! Se te confirmó una clase particular (Paquete 10 h) con Ana Pérez: vie 02/10 de 23:30 a 00:30, en Tropicana (Sala 1)."
+  },
+  "particular.sin_duracion": {
+    "entrada": {
+      "esAlquiler": false,
+      "planNombre": "Paquete 10 h",
+      "profesorNombre": "Mario Rojas",
+      "alumnoNombre": "Ana Pérez",
+      "contratadasMin": 600,
+      "disponibleMin": 450,
+      "fecha": "2026-10-02",
+      "hora": "15:00:00",
+      "duracionMin": 0,
+      "lugar": "Tropicana (Sala 1)"
+    },
+    "alumno": "Hola! Confirmamos tu clase particular (Paquete 10 h) con Mario Rojas: vie 02/10 de 15:00 a ?, en Tropicana (Sala 1). Te quedan 7.5 h de tu paquete de 10 h. ¡Te esperamos!",
+    "profesor": "Hola! Se te confirmó una clase particular (Paquete 10 h) con Ana Pérez: vie 02/10 de 15:00 a ?, en Tropicana (Sala 1)."
+  },
+  "particular.saldo_decimal_cuarto": {
+    "entrada": {
+      "esAlquiler": false,
+      "planNombre": "Paquete 10 h",
+      "profesorNombre": "Mario Rojas",
+      "alumnoNombre": "Ana Pérez",
+      "contratadasMin": 630,
+      "disponibleMin": 15,
+      "fecha": "2026-10-02",
+      "hora": "15:00:00",
+      "duracionMin": 60,
+      "lugar": "Tropicana (Sala 1)"
+    },
+    "alumno": "Hola! Confirmamos tu clase particular (Paquete 10 h) con Mario Rojas: vie 02/10 de 15:00 a 16:00, en Tropicana (Sala 1). Te quedan 0.25 h de tu paquete de 10.5 h. ¡Te esperamos!",
+    "profesor": "Hola! Se te confirmó una clase particular (Paquete 10 h) con Ana Pérez: vie 02/10 de 15:00 a 16:00, en Tropicana (Sala 1)."
+  },
+  "particular.saldo_decimal_medio": {
+    "entrada": {
+      "esAlquiler": false,
+      "planNombre": "Paquete 10 h",
+      "profesorNombre": "Mario Rojas",
+      "alumnoNombre": "Ana Pérez",
+      "contratadasMin": 600,
+      "disponibleMin": 450,
+      "fecha": "2026-10-02",
+      "hora": "15:00:00",
+      "duracionMin": 60,
+      "lugar": "Tropicana (Sala 1)"
+    },
+    "alumno": "Hola! Confirmamos tu clase particular (Paquete 10 h) con Mario Rojas: vie 02/10 de 15:00 a 16:00, en Tropicana (Sala 1). Te quedan 7.5 h de tu paquete de 10 h. ¡Te esperamos!",
+    "profesor": "Hola! Se te confirmó una clase particular (Paquete 10 h) con Ana Pérez: vie 02/10 de 15:00 a 16:00, en Tropicana (Sala 1)."
+  },
+  "particular.saldo_cero": {
+    "entrada": {
+      "esAlquiler": false,
+      "planNombre": "Paquete 10 h",
+      "profesorNombre": "Mario Rojas",
+      "alumnoNombre": "Ana Pérez",
+      "contratadasMin": 60,
+      "disponibleMin": 0,
+      "fecha": "2026-10-02",
+      "hora": "15:00:00",
+      "duracionMin": 60,
+      "lugar": "Tropicana (Sala 1)"
+    },
+    "alumno": "Hola! Confirmamos tu clase particular (Paquete 10 h) con Mario Rojas: vie 02/10 de 15:00 a 16:00, en Tropicana (Sala 1). Te quedan 0 h de tu paquete de 1 h. ¡Te esperamos!",
+    "profesor": "Hola! Se te confirmó una clase particular (Paquete 10 h) con Ana Pérez: vie 02/10 de 15:00 a 16:00, en Tropicana (Sala 1)."
+  },
+  "particular.saldo_completo": {
+    "entrada": {
+      "esAlquiler": false,
+      "planNombre": "Paquete 10 h",
+      "profesorNombre": "Mario Rojas",
+      "alumnoNombre": "Ana Pérez",
+      "contratadasMin": 600,
+      "disponibleMin": 600,
+      "fecha": "2026-10-02",
+      "hora": "15:00:00",
+      "duracionMin": 60,
+      "lugar": "Tropicana (Sala 1)"
+    },
+    "alumno": "Hola! Confirmamos tu clase particular (Paquete 10 h) con Mario Rojas: vie 02/10 de 15:00 a 16:00, en Tropicana (Sala 1). Te quedan 10 h de tu paquete de 10 h. ¡Te esperamos!",
+    "profesor": "Hola! Se te confirmó una clase particular (Paquete 10 h) con Ana Pérez: vie 02/10 de 15:00 a 16:00, en Tropicana (Sala 1)."
+  },
+  "particular.saldo_vacio": {
+    "entrada": {
+      "esAlquiler": false,
+      "planNombre": "Paquete 10 h",
+      "profesorNombre": "Mario Rojas",
+      "alumnoNombre": "Ana Pérez",
+      "contratadasMin": 0,
+      "disponibleMin": 0,
+      "fecha": "2026-10-02",
+      "hora": "15:00:00",
+      "duracionMin": 60,
+      "lugar": "Tropicana (Sala 1)"
+    },
+    "alumno": "Hola! Confirmamos tu clase particular (Paquete 10 h) con Mario Rojas: vie 02/10 de 15:00 a 16:00, en Tropicana (Sala 1). Te quedan 0 h de tu paquete de 0 h. ¡Te esperamos!",
+    "profesor": "Hola! Se te confirmó una clase particular (Paquete 10 h) con Ana Pérez: vie 02/10 de 15:00 a 16:00, en Tropicana (Sala 1)."
+  },
+  "particular.sin_plan": {
+    "entrada": {
+      "esAlquiler": false,
+      "planNombre": null,
+      "profesorNombre": "Mario Rojas",
+      "alumnoNombre": "Ana Pérez",
+      "contratadasMin": 600,
+      "disponibleMin": 450,
+      "fecha": "2026-10-02",
+      "hora": "15:00:00",
+      "duracionMin": 60,
+      "lugar": "Tropicana (Sala 1)"
+    },
+    "alumno": "Hola! Confirmamos tu clase particular (clases particulares) con Mario Rojas: vie 02/10 de 15:00 a 16:00, en Tropicana (Sala 1). Te quedan 7.5 h de tu paquete de 10 h. ¡Te esperamos!",
+    "profesor": "Hola! Se te confirmó una clase particular (clases particulares) con Ana Pérez: vie 02/10 de 15:00 a 16:00, en Tropicana (Sala 1)."
+  },
+  "particular.sin_nombre_alumno": {
+    "entrada": {
+      "esAlquiler": false,
+      "planNombre": "Paquete 10 h",
+      "profesorNombre": "Mario Rojas",
+      "alumnoNombre": "",
+      "contratadasMin": 600,
+      "disponibleMin": 450,
+      "fecha": "2026-10-02",
+      "hora": "15:00:00",
+      "duracionMin": 60,
+      "lugar": "Tropicana (Sala 1)"
+    },
+    "alumno": "Hola! Confirmamos tu clase particular (Paquete 10 h) con Mario Rojas: vie 02/10 de 15:00 a 16:00, en Tropicana (Sala 1). Te quedan 7.5 h de tu paquete de 10 h. ¡Te esperamos!",
+    "profesor": "Hola! Se te confirmó una clase particular (Paquete 10 h) con el alumno: vie 02/10 de 15:00 a 16:00, en Tropicana (Sala 1)."
+  },
+  "particular.caracteres_especiales": {
+    "entrada": {
+      "esAlquiler": false,
+      "planNombre": "Clase ñandú ¡Más!",
+      "profesorNombre": "Íñigo Muñoz",
+      "alumnoNombre": "Ángela Núñez",
+      "contratadasMin": 600,
+      "disponibleMin": 450,
+      "fecha": "2026-10-02",
+      "hora": "15:00:00",
+      "duracionMin": 60,
+      "lugar": "Estudio «Ñ»"
+    },
+    "alumno": "Hola! Confirmamos tu clase particular (Clase ñandú ¡Más!) con Íñigo Muñoz: vie 02/10 de 15:00 a 16:00, en Estudio «Ñ». Te quedan 7.5 h de tu paquete de 10 h. ¡Te esperamos!",
+    "profesor": "Hola! Se te confirmó una clase particular (Clase ñandú ¡Más!) con Ángela Núñez: vie 02/10 de 15:00 a 16:00, en Estudio «Ñ»."
+  },
+  "alquiler.base": {
+    "entrada": {
+      "esAlquiler": true,
+      "planNombre": "Alquiler Sala 1",
+      "profesorNombre": "",
+      "alumnoNombre": "Colegio Sol",
+      "contratadasMin": 600,
+      "disponibleMin": 450,
+      "fecha": "2026-10-02",
+      "hora": "15:00:00",
+      "duracionMin": 60,
+      "lugar": "Tropicana (Sala 1)"
+    },
+    "alumno": "Hola! Confirmamos tu alquiler de sala (Alquiler Sala 1): vie 02/10 de 15:00 a 16:00, en Tropicana (Sala 1). Te quedan 7.5 h de tu alquiler de 10 h. ¡Te esperamos!",
+    "profesor": null
+  },
+  "alquiler.lugar_externo": {
+    "entrada": {
+      "esAlquiler": true,
+      "planNombre": "Alquiler Sala 1",
+      "profesorNombre": "",
+      "alumnoNombre": "Colegio Sol",
+      "contratadasMin": 600,
+      "disponibleMin": 450,
+      "fecha": "2026-10-02",
+      "hora": "15:00:00",
+      "duracionMin": 60,
+      "lugar": "Estudio Luna"
+    },
+    "alumno": "Hola! Confirmamos tu alquiler de sala (Alquiler Sala 1): vie 02/10 de 15:00 a 16:00, en Estudio Luna. Te quedan 7.5 h de tu alquiler de 10 h. ¡Te esperamos!",
+    "profesor": null
+  },
+  "alquiler.sin_plan": {
+    "entrada": {
+      "esAlquiler": true,
+      "planNombre": null,
+      "profesorNombre": "",
+      "alumnoNombre": "Colegio Sol",
+      "contratadasMin": 600,
+      "disponibleMin": 450,
+      "fecha": "2026-10-02",
+      "hora": "15:00:00",
+      "duracionMin": 60,
+      "lugar": "Tropicana (Sala 1)"
+    },
+    "alumno": "Hola! Confirmamos tu alquiler de sala (alquiler de sala): vie 02/10 de 15:00 a 16:00, en Tropicana (Sala 1). Te quedan 7.5 h de tu alquiler de 10 h. ¡Te esperamos!",
+    "profesor": null
+  },
+  "alquiler.sin_nombre_titular": {
+    "entrada": {
+      "esAlquiler": true,
+      "planNombre": "Alquiler Sala 1",
+      "profesorNombre": "",
+      "alumnoNombre": "",
+      "contratadasMin": 600,
+      "disponibleMin": 450,
+      "fecha": "2026-10-02",
+      "hora": "15:00:00",
+      "duracionMin": 60,
+      "lugar": "Tropicana (Sala 1)"
+    },
+    "alumno": "Hola! Confirmamos tu alquiler de sala (Alquiler Sala 1): vie 02/10 de 15:00 a 16:00, en Tropicana (Sala 1). Te quedan 7.5 h de tu alquiler de 10 h. ¡Te esperamos!",
+    "profesor": null
+  },
+  "alquiler.saldo_decimal": {
+    "entrada": {
+      "esAlquiler": true,
+      "planNombre": "Alquiler Sala 1",
+      "profesorNombre": "",
+      "alumnoNombre": "Colegio Sol",
+      "contratadasMin": 630,
+      "disponibleMin": 90,
+      "fecha": "2026-10-02",
+      "hora": "15:00:00",
+      "duracionMin": 60,
+      "lugar": "Tropicana (Sala 1)"
+    },
+    "alumno": "Hola! Confirmamos tu alquiler de sala (Alquiler Sala 1): vie 02/10 de 15:00 a 16:00, en Tropicana (Sala 1). Te quedan 1.5 h de tu alquiler de 10.5 h. ¡Te esperamos!",
+    "profesor": null
+  },
+  "alquiler.fin_de_anio": {
+    "entrada": {
+      "esAlquiler": true,
+      "planNombre": "Alquiler Sala 1",
+      "profesorNombre": "",
+      "alumnoNombre": "Colegio Sol",
+      "contratadasMin": 600,
+      "disponibleMin": 450,
+      "fecha": "2026-12-31",
+      "hora": "20:00:00",
+      "duracionMin": 120,
+      "lugar": "Tropicana (Sala 1)"
+    },
+    "alumno": "Hola! Confirmamos tu alquiler de sala (Alquiler Sala 1): jue 31/12 de 20:00 a 22:00, en Tropicana (Sala 1). Te quedan 7.5 h de tu alquiler de 10 h. ¡Te esperamos!",
+    "profesor": null
+  }
+}

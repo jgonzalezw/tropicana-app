@@ -10,69 +10,24 @@
  */
 
 import type { createAdminClient } from "@/lib/supabase/admin";
-import { fechaLarga } from "./inscripcion.ts";
 
 type Admin = NonNullable<ReturnType<typeof createAdminClient>>;
 
-/** Un aviso listo para mandar. `id` es solo la clave de React (una reserva de
- *  particular suma su alumno Y su profesor, cada uno con su propio aviso). */
-export type AvisoAlumno = { id: string; nombre: string; whatsapp: string | null; mensaje: string };
-
-export type ClaseSuspendida = {
-  curso: string;
-  fecha: string;
-  finCicloNuevo: string | null;
-  /** Ya dicho con su etiqueta del catálogo, nunca la clave cruda. */
-  motivoTexto: string;
-};
-
-export function fmtLarga(iso: string): string {
-  return fechaLarga(new Date(iso.slice(0, 10) + "T00:00:00"));
-}
-
-/** El aviso al alumno cuando una o más de sus clases quedaron suspendidas. */
-export function mensajeSuspension(e: { nombrePila: string; clases: ClaseSuspendida[] }): string {
-  const { clases } = e;
-  const detalle = clases.map((cl) => `${cl.curso} del ${fmtLarga(cl.fecha)}`).join(clases.length > 1 ? ", " : "");
-  const finCiclo = clases.find((cl) => cl.finCicloNuevo)?.finCicloNuevo;
-  // El motivo que se lee es el de la primera clase: en el uso real se guarda
-  // una excepción por vez, así que las clases de un mismo aviso comparten motivo.
-  const partes = [
-    `Hola ${e.nombrePila}! Te avisamos que tu clase de ${detalle} qued${
-      clases.length > 1 ? "aron suspendidas" : "ó suspendida"
-    } por ${clases[0].motivoTexto}.`,
-  ];
-  if (finCiclo) partes.push(`Tu ciclo se corrió: ahora vence el ${fmtLarga(finCiclo)}.`);
-  partes.push("Cualquier duda, escribinos por acá. ¡Gracias!");
-  return partes.join(" ");
-}
-
-/** El aviso al alumno cuando una clase suspendida se restableció. */
-export function mensajeReapertura(e: {
-  nombrePila: string;
-  curso: string;
-  fecha: string;
-  finCiclo: string | null;
-}): string {
-  const partes = [
-    `Hola ${e.nombrePila}! Te avisamos que tu clase de ${e.curso} del ${fmtLarga(e.fecha)} se restableció: se dicta con normalidad.`,
-  ];
-  if (e.finCiclo) partes.push(`Tu ciclo vuelve a vencer el ${fmtLarga(e.finCiclo)}.`);
-  partes.push("Cualquier duda, escribinos por acá. ¡Gracias!");
-  return partes.join(" ");
-}
-
-/** El aviso al profesor titular de una clase que se suspendió. */
-export function mensajeSuspensionProfesor(e: {
-  nombrePila: string;
-  curso: string;
-  fecha: string;
-  motivoTexto: string;
-}): string {
-  return `Hola ${e.nombrePila}! Te avisamos que la clase de ${e.curso} del ${fmtLarga(e.fecha)} quedó suspendida por ${e.motivoTexto}. No hace falta que la dictes.`;
-}
-
-export type ContactoAviso = { nombre: string; nombrePila: string; whatsapp: string | null };
+export type { AvisoAlumno, ClaseSuspendida, ContactoAviso } from "./comunicaciones/legado/clase.ts";
+export {
+  fmtLarga,
+  mensajeSuspension,
+  mensajeReapertura,
+  mensajeSuspensionProfesor,
+} from "./comunicaciones/legado/clase.ts";
+import {
+  armarAvisosSuspension,
+  armarAvisoProfesor,
+  type AvisoAlumno,
+  type ClaseSuspendida,
+  type ContactoAviso,
+  type ProfesorDeAviso,
+} from "./comunicaciones/legado/clase.ts";
 
 /**
  * Nombre y WhatsApp de cada alumno, listo para avisar. Un menor sin WhatsApp
@@ -123,18 +78,7 @@ export async function avisosSuspensionAlumnos(
   porAlumno: Map<number, ClaseSuspendida[]>
 ): Promise<AvisoAlumno[]> {
   const datos = await contactosDeAlumnos(a, [...porAlumno.keys()]);
-  const avisos: AvisoAlumno[] = [];
-  for (const [alumnoId, clases] of porAlumno) {
-    const c = datos.get(alumnoId);
-    const nombre = c?.nombre ?? `Alumno #${alumnoId}`;
-    avisos.push({
-      id: `curso-${alumnoId}`,
-      nombre,
-      whatsapp: c?.whatsapp ?? null,
-      mensaje: mensajeSuspension({ nombrePila: c?.nombrePila ?? nombre, clases }),
-    });
-  }
-  return avisos.sort((x, y) => x.nombre.localeCompare(y.nombre, "es"));
+  return armarAvisosSuspension(datos, porAlumno);
 }
 
 /** El aviso al profesor titular (si tiene WhatsApp cargado, el botón queda habilitado). */
@@ -149,16 +93,5 @@ export async function avisoProfesorTitular(
     .select("id, contacto:contactos(nombre, apellido, whatsapp)")
     .eq("id", profesorId)
     .maybeSingle();
-  const p = data as unknown as {
-    id: number;
-    contacto: { nombre: string | null; apellido: string | null; whatsapp: string | null } | null;
-  } | null;
-  if (!p?.contacto) return null;
-  const nombre = `${p.contacto.nombre ?? ""} ${p.contacto.apellido ?? ""}`.trim() || `Profesor #${p.id}`;
-  return {
-    id: `profesor-${p.id}`,
-    nombre,
-    whatsapp: p.contacto.whatsapp,
-    mensaje: mensajeSuspensionProfesor({ nombrePila: p.contacto.nombre ?? nombre, ...e }),
-  };
+  return armarAvisoProfesor(profesorId, data as unknown as ProfesorDeAviso, e);
 }

@@ -31,10 +31,10 @@ import {
   avisoProfesorTitular,
   avisosSuspensionAlumnos,
   contactosDeAlumnos,
-  mensajeReapertura,
   type AvisoAlumno,
   type ClaseSuspendida,
 } from "@/lib/avisosClase";
+import { armarAvisosReapertura, avisaReapertura } from "@/lib/comunicaciones/legado/clase";
 
 function admin() {
   const a = createAdminClient();
@@ -1466,22 +1466,10 @@ export async function reabrirSesion(args: {
 
   // Aviso de "tu clase se restableció", con la fecha de fin que les quedó.
   let avisos: AvisoAlumno[] = [];
-  if (estabaSuspendida && r.alumnosRestablecidos.length) {
+  if (avisaReapertura(estabaSuspendida, r)) {
     const { data: curso } = await a.from("cursos").select("nombre").eq("id", args.cursoId).maybeSingle();
-    const cursoNombre = (curso as { nombre: string } | null)?.nombre ?? "tu curso";
     const datos = await contactosDeAlumnos(a, r.alumnosRestablecidos.map((x) => x.alumnoId));
-    avisos = r.alumnosRestablecidos
-      .map((x): AvisoAlumno => {
-        const c = datos.get(x.alumnoId);
-        const nombre = c?.nombre ?? `Alumno #${x.alumnoId}`;
-        return {
-          id: `curso-${x.alumnoId}`,
-          nombre,
-          whatsapp: c?.whatsapp ?? null,
-          mensaje: mensajeReapertura({ nombrePila: c?.nombrePila ?? nombre, curso: cursoNombre, fecha: args.fecha, finCiclo: x.finCiclo }),
-        };
-      })
-      .sort((x, y) => x.nombre.localeCompare(y.nombre, "es"));
+    avisos = armarAvisosReapertura(estabaSuspendida, r, curso as { nombre: string } | null, datos, args);
   }
   revalidatePath("/asistencia");
   revalidatePath("/sala");

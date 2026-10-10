@@ -1,0 +1,1239 @@
+{
+  "N19.una_clase_con_ciclo": {
+    "entrada": {
+      "caso": "suspension",
+      "porAlumno": [
+        {
+          "id": 1,
+          "clases": [
+            {
+              "curso": "Salsa",
+              "fecha": "2026-10-05",
+              "finCicloNuevo": "2026-11-09",
+              "motivoTexto": "un feriado"
+            }
+          ]
+        }
+      ],
+      "contactos": [
+        {
+          "id": 1,
+          "contacto": {
+            "nombre": "Ana Pérez",
+            "nombrePila": "Ana",
+            "whatsapp": "+59171234567"
+          }
+        }
+      ]
+    },
+    "resultado": [
+      {
+        "id": "curso-1",
+        "nombre": "Ana Pérez",
+        "whatsapp": "+59171234567",
+        "mensaje": "Hola Ana! Te avisamos que tu clase de Salsa del lun 5 oct quedó suspendida por un feriado. Tu ciclo se corrió: ahora vence el lun 9 nov. Cualquier duda, escribinos por acá. ¡Gracias!"
+      }
+    ]
+  },
+  "N19.una_clase_sin_ciclo": {
+    "entrada": {
+      "caso": "suspension",
+      "porAlumno": [
+        {
+          "id": 1,
+          "clases": [
+            {
+              "curso": "Salsa",
+              "fecha": "2026-10-05",
+              "finCicloNuevo": null,
+              "motivoTexto": "un feriado"
+            }
+          ]
+        }
+      ],
+      "contactos": [
+        {
+          "id": 1,
+          "contacto": {
+            "nombre": "Ana Pérez",
+            "nombrePila": "Ana",
+            "whatsapp": "+59171234567"
+          }
+        }
+      ]
+    },
+    "resultado": [
+      {
+        "id": "curso-1",
+        "nombre": "Ana Pérez",
+        "whatsapp": "+59171234567",
+        "mensaje": "Hola Ana! Te avisamos que tu clase de Salsa del lun 5 oct quedó suspendida por un feriado. Cualquier duda, escribinos por acá. ¡Gracias!"
+      }
+    ]
+  },
+  "N19.dos_clases": {
+    "entrada": {
+      "caso": "suspension",
+      "porAlumno": [
+        {
+          "id": 1,
+          "clases": [
+            {
+              "curso": "Salsa",
+              "fecha": "2026-10-05",
+              "finCicloNuevo": null,
+              "motivoTexto": "un feriado"
+            },
+            {
+              "curso": "Bachata",
+              "fecha": "2026-10-06",
+              "finCicloNuevo": null,
+              "motivoTexto": "un feriado"
+            }
+          ]
+        }
+      ],
+      "contactos": [
+        {
+          "id": 1,
+          "contacto": {
+            "nombre": "Ana Pérez",
+            "nombrePila": "Ana",
+            "whatsapp": "+59171234567"
+          }
+        }
+      ]
+    },
+    "resultado": [
+      {
+        "id": "curso-1",
+        "nombre": "Ana Pérez",
+        "whatsapp": "+59171234567",
+        "mensaje": "Hola Ana! Te avisamos que tu clase de Salsa del lun 5 oct, Bachata del mar 6 oct quedaron suspendidas por un feriado. Cualquier duda, escribinos por acá. ¡Gracias!"
+      }
+    ]
+  },
+  "N19.tres_clases_ciclo_en_la_segunda": {
+    "entrada": {
+      "caso": "suspension",
+      "porAlumno": [
+        {
+          "id": 1,
+          "clases": [
+            {
+              "curso": "Salsa",
+              "fecha": "2026-10-05",
+              "finCicloNuevo": null,
+              "motivoTexto": "un feriado"
+            },
+            {
+              "curso": "Bachata",
+              "fecha": "2026-10-06",
+              "finCicloNuevo": "2026-11-10",
+              "motivoTexto": "un feriado"
+            },
+            {
+              "curso": "Kizomba",
+              "fecha": "2026-10-07",
+              "finCicloNuevo": "2026-11-11",
+              "motivoTexto": "un feriado"
+            }
+          ]
+        }
+      ],
+      "contactos": [
+        {
+          "id": 1,
+          "contacto": {
+            "nombre": "Ana Pérez",
+            "nombrePila": "Ana",
+            "whatsapp": "+59171234567"
+          }
+        }
+      ]
+    },
+    "resultado": [
+      {
+        "id": "curso-1",
+        "nombre": "Ana Pérez",
+        "whatsapp": "+59171234567",
+        "mensaje": "Hola Ana! Te avisamos que tu clase de Salsa del lun 5 oct, Bachata del mar 6 oct, Kizomba del mié 7 oct quedaron suspendidas por un feriado. Tu ciclo se corrió: ahora vence el mar 10 nov. Cualquier duda, escribinos por acá. ¡Gracias!"
+      }
+    ]
+  },
+  "N19.motivo_de_la_primera": {
+    "entrada": {
+      "caso": "suspension",
+      "porAlumno": [
+        {
+          "id": 1,
+          "clases": [
+            {
+              "curso": "Salsa",
+              "fecha": "2026-10-05",
+              "finCicloNuevo": null,
+              "motivoTexto": "un feriado"
+            },
+            {
+              "curso": "Bachata",
+              "fecha": "2026-10-06",
+              "finCicloNuevo": null,
+              "motivoTexto": "otro motivo"
+            }
+          ]
+        }
+      ],
+      "contactos": [
+        {
+          "id": 1,
+          "contacto": {
+            "nombre": "Ana Pérez",
+            "nombrePila": "Ana",
+            "whatsapp": "+59171234567"
+          }
+        }
+      ]
+    },
+    "resultado": [
+      {
+        "id": "curso-1",
+        "nombre": "Ana Pérez",
+        "whatsapp": "+59171234567",
+        "mensaje": "Hola Ana! Te avisamos que tu clase de Salsa del lun 5 oct, Bachata del mar 6 oct quedaron suspendidas por un feriado. Cualquier duda, escribinos por acá. ¡Gracias!"
+      }
+    ]
+  },
+  "N19.motivo_con_glosa": {
+    "entrada": {
+      "caso": "suspension",
+      "porAlumno": [
+        {
+          "id": 1,
+          "clases": [
+            {
+              "curso": "Salsa",
+              "fecha": "2026-10-05",
+              "finCicloNuevo": null,
+              "motivoTexto": "Cierre de sala (Feriado)"
+            }
+          ]
+        }
+      ],
+      "contactos": [
+        {
+          "id": 1,
+          "contacto": {
+            "nombre": "Ana Pérez",
+            "nombrePila": "Ana",
+            "whatsapp": "+59171234567"
+          }
+        }
+      ]
+    },
+    "resultado": [
+      {
+        "id": "curso-1",
+        "nombre": "Ana Pérez",
+        "whatsapp": "+59171234567",
+        "mensaje": "Hola Ana! Te avisamos que tu clase de Salsa del lun 5 oct quedó suspendida por Cierre de sala (Feriado). Cualquier duda, escribinos por acá. ¡Gracias!"
+      }
+    ]
+  },
+  "N19.motivo_por_defecto_manual": {
+    "entrada": {
+      "caso": "suspension",
+      "porAlumno": [
+        {
+          "id": 1,
+          "clases": [
+            {
+              "curso": "Salsa",
+              "fecha": "2026-10-05",
+              "finCicloNuevo": null,
+              "motivoTexto": "una decisión de la escuela"
+            }
+          ]
+        }
+      ],
+      "contactos": [
+        {
+          "id": 1,
+          "contacto": {
+            "nombre": "Ana Pérez",
+            "nombrePila": "Ana",
+            "whatsapp": "+59171234567"
+          }
+        }
+      ]
+    },
+    "resultado": [
+      {
+        "id": "curso-1",
+        "nombre": "Ana Pérez",
+        "whatsapp": "+59171234567",
+        "mensaje": "Hola Ana! Te avisamos que tu clase de Salsa del lun 5 oct quedó suspendida por una decisión de la escuela. Cualquier duda, escribinos por acá. ¡Gracias!"
+      }
+    ]
+  },
+  "N19.motivo_por_defecto_c5": {
+    "entrada": {
+      "caso": "suspension",
+      "porAlumno": [
+        {
+          "id": 1,
+          "clases": [
+            {
+              "curso": "Salsa",
+              "fecha": "2026-10-05",
+              "finCicloNuevo": null,
+              "motivoTexto": "un cierre de sala"
+            }
+          ]
+        }
+      ],
+      "contactos": [
+        {
+          "id": 1,
+          "contacto": {
+            "nombre": "Ana Pérez",
+            "nombrePila": "Ana",
+            "whatsapp": "+59171234567"
+          }
+        }
+      ]
+    },
+    "resultado": [
+      {
+        "id": "curso-1",
+        "nombre": "Ana Pérez",
+        "whatsapp": "+59171234567",
+        "mensaje": "Hola Ana! Te avisamos que tu clase de Salsa del lun 5 oct quedó suspendida por un cierre de sala. Cualquier duda, escribinos por acá. ¡Gracias!"
+      }
+    ]
+  },
+  "N19.motivo_vacio": {
+    "entrada": {
+      "caso": "suspension",
+      "porAlumno": [
+        {
+          "id": 1,
+          "clases": [
+            {
+              "curso": "Salsa",
+              "fecha": "2026-10-05",
+              "finCicloNuevo": null,
+              "motivoTexto": ""
+            }
+          ]
+        }
+      ],
+      "contactos": [
+        {
+          "id": 1,
+          "contacto": {
+            "nombre": "Ana Pérez",
+            "nombrePila": "Ana",
+            "whatsapp": "+59171234567"
+          }
+        }
+      ]
+    },
+    "resultado": [
+      {
+        "id": "curso-1",
+        "nombre": "Ana Pérez",
+        "whatsapp": "+59171234567",
+        "mensaje": "Hola Ana! Te avisamos que tu clase de Salsa del lun 5 oct quedó suspendida por . Cualquier duda, escribinos por acá. ¡Gracias!"
+      }
+    ]
+  },
+  "N19.fin_de_anio": {
+    "entrada": {
+      "caso": "suspension",
+      "porAlumno": [
+        {
+          "id": 1,
+          "clases": [
+            {
+              "curso": "Salsa",
+              "fecha": "2026-12-31",
+              "finCicloNuevo": "2027-01-31",
+              "motivoTexto": "un feriado"
+            }
+          ]
+        }
+      ],
+      "contactos": [
+        {
+          "id": 1,
+          "contacto": {
+            "nombre": "Ana Pérez",
+            "nombrePila": "Ana",
+            "whatsapp": "+59171234567"
+          }
+        }
+      ]
+    },
+    "resultado": [
+      {
+        "id": "curso-1",
+        "nombre": "Ana Pérez",
+        "whatsapp": "+59171234567",
+        "mensaje": "Hola Ana! Te avisamos que tu clase de Salsa del jue 31 dic quedó suspendida por un feriado. Tu ciclo se corrió: ahora vence el dom 31 ene. Cualquier duda, escribinos por acá. ¡Gracias!"
+      }
+    ]
+  },
+  "N19.cambio_de_mes": {
+    "entrada": {
+      "caso": "suspension",
+      "porAlumno": [
+        {
+          "id": 1,
+          "clases": [
+            {
+              "curso": "Salsa",
+              "fecha": "2026-02-28",
+              "finCicloNuevo": "2026-03-01",
+              "motivoTexto": "un feriado"
+            }
+          ]
+        }
+      ],
+      "contactos": [
+        {
+          "id": 1,
+          "contacto": {
+            "nombre": "Ana Pérez",
+            "nombrePila": "Ana",
+            "whatsapp": "+59171234567"
+          }
+        }
+      ]
+    },
+    "resultado": [
+      {
+        "id": "curso-1",
+        "nombre": "Ana Pérez",
+        "whatsapp": "+59171234567",
+        "mensaje": "Hola Ana! Te avisamos que tu clase de Salsa del sáb 28 feb quedó suspendida por un feriado. Tu ciclo se corrió: ahora vence el dom 1 mar. Cualquier duda, escribinos por acá. ¡Gracias!"
+      }
+    ]
+  },
+  "N19.caracteres_especiales": {
+    "entrada": {
+      "caso": "suspension",
+      "porAlumno": [
+        {
+          "id": 1,
+          "clases": [
+            {
+              "curso": "Ñandú ¡Más!",
+              "fecha": "2026-10-05",
+              "finCicloNuevo": null,
+              "motivoTexto": "señor Núñez: ¡clausura!"
+            }
+          ]
+        }
+      ],
+      "contactos": [
+        {
+          "id": 1,
+          "contacto": {
+            "nombre": "Ángela Núñez",
+            "nombrePila": "Ángela",
+            "whatsapp": "+59171234567"
+          }
+        }
+      ]
+    },
+    "resultado": [
+      {
+        "id": "curso-1",
+        "nombre": "Ángela Núñez",
+        "whatsapp": "+59171234567",
+        "mensaje": "Hola Ángela! Te avisamos que tu clase de Ñandú ¡Más! del lun 5 oct quedó suspendida por señor Núñez: ¡clausura!. Cualquier duda, escribinos por acá. ¡Gracias!"
+      }
+    ]
+  },
+  "N19.menor_con_whatsapp_del_tutor": {
+    "entrada": {
+      "caso": "suspension",
+      "porAlumno": [
+        {
+          "id": 1,
+          "clases": [
+            {
+              "curso": "Salsa",
+              "fecha": "2026-10-05",
+              "finCicloNuevo": null,
+              "motivoTexto": "un feriado"
+            }
+          ]
+        }
+      ],
+      "contactos": [
+        {
+          "id": 1,
+          "contacto": {
+            "nombre": "Sofía Rivas",
+            "nombrePila": "Sofía",
+            "whatsapp": "+59170000001"
+          }
+        }
+      ]
+    },
+    "resultado": [
+      {
+        "id": "curso-1",
+        "nombre": "Sofía Rivas",
+        "whatsapp": "+59170000001",
+        "mensaje": "Hola Sofía! Te avisamos que tu clase de Salsa del lun 5 oct quedó suspendida por un feriado. Cualquier duda, escribinos por acá. ¡Gracias!"
+      }
+    ]
+  },
+  "N19.sin_whatsapp": {
+    "entrada": {
+      "caso": "suspension",
+      "porAlumno": [
+        {
+          "id": 1,
+          "clases": [
+            {
+              "curso": "Salsa",
+              "fecha": "2026-10-05",
+              "finCicloNuevo": null,
+              "motivoTexto": "un feriado"
+            }
+          ]
+        }
+      ],
+      "contactos": [
+        {
+          "id": 1,
+          "contacto": {
+            "nombre": "Ana Pérez",
+            "nombrePila": "Ana",
+            "whatsapp": null
+          }
+        }
+      ]
+    },
+    "resultado": [
+      {
+        "id": "curso-1",
+        "nombre": "Ana Pérez",
+        "whatsapp": null,
+        "mensaje": "Hola Ana! Te avisamos que tu clase de Salsa del lun 5 oct quedó suspendida por un feriado. Cualquier duda, escribinos por acá. ¡Gracias!"
+      }
+    ]
+  },
+  "N19.sin_contacto_resuelto": {
+    "entrada": {
+      "caso": "suspension",
+      "porAlumno": [
+        {
+          "id": 7,
+          "clases": [
+            {
+              "curso": "Salsa",
+              "fecha": "2026-10-05",
+              "finCicloNuevo": null,
+              "motivoTexto": "un feriado"
+            }
+          ]
+        }
+      ],
+      "contactos": []
+    },
+    "resultado": [
+      {
+        "id": "curso-7",
+        "nombre": "Alumno #7",
+        "whatsapp": null,
+        "mensaje": "Hola Alumno #7! Te avisamos que tu clase de Salsa del lun 5 oct quedó suspendida por un feriado. Cualquier duda, escribinos por acá. ¡Gracias!"
+      }
+    ]
+  },
+  "N19.varios_alumnos_ordenados": {
+    "entrada": {
+      "caso": "suspension",
+      "porAlumno": [
+        {
+          "id": 1,
+          "clases": [
+            {
+              "curso": "Salsa",
+              "fecha": "2026-10-05",
+              "finCicloNuevo": null,
+              "motivoTexto": "un feriado"
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "clases": [
+            {
+              "curso": "Salsa",
+              "fecha": "2026-10-05",
+              "finCicloNuevo": null,
+              "motivoTexto": "un feriado"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "clases": [
+            {
+              "curso": "Salsa",
+              "fecha": "2026-10-05",
+              "finCicloNuevo": null,
+              "motivoTexto": "un feriado"
+            }
+          ]
+        }
+      ],
+      "contactos": [
+        {
+          "id": 1,
+          "contacto": {
+            "nombre": "Zoe Ábalos",
+            "nombrePila": "Zoe",
+            "whatsapp": "+59171234567"
+          }
+        },
+        {
+          "id": 2,
+          "contacto": {
+            "nombre": "Ángel Díaz",
+            "nombrePila": "Ángel",
+            "whatsapp": "+59171234567"
+          }
+        },
+        {
+          "id": 3,
+          "contacto": {
+            "nombre": "Ana Pérez",
+            "nombrePila": "Ana",
+            "whatsapp": "+59171234567"
+          }
+        }
+      ]
+    },
+    "resultado": [
+      {
+        "id": "curso-3",
+        "nombre": "Ana Pérez",
+        "whatsapp": "+59171234567",
+        "mensaje": "Hola Ana! Te avisamos que tu clase de Salsa del lun 5 oct quedó suspendida por un feriado. Cualquier duda, escribinos por acá. ¡Gracias!"
+      },
+      {
+        "id": "curso-2",
+        "nombre": "Ángel Díaz",
+        "whatsapp": "+59171234567",
+        "mensaje": "Hola Ángel! Te avisamos que tu clase de Salsa del lun 5 oct quedó suspendida por un feriado. Cualquier duda, escribinos por acá. ¡Gracias!"
+      },
+      {
+        "id": "curso-1",
+        "nombre": "Zoe Ábalos",
+        "whatsapp": "+59171234567",
+        "mensaje": "Hola Zoe! Te avisamos que tu clase de Salsa del lun 5 oct quedó suspendida por un feriado. Cualquier duda, escribinos por acá. ¡Gracias!"
+      }
+    ]
+  },
+  "N19.sin_alumnos_afectados": {
+    "entrada": {
+      "caso": "suspension",
+      "porAlumno": [],
+      "contactos": []
+    },
+    "resultado": []
+  },
+  "N20.base": {
+    "entrada": {
+      "caso": "profesor",
+      "profesorId": 3,
+      "p": {
+        "id": 3,
+        "contacto": {
+          "nombre": "Mario",
+          "apellido": "Rojas",
+          "whatsapp": "+59178901234"
+        }
+      },
+      "datos": {
+        "curso": "Salsa",
+        "fecha": "2026-10-05",
+        "motivoTexto": "un feriado"
+      }
+    },
+    "resultado": {
+      "id": "profesor-3",
+      "nombre": "Mario Rojas",
+      "whatsapp": "+59178901234",
+      "mensaje": "Hola Mario! Te avisamos que la clase de Salsa del lun 5 oct quedó suspendida por un feriado. No hace falta que la dictes."
+    }
+  },
+  "N20.motivo_con_glosa": {
+    "entrada": {
+      "caso": "profesor",
+      "profesorId": 3,
+      "p": {
+        "id": 3,
+        "contacto": {
+          "nombre": "Mario",
+          "apellido": "Rojas",
+          "whatsapp": "+59178901234"
+        }
+      },
+      "datos": {
+        "curso": "Salsa",
+        "fecha": "2026-10-05",
+        "motivoTexto": "Cierre de sala (Feriado)"
+      }
+    },
+    "resultado": {
+      "id": "profesor-3",
+      "nombre": "Mario Rojas",
+      "whatsapp": "+59178901234",
+      "mensaje": "Hola Mario! Te avisamos que la clase de Salsa del lun 5 oct quedó suspendida por Cierre de sala (Feriado). No hace falta que la dictes."
+    }
+  },
+  "N20.sin_whatsapp": {
+    "entrada": {
+      "caso": "profesor",
+      "profesorId": 3,
+      "p": {
+        "id": 3,
+        "contacto": {
+          "nombre": "Mario",
+          "apellido": "Rojas",
+          "whatsapp": null
+        }
+      },
+      "datos": {
+        "curso": "Salsa",
+        "fecha": "2026-10-05",
+        "motivoTexto": "un feriado"
+      }
+    },
+    "resultado": {
+      "id": "profesor-3",
+      "nombre": "Mario Rojas",
+      "whatsapp": null,
+      "mensaje": "Hola Mario! Te avisamos que la clase de Salsa del lun 5 oct quedó suspendida por un feriado. No hace falta que la dictes."
+    }
+  },
+  "N20.sin_apellido": {
+    "entrada": {
+      "caso": "profesor",
+      "profesorId": 3,
+      "p": {
+        "id": 3,
+        "contacto": {
+          "nombre": "Mario",
+          "apellido": null,
+          "whatsapp": "+59178901234"
+        }
+      },
+      "datos": {
+        "curso": "Salsa",
+        "fecha": "2026-10-05",
+        "motivoTexto": "un feriado"
+      }
+    },
+    "resultado": {
+      "id": "profesor-3",
+      "nombre": "Mario",
+      "whatsapp": "+59178901234",
+      "mensaje": "Hola Mario! Te avisamos que la clase de Salsa del lun 5 oct quedó suspendida por un feriado. No hace falta que la dictes."
+    }
+  },
+  "N20.sin_nombre": {
+    "entrada": {
+      "caso": "profesor",
+      "profesorId": 3,
+      "p": {
+        "id": 3,
+        "contacto": {
+          "nombre": null,
+          "apellido": "Rojas",
+          "whatsapp": "+59178901234"
+        }
+      },
+      "datos": {
+        "curso": "Salsa",
+        "fecha": "2026-10-05",
+        "motivoTexto": "un feriado"
+      }
+    },
+    "resultado": {
+      "id": "profesor-3",
+      "nombre": "Rojas",
+      "whatsapp": "+59178901234",
+      "mensaje": "Hola Rojas! Te avisamos que la clase de Salsa del lun 5 oct quedó suspendida por un feriado. No hace falta que la dictes."
+    }
+  },
+  "N20.sin_nombre_ni_apellido": {
+    "entrada": {
+      "caso": "profesor",
+      "profesorId": 3,
+      "p": {
+        "id": 3,
+        "contacto": {
+          "nombre": null,
+          "apellido": null,
+          "whatsapp": "+59178901234"
+        }
+      },
+      "datos": {
+        "curso": "Salsa",
+        "fecha": "2026-10-05",
+        "motivoTexto": "un feriado"
+      }
+    },
+    "resultado": {
+      "id": "profesor-3",
+      "nombre": "Profesor #3",
+      "whatsapp": "+59178901234",
+      "mensaje": "Hola Profesor #3! Te avisamos que la clase de Salsa del lun 5 oct quedó suspendida por un feriado. No hace falta que la dictes."
+    }
+  },
+  "N20.caracteres_especiales": {
+    "entrada": {
+      "caso": "profesor",
+      "profesorId": 3,
+      "p": {
+        "id": 3,
+        "contacto": {
+          "nombre": "Íñigo",
+          "apellido": "Muñoz",
+          "whatsapp": "+59178901234"
+        }
+      },
+      "datos": {
+        "curso": "Ñandú ¡Más!",
+        "fecha": "2026-12-31",
+        "motivoTexto": "señor Núñez: ¡clausura!"
+      }
+    },
+    "resultado": {
+      "id": "profesor-3",
+      "nombre": "Íñigo Muñoz",
+      "whatsapp": "+59178901234",
+      "mensaje": "Hola Íñigo! Te avisamos que la clase de Ñandú ¡Más! del jue 31 dic quedó suspendida por señor Núñez: ¡clausura!. No hace falta que la dictes."
+    }
+  },
+  "N20.sin_profesor_titular": {
+    "entrada": {
+      "caso": "profesor",
+      "profesorId": null,
+      "p": null,
+      "datos": {
+        "curso": "Salsa",
+        "fecha": "2026-10-05",
+        "motivoTexto": "un feriado"
+      }
+    },
+    "resultado": null
+  },
+  "N20.profesor_sin_contacto": {
+    "entrada": {
+      "caso": "profesor",
+      "profesorId": 3,
+      "p": {
+        "id": 3,
+        "contacto": null
+      },
+      "datos": {
+        "curso": "Salsa",
+        "fecha": "2026-10-05",
+        "motivoTexto": "un feriado"
+      }
+    },
+    "resultado": null
+  },
+  "N20.profesor_no_encontrado": {
+    "entrada": {
+      "caso": "profesor",
+      "profesorId": 3,
+      "p": null,
+      "datos": {
+        "curso": "Salsa",
+        "fecha": "2026-10-05",
+        "motivoTexto": "un feriado"
+      }
+    },
+    "resultado": null
+  },
+  "N21.con_ciclo": {
+    "entrada": {
+      "caso": "reapertura",
+      "estabaSuspendida": true,
+      "restablecidos": [
+        {
+          "alumnoId": 1,
+          "finCiclo": "2026-11-02"
+        }
+      ],
+      "contactos": [
+        {
+          "id": 1,
+          "contacto": {
+            "nombre": "Ana Pérez",
+            "nombrePila": "Ana",
+            "whatsapp": "+59171234567"
+          }
+        }
+      ],
+      "curso": {
+        "nombre": "Salsa"
+      },
+      "fecha": "2026-10-05"
+    },
+    "resultado": [
+      {
+        "id": "curso-1",
+        "nombre": "Ana Pérez",
+        "whatsapp": "+59171234567",
+        "mensaje": "Hola Ana! Te avisamos que tu clase de Salsa del lun 5 oct se restableció: se dicta con normalidad. Tu ciclo vuelve a vencer el lun 2 nov. Cualquier duda, escribinos por acá. ¡Gracias!"
+      }
+    ]
+  },
+  "N21.sin_ciclo": {
+    "entrada": {
+      "caso": "reapertura",
+      "estabaSuspendida": true,
+      "restablecidos": [
+        {
+          "alumnoId": 1,
+          "finCiclo": null
+        }
+      ],
+      "contactos": [
+        {
+          "id": 1,
+          "contacto": {
+            "nombre": "Ana Pérez",
+            "nombrePila": "Ana",
+            "whatsapp": "+59171234567"
+          }
+        }
+      ],
+      "curso": {
+        "nombre": "Salsa"
+      },
+      "fecha": "2026-10-05"
+    },
+    "resultado": [
+      {
+        "id": "curso-1",
+        "nombre": "Ana Pérez",
+        "whatsapp": "+59171234567",
+        "mensaje": "Hola Ana! Te avisamos que tu clase de Salsa del lun 5 oct se restableció: se dicta con normalidad. Cualquier duda, escribinos por acá. ¡Gracias!"
+      }
+    ]
+  },
+  "N21.fin_de_anio": {
+    "entrada": {
+      "caso": "reapertura",
+      "estabaSuspendida": true,
+      "restablecidos": [
+        {
+          "alumnoId": 1,
+          "finCiclo": "2027-01-05"
+        }
+      ],
+      "contactos": [
+        {
+          "id": 1,
+          "contacto": {
+            "nombre": "Ana Pérez",
+            "nombrePila": "Ana",
+            "whatsapp": "+59171234567"
+          }
+        }
+      ],
+      "curso": {
+        "nombre": "Salsa"
+      },
+      "fecha": "2026-12-31"
+    },
+    "resultado": [
+      {
+        "id": "curso-1",
+        "nombre": "Ana Pérez",
+        "whatsapp": "+59171234567",
+        "mensaje": "Hola Ana! Te avisamos que tu clase de Salsa del jue 31 dic se restableció: se dicta con normalidad. Tu ciclo vuelve a vencer el mar 5 ene. Cualquier duda, escribinos por acá. ¡Gracias!"
+      }
+    ]
+  },
+  "N21.cambio_de_mes": {
+    "entrada": {
+      "caso": "reapertura",
+      "estabaSuspendida": true,
+      "restablecidos": [
+        {
+          "alumnoId": 1,
+          "finCiclo": "2026-03-01"
+        }
+      ],
+      "contactos": [
+        {
+          "id": 1,
+          "contacto": {
+            "nombre": "Ana Pérez",
+            "nombrePila": "Ana",
+            "whatsapp": "+59171234567"
+          }
+        }
+      ],
+      "curso": {
+        "nombre": "Salsa"
+      },
+      "fecha": "2026-02-28"
+    },
+    "resultado": [
+      {
+        "id": "curso-1",
+        "nombre": "Ana Pérez",
+        "whatsapp": "+59171234567",
+        "mensaje": "Hola Ana! Te avisamos que tu clase de Salsa del sáb 28 feb se restableció: se dicta con normalidad. Tu ciclo vuelve a vencer el dom 1 mar. Cualquier duda, escribinos por acá. ¡Gracias!"
+      }
+    ]
+  },
+  "N21.caracteres_especiales": {
+    "entrada": {
+      "caso": "reapertura",
+      "estabaSuspendida": true,
+      "restablecidos": [
+        {
+          "alumnoId": 1,
+          "finCiclo": "2026-11-02"
+        }
+      ],
+      "contactos": [
+        {
+          "id": 1,
+          "contacto": {
+            "nombre": "Ángela Núñez",
+            "nombrePila": "Ángela",
+            "whatsapp": "+59171234567"
+          }
+        }
+      ],
+      "curso": {
+        "nombre": "Ñandú ¡Más!"
+      },
+      "fecha": "2026-10-05"
+    },
+    "resultado": [
+      {
+        "id": "curso-1",
+        "nombre": "Ángela Núñez",
+        "whatsapp": "+59171234567",
+        "mensaje": "Hola Ángela! Te avisamos que tu clase de Ñandú ¡Más! del lun 5 oct se restableció: se dicta con normalidad. Tu ciclo vuelve a vencer el lun 2 nov. Cualquier duda, escribinos por acá. ¡Gracias!"
+      }
+    ]
+  },
+  "N21.sin_whatsapp": {
+    "entrada": {
+      "caso": "reapertura",
+      "estabaSuspendida": true,
+      "restablecidos": [
+        {
+          "alumnoId": 1,
+          "finCiclo": "2026-11-02"
+        }
+      ],
+      "contactos": [
+        {
+          "id": 1,
+          "contacto": {
+            "nombre": "Ana Pérez",
+            "nombrePila": "Ana",
+            "whatsapp": null
+          }
+        }
+      ],
+      "curso": {
+        "nombre": "Salsa"
+      },
+      "fecha": "2026-10-05"
+    },
+    "resultado": [
+      {
+        "id": "curso-1",
+        "nombre": "Ana Pérez",
+        "whatsapp": null,
+        "mensaje": "Hola Ana! Te avisamos que tu clase de Salsa del lun 5 oct se restableció: se dicta con normalidad. Tu ciclo vuelve a vencer el lun 2 nov. Cualquier duda, escribinos por acá. ¡Gracias!"
+      }
+    ]
+  },
+  "N21.sin_contacto_resuelto": {
+    "entrada": {
+      "caso": "reapertura",
+      "estabaSuspendida": true,
+      "restablecidos": [
+        {
+          "alumnoId": 7,
+          "finCiclo": "2026-11-02"
+        }
+      ],
+      "contactos": [],
+      "curso": {
+        "nombre": "Salsa"
+      },
+      "fecha": "2026-10-05"
+    },
+    "resultado": [
+      {
+        "id": "curso-7",
+        "nombre": "Alumno #7",
+        "whatsapp": null,
+        "mensaje": "Hola Alumno #7! Te avisamos que tu clase de Salsa del lun 5 oct se restableció: se dicta con normalidad. Tu ciclo vuelve a vencer el lun 2 nov. Cualquier duda, escribinos por acá. ¡Gracias!"
+      }
+    ]
+  },
+  "N21.curso_no_encontrado": {
+    "entrada": {
+      "caso": "reapertura",
+      "estabaSuspendida": true,
+      "restablecidos": [
+        {
+          "alumnoId": 1,
+          "finCiclo": null
+        }
+      ],
+      "contactos": [
+        {
+          "id": 1,
+          "contacto": {
+            "nombre": "Ana Pérez",
+            "nombrePila": "Ana",
+            "whatsapp": "+59171234567"
+          }
+        }
+      ],
+      "curso": null,
+      "fecha": "2026-10-05"
+    },
+    "resultado": [
+      {
+        "id": "curso-1",
+        "nombre": "Ana Pérez",
+        "whatsapp": "+59171234567",
+        "mensaje": "Hola Ana! Te avisamos que tu clase de tu curso del lun 5 oct se restableció: se dicta con normalidad. Cualquier duda, escribinos por acá. ¡Gracias!"
+      }
+    ]
+  },
+  "N21.varios_alumnos_ordenados": {
+    "entrada": {
+      "caso": "reapertura",
+      "estabaSuspendida": true,
+      "restablecidos": [
+        {
+          "alumnoId": 1,
+          "finCiclo": "2026-11-02"
+        },
+        {
+          "alumnoId": 2,
+          "finCiclo": null
+        },
+        {
+          "alumnoId": 3,
+          "finCiclo": "2026-11-09"
+        }
+      ],
+      "contactos": [
+        {
+          "id": 1,
+          "contacto": {
+            "nombre": "Zoe Ábalos",
+            "nombrePila": "Zoe",
+            "whatsapp": "+59171234567"
+          }
+        },
+        {
+          "id": 2,
+          "contacto": {
+            "nombre": "Ángel Díaz",
+            "nombrePila": "Ángel",
+            "whatsapp": "+59171234567"
+          }
+        },
+        {
+          "id": 3,
+          "contacto": {
+            "nombre": "Ana Pérez",
+            "nombrePila": "Ana",
+            "whatsapp": "+59171234567"
+          }
+        }
+      ],
+      "curso": {
+        "nombre": "Salsa"
+      },
+      "fecha": "2026-10-05"
+    },
+    "resultado": [
+      {
+        "id": "curso-3",
+        "nombre": "Ana Pérez",
+        "whatsapp": "+59171234567",
+        "mensaje": "Hola Ana! Te avisamos que tu clase de Salsa del lun 5 oct se restableció: se dicta con normalidad. Tu ciclo vuelve a vencer el lun 9 nov. Cualquier duda, escribinos por acá. ¡Gracias!"
+      },
+      {
+        "id": "curso-2",
+        "nombre": "Ángel Díaz",
+        "whatsapp": "+59171234567",
+        "mensaje": "Hola Ángel! Te avisamos que tu clase de Salsa del lun 5 oct se restableció: se dicta con normalidad. Cualquier duda, escribinos por acá. ¡Gracias!"
+      },
+      {
+        "id": "curso-1",
+        "nombre": "Zoe Ábalos",
+        "whatsapp": "+59171234567",
+        "mensaje": "Hola Zoe! Te avisamos que tu clase de Salsa del lun 5 oct se restableció: se dicta con normalidad. Tu ciclo vuelve a vencer el lun 2 nov. Cualquier duda, escribinos por acá. ¡Gracias!"
+      }
+    ]
+  },
+  "N21.no_estaba_suspendida": {
+    "entrada": {
+      "caso": "reapertura",
+      "estabaSuspendida": false,
+      "restablecidos": [
+        {
+          "alumnoId": 1,
+          "finCiclo": "2026-11-02"
+        }
+      ],
+      "contactos": [
+        {
+          "id": 1,
+          "contacto": {
+            "nombre": "Ana Pérez",
+            "nombrePila": "Ana",
+            "whatsapp": "+59171234567"
+          }
+        }
+      ],
+      "curso": {
+        "nombre": "Salsa"
+      },
+      "fecha": "2026-10-05"
+    },
+    "resultado": []
+  },
+  "N21.nadie_restablecido": {
+    "entrada": {
+      "caso": "reapertura",
+      "estabaSuspendida": true,
+      "restablecidos": [],
+      "contactos": [],
+      "curso": {
+        "nombre": "Salsa"
+      },
+      "fecha": "2026-10-05"
+    },
+    "resultado": []
+  }
+}

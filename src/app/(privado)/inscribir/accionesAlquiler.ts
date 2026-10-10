@@ -21,6 +21,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { tienePermiso, obtenerParametro, obtenerPerfilActual } from "@/lib/sesion";
 import { nombreCompleto, compararContactosPorApellido } from "@/lib/contactos";
 import { gs, isoFecha, primerDiaDelMes, sumarMeses } from "@/lib/inscripcion";
+import { mensajeAlquiler, restoAlquiler } from "@/lib/comunicaciones/legado/venta";
 import { proponerCategoria } from "@/lib/categoriaAlquiler";
 import { destinatarioDeTitular } from "@/lib/destinatarioTitular";
 import { costoDeSala, tamanoPorPersonas, type CategoriaSala, type ClaveTamano, type TamanoSala, type TarifaSala } from "@/lib/sala";
@@ -510,7 +511,7 @@ export async function venderAlquiler(e: EntradaAlquiler): Promise<ResultadoVenta
   revalidatePath("/alquileres");
 
   const agendaTexto = formatearAgenda(sesiones);
-  const resto = leftoverMin ? " El resto de las horas se coordina después." : "";
+  const resto = restoAlquiler(leftoverMin);
   // El aviso de una organización va a quien la atiende (persona de contacto
   // con WhatsApp); si no tiene, al de la propia organización.
   const destino = await destinatarioDeTitular(a, contacto);
@@ -520,10 +521,15 @@ export async function venderAlquiler(e: EntradaAlquiler): Promise<ResultadoVenta
     aviso: {
       nombre: destino.nombre,
       whatsapp: destino.whatsapp,
-      mensaje:
-        destino.nombre === contacto.nombre
-          ? `Hola! Confirmamos tu alquiler de sala (${planNombre}): ${horas} h en ${dondeTexto}. Reservado: ${agendaTexto}.${resto} ¡Te esperamos!`
-          : `Hola! Confirmamos el alquiler de sala (${planNombre}) de ${contacto.nombre}: ${horas} h en ${dondeTexto}. Reservado: ${agendaTexto}.${resto} ¡Los esperamos!`,
+      mensaje: mensajeAlquiler({
+        planNombre,
+        horas,
+        dondeTexto,
+        agendaTexto,
+        leftoverMin,
+        contactoNombre: contacto.nombre,
+        destinoNombre: destino.nombre,
+      }),
     },
   };
 }

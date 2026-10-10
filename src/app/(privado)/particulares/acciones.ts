@@ -27,7 +27,28 @@ import { apellidoDe, nombreCompleto } from "@/lib/contactos";
 import { destinatarioDeTitular } from "@/lib/destinatarioTitular";
 import { destinatarioAviso } from "@/lib/venta/destinatarioAviso";
 import { recalcularMembresia } from "@/lib/membresias";
-import { formatearHoras, aMinutos, horaFin } from "@/lib/horarios";
+import { formatearHoras, aMinutos } from "@/lib/horarios";
+import {
+  h,
+  horario,
+  textosDeReserva,
+  avisosDeReserva,
+  avisaCambioDeEstado,
+  mensajeReservaConfirmadaAlumno,
+  mensajeReservaConfirmadaProfesor,
+  mensajeReservaSolicitadaAlumno,
+  mensajeReservaSolicitadaProfesor,
+  mensajeReservaSuspendidaAlumno,
+  mensajeReservaSuspendidaProfesor,
+  mensajeReservaRestablecidaAlumno,
+  mensajeReservaRestablecidaProfesor,
+  mensajeReservaReprogramadaAlumno,
+  mensajeReservaReprogramadaProfesor,
+  mensajeCanceladaFueraDePlazoAlumno,
+  mensajeCanceladaFueraDePlazoProfesor,
+  mensajeCanceladaEnPlazoAlumno,
+  mensajeCanceladaEnPlazoProfesor,
+} from "@/lib/comunicaciones/legado/reserva";
 import {
   puedeTransicionar,
   saldoMembresia,
@@ -168,21 +189,6 @@ async function destinatarioDeAlumno(
   });
 }
 
-function fechaHoraCorta(fecha: string, hora: string): string {
-  const d = new Date(`${fecha}T00:00:00`);
-  const DIAS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
-  const dd = String(d.getDate()).padStart(2, "0");
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  return `${DIAS[d.getDay()]} ${dd}/${mm} ${hora.slice(0, 5)}`;
-}
-
-/** "vie 02/10 de 15:00 a 16:00" — el mismo formato que usa la inscripción. */
-function horario(fecha: string, hora: string, duracionMin: number): string {
-  return `${fechaHoraCorta(fecha, hora).slice(0, -6)} de ${hora.slice(0, 5)} a ${horaFin(hora, duracionMin) ?? "?"}`;
-}
-
-const h = (min: number) => formatearHoras(min / 60);
-
 /**
  * Todo lo que necesita un aviso, leído DESPUÉS de escribir (el saldo ya
  * refleja el cambio). Los mensajes siguen el formato de la venta de H2
@@ -262,20 +268,20 @@ async function contextoAviso(
   });
   const pc = m.profesor?.contacto;
   const esAlquiler = m.categoria_aplicada != null;
-  const planNombre = m.plan?.nombre ?? (esAlquiler ? "alquiler de sala" : "clases particulares");
   const profesorNombre = `${pc?.nombre ?? ""} ${pc?.apellido ?? ""}`.trim();
   const alumnoNombre = esAlquiler
     ? nombreCompleto(m.titular ? { tipo: m.titular.tipo, nombre: m.titular.nombre, apellido: m.titular.apellido, razon_social: m.titular.razon_social } : null)
     : `${m.alumno?.contacto?.nombre ?? ""} ${m.alumno?.contacto?.apellido ?? ""}`.trim();
+  const textos = textosDeReserva({ esAlquiler, planNombre: m.plan?.nombre, profesorNombre, alumnoNombre });
   return {
     destinatario,
-    tuClase: esAlquiler ? `tu alquiler de sala (${planNombre})` : `tu clase particular (${planNombre}) con ${profesorNombre}`,
-    tuClaseCorta: esAlquiler ? `tu alquiler de sala (${planNombre})` : `tu clase particular (${planNombre})`,
-    paquete: esAlquiler ? "alquiler" : "paquete",
-    alumnoNombre: alumnoNombre || (esAlquiler ? "el titular" : "el alumno"),
+    tuClase: textos.tuClase,
+    tuClaseCorta: textos.tuClaseCorta,
+    paquete: textos.paquete,
+    alumnoNombre: textos.alumnoNombre,
     // Sin profesor (alquiler): `avisos()` no arma el aviso al profesor.
     profesor: { nombre: profesorNombre, whatsapp: pc?.whatsapp ?? null },
-    planNombre,
+    planNombre: textos.planNombre,
     contratadasMin: saldo.contratadasMin,
     disponibleMin: saldo.disponibleMin,
     lugar: (salaId) => {
@@ -288,14 +294,8 @@ async function contextoAviso(
 }
 
 function avisos(c: ContextoAviso | null, alumno: string, profesor: string): Pick<ResultadoAccion, "avisoAlumno" | "avisoProfesor"> {
-  if (!c) return {};
-  return {
-    avisoAlumno: c.destinatario ? { nombre: c.destinatario.nombre, whatsapp: c.destinatario.whatsapp, mensaje: alumno } : undefined,
-    avisoProfesor: c.profesor.nombre ? { nombre: c.profesor.nombre, whatsapp: c.profesor.whatsapp, mensaje: profesor } : undefined,
-  };
+  return avisosDeReserva(c, alumno, profesor);
 }
-
-const saldoTexto = (c: ContextoAviso) => `Te quedan ${h(c.disponibleMin)} h de tu ${c.paquete} de ${h(c.contratadasMin)} h.`;
 
 // ── Datos para la pantalla ──────────────────────────────────────────────
 
@@ -1111,8 +1111,8 @@ export async function crearReserva(e: EntradaNuevaReserva): Promise<ResultadoAcc
       mensaje: `Solicitada para el ${cuando}. Ocupa la sala y al profesor hasta que se confirme (o vence en ${validezHoras} h).`,
       ...avisos(
         c,
-        `Hola! Estamos coordinando ${c?.tuClase} para el ${cuando}, en ${lugar}. Te la confirmamos a la brevedad.`,
-        `Hola! Estamos coordinando una clase particular (${c?.planNombre}) con ${c?.alumnoNombre} para el ${cuando}, en ${lugar}. ¿Te queda bien? Te confirmamos.`
+        c ? mensajeReservaSolicitadaAlumno(c, cuando, lugar) : "",
+        c ? mensajeReservaSolicitadaProfesor(c, cuando, lugar) : ""
       ),
     };
   return {
@@ -1120,8 +1120,8 @@ export async function crearReserva(e: EntradaNuevaReserva): Promise<ResultadoAcc
     mensaje: e.reagendaDe != null ? `Reagendada para el ${cuando}.` : `Confirmada para el ${cuando}.`,
     ...avisos(
       c,
-      `Hola! Confirmamos ${c?.tuClase}: ${cuando}, en ${lugar}. ${c ? saldoTexto(c) : ""} ¡Te esperamos!`,
-      `Hola! Se te confirmó una clase particular (${c?.planNombre}) con ${c?.alumnoNombre}: ${cuando}, en ${lugar}.`
+      c ? mensajeReservaConfirmadaAlumno(c, cuando, lugar) : "",
+      c ? mensajeReservaConfirmadaProfesor(c, cuando, lugar) : ""
     ),
   };
 }
@@ -1440,7 +1440,7 @@ export async function cambiarEstadoReserva(
   // Aviso solo en los cambios que le importan a alguien afuera del sistema
   // (proceso 12): confirmar y suspender. Ausente/Realizada son registro
   // interno de lo que ya pasó.
-  if (destino !== "confirmada" && destino !== "suspendida")
+  if (!avisaCambioDeEstado(destino))
     return { ok: true, mensaje: `Marcada ${ETIQUETA_ESTADO_RESERVA[destino]}.` };
 
   const c = await contextoAviso(a, rRow.membresia_id, true);
@@ -1452,8 +1452,8 @@ export async function cambiarEstadoReserva(
       mensaje: `Confirmada: ${cuando}.`,
       ...avisos(
         c,
-        `Hola! Confirmamos ${c?.tuClase}: ${cuando}, en ${lugar}. ${c ? saldoTexto(c) : ""} ¡Te esperamos!`,
-        `Hola! Se te confirmó una clase particular (${c?.planNombre}) con ${c?.alumnoNombre}: ${cuando}, en ${lugar}.`
+        c ? mensajeReservaConfirmadaAlumno(c, cuando, lugar) : "",
+        c ? mensajeReservaConfirmadaProfesor(c, cuando, lugar) : ""
       ),
     };
   return {
@@ -1461,8 +1461,8 @@ export async function cambiarEstadoReserva(
     mensaje: `Suspendida (${etiquetaMotivoSuspension}). La hora vuelve al ${c?.paquete ?? "paquete"}.`,
     ...avisos(
       c,
-      `Hola! ${c ? c.tuClaseCorta.charAt(0).toUpperCase() + c.tuClaseCorta.slice(1) : "Tu reserva"} del ${cuando} quedó suspendida (${etiquetaMotivoSuspension}). Esa hora vuelve a tu ${c?.paquete ?? "paquete"}: ${c ? saldoTexto(c) : ""} Coordinamos una nueva fecha.`,
-      `Hola! La clase particular (${c?.planNombre}) con ${c?.alumnoNombre} del ${cuando}, en ${lugar}, quedó suspendida (${etiquetaMotivoSuspension}).`
+      c ? mensajeReservaSuspendidaAlumno(c, cuando, etiquetaMotivoSuspension) : "",
+      c ? mensajeReservaSuspendidaProfesor(c, cuando, lugar, etiquetaMotivoSuspension) : ""
     ),
   };
 }
@@ -1526,8 +1526,8 @@ export async function suspenderReservaOperativa(
     ok: true,
     ...avisos(
       c,
-      `Hola! ${c ? c.tuClaseCorta.charAt(0).toUpperCase() + c.tuClaseCorta.slice(1) : "Tu reserva"} del ${cuando} quedó suspendida (${campos.motivoTexto}). Esa hora vuelve a tu ${c?.paquete ?? "paquete"}: ${c ? saldoTexto(c) : ""} Coordinamos una nueva fecha.`,
-      `Hola! La clase particular (${c?.planNombre}) con ${c?.alumnoNombre} del ${cuando}, en ${lugar}, quedó suspendida (${campos.motivoTexto}).`
+      c ? mensajeReservaSuspendidaAlumno(c, cuando, campos.motivoTexto) : "",
+      c ? mensajeReservaSuspendidaProfesor(c, cuando, lugar, campos.motivoTexto) : ""
     ),
   };
 }
@@ -1640,8 +1640,8 @@ export async function revertirSuspension(reservaId: number): Promise<ResultadoAc
     mensaje: `Restablecida: ${cuando} (reserva #${nueva.id}).`,
     ...avisos(
       c,
-      `Hola! Se restableció ${c?.tuClase}: ${cuando}, en ${lugar}. ${c ? saldoTexto(c) : ""} ¡Te esperamos!`,
-      `Hola! Se restableció una clase particular (${c?.planNombre}) con ${c?.alumnoNombre}: ${cuando}, en ${lugar}.`
+      c ? mensajeReservaRestablecidaAlumno(c, cuando, lugar) : "",
+      c ? mensajeReservaRestablecidaProfesor(c, cuando, lugar) : ""
     ),
   };
 }
@@ -1786,8 +1786,8 @@ export async function reprogramarReserva(e: EntradaReprogramar): Promise<Resulta
     mensaje: `Reprogramada: ${antes} → ${ahoraEs}, en ${lugar}.`,
     ...avisos(
       c,
-      `Hola! Reprogramamos ${c?.tuClase}: pasa del ${antes} al ${ahoraEs}, en ${lugar}. ${c ? saldoTexto(c) : ""} ¡Te esperamos!`,
-      `Hola! Se reprogramó la clase particular (${c?.planNombre}) con ${c?.alumnoNombre}: pasa del ${antes} al ${ahoraEs}, en ${lugar}.`
+      c ? mensajeReservaReprogramadaAlumno(c, antes, ahoraEs, lugar) : "",
+      c ? mensajeReservaReprogramadaProfesor(c, antes, ahoraEs, lugar) : ""
     ),
   };
 }
@@ -1905,8 +1905,8 @@ export async function cancelarAPedido(reservaId: number): Promise<ResultadoAccio
       mensaje: `Cancelada fuera de plazo (menos de ${plazoHoras} h antes): queda Ausente y la hora se descuenta del ${c?.paquete ?? "paquete"}.`,
       ...avisos(
         c,
-        `Hola! Registramos la cancelación de ${c?.tuClaseCorta} del ${cuando}. Como fue con menos de ${plazoHoras} h de anticipación, esa hora se descuenta del ${c?.paquete ?? "paquete"}. ${c ? saldoTexto(c) : ""}`,
-        `Hola! ${c?.alumnoNombre} canceló fuera de plazo la clase particular (${c?.planNombre}) del ${cuando}, en ${lugar}. Ya no hace falta que vayas.`
+        c ? mensajeCanceladaFueraDePlazoAlumno(c, cuando, plazoHoras) : "",
+        c ? mensajeCanceladaFueraDePlazoProfesor(c, cuando, lugar) : ""
       ),
     };
   return {
@@ -1914,8 +1914,8 @@ export async function cancelarAPedido(reservaId: number): Promise<ResultadoAccio
     mensaje: `Cancelada: la hora vuelve al ${c?.paquete ?? "paquete"}.`,
     ...avisos(
       c,
-      `Hola! Cancelamos ${c?.tuClaseCorta} del ${cuando}, como pediste. Esa hora vuelve a tu ${c?.paquete ?? "paquete"}: ${c ? saldoTexto(c) : ""} Coordinamos una nueva fecha.`,
-      `Hola! Se canceló a pedido del alumno la clase particular (${c?.planNombre}) con ${c?.alumnoNombre} del ${cuando}, en ${lugar}.`
+      c ? mensajeCanceladaEnPlazoAlumno(c, cuando) : "",
+      c ? mensajeCanceladaEnPlazoProfesor(c, cuando, lugar) : ""
     ),
   };
 }

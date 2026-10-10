@@ -172,3 +172,24 @@ Pasaron a `docs/archivo/ESTADO-2026-10.md` para que este archivo se pueda leer. 
 - **Código del PR #44:** con **contactos** en alcance propio, la lista y la ficha de Membresías solo muestran regulares y pruebas de cursos del profesor (`cursosPropios`, `membresiaVisible`). Primer intento con `alumnos` falló: ese módulo no tiene selector en `rol_visibilidad`.
 - **Probado:** prueba técnica en producción (login, `/membresias`, ficha, `/caja`, `/sala`, `/liquidaciones`); `npm test` 466, `tsc` y ESLint limpios; cuenta de Oscar Nuñez en dev (12 activas, 3 históricas) y confirmación de Javier en producción.
 - **Anotado:** aviso React #418 (hidratación de texto) una vez al cargar `/caja`; sin reproducir.
+
+## R20 — Etapa 0: inventario y plan de comunicaciones (2026-10-09)
+- **Sin código ni migraciones.** Rama `r20-notificaciones`. Plan: `docs/relevamientos/2026-10-09-plan-r20-notificaciones.md` (sin aprobar el alcance de los incrementos).
+- **Inventario:** 21 casos de mensaje (N01–N21), 15 operaciones que avisan, 7 contenedores, 5 documentos imprimibles; generadores en `mensajeInscripcion.ts`, `avisosClase.ts` y dentro de `particulares/acciones.ts` e `inscribir/`.
+- **Hallazgos:** ningún aviso consulta `no_contactar`; tres reglas de destinatario distintas para un menor (dA, cA, dT); no queda registro de ningún envío; `politicas_texto` ya existe (consentimiento).
+- **Fase 4 (reporte):** plan guardado en `2026-10-09-plan-i012-fase-4-reporte.md`, en PAUSA; se apoya en la capa de R20 y no crea `membresia_eventos` por su cuenta.
+- **Próxima migración libre:** 0071 (la usa el incremento 1.3 de R20).
+
+
+## R20 — Plan v2 y autorización de E2 (2026-10-09)
+- Plan v2 en `docs/relevamientos/2026-10-09-plan-r20-notificaciones-v2.md`; la v1 queda como antecedente.
+- Recuento: 13 eventos, 21 casos de mensaje, 16 operaciones (13 con generador propio), 9 consumidores de `AvisoWhatsapp`. Variantes: se cuentan en E2.
+- Medido en dev (solo lectura): `no_contactar` en 0 de 67 contactos y nadie lo escribe; 5 consentimientos (3 otorgados, 2 rechazos), que hoy no frenan ningún aviso. Producción sin medir (M1).
+- Certificaciones pasan a entrega 7a, con plan propio; el plan viejo de la fase 4 queda archivado.
+- Autorizado: E2 en hitos, en dev. Sin migraciones, sin conectar casos, sin tocar consentimiento ni producción.
+
+## R20 — E2 · H3 completo: reservas, clases y ventas (2026-10-10)
+- Los 21 casos (N01–N21) tienen referencia capturada del código anterior, función pura y plantilla predeterminada, con equivalencia en tres vías y condiciones de no-aviso: reservas 161 variantes (+23 de N09–N10), clases 38, ventas 62. 0 diferencias. Informes: `2026-10-10-r20-equivalencia-{reservas,clases,ventas}.md`.
+- Motivo de suspensión vacío o nulo: la función movida ya imprimía «()»/«null»; solo la plantilla lo detenía. Corregido con `permiteVacia` y referencias nuevas; la validación mejor queda como cambio posterior.
+- `npm run inventario:avisos` (`scripts/inventario-avisos.mjs`): falla si aparece un consumidor de `AvisoWhatsapp` fuera de los 9, falta una de las 16 operaciones o un caso sin referencias o plantilla.
+- `tsc` limpio, `npm test` 791/791, e2e de humo 14/14 (membresías 1a y reprogramar/cancelar/reagendar). Sin migraciones, sin conectar casos, sin tocar consentimiento ni producción.

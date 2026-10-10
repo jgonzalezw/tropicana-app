@@ -1,0 +1,1687 @@
+{
+  "N01.base": {
+    "entrada": {
+      "caso": "inscripcion",
+      "datos": {
+        "alumno": "Ana Pérez",
+        "esMenor": false,
+        "plan": "Plan Doble",
+        "cursos": [
+          {
+            "nombre": "Salsa",
+            "dias": [
+              1,
+              3
+            ],
+            "hora": "19:00",
+            "duracionMin": 90
+          },
+          {
+            "nombre": "Bachata",
+            "dias": [
+              5
+            ],
+            "hora": null,
+            "duracionMin": null
+          }
+        ],
+        "clasesPlan": 12,
+        "bono": 0,
+        "cicloDias": 30,
+        "inicio": "lun 5 oct",
+        "fin": "vie 6 nov",
+        "tolerancia": 1,
+        "precio": 1200,
+        "credito": 0,
+        "cobrado": 1200,
+        "medio": "Efectivo",
+        "saldo": 0,
+        "compromiso": null
+      }
+    },
+    "resultado": "Hola! Confirmamos tu inscripción en Plan Doble.\n\nCursos:\n• Salsa: lunes y miércoles, 19:00 → 20:30\n• Bachata: viernes\n\nIncluye: 12 clases.\nEmpieza el lun 5 oct y el ciclo termina aprox. el vie 6 nov.\nSi faltás hasta 1 vez por ciclo avisando con licencia, la clase se repone con un bono de ese mismo curso, que vale en tu próxima inscripción que lo incluya; una falta sin aviso se pierde y anula el bono de ese curso.\n\nPrecio: Bs. 1.200,00. Pagado: Bs. 1.200,00 (Efectivo). Cuota saldada.\n\n¡Te esperamos!"
+  },
+  "N01.menor_con_tutor": {
+    "entrada": {
+      "caso": "inscripcion",
+      "datos": {
+        "alumno": "Sofía Rivas",
+        "esMenor": true,
+        "plan": "Plan Doble",
+        "cursos": [
+          {
+            "nombre": "Salsa",
+            "dias": [
+              1,
+              3
+            ],
+            "hora": "19:00",
+            "duracionMin": 90
+          },
+          {
+            "nombre": "Bachata",
+            "dias": [
+              5
+            ],
+            "hora": null,
+            "duracionMin": null
+          }
+        ],
+        "clasesPlan": 12,
+        "bono": 0,
+        "cicloDias": 30,
+        "inicio": "lun 5 oct",
+        "fin": "vie 6 nov",
+        "tolerancia": 1,
+        "precio": 1200,
+        "credito": 0,
+        "cobrado": 1200,
+        "medio": "Efectivo",
+        "saldo": 0,
+        "compromiso": null
+      }
+    },
+    "resultado": "Hola! Confirmamos la inscripción de Sofía Rivas en Plan Doble.\n\nCursos:\n• Salsa: lunes y miércoles, 19:00 → 20:30\n• Bachata: viernes\n\nIncluye: 12 clases.\nEmpieza el lun 5 oct y el ciclo termina aprox. el vie 6 nov.\nSi faltás hasta 1 vez por ciclo avisando con licencia, la clase se repone con un bono de ese mismo curso, que vale en tu próxima inscripción que lo incluya; una falta sin aviso se pierde y anula el bono de ese curso.\n\nPrecio: Bs. 1.200,00. Pagado: Bs. 1.200,00 (Efectivo). Cuota saldada.\n\n¡Te esperamos!"
+  },
+  "N01.un_curso": {
+    "entrada": {
+      "caso": "inscripcion",
+      "datos": {
+        "alumno": "Ana Pérez",
+        "esMenor": false,
+        "plan": "Plan Doble",
+        "cursos": [
+          {
+            "nombre": "Salsa",
+            "dias": [
+              1,
+              3
+            ],
+            "hora": "19:00",
+            "duracionMin": 90
+          }
+        ],
+        "clasesPlan": 12,
+        "bono": 0,
+        "cicloDias": 30,
+        "inicio": "lun 5 oct",
+        "fin": "vie 6 nov",
+        "tolerancia": 1,
+        "precio": 1200,
+        "credito": 0,
+        "cobrado": 1200,
+        "medio": "Efectivo",
+        "saldo": 0,
+        "compromiso": null
+      }
+    },
+    "resultado": "Hola! Confirmamos tu inscripción en Plan Doble.\n\nCurso:\n• Salsa: lunes y miércoles, 19:00 → 20:30\n\nIncluye: 12 clases.\nEmpieza el lun 5 oct y el ciclo termina aprox. el vie 6 nov.\nSi faltás hasta 1 vez por ciclo avisando con licencia, la clase se repone con un bono de ese mismo curso, que vale en tu próxima inscripción que lo incluya; una falta sin aviso se pierde y anula el bono de ese curso.\n\nPrecio: Bs. 1.200,00. Pagado: Bs. 1.200,00 (Efectivo). Cuota saldada.\n\n¡Te esperamos!"
+  },
+  "N01.curso_sin_dias_ni_horario": {
+    "entrada": {
+      "caso": "inscripcion",
+      "datos": {
+        "alumno": "Ana Pérez",
+        "esMenor": false,
+        "plan": "Plan Doble",
+        "cursos": [
+          {
+            "nombre": "Kizomba",
+            "dias": [],
+            "hora": null,
+            "duracionMin": null
+          }
+        ],
+        "clasesPlan": 12,
+        "bono": 0,
+        "cicloDias": 30,
+        "inicio": "lun 5 oct",
+        "fin": "vie 6 nov",
+        "tolerancia": 1,
+        "precio": 1200,
+        "credito": 0,
+        "cobrado": 1200,
+        "medio": "Efectivo",
+        "saldo": 0,
+        "compromiso": null
+      }
+    },
+    "resultado": "Hola! Confirmamos tu inscripción en Plan Doble.\n\nCurso:\n• Kizomba\n\nIncluye: 12 clases.\nEmpieza el lun 5 oct y el ciclo termina aprox. el vie 6 nov.\nSi faltás hasta 1 vez por ciclo avisando con licencia, la clase se repone con un bono de ese mismo curso, que vale en tu próxima inscripción que lo incluya; una falta sin aviso se pierde y anula el bono de ese curso.\n\nPrecio: Bs. 1.200,00. Pagado: Bs. 1.200,00 (Efectivo). Cuota saldada.\n\n¡Te esperamos!"
+  },
+  "N01.curso_con_hora_sin_duracion": {
+    "entrada": {
+      "caso": "inscripcion",
+      "datos": {
+        "alumno": "Ana Pérez",
+        "esMenor": false,
+        "plan": "Plan Doble",
+        "cursos": [
+          {
+            "nombre": "Kizomba",
+            "dias": [
+              2,
+              4
+            ],
+            "hora": "18:30",
+            "duracionMin": null
+          }
+        ],
+        "clasesPlan": 12,
+        "bono": 0,
+        "cicloDias": 30,
+        "inicio": "lun 5 oct",
+        "fin": "vie 6 nov",
+        "tolerancia": 1,
+        "precio": 1200,
+        "credito": 0,
+        "cobrado": 1200,
+        "medio": "Efectivo",
+        "saldo": 0,
+        "compromiso": null
+      }
+    },
+    "resultado": "Hola! Confirmamos tu inscripción en Plan Doble.\n\nCurso:\n• Kizomba: martes y jueves, 18:30\n\nIncluye: 12 clases.\nEmpieza el lun 5 oct y el ciclo termina aprox. el vie 6 nov.\nSi faltás hasta 1 vez por ciclo avisando con licencia, la clase se repone con un bono de ese mismo curso, que vale en tu próxima inscripción que lo incluya; una falta sin aviso se pierde y anula el bono de ese curso.\n\nPrecio: Bs. 1.200,00. Pagado: Bs. 1.200,00 (Efectivo). Cuota saldada.\n\n¡Te esperamos!"
+  },
+  "N01.sin_cursos": {
+    "entrada": {
+      "caso": "inscripcion",
+      "datos": {
+        "alumno": "Ana Pérez",
+        "esMenor": false,
+        "plan": "Plan Doble",
+        "cursos": [],
+        "clasesPlan": 12,
+        "bono": 0,
+        "cicloDias": 30,
+        "inicio": "lun 5 oct",
+        "fin": "vie 6 nov",
+        "tolerancia": 1,
+        "precio": 1200,
+        "credito": 0,
+        "cobrado": 1200,
+        "medio": "Efectivo",
+        "saldo": 0,
+        "compromiso": null
+      }
+    },
+    "resultado": "Hola! Confirmamos tu inscripción en Plan Doble.\n\nCursos:\n\nIncluye: 12 clases.\nEmpieza el lun 5 oct y el ciclo termina aprox. el vie 6 nov.\nSi faltás hasta 1 vez por ciclo avisando con licencia, la clase se repone con un bono de ese mismo curso, que vale en tu próxima inscripción que lo incluya; una falta sin aviso se pierde y anula el bono de ese curso.\n\nPrecio: Bs. 1.200,00. Pagado: Bs. 1.200,00 (Efectivo). Cuota saldada.\n\n¡Te esperamos!"
+  },
+  "N01.una_clase": {
+    "entrada": {
+      "caso": "inscripcion",
+      "datos": {
+        "alumno": "Ana Pérez",
+        "esMenor": false,
+        "plan": "Plan Doble",
+        "cursos": [
+          {
+            "nombre": "Salsa",
+            "dias": [
+              1,
+              3
+            ],
+            "hora": "19:00",
+            "duracionMin": 90
+          },
+          {
+            "nombre": "Bachata",
+            "dias": [
+              5
+            ],
+            "hora": null,
+            "duracionMin": null
+          }
+        ],
+        "clasesPlan": 1,
+        "bono": 0,
+        "cicloDias": 30,
+        "inicio": "lun 5 oct",
+        "fin": "vie 6 nov",
+        "tolerancia": 1,
+        "precio": 1200,
+        "credito": 0,
+        "cobrado": 1200,
+        "medio": "Efectivo",
+        "saldo": 0,
+        "compromiso": null
+      }
+    },
+    "resultado": "Hola! Confirmamos tu inscripción en Plan Doble.\n\nCursos:\n• Salsa: lunes y miércoles, 19:00 → 20:30\n• Bachata: viernes\n\nIncluye: 1 clase.\nEmpieza el lun 5 oct y el ciclo termina aprox. el vie 6 nov.\nSi faltás hasta 1 vez por ciclo avisando con licencia, la clase se repone con un bono de ese mismo curso, que vale en tu próxima inscripción que lo incluya; una falta sin aviso se pierde y anula el bono de ese curso.\n\nPrecio: Bs. 1.200,00. Pagado: Bs. 1.200,00 (Efectivo). Cuota saldada.\n\n¡Te esperamos!"
+  },
+  "N01.ilimitado": {
+    "entrada": {
+      "caso": "inscripcion",
+      "datos": {
+        "alumno": "Ana Pérez",
+        "esMenor": false,
+        "plan": "Plan Doble",
+        "cursos": [
+          {
+            "nombre": "Salsa",
+            "dias": [
+              1,
+              3
+            ],
+            "hora": "19:00",
+            "duracionMin": 90
+          },
+          {
+            "nombre": "Bachata",
+            "dias": [
+              5
+            ],
+            "hora": null,
+            "duracionMin": null
+          }
+        ],
+        "clasesPlan": null,
+        "bono": 0,
+        "cicloDias": 30,
+        "inicio": "lun 5 oct",
+        "fin": "vie 6 nov",
+        "tolerancia": 1,
+        "precio": 1200,
+        "credito": 0,
+        "cobrado": 1200,
+        "medio": "Efectivo",
+        "saldo": 0,
+        "compromiso": null
+      }
+    },
+    "resultado": "Hola! Confirmamos tu inscripción en Plan Doble.\n\nCursos:\n• Salsa: lunes y miércoles, 19:00 → 20:30\n• Bachata: viernes\n\nIncluye: clases ilimitadas durante 30 días.\nEmpieza el lun 5 oct y el ciclo termina aprox. el vie 6 nov.\nSi faltás hasta 1 vez por ciclo avisando con licencia, la clase se repone con un bono de ese mismo curso, que vale en tu próxima inscripción que lo incluya; una falta sin aviso se pierde y anula el bono de ese curso.\n\nPrecio: Bs. 1.200,00. Pagado: Bs. 1.200,00 (Efectivo). Cuota saldada.\n\n¡Te esperamos!"
+  },
+  "N01.ilimitado_sin_ciclo": {
+    "entrada": {
+      "caso": "inscripcion",
+      "datos": {
+        "alumno": "Ana Pérez",
+        "esMenor": false,
+        "plan": "Plan Doble",
+        "cursos": [
+          {
+            "nombre": "Salsa",
+            "dias": [
+              1,
+              3
+            ],
+            "hora": "19:00",
+            "duracionMin": 90
+          },
+          {
+            "nombre": "Bachata",
+            "dias": [
+              5
+            ],
+            "hora": null,
+            "duracionMin": null
+          }
+        ],
+        "clasesPlan": null,
+        "bono": 0,
+        "cicloDias": null,
+        "inicio": "lun 5 oct",
+        "fin": "vie 6 nov",
+        "tolerancia": 1,
+        "precio": 1200,
+        "credito": 0,
+        "cobrado": 1200,
+        "medio": "Efectivo",
+        "saldo": 0,
+        "compromiso": null
+      }
+    },
+    "resultado": "Hola! Confirmamos tu inscripción en Plan Doble.\n\nCursos:\n• Salsa: lunes y miércoles, 19:00 → 20:30\n• Bachata: viernes\n\nIncluye: clases ilimitadas durante ? días.\nEmpieza el lun 5 oct y el ciclo termina aprox. el vie 6 nov.\nSi faltás hasta 1 vez por ciclo avisando con licencia, la clase se repone con un bono de ese mismo curso, que vale en tu próxima inscripción que lo incluya; una falta sin aviso se pierde y anula el bono de ese curso.\n\nPrecio: Bs. 1.200,00. Pagado: Bs. 1.200,00 (Efectivo). Cuota saldada.\n\n¡Te esperamos!"
+  },
+  "N01.bono_sin_curso": {
+    "entrada": {
+      "caso": "inscripcion",
+      "datos": {
+        "alumno": "Ana Pérez",
+        "esMenor": false,
+        "plan": "Plan Doble",
+        "cursos": [
+          {
+            "nombre": "Salsa",
+            "dias": [
+              1,
+              3
+            ],
+            "hora": "19:00",
+            "duracionMin": 90
+          },
+          {
+            "nombre": "Bachata",
+            "dias": [
+              5
+            ],
+            "hora": null,
+            "duracionMin": null
+          }
+        ],
+        "clasesPlan": 12,
+        "bono": 1,
+        "cicloDias": 30,
+        "inicio": "lun 5 oct",
+        "fin": "vie 6 nov",
+        "tolerancia": 1,
+        "precio": 1200,
+        "credito": 0,
+        "cobrado": 1200,
+        "medio": "Efectivo",
+        "saldo": 0,
+        "compromiso": null
+      }
+    },
+    "resultado": "Hola! Confirmamos tu inscripción en Plan Doble.\n\nCursos:\n• Salsa: lunes y miércoles, 19:00 → 20:30\n• Bachata: viernes\n\nIncluye: 12 clases (incluye 1 clase de bono).\nEmpieza el lun 5 oct y el ciclo termina aprox. el vie 6 nov.\nSi faltás hasta 1 vez por ciclo avisando con licencia, la clase se repone con un bono de ese mismo curso, que vale en tu próxima inscripción que lo incluya; una falta sin aviso se pierde y anula el bono de ese curso.\n\nPrecio: Bs. 1.200,00. Pagado: Bs. 1.200,00 (Efectivo). Cuota saldada.\n\n¡Te esperamos!"
+  },
+  "N01.bono_un_curso": {
+    "entrada": {
+      "caso": "inscripcion",
+      "datos": {
+        "alumno": "Ana Pérez",
+        "esMenor": false,
+        "plan": "Plan Doble",
+        "cursos": [
+          {
+            "nombre": "Salsa",
+            "dias": [
+              1,
+              3
+            ],
+            "hora": "19:00",
+            "duracionMin": 90
+          },
+          {
+            "nombre": "Bachata",
+            "dias": [
+              5
+            ],
+            "hora": null,
+            "duracionMin": null
+          }
+        ],
+        "clasesPlan": 12,
+        "bono": 2,
+        "cicloDias": 30,
+        "inicio": "lun 5 oct",
+        "fin": "vie 6 nov",
+        "tolerancia": 1,
+        "precio": 1200,
+        "credito": 0,
+        "cobrado": 1200,
+        "medio": "Efectivo",
+        "saldo": 0,
+        "compromiso": null,
+        "bonoCursos": [
+          {
+            "curso": "Salsa",
+            "clases": 2
+          }
+        ]
+      }
+    },
+    "resultado": "Hola! Confirmamos tu inscripción en Plan Doble.\n\nCursos:\n• Salsa: lunes y miércoles, 19:00 → 20:30\n• Bachata: viernes\n\nIncluye: 12 clases (incluye 2 clases de bono de Salsa).\nEmpieza el lun 5 oct y el ciclo termina aprox. el vie 6 nov.\nSi faltás hasta 1 vez por ciclo avisando con licencia, la clase se repone con un bono de ese mismo curso, que vale en tu próxima inscripción que lo incluya; una falta sin aviso se pierde y anula el bono de ese curso.\n\nPrecio: Bs. 1.200,00. Pagado: Bs. 1.200,00 (Efectivo). Cuota saldada.\n\n¡Te esperamos!"
+  },
+  "N01.bono_dos_cursos": {
+    "entrada": {
+      "caso": "inscripcion",
+      "datos": {
+        "alumno": "Ana Pérez",
+        "esMenor": false,
+        "plan": "Plan Doble",
+        "cursos": [
+          {
+            "nombre": "Salsa",
+            "dias": [
+              1,
+              3
+            ],
+            "hora": "19:00",
+            "duracionMin": 90
+          },
+          {
+            "nombre": "Bachata",
+            "dias": [
+              5
+            ],
+            "hora": null,
+            "duracionMin": null
+          }
+        ],
+        "clasesPlan": 12,
+        "bono": 3,
+        "cicloDias": 30,
+        "inicio": "lun 5 oct",
+        "fin": "vie 6 nov",
+        "tolerancia": 1,
+        "precio": 1200,
+        "credito": 0,
+        "cobrado": 1200,
+        "medio": "Efectivo",
+        "saldo": 0,
+        "compromiso": null,
+        "bonoCursos": [
+          {
+            "curso": "Salsa",
+            "clases": 2
+          },
+          {
+            "curso": "Bachata",
+            "clases": 1
+          }
+        ]
+      }
+    },
+    "resultado": "Hola! Confirmamos tu inscripción en Plan Doble.\n\nCursos:\n• Salsa: lunes y miércoles, 19:00 → 20:30\n• Bachata: viernes\n\nIncluye: 12 clases (incluye 3 clases de bono de Salsa (2) y Bachata (1)).\nEmpieza el lun 5 oct y el ciclo termina aprox. el vie 6 nov.\nSi faltás hasta 1 vez por ciclo avisando con licencia, la clase se repone con un bono de ese mismo curso, que vale en tu próxima inscripción que lo incluya; una falta sin aviso se pierde y anula el bono de ese curso.\n\nPrecio: Bs. 1.200,00. Pagado: Bs. 1.200,00 (Efectivo). Cuota saldada.\n\n¡Te esperamos!"
+  },
+  "N01.bono_curso_lista_vacia": {
+    "entrada": {
+      "caso": "inscripcion",
+      "datos": {
+        "alumno": "Ana Pérez",
+        "esMenor": false,
+        "plan": "Plan Doble",
+        "cursos": [
+          {
+            "nombre": "Salsa",
+            "dias": [
+              1,
+              3
+            ],
+            "hora": "19:00",
+            "duracionMin": 90
+          },
+          {
+            "nombre": "Bachata",
+            "dias": [
+              5
+            ],
+            "hora": null,
+            "duracionMin": null
+          }
+        ],
+        "clasesPlan": 12,
+        "bono": 2,
+        "cicloDias": 30,
+        "inicio": "lun 5 oct",
+        "fin": "vie 6 nov",
+        "tolerancia": 1,
+        "precio": 1200,
+        "credito": 0,
+        "cobrado": 1200,
+        "medio": "Efectivo",
+        "saldo": 0,
+        "compromiso": null,
+        "bonoCursos": []
+      }
+    },
+    "resultado": "Hola! Confirmamos tu inscripción en Plan Doble.\n\nCursos:\n• Salsa: lunes y miércoles, 19:00 → 20:30\n• Bachata: viernes\n\nIncluye: 12 clases (incluye 2 clases de bono).\nEmpieza el lun 5 oct y el ciclo termina aprox. el vie 6 nov.\nSi faltás hasta 1 vez por ciclo avisando con licencia, la clase se repone con un bono de ese mismo curso, que vale en tu próxima inscripción que lo incluya; una falta sin aviso se pierde y anula el bono de ese curso.\n\nPrecio: Bs. 1.200,00. Pagado: Bs. 1.200,00 (Efectivo). Cuota saldada.\n\n¡Te esperamos!"
+  },
+  "N01.sin_fin": {
+    "entrada": {
+      "caso": "inscripcion",
+      "datos": {
+        "alumno": "Ana Pérez",
+        "esMenor": false,
+        "plan": "Plan Doble",
+        "cursos": [
+          {
+            "nombre": "Salsa",
+            "dias": [
+              1,
+              3
+            ],
+            "hora": "19:00",
+            "duracionMin": 90
+          },
+          {
+            "nombre": "Bachata",
+            "dias": [
+              5
+            ],
+            "hora": null,
+            "duracionMin": null
+          }
+        ],
+        "clasesPlan": 12,
+        "bono": 0,
+        "cicloDias": 30,
+        "inicio": "lun 5 oct",
+        "fin": null,
+        "tolerancia": 1,
+        "precio": 1200,
+        "credito": 0,
+        "cobrado": 1200,
+        "medio": "Efectivo",
+        "saldo": 0,
+        "compromiso": null
+      }
+    },
+    "resultado": "Hola! Confirmamos tu inscripción en Plan Doble.\n\nCursos:\n• Salsa: lunes y miércoles, 19:00 → 20:30\n• Bachata: viernes\n\nIncluye: 12 clases.\nEmpieza el lun 5 oct.\nSi faltás hasta 1 vez por ciclo avisando con licencia, la clase se repone con un bono de ese mismo curso, que vale en tu próxima inscripción que lo incluya; una falta sin aviso se pierde y anula el bono de ese curso.\n\nPrecio: Bs. 1.200,00. Pagado: Bs. 1.200,00 (Efectivo). Cuota saldada.\n\n¡Te esperamos!"
+  },
+  "N01.tolerancia_cero": {
+    "entrada": {
+      "caso": "inscripcion",
+      "datos": {
+        "alumno": "Ana Pérez",
+        "esMenor": false,
+        "plan": "Plan Doble",
+        "cursos": [
+          {
+            "nombre": "Salsa",
+            "dias": [
+              1,
+              3
+            ],
+            "hora": "19:00",
+            "duracionMin": 90
+          },
+          {
+            "nombre": "Bachata",
+            "dias": [
+              5
+            ],
+            "hora": null,
+            "duracionMin": null
+          }
+        ],
+        "clasesPlan": 12,
+        "bono": 0,
+        "cicloDias": 30,
+        "inicio": "lun 5 oct",
+        "fin": "vie 6 nov",
+        "tolerancia": 0,
+        "precio": 1200,
+        "credito": 0,
+        "cobrado": 1200,
+        "medio": "Efectivo",
+        "saldo": 0,
+        "compromiso": null
+      }
+    },
+    "resultado": "Hola! Confirmamos tu inscripción en Plan Doble.\n\nCursos:\n• Salsa: lunes y miércoles, 19:00 → 20:30\n• Bachata: viernes\n\nIncluye: 12 clases.\nEmpieza el lun 5 oct y el ciclo termina aprox. el vie 6 nov.\nLas faltas no se reponen.\n\nPrecio: Bs. 1.200,00. Pagado: Bs. 1.200,00 (Efectivo). Cuota saldada.\n\n¡Te esperamos!"
+  },
+  "N01.tolerancia_dos": {
+    "entrada": {
+      "caso": "inscripcion",
+      "datos": {
+        "alumno": "Ana Pérez",
+        "esMenor": false,
+        "plan": "Plan Doble",
+        "cursos": [
+          {
+            "nombre": "Salsa",
+            "dias": [
+              1,
+              3
+            ],
+            "hora": "19:00",
+            "duracionMin": 90
+          },
+          {
+            "nombre": "Bachata",
+            "dias": [
+              5
+            ],
+            "hora": null,
+            "duracionMin": null
+          }
+        ],
+        "clasesPlan": 12,
+        "bono": 0,
+        "cicloDias": 30,
+        "inicio": "lun 5 oct",
+        "fin": "vie 6 nov",
+        "tolerancia": 2,
+        "precio": 1200,
+        "credito": 0,
+        "cobrado": 1200,
+        "medio": "Efectivo",
+        "saldo": 0,
+        "compromiso": null
+      }
+    },
+    "resultado": "Hola! Confirmamos tu inscripción en Plan Doble.\n\nCursos:\n• Salsa: lunes y miércoles, 19:00 → 20:30\n• Bachata: viernes\n\nIncluye: 12 clases.\nEmpieza el lun 5 oct y el ciclo termina aprox. el vie 6 nov.\nSi faltás hasta 2 veces por ciclo avisando con licencia, la clase se repone con un bono de ese mismo curso, que vale en tu próxima inscripción que lo incluya; una falta sin aviso se pierde y anula el bono de ese curso.\n\nPrecio: Bs. 1.200,00. Pagado: Bs. 1.200,00 (Efectivo). Cuota saldada.\n\n¡Te esperamos!"
+  },
+  "N01.con_credito_de_prueba": {
+    "entrada": {
+      "caso": "inscripcion",
+      "datos": {
+        "alumno": "Ana Pérez",
+        "esMenor": false,
+        "plan": "Plan Doble",
+        "cursos": [
+          {
+            "nombre": "Salsa",
+            "dias": [
+              1,
+              3
+            ],
+            "hora": "19:00",
+            "duracionMin": 90
+          },
+          {
+            "nombre": "Bachata",
+            "dias": [
+              5
+            ],
+            "hora": null,
+            "duracionMin": null
+          }
+        ],
+        "clasesPlan": 12,
+        "bono": 0,
+        "cicloDias": 30,
+        "inicio": "lun 5 oct",
+        "fin": "vie 6 nov",
+        "tolerancia": 1,
+        "precio": 1200,
+        "credito": 150,
+        "cobrado": 1050,
+        "medio": "Efectivo",
+        "saldo": 0,
+        "compromiso": null
+      }
+    },
+    "resultado": "Hola! Confirmamos tu inscripción en Plan Doble.\n\nCursos:\n• Salsa: lunes y miércoles, 19:00 → 20:30\n• Bachata: viernes\n\nIncluye: 12 clases.\nEmpieza el lun 5 oct y el ciclo termina aprox. el vie 6 nov.\nSi faltás hasta 1 vez por ciclo avisando con licencia, la clase se repone con un bono de ese mismo curso, que vale en tu próxima inscripción que lo incluya; una falta sin aviso se pierde y anula el bono de ese curso.\n\nPrecio: Bs. 1.200,00. Crédito de tu clase de prueba: Bs. 150,00. Pagado: Bs. 1.050,00 (Efectivo). Cuota saldada.\n\n¡Te esperamos!"
+  },
+  "N01.sin_pago": {
+    "entrada": {
+      "caso": "inscripcion",
+      "datos": {
+        "alumno": "Ana Pérez",
+        "esMenor": false,
+        "plan": "Plan Doble",
+        "cursos": [
+          {
+            "nombre": "Salsa",
+            "dias": [
+              1,
+              3
+            ],
+            "hora": "19:00",
+            "duracionMin": 90
+          },
+          {
+            "nombre": "Bachata",
+            "dias": [
+              5
+            ],
+            "hora": null,
+            "duracionMin": null
+          }
+        ],
+        "clasesPlan": 12,
+        "bono": 0,
+        "cicloDias": 30,
+        "inicio": "lun 5 oct",
+        "fin": "vie 6 nov",
+        "tolerancia": 1,
+        "precio": 1200,
+        "credito": 0,
+        "cobrado": 0,
+        "medio": "Efectivo",
+        "saldo": 1200,
+        "compromiso": null
+      }
+    },
+    "resultado": "Hola! Confirmamos tu inscripción en Plan Doble.\n\nCursos:\n• Salsa: lunes y miércoles, 19:00 → 20:30\n• Bachata: viernes\n\nIncluye: 12 clases.\nEmpieza el lun 5 oct y el ciclo termina aprox. el vie 6 nov.\nSi faltás hasta 1 vez por ciclo avisando con licencia, la clase se repone con un bono de ese mismo curso, que vale en tu próxima inscripción que lo incluya; una falta sin aviso se pierde y anula el bono de ese curso.\n\nPrecio: Bs. 1.200,00. Todavía sin pago. Saldo: Bs. 1.200,00.\n\n¡Te esperamos!"
+  },
+  "N01.saldo_con_compromiso": {
+    "entrada": {
+      "caso": "inscripcion",
+      "datos": {
+        "alumno": "Ana Pérez",
+        "esMenor": false,
+        "plan": "Plan Doble",
+        "cursos": [
+          {
+            "nombre": "Salsa",
+            "dias": [
+              1,
+              3
+            ],
+            "hora": "19:00",
+            "duracionMin": 90
+          },
+          {
+            "nombre": "Bachata",
+            "dias": [
+              5
+            ],
+            "hora": null,
+            "duracionMin": null
+          }
+        ],
+        "clasesPlan": 12,
+        "bono": 0,
+        "cicloDias": 30,
+        "inicio": "lun 5 oct",
+        "fin": "vie 6 nov",
+        "tolerancia": 1,
+        "precio": 1200,
+        "credito": 0,
+        "cobrado": 600,
+        "medio": "Efectivo",
+        "saldo": 600,
+        "compromiso": "vie 16 oct"
+      }
+    },
+    "resultado": "Hola! Confirmamos tu inscripción en Plan Doble.\n\nCursos:\n• Salsa: lunes y miércoles, 19:00 → 20:30\n• Bachata: viernes\n\nIncluye: 12 clases.\nEmpieza el lun 5 oct y el ciclo termina aprox. el vie 6 nov.\nSi faltás hasta 1 vez por ciclo avisando con licencia, la clase se repone con un bono de ese mismo curso, que vale en tu próxima inscripción que lo incluya; una falta sin aviso se pierde y anula el bono de ese curso.\n\nPrecio: Bs. 1.200,00. Pagado: Bs. 600,00 (Efectivo). Saldo: Bs. 600,00 hasta el vie 16 oct.\n\n¡Te esperamos!"
+  },
+  "N01.saldo_sin_compromiso": {
+    "entrada": {
+      "caso": "inscripcion",
+      "datos": {
+        "alumno": "Ana Pérez",
+        "esMenor": false,
+        "plan": "Plan Doble",
+        "cursos": [
+          {
+            "nombre": "Salsa",
+            "dias": [
+              1,
+              3
+            ],
+            "hora": "19:00",
+            "duracionMin": 90
+          },
+          {
+            "nombre": "Bachata",
+            "dias": [
+              5
+            ],
+            "hora": null,
+            "duracionMin": null
+          }
+        ],
+        "clasesPlan": 12,
+        "bono": 0,
+        "cicloDias": 30,
+        "inicio": "lun 5 oct",
+        "fin": "vie 6 nov",
+        "tolerancia": 1,
+        "precio": 1200,
+        "credito": 0,
+        "cobrado": 600,
+        "medio": "Efectivo",
+        "saldo": 600,
+        "compromiso": null
+      }
+    },
+    "resultado": "Hola! Confirmamos tu inscripción en Plan Doble.\n\nCursos:\n• Salsa: lunes y miércoles, 19:00 → 20:30\n• Bachata: viernes\n\nIncluye: 12 clases.\nEmpieza el lun 5 oct y el ciclo termina aprox. el vie 6 nov.\nSi faltás hasta 1 vez por ciclo avisando con licencia, la clase se repone con un bono de ese mismo curso, que vale en tu próxima inscripción que lo incluya; una falta sin aviso se pierde y anula el bono de ese curso.\n\nPrecio: Bs. 1.200,00. Pagado: Bs. 600,00 (Efectivo). Saldo: Bs. 600,00.\n\n¡Te esperamos!"
+  },
+  "N01.pago_sin_medio": {
+    "entrada": {
+      "caso": "inscripcion",
+      "datos": {
+        "alumno": "Ana Pérez",
+        "esMenor": false,
+        "plan": "Plan Doble",
+        "cursos": [
+          {
+            "nombre": "Salsa",
+            "dias": [
+              1,
+              3
+            ],
+            "hora": "19:00",
+            "duracionMin": 90
+          },
+          {
+            "nombre": "Bachata",
+            "dias": [
+              5
+            ],
+            "hora": null,
+            "duracionMin": null
+          }
+        ],
+        "clasesPlan": 12,
+        "bono": 0,
+        "cicloDias": 30,
+        "inicio": "lun 5 oct",
+        "fin": "vie 6 nov",
+        "tolerancia": 1,
+        "precio": 1200,
+        "credito": 0,
+        "cobrado": 1200,
+        "medio": null,
+        "saldo": 0,
+        "compromiso": null
+      }
+    },
+    "resultado": "Hola! Confirmamos tu inscripción en Plan Doble.\n\nCursos:\n• Salsa: lunes y miércoles, 19:00 → 20:30\n• Bachata: viernes\n\nIncluye: 12 clases.\nEmpieza el lun 5 oct y el ciclo termina aprox. el vie 6 nov.\nSi faltás hasta 1 vez por ciclo avisando con licencia, la clase se repone con un bono de ese mismo curso, que vale en tu próxima inscripción que lo incluya; una falta sin aviso se pierde y anula el bono de ese curso.\n\nPrecio: Bs. 1.200,00. Pagado: Bs. 1.200,00. Cuota saldada.\n\n¡Te esperamos!"
+  },
+  "N01.montos_con_miles_y_decimales": {
+    "entrada": {
+      "caso": "inscripcion",
+      "datos": {
+        "alumno": "Ana Pérez",
+        "esMenor": false,
+        "plan": "Plan Doble",
+        "cursos": [
+          {
+            "nombre": "Salsa",
+            "dias": [
+              1,
+              3
+            ],
+            "hora": "19:00",
+            "duracionMin": 90
+          },
+          {
+            "nombre": "Bachata",
+            "dias": [
+              5
+            ],
+            "hora": null,
+            "duracionMin": null
+          }
+        ],
+        "clasesPlan": 12,
+        "bono": 0,
+        "cicloDias": 30,
+        "inicio": "lun 5 oct",
+        "fin": "vie 6 nov",
+        "tolerancia": 1,
+        "precio": 1234567.5,
+        "credito": 0,
+        "cobrado": 1000000.25,
+        "medio": "Efectivo",
+        "saldo": 234567.25,
+        "compromiso": "lun 2 nov"
+      }
+    },
+    "resultado": "Hola! Confirmamos tu inscripción en Plan Doble.\n\nCursos:\n• Salsa: lunes y miércoles, 19:00 → 20:30\n• Bachata: viernes\n\nIncluye: 12 clases.\nEmpieza el lun 5 oct y el ciclo termina aprox. el vie 6 nov.\nSi faltás hasta 1 vez por ciclo avisando con licencia, la clase se repone con un bono de ese mismo curso, que vale en tu próxima inscripción que lo incluya; una falta sin aviso se pierde y anula el bono de ese curso.\n\nPrecio: Bs. 1.234.567,50. Pagado: Bs. 1.000.000,25 (Efectivo). Saldo: Bs. 234.567,25 hasta el lun 2 nov.\n\n¡Te esperamos!"
+  },
+  "N01.caracteres_especiales": {
+    "entrada": {
+      "caso": "inscripcion",
+      "datos": {
+        "alumno": "Ángela Núñez",
+        "esMenor": false,
+        "plan": "Plan ¡Más! Ñandú",
+        "cursos": [
+          {
+            "nombre": "Ñoño «Ñ»",
+            "dias": [
+              6
+            ],
+            "hora": "09:00",
+            "duracionMin": 60
+          }
+        ],
+        "clasesPlan": 12,
+        "bono": 0,
+        "cicloDias": 30,
+        "inicio": "lun 5 oct",
+        "fin": "vie 6 nov",
+        "tolerancia": 1,
+        "precio": 1200,
+        "credito": 0,
+        "cobrado": 1200,
+        "medio": "Transferencia — QR",
+        "saldo": 0,
+        "compromiso": null
+      }
+    },
+    "resultado": "Hola! Confirmamos tu inscripción en Plan ¡Más! Ñandú.\n\nCurso:\n• Ñoño «Ñ»: sábados, 09:00 → 10:00\n\nIncluye: 12 clases.\nEmpieza el lun 5 oct y el ciclo termina aprox. el vie 6 nov.\nSi faltás hasta 1 vez por ciclo avisando con licencia, la clase se repone con un bono de ese mismo curso, que vale en tu próxima inscripción que lo incluya; una falta sin aviso se pierde y anula el bono de ese curso.\n\nPrecio: Bs. 1.200,00. Pagado: Bs. 1.200,00 (Transferencia — QR). Cuota saldada.\n\n¡Te esperamos!"
+  },
+  "N01.fin_de_anio": {
+    "entrada": {
+      "caso": "inscripcion",
+      "datos": {
+        "alumno": "Ana Pérez",
+        "esMenor": false,
+        "plan": "Plan Doble",
+        "cursos": [
+          {
+            "nombre": "Salsa",
+            "dias": [
+              1,
+              3
+            ],
+            "hora": "19:00",
+            "duracionMin": 90
+          },
+          {
+            "nombre": "Bachata",
+            "dias": [
+              5
+            ],
+            "hora": null,
+            "duracionMin": null
+          }
+        ],
+        "clasesPlan": 12,
+        "bono": 0,
+        "cicloDias": 30,
+        "inicio": "jue 31 dic",
+        "fin": "dom 31 ene",
+        "tolerancia": 1,
+        "precio": 1200,
+        "credito": 0,
+        "cobrado": 1200,
+        "medio": "Efectivo",
+        "saldo": 0,
+        "compromiso": null
+      }
+    },
+    "resultado": "Hola! Confirmamos tu inscripción en Plan Doble.\n\nCursos:\n• Salsa: lunes y miércoles, 19:00 → 20:30\n• Bachata: viernes\n\nIncluye: 12 clases.\nEmpieza el jue 31 dic y el ciclo termina aprox. el dom 31 ene.\nSi faltás hasta 1 vez por ciclo avisando con licencia, la clase se repone con un bono de ese mismo curso, que vale en tu próxima inscripción que lo incluya; una falta sin aviso se pierde y anula el bono de ese curso.\n\nPrecio: Bs. 1.200,00. Pagado: Bs. 1.200,00 (Efectivo). Cuota saldada.\n\n¡Te esperamos!"
+  },
+  "N02.saldada": {
+    "entrada": {
+      "caso": "recibo",
+      "datos": {
+        "alumno": "Ana Pérez",
+        "plan": "Plan Doble",
+        "fecha": "lun 5 oct",
+        "monto": 1200,
+        "medio": "Efectivo",
+        "saldo": 0,
+        "compromiso": null
+      }
+    },
+    "resultado": "Recibo de pago — lun 5 oct\nRecibimos de Ana Pérez: Bs. 1.200,00 (Efectivo).\nConcepto: Plan Doble.\nCuota saldada. ¡Gracias!"
+  },
+  "N02.sin_medio": {
+    "entrada": {
+      "caso": "recibo",
+      "datos": {
+        "alumno": "Ana Pérez",
+        "plan": "Plan Doble",
+        "fecha": "lun 5 oct",
+        "monto": 1200,
+        "medio": null,
+        "saldo": 0,
+        "compromiso": null
+      }
+    },
+    "resultado": "Recibo de pago — lun 5 oct\nRecibimos de Ana Pérez: Bs. 1.200,00.\nConcepto: Plan Doble.\nCuota saldada. ¡Gracias!"
+  },
+  "N02.saldo_con_compromiso": {
+    "entrada": {
+      "caso": "recibo",
+      "datos": {
+        "alumno": "Ana Pérez",
+        "plan": "Plan Doble",
+        "fecha": "lun 5 oct",
+        "monto": 600,
+        "medio": "Efectivo",
+        "saldo": 600,
+        "compromiso": "vie 16 oct"
+      }
+    },
+    "resultado": "Recibo de pago — lun 5 oct\nRecibimos de Ana Pérez: Bs. 600,00 (Efectivo).\nConcepto: Plan Doble.\nSaldo pendiente: Bs. 600,00 hasta el vie 16 oct."
+  },
+  "N02.saldo_sin_compromiso": {
+    "entrada": {
+      "caso": "recibo",
+      "datos": {
+        "alumno": "Ana Pérez",
+        "plan": "Plan Doble",
+        "fecha": "lun 5 oct",
+        "monto": 600,
+        "medio": "Efectivo",
+        "saldo": 600,
+        "compromiso": null
+      }
+    },
+    "resultado": "Recibo de pago — lun 5 oct\nRecibimos de Ana Pérez: Bs. 600,00 (Efectivo).\nConcepto: Plan Doble.\nSaldo pendiente: Bs. 600,00."
+  },
+  "N02.miles_y_decimales": {
+    "entrada": {
+      "caso": "recibo",
+      "datos": {
+        "alumno": "Ana Pérez",
+        "plan": "Plan Doble",
+        "fecha": "lun 5 oct",
+        "monto": 1234567.5,
+        "medio": "Efectivo",
+        "saldo": 100.25,
+        "compromiso": "lun 2 nov"
+      }
+    },
+    "resultado": "Recibo de pago — lun 5 oct\nRecibimos de Ana Pérez: Bs. 1.234.567,50 (Efectivo).\nConcepto: Plan Doble.\nSaldo pendiente: Bs. 100,25 hasta el lun 2 nov."
+  },
+  "N02.caracteres_especiales": {
+    "entrada": {
+      "caso": "recibo",
+      "datos": {
+        "alumno": "Ángela Núñez",
+        "plan": "Plan ¡Más! Ñandú",
+        "fecha": "lun 5 oct",
+        "monto": 1200,
+        "medio": "Tarjeta «Ñ»",
+        "saldo": 0,
+        "compromiso": null
+      }
+    },
+    "resultado": "Recibo de pago — lun 5 oct\nRecibimos de Ángela Núñez: Bs. 1.200,00 (Tarjeta «Ñ»).\nConcepto: Plan ¡Más! Ñandú.\nCuota saldada. ¡Gracias!"
+  },
+  "N02.alumno_con_tutor": {
+    "entrada": {
+      "caso": "recibo",
+      "datos": {
+        "alumno": "Sofía Rivas",
+        "plan": "Plan Doble",
+        "fecha": "lun 5 oct",
+        "monto": 1200,
+        "medio": "Efectivo",
+        "saldo": 0,
+        "compromiso": null
+      }
+    },
+    "resultado": "Recibo de pago — lun 5 oct\nRecibimos de Sofía Rivas: Bs. 1.200,00 (Efectivo).\nConcepto: Plan Doble.\nCuota saldada. ¡Gracias!"
+  },
+  "N03.un_curso": {
+    "entrada": {
+      "caso": "prueba",
+      "esMenor": false,
+      "quien": "Ana Pérez",
+      "planNombre": "Plan Doble",
+      "personas": 1,
+      "nombreCurso": [
+        [
+          1,
+          "Salsa"
+        ],
+        [
+          2,
+          "Bachata"
+        ]
+      ],
+      "guardadas": [
+        {
+          "curso_id": 1,
+          "fecha": "2026-10-09"
+        }
+      ]
+    },
+    "resultado": "Hola! Confirmamos tu clase de prueba (Plan Doble, 1 persona): Salsa el vie 9 oct. ¡Te esperamos!"
+  },
+  "N03.dos_cursos_orden_por_fecha": {
+    "entrada": {
+      "caso": "prueba",
+      "esMenor": false,
+      "quien": "Ana Pérez",
+      "planNombre": "Plan Doble",
+      "personas": 1,
+      "nombreCurso": [
+        [
+          1,
+          "Salsa"
+        ],
+        [
+          2,
+          "Bachata"
+        ]
+      ],
+      "guardadas": [
+        {
+          "curso_id": 2,
+          "fecha": "2026-10-12"
+        },
+        {
+          "curso_id": 1,
+          "fecha": "2026-10-09"
+        }
+      ]
+    },
+    "resultado": "Hola! Confirmamos tu clase de prueba (Plan Doble, 1 persona): Salsa el vie 9 oct y Bachata el lun 12 oct. ¡Te esperamos!"
+  },
+  "N03.dos_personas": {
+    "entrada": {
+      "caso": "prueba",
+      "esMenor": false,
+      "quien": "Ana Pérez",
+      "planNombre": "Plan Doble",
+      "personas": 2,
+      "nombreCurso": [
+        [
+          1,
+          "Salsa"
+        ],
+        [
+          2,
+          "Bachata"
+        ]
+      ],
+      "guardadas": [
+        {
+          "curso_id": 1,
+          "fecha": "2026-10-09"
+        }
+      ]
+    },
+    "resultado": "Hola! Confirmamos tu clase de prueba (Plan Doble, 2 personas): Salsa el vie 9 oct. ¡Te esperamos!"
+  },
+  "N03.tres_personas": {
+    "entrada": {
+      "caso": "prueba",
+      "esMenor": false,
+      "quien": "Ana Pérez",
+      "planNombre": "Plan Doble",
+      "personas": 3,
+      "nombreCurso": [
+        [
+          1,
+          "Salsa"
+        ],
+        [
+          2,
+          "Bachata"
+        ]
+      ],
+      "guardadas": [
+        {
+          "curso_id": 1,
+          "fecha": "2026-10-09"
+        }
+      ]
+    },
+    "resultado": "Hola! Confirmamos tu clase de prueba (Plan Doble, 3 personas): Salsa el vie 9 oct. ¡Te esperamos!"
+  },
+  "N03.menor": {
+    "entrada": {
+      "caso": "prueba",
+      "esMenor": true,
+      "quien": "Sofía Rivas",
+      "planNombre": "Plan Doble",
+      "personas": 1,
+      "nombreCurso": [
+        [
+          1,
+          "Salsa"
+        ],
+        [
+          2,
+          "Bachata"
+        ]
+      ],
+      "guardadas": [
+        {
+          "curso_id": 1,
+          "fecha": "2026-10-09"
+        }
+      ]
+    },
+    "resultado": "Hola! Confirmamos la clase de prueba de Sofía Rivas (Plan Doble, 1 persona): Salsa el vie 9 oct. ¡Te esperamos!"
+  },
+  "N03.menor_con_espacio_final": {
+    "entrada": {
+      "caso": "prueba",
+      "esMenor": true,
+      "quien": "Sofía Rivas ",
+      "planNombre": "Plan Doble",
+      "personas": 1,
+      "nombreCurso": [
+        [
+          1,
+          "Salsa"
+        ],
+        [
+          2,
+          "Bachata"
+        ]
+      ],
+      "guardadas": [
+        {
+          "curso_id": 1,
+          "fecha": "2026-10-09"
+        }
+      ]
+    },
+    "resultado": "Hola! Confirmamos la clase de prueba de Sofía Rivas (Plan Doble, 1 persona): Salsa el vie 9 oct. ¡Te esperamos!"
+  },
+  "N03.sin_clases_con_fecha": {
+    "entrada": {
+      "caso": "prueba",
+      "esMenor": false,
+      "quien": "Ana Pérez",
+      "planNombre": "Plan Doble",
+      "personas": 1,
+      "nombreCurso": [
+        [
+          1,
+          "Salsa"
+        ],
+        [
+          2,
+          "Bachata"
+        ]
+      ],
+      "guardadas": [
+        {
+          "curso_id": 1,
+          "fecha": null
+        }
+      ]
+    },
+    "resultado": "Hola! Confirmamos tu clase de prueba (Plan Doble, 1 persona):. ¡Te esperamos!"
+  },
+  "N03.sin_clases": {
+    "entrada": {
+      "caso": "prueba",
+      "esMenor": false,
+      "quien": "Ana Pérez",
+      "planNombre": "Plan Doble",
+      "personas": 1,
+      "nombreCurso": [
+        [
+          1,
+          "Salsa"
+        ],
+        [
+          2,
+          "Bachata"
+        ]
+      ],
+      "guardadas": []
+    },
+    "resultado": "Hola! Confirmamos tu clase de prueba (Plan Doble, 1 persona):. ¡Te esperamos!"
+  },
+  "N03.curso_desconocido": {
+    "entrada": {
+      "caso": "prueba",
+      "esMenor": false,
+      "quien": "Ana Pérez",
+      "planNombre": "Plan Doble",
+      "personas": 1,
+      "nombreCurso": [
+        [
+          1,
+          "Salsa"
+        ],
+        [
+          2,
+          "Bachata"
+        ]
+      ],
+      "guardadas": [
+        {
+          "curso_id": 9,
+          "fecha": "2026-10-09"
+        }
+      ]
+    },
+    "resultado": "Hola! Confirmamos tu clase de prueba (Plan Doble, 1 persona): curso el vie 9 oct. ¡Te esperamos!"
+  },
+  "N03.fin_de_anio": {
+    "entrada": {
+      "caso": "prueba",
+      "esMenor": false,
+      "quien": "Ana Pérez",
+      "planNombre": "Plan Doble",
+      "personas": 1,
+      "nombreCurso": [
+        [
+          1,
+          "Salsa"
+        ],
+        [
+          2,
+          "Bachata"
+        ]
+      ],
+      "guardadas": [
+        {
+          "curso_id": 1,
+          "fecha": "2026-12-31"
+        }
+      ]
+    },
+    "resultado": "Hola! Confirmamos tu clase de prueba (Plan Doble, 1 persona): Salsa el jue 31 dic. ¡Te esperamos!"
+  },
+  "N03.caracteres_especiales": {
+    "entrada": {
+      "caso": "prueba",
+      "esMenor": false,
+      "quien": "Ángela Núñez",
+      "planNombre": "Plan ¡Más!",
+      "personas": 1,
+      "nombreCurso": [
+        [
+          1,
+          "Ñandú «Ñ»"
+        ]
+      ],
+      "guardadas": [
+        {
+          "curso_id": 1,
+          "fecha": "2026-10-09"
+        }
+      ]
+    },
+    "resultado": "Hola! Confirmamos tu clase de prueba (Plan ¡Más!, 1 persona): Ñandú «Ñ» el vie 9 oct. ¡Te esperamos!"
+  },
+  "N04-N05.fija_varias": {
+    "entrada": {
+      "caso": "particular",
+      "horasContratadas": 10,
+      "planNombre": "Paquete 10 h",
+      "nombreProfesor": "Mario Rojas",
+      "dondeTexto": "Tropicana",
+      "modalidad": "fija",
+      "nSesiones": 3,
+      "agendaTexto": "vie 02/10 15:00, vie 09/10 15:00, vie 16/10 15:00",
+      "leftoverMin": 0,
+      "alumnoNombre": "Ana Pérez"
+    },
+    "resultado": {
+      "alumno": "Hola! Confirmamos tu paquete de 10 h de clases particulares (Paquete 10 h) con Mario Rojas en Tropicana. Tus clases reservadas son: vie 02/10 15:00, vie 09/10 15:00, vie 16/10 15:00. ¡Te esperamos!",
+      "profesor": "Hola! Se te agendó una clase particular (Paquete 10 h) con Ana Pérez en Tropicana. Las clases son: vie 02/10 15:00, vie 09/10 15:00, vie 16/10 15:00."
+    }
+  },
+  "N04-N05.fija_una": {
+    "entrada": {
+      "caso": "particular",
+      "horasContratadas": 10,
+      "planNombre": "Paquete 10 h",
+      "nombreProfesor": "Mario Rojas",
+      "dondeTexto": "Tropicana",
+      "modalidad": "fija",
+      "nSesiones": 1,
+      "agendaTexto": "vie 02/10 15:00",
+      "leftoverMin": 0,
+      "alumnoNombre": "Ana Pérez"
+    },
+    "resultado": {
+      "alumno": "Hola! Confirmamos tu paquete de 10 h de clases particulares (Paquete 10 h) con Mario Rojas en Tropicana. Tu clase reservada es: vie 02/10 15:00. ¡Te esperamos!",
+      "profesor": "Hola! Se te agendó una clase particular (Paquete 10 h) con Ana Pérez en Tropicana. La clase es: vie 02/10 15:00."
+    }
+  },
+  "N04-N05.flexible": {
+    "entrada": {
+      "caso": "particular",
+      "horasContratadas": 10,
+      "planNombre": "Paquete 10 h",
+      "nombreProfesor": "Mario Rojas",
+      "dondeTexto": "Tropicana",
+      "modalidad": "flexible",
+      "nSesiones": 1,
+      "agendaTexto": "vie 02/10 15:00",
+      "leftoverMin": 0,
+      "alumnoNombre": "Ana Pérez"
+    },
+    "resultado": {
+      "alumno": "Hola! Confirmamos tu paquete de 10 h de clases particulares (Paquete 10 h) con Mario Rojas en Tropicana. Tu primera clase reservada es: vie 02/10 15:00. ¡Te esperamos!",
+      "profesor": "Hola! Se te agendó una clase particular (Paquete 10 h) con Ana Pérez en Tropicana. La primera clase es: vie 02/10 15:00."
+    }
+  },
+  "N04-N05.flexible_con_resto_por_coordinar": {
+    "entrada": {
+      "caso": "particular",
+      "horasContratadas": 10,
+      "planNombre": "Paquete 10 h",
+      "nombreProfesor": "Mario Rojas",
+      "dondeTexto": "Tropicana",
+      "modalidad": "flexible",
+      "nSesiones": 1,
+      "agendaTexto": "vie 02/10 15:00",
+      "leftoverMin": 540,
+      "alumnoNombre": "Ana Pérez"
+    },
+    "resultado": {
+      "alumno": "Hola! Confirmamos tu paquete de 10 h de clases particulares (Paquete 10 h) con Mario Rojas en Tropicana. Tu primera clase reservada es: vie 02/10 15:00. El resto se coordina después. ¡Te esperamos!",
+      "profesor": "Hola! Se te agendó una clase particular (Paquete 10 h) con Ana Pérez en Tropicana. La primera clase es: vie 02/10 15:00. El resto se coordina después."
+    }
+  },
+  "N04-N05.fija_con_resto": {
+    "entrada": {
+      "caso": "particular",
+      "horasContratadas": 10,
+      "planNombre": "Paquete 10 h",
+      "nombreProfesor": "Mario Rojas",
+      "dondeTexto": "Tropicana",
+      "modalidad": "fija",
+      "nSesiones": 3,
+      "agendaTexto": "vie 02/10 15:00, vie 09/10 15:00, vie 16/10 15:00",
+      "leftoverMin": 60,
+      "alumnoNombre": "Ana Pérez"
+    },
+    "resultado": {
+      "alumno": "Hola! Confirmamos tu paquete de 10 h de clases particulares (Paquete 10 h) con Mario Rojas en Tropicana. Tus clases reservadas son: vie 02/10 15:00, vie 09/10 15:00, vie 16/10 15:00. El resto se coordina después. ¡Te esperamos!",
+      "profesor": "Hola! Se te agendó una clase particular (Paquete 10 h) con Ana Pérez en Tropicana. Las clases son: vie 02/10 15:00, vie 09/10 15:00, vie 16/10 15:00. El resto se coordina después."
+    }
+  },
+  "N04-N05.lugar_externo": {
+    "entrada": {
+      "caso": "particular",
+      "horasContratadas": 10,
+      "planNombre": "Paquete 10 h",
+      "nombreProfesor": "Mario Rojas",
+      "dondeTexto": "Estudio Luna",
+      "modalidad": "fija",
+      "nSesiones": 3,
+      "agendaTexto": "vie 02/10 15:00, vie 09/10 15:00, vie 16/10 15:00",
+      "leftoverMin": 0,
+      "alumnoNombre": "Ana Pérez"
+    },
+    "resultado": {
+      "alumno": "Hola! Confirmamos tu paquete de 10 h de clases particulares (Paquete 10 h) con Mario Rojas en Estudio Luna. Tus clases reservadas son: vie 02/10 15:00, vie 09/10 15:00, vie 16/10 15:00. ¡Te esperamos!",
+      "profesor": "Hola! Se te agendó una clase particular (Paquete 10 h) con Ana Pérez en Estudio Luna. Las clases son: vie 02/10 15:00, vie 09/10 15:00, vie 16/10 15:00."
+    }
+  },
+  "N04-N05.horas_con_decimales": {
+    "entrada": {
+      "caso": "particular",
+      "horasContratadas": 1.5,
+      "planNombre": "Paquete 10 h",
+      "nombreProfesor": "Mario Rojas",
+      "dondeTexto": "Tropicana",
+      "modalidad": "fija",
+      "nSesiones": 3,
+      "agendaTexto": "vie 02/10 15:00, vie 09/10 15:00, vie 16/10 15:00",
+      "leftoverMin": 0,
+      "alumnoNombre": "Ana Pérez"
+    },
+    "resultado": {
+      "alumno": "Hola! Confirmamos tu paquete de 1.5 h de clases particulares (Paquete 10 h) con Mario Rojas en Tropicana. Tus clases reservadas son: vie 02/10 15:00, vie 09/10 15:00, vie 16/10 15:00. ¡Te esperamos!",
+      "profesor": "Hola! Se te agendó una clase particular (Paquete 10 h) con Ana Pérez en Tropicana. Las clases son: vie 02/10 15:00, vie 09/10 15:00, vie 16/10 15:00."
+    }
+  },
+  "N04-N05.horas_cuarto": {
+    "entrada": {
+      "caso": "particular",
+      "horasContratadas": 2.25,
+      "planNombre": "Paquete 10 h",
+      "nombreProfesor": "Mario Rojas",
+      "dondeTexto": "Tropicana",
+      "modalidad": "fija",
+      "nSesiones": 3,
+      "agendaTexto": "vie 02/10 15:00, vie 09/10 15:00, vie 16/10 15:00",
+      "leftoverMin": 0,
+      "alumnoNombre": "Ana Pérez"
+    },
+    "resultado": {
+      "alumno": "Hola! Confirmamos tu paquete de 2.25 h de clases particulares (Paquete 10 h) con Mario Rojas en Tropicana. Tus clases reservadas son: vie 02/10 15:00, vie 09/10 15:00, vie 16/10 15:00. ¡Te esperamos!",
+      "profesor": "Hola! Se te agendó una clase particular (Paquete 10 h) con Ana Pérez en Tropicana. Las clases son: vie 02/10 15:00, vie 09/10 15:00, vie 16/10 15:00."
+    }
+  },
+  "N04-N05.alumno_sin_nombre": {
+    "entrada": {
+      "caso": "particular",
+      "horasContratadas": 10,
+      "planNombre": "Paquete 10 h",
+      "nombreProfesor": "Mario Rojas",
+      "dondeTexto": "Tropicana",
+      "modalidad": "fija",
+      "nSesiones": 3,
+      "agendaTexto": "vie 02/10 15:00, vie 09/10 15:00, vie 16/10 15:00",
+      "leftoverMin": 0,
+      "alumnoNombre": ""
+    },
+    "resultado": {
+      "alumno": "Hola! Confirmamos tu paquete de 10 h de clases particulares (Paquete 10 h) con Mario Rojas en Tropicana. Tus clases reservadas son: vie 02/10 15:00, vie 09/10 15:00, vie 16/10 15:00. ¡Te esperamos!",
+      "profesor": "Hola! Se te agendó una clase particular (Paquete 10 h) con un alumno en Tropicana. Las clases son: vie 02/10 15:00, vie 09/10 15:00, vie 16/10 15:00."
+    }
+  },
+  "N04-N05.profesor_sin_nombre": {
+    "entrada": {
+      "caso": "particular",
+      "horasContratadas": 10,
+      "planNombre": "Paquete 10 h",
+      "nombreProfesor": "",
+      "dondeTexto": "Tropicana",
+      "modalidad": "fija",
+      "nSesiones": 3,
+      "agendaTexto": "vie 02/10 15:00, vie 09/10 15:00, vie 16/10 15:00",
+      "leftoverMin": 0,
+      "alumnoNombre": "Ana Pérez"
+    },
+    "resultado": {
+      "alumno": "Hola! Confirmamos tu paquete de 10 h de clases particulares (Paquete 10 h) con  en Tropicana. Tus clases reservadas son: vie 02/10 15:00, vie 09/10 15:00, vie 16/10 15:00. ¡Te esperamos!",
+      "profesor": "Hola! Se te agendó una clase particular (Paquete 10 h) con Ana Pérez en Tropicana. Las clases son: vie 02/10 15:00, vie 09/10 15:00, vie 16/10 15:00."
+    }
+  },
+  "N04-N05.agenda_vacia": {
+    "entrada": {
+      "caso": "particular",
+      "horasContratadas": 10,
+      "planNombre": "Paquete 10 h",
+      "nombreProfesor": "Mario Rojas",
+      "dondeTexto": "Tropicana",
+      "modalidad": "fija",
+      "nSesiones": 0,
+      "agendaTexto": "",
+      "leftoverMin": 0,
+      "alumnoNombre": "Ana Pérez"
+    },
+    "resultado": {
+      "alumno": "Hola! Confirmamos tu paquete de 10 h de clases particulares (Paquete 10 h) con Mario Rojas en Tropicana. Tus clases reservadas son: . ¡Te esperamos!",
+      "profesor": "Hola! Se te agendó una clase particular (Paquete 10 h) con Ana Pérez en Tropicana. Las clases son: ."
+    }
+  },
+  "N04-N05.caracteres_especiales": {
+    "entrada": {
+      "caso": "particular",
+      "horasContratadas": 10,
+      "planNombre": "Paquete ¡Más!",
+      "nombreProfesor": "Íñigo Muñoz",
+      "dondeTexto": "Estudio «Ñ»",
+      "modalidad": "fija",
+      "nSesiones": 3,
+      "agendaTexto": "vie 02/10 15:00, vie 09/10 15:00, vie 16/10 15:00",
+      "leftoverMin": 0,
+      "alumnoNombre": "Ángela Núñez"
+    },
+    "resultado": {
+      "alumno": "Hola! Confirmamos tu paquete de 10 h de clases particulares (Paquete ¡Más!) con Íñigo Muñoz en Estudio «Ñ». Tus clases reservadas son: vie 02/10 15:00, vie 09/10 15:00, vie 16/10 15:00. ¡Te esperamos!",
+      "profesor": "Hola! Se te agendó una clase particular (Paquete ¡Más!) con Ángela Núñez en Estudio «Ñ». Las clases son: vie 02/10 15:00, vie 09/10 15:00, vie 16/10 15:00."
+    }
+  },
+  "N06.titular_propio": {
+    "entrada": {
+      "caso": "alquiler",
+      "planNombre": "Alquiler 4 h",
+      "horas": 4,
+      "dondeTexto": "Tropicana",
+      "agendaTexto": "sáb 03/10 10:00, sáb 10/10 10:00",
+      "leftoverMin": 0,
+      "contactoNombre": "Colegio Sol",
+      "destinoNombre": "Colegio Sol"
+    },
+    "resultado": "Hola! Confirmamos tu alquiler de sala (Alquiler 4 h): 4 h en Tropicana. Reservado: sáb 03/10 10:00, sáb 10/10 10:00. ¡Te esperamos!"
+  },
+  "N06.a_persona_de_contacto": {
+    "entrada": {
+      "caso": "alquiler",
+      "planNombre": "Alquiler 4 h",
+      "horas": 4,
+      "dondeTexto": "Tropicana",
+      "agendaTexto": "sáb 03/10 10:00, sáb 10/10 10:00",
+      "leftoverMin": 0,
+      "contactoNombre": "Colegio Sol",
+      "destinoNombre": "Sofía Rivas (Colegio Sol)"
+    },
+    "resultado": "Hola! Confirmamos el alquiler de sala (Alquiler 4 h) de Colegio Sol: 4 h en Tropicana. Reservado: sáb 03/10 10:00, sáb 10/10 10:00. ¡Los esperamos!"
+  },
+  "N06.con_resto": {
+    "entrada": {
+      "caso": "alquiler",
+      "planNombre": "Alquiler 4 h",
+      "horas": 4,
+      "dondeTexto": "Tropicana",
+      "agendaTexto": "sáb 03/10 10:00, sáb 10/10 10:00",
+      "leftoverMin": 120,
+      "contactoNombre": "Colegio Sol",
+      "destinoNombre": "Colegio Sol"
+    },
+    "resultado": "Hola! Confirmamos tu alquiler de sala (Alquiler 4 h): 4 h en Tropicana. Reservado: sáb 03/10 10:00, sáb 10/10 10:00. El resto de las horas se coordina después. ¡Te esperamos!"
+  },
+  "N06.a_persona_de_contacto_con_resto": {
+    "entrada": {
+      "caso": "alquiler",
+      "planNombre": "Alquiler 4 h",
+      "horas": 4,
+      "dondeTexto": "Tropicana",
+      "agendaTexto": "sáb 03/10 10:00, sáb 10/10 10:00",
+      "leftoverMin": 120,
+      "contactoNombre": "Colegio Sol",
+      "destinoNombre": "Sofía Rivas (Colegio Sol)"
+    },
+    "resultado": "Hola! Confirmamos el alquiler de sala (Alquiler 4 h) de Colegio Sol: 4 h en Tropicana. Reservado: sáb 03/10 10:00, sáb 10/10 10:00. El resto de las horas se coordina después. ¡Los esperamos!"
+  },
+  "N06.lugar_externo": {
+    "entrada": {
+      "caso": "alquiler",
+      "planNombre": "Alquiler 4 h",
+      "horas": 4,
+      "dondeTexto": "Estudio Luna",
+      "agendaTexto": "sáb 03/10 10:00, sáb 10/10 10:00",
+      "leftoverMin": 0,
+      "contactoNombre": "Colegio Sol",
+      "destinoNombre": "Colegio Sol"
+    },
+    "resultado": "Hola! Confirmamos tu alquiler de sala (Alquiler 4 h): 4 h en Estudio Luna. Reservado: sáb 03/10 10:00, sáb 10/10 10:00. ¡Te esperamos!"
+  },
+  "N06.horas_con_decimales": {
+    "entrada": {
+      "caso": "alquiler",
+      "planNombre": "Alquiler 4 h",
+      "horas": 1.5,
+      "dondeTexto": "Tropicana",
+      "agendaTexto": "sáb 03/10 10:00, sáb 10/10 10:00",
+      "leftoverMin": 0,
+      "contactoNombre": "Colegio Sol",
+      "destinoNombre": "Colegio Sol"
+    },
+    "resultado": "Hola! Confirmamos tu alquiler de sala (Alquiler 4 h): 1.5 h en Tropicana. Reservado: sáb 03/10 10:00, sáb 10/10 10:00. ¡Te esperamos!"
+  },
+  "N06.una_reserva": {
+    "entrada": {
+      "caso": "alquiler",
+      "planNombre": "Alquiler 4 h",
+      "horas": 4,
+      "dondeTexto": "Tropicana",
+      "agendaTexto": "sáb 03/10 10:00",
+      "leftoverMin": 0,
+      "contactoNombre": "Colegio Sol",
+      "destinoNombre": "Colegio Sol"
+    },
+    "resultado": "Hola! Confirmamos tu alquiler de sala (Alquiler 4 h): 4 h en Tropicana. Reservado: sáb 03/10 10:00. ¡Te esperamos!"
+  },
+  "N06.caracteres_especiales": {
+    "entrada": {
+      "caso": "alquiler",
+      "planNombre": "Alquiler ¡Más!",
+      "horas": 4,
+      "dondeTexto": "Estudio «Ñ»",
+      "agendaTexto": "sáb 03/10 10:00, sáb 10/10 10:00",
+      "leftoverMin": 0,
+      "contactoNombre": "Colegio «Ñandú»",
+      "destinoNombre": "Colegio «Ñandú»"
+    },
+    "resultado": "Hola! Confirmamos tu alquiler de sala (Alquiler ¡Más!): 4 h en Estudio «Ñ». Reservado: sáb 03/10 10:00, sáb 10/10 10:00. ¡Te esperamos!"
+  },
+  "__avisaRecibo": {
+    "0": false,
+    "1": true,
+    "75": true,
+    "1500": true,
+    "-1": false,
+    "0.5": true
+  }
+}
