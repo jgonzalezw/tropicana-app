@@ -5,7 +5,7 @@ Fecha: 2026-10-09. Rama `r20-notificaciones`. Evidencia: `npm test` (56/56 en `s
 Se comparan, con igualdad estricta (`strictEqual`, sin normalizar espacios ni formatos), tres salidas por variante:
 1. **Referencia:** capturada del código anterior a la extracción (commit `ee77526`, `__referencias__/N09-N10.json`).
 2. **Función movida:** `src/lib/comunicaciones/legado/reserva.ts`.
-3. **Plantilla:** predeterminada de `predeterminados/reservaConfirmada.ts`, renderizada por `plantillas.ts` con el adaptador.
+3. **Plantilla:** predeterminada de `predeterminados/reserva.ts`, renderizada por `plantillas.ts` con el adaptador.
 
 | Variante | N09 función | N09 plantilla | N10 función | N10 plantilla |
 |---|---|---|---|---|
