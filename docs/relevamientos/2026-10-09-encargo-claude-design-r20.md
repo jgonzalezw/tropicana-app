@@ -1,6 +1,6 @@
 # Encargo para Claude Design — R20 · Documentos y notificaciones (primer alcance)
 
-**Estado:** borrador para tu revisión antes de enviarlo. **No se implementa ninguna pantalla hasta que apruebes los mockups.**
+**Estado:** versión definitiva, aprobada por Javier (2026-10-10) para llevarla a Claude Design. **No se implementa ninguna pantalla hasta que apruebe los mockups.**
 Base: plan R20 v2 (`2026-10-09-plan-r20-notificaciones-v2.md`), requisitos 1.1 (S01–S05) y plantillas reales de N09–N10 (`2026-10-09-r20-equivalencia-N09-N10.md`).
 
 ## 1. Qué se diseña
@@ -41,7 +41,15 @@ Hola! Se te confirmó una clase particular ({{reserva.plan}}) con {{alumno.nombr
 Resultado:
 > Hola! Se te confirmó una clase particular (Paquete 10 h) con Ana Pérez: vie 02/10 de 15:00 a 16:00, en Tropicana (Sala 1).
 
-**Variables (todas obligatorias, de texto, ya formateadas):**
+**Variables, por plantilla.** El esquema común tiene 8 variables; cada plantilla usa solo las suyas, y **obligatoria significa obligatoria en esa plantilla**, no en el conjunto:
+| Plantilla | Obligatorias (no se pueden borrar) | Disponibles pero no usadas |
+|---|---|---|
+| N09 alumno | `reserva.tu_clase`, `reserva.cuando`, `reserva.lugar`, `saldo.disponible_horas`, `saldo.paquete`, `saldo.contratadas_horas` (6) | `reserva.plan`, `alumno.nombre` |
+| N10 profesor | `reserva.plan`, `alumno.nombre`, `reserva.cuando`, `reserva.lugar` (4) | `reserva.tu_clase`, `saldo.*` |
+
+El editor muestra, por plantilla, qué variables son obligatorias, cuáles están disponibles y cuáles no aplican.
+
+**Las 8 variables del esquema (de texto, ya formateadas):**
 | Variable | Qué es | Ejemplo |
 |---|---|---|
 | `reserva.tu_clase` | Qué se confirma (con profesor si es particular) | tu clase particular (Paquete 10 h) con Mario Rojas |
@@ -53,9 +61,25 @@ Resultado:
 | `saldo.contratadas_horas` | Horas contratadas | 10 |
 | `saldo.paquete` | «paquete» o «alquiler» | paquete |
 
-**Reglas del editor:** las variables son elementos protegidos con nombre, explicación y ejemplo; no se renombran, no se borran las obligatorias y no se cambian sus fuentes ni reglas. Se pueden mover y se puede editar el texto alrededor. Sintaxis disponible: variable, filtro `mayuscula_inicial`, `{{#si}}…{{#sino}}…{{/si}}` y `{{#cada}}`. Muestra errores de sintaxis y de variables faltantes antes de guardar.
+**Reglas del editor:**
+- Las variables son **elementos protegidos** con nombre, explicación y ejemplo: no se renombran, no se borran las obligatorias y no se cambian sus fuentes ni reglas. Se pueden mover y se puede editar el texto alrededor.
+- **Condiciones y repeticiones con controles guiados**, sin escribir la sintaxis a mano: «Mostrar este fragmento solo si…» (elige una condición de una lista que ofrece la aplicación y, si quiere, un texto alternativo) y «Repetir para cada…» (elige una lista, el separador y el conector final, por ejemplo «, » y « y »). Por debajo se guardan como `{{#si}}…{{#sino}}…{{/si}}` y `{{#cada}}`; el filtro `mayuscula_inicial` se ofrece como «empezar con mayúscula».
+- Muestra errores de sintaxis y de variables faltantes antes de guardar.
+- **Distinción por canal.** Cada contenido es de un canal: WhatsApp, email, documento o popup. El primer envío asistido es WhatsApp/Copiar, pero el editor y el catálogo ya lo prevén: el email tiene **asunto y cuerpo** (con sus propias variables y vista previa), y no se asume que el texto de WhatsApp sirva para email. En este alcance el email solo se diseña y se guarda; **no se envía**.
 
-**Estados de contenido que hay que distinguir con claridad:** predeterminado heredado · borrador · en revisión · aprobado · publicado/liberado · retirado. **Aprobar no es publicar, y publicar no es liberar para un uso.** Un cambio publicado solo afecta a los avisos nuevos de los usos liberados.
+**Vista previa.** Muestra el mensaje con dos datos separados, que a veces son personas distintas:
+- **A quién se refiere** el mensaje (la persona de la reserva: Ana Pérez).
+- **Destinatario efectivo** y por qué regla: el propio alumno, su tutor (Luis Pérez, si es menor), la persona de contacto de una organización (Colegio Sol) o el profesor (Mario Rojas).
+Se puede cambiar entre estos escenarios con los datos ficticios para ver cómo queda cada variante (particular o alquiler; lugar externo, sala o «Tropicana»; con y sin duración). El destinatario lo decide la aplicación, no el texto.
+
+**Estados de contenido que hay que distinguir con claridad:** predeterminado heredado · borrador · en revisión · aprobado · publicado · retirado.
+
+**Versión publicada y liberación son dos conceptos visibles y separados:**
+- *Publicar* fija una versión: queda inmutable y disponible, pero **no cambia ningún aviso**.
+- *Liberar* asigna una versión publicada a un **uso concreto** (caso × canal, por ejemplo «reserva.confirmada · alumno · WhatsApp»). Solo ahí empieza a aplicarse, y solo a los avisos nuevos.
+- Cada uso muestra qué versión tiene liberada y desde cuándo; cada versión muestra en qué usos está liberada. Aprobar ≠ publicar ≠ liberar.
+
+**Volver a una versión anterior** (en S03): se explica en pantalla que afecta **únicamente a los usos futuros**; las emisiones, los avisos ya preparados y el historial **se conservan** y siguen mostrando la versión con la que se generaron. Pide motivo y deja constancia.
 
 ## 5. Certificaciones: compatibilidad del mockup existente
 Mockup: `design_handoff_reporte_membresia/Ficha de membresia.dc.html` (reporte de dos hojas; hoja 2 = política por tipo). Se **reutiliza** tal cual el diseño; se pide revisar solo estos cambios visibles:
