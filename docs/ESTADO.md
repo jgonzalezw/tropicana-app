@@ -172,3 +172,10 @@ Pasaron a `docs/archivo/ESTADO-2026-10.md` para que este archivo se pueda leer. 
 - **Código del PR #44:** con **contactos** en alcance propio, la lista y la ficha de Membresías solo muestran regulares y pruebas de cursos del profesor (`cursosPropios`, `membresiaVisible`). Primer intento con `alumnos` falló: ese módulo no tiene selector en `rol_visibilidad`.
 - **Probado:** prueba técnica en producción (login, `/membresias`, ficha, `/caja`, `/sala`, `/liquidaciones`); `npm test` 466, `tsc` y ESLint limpios; cuenta de Oscar Nuñez en dev (12 activas, 3 históricas) y confirmación de Javier en producción.
 - **Anotado:** aviso React #418 (hidratación de texto) una vez al cargar `/caja`; sin reproducir.
+
+## R20 — Etapa 0: inventario y plan de comunicaciones (2026-10-09)
+- **Sin código ni migraciones.** Rama `r20-notificaciones`. Plan: `docs/relevamientos/2026-10-09-plan-r20-notificaciones.md` (sin aprobar el alcance de los incrementos).
+- **Inventario:** 21 casos de mensaje (N01–N21), 15 operaciones que avisan, 7 contenedores, 5 documentos imprimibles; generadores en `mensajeInscripcion.ts`, `avisosClase.ts` y dentro de `particulares/acciones.ts` e `inscribir/`.
+- **Hallazgos:** ningún aviso consulta `no_contactar`; tres reglas de destinatario distintas para un menor (dA, cA, dT); no queda registro de ningún envío; `politicas_texto` ya existe (consentimiento).
+- **Fase 4 (reporte):** plan guardado en `2026-10-09-plan-i012-fase-4-reporte.md`, en PAUSA; se apoya en la capa de R20 y no crea `membresia_eventos` por su cuenta.
+- **Próxima migración libre:** 0071 (la usa el incremento 1.3 de R20).
