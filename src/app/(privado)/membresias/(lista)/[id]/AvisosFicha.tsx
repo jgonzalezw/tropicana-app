@@ -1,7 +1,8 @@
 "use client";
 
 import { createContext, useCallback, useContext, useRef, useState } from "react";
-import AvisoWhatsapp from "@/components/AvisoWhatsapp";
+import AvisoDeReserva from "@/components/AvisoDeReserva";
+import type { RegistroAviso } from "@/lib/comunicaciones/avisos/tipos";
 
 /**
  * Los avisos por WhatsApp que deja una acción de la ficha (cancelar, suspender,
@@ -10,7 +11,7 @@ import AvisoWhatsapp from "@/components/AvisoWhatsapp";
  * página: no se guardan en la base, la URL ni el navegador, así que un refresco
  * los borra; lo que sí queda es el estado de la reserva, que es lo que manda.
  */
-type Aviso = { nombre: string; whatsapp: string | null; mensaje: string };
+type Aviso = { nombre: string; whatsapp: string | null; mensaje: string; registro?: RegistroAviso };
 export type AvisosDeAccion = { mensaje?: string; avisoAlumno?: Aviso; avisoProfesor?: Aviso };
 type Publicado = { id: number; mensaje?: string; avisos: Aviso[] };
 
@@ -55,7 +56,7 @@ export function TarjetaParaAvisar() {
         <div key={p.id} data-testid="aviso-accion" style={{ display: "flex", flexDirection: "column", gap: "0.5714rem", marginBottom: "0.8571rem" }}>
           {p.mensaje && <p className="n-ok" style={{ margin: 0 }}>{p.mensaje}</p>}
           {p.avisos.map((a, i) => (
-            <AvisoWhatsapp key={i} nombre={a.nombre} whatsapp={a.whatsapp} mensaje={a.mensaje} />
+            <AvisoDeReserva key={i} aviso={a} />
           ))}
           <button type="button" className="n-res__boton" onClick={() => cerrar(p.id)}>
             Cerrar aviso

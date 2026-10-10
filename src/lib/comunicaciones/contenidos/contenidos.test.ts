@@ -175,9 +175,9 @@ test("email: el asunto está modelado, entra al hash y la base lo exige (sin imp
 
 test("la prueba de los controles 55-62 usa los controles textuales de control_migracion.sql", () => {
   const norm = (s: string) => s.replace(/\s+/g, " ").trim();
-  const control = readFileSync("scripts/control_migracion.sql", "utf8");
+  const control = readFileSync("scripts/control_migracion.sql", "utf8").replace(/\r\n/g, "\n");
   const prueba = norm(readFileSync("scripts/prueba_controles_55_62.sql", "utf8"));
-  const bloque = control.slice(control.indexOf("-- 55-62."));
+  const bloque = control.slice(control.indexOf("-- 55-62."), control.lastIndexOf("-- ----", control.indexOf("-- 63-67.")));
   const sentencias = bloque
     .split(/;\s*\n/)
     .map((x) => x.replace(/^(--.*\n)+/gm, "").trim())

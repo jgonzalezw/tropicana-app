@@ -23,12 +23,10 @@ const errores = [];
 // ── Consumidores de AvisoWhatsapp (8 productivos + el muestrario) ──
 const CONSUMIDORES = [
   "src/app/(privado)/administracion/sala/ClienteSalaHorario.tsx",
-  "src/app/(privado)/membresias/(lista)/[id]/AvisosFicha.tsx",
   "src/app/(privado)/sala/ClienteDisponibilidadSala.tsx",
+  "src/components/AvisoDeReserva.tsx", // N09/N10 de reserva: AvisoRegistrado (S05) o AvisoWhatsapp
+  "src/components/AvisoRegistrado.tsx",
   "src/components/AvisosAfectados.tsx",
-  "src/components/GestionReserva.tsx",
-  "src/components/NuevaReserva.tsx",
-  "src/components/nuevo/FilaReserva.tsx",
   "src/components/venta/ConfirmacionVenta.tsx",
   "src/components/nuevo/TarjetaConfirmacion.tsx", // muestrario
 ];

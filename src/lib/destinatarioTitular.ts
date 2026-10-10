@@ -14,8 +14,8 @@ type Admin = NonNullable<ReturnType<typeof createAdminClient>>;
 export async function destinatarioDeTitular(
   a: Admin,
   titular: { id: number; nombre: string; whatsapp: string | null }
-): Promise<{ nombre: string; whatsapp: string | null }> {
-  let destino = { nombre: titular.nombre, whatsapp: titular.whatsapp };
+): Promise<{ nombre: string; whatsapp: string | null; contactoId: number }> {
+  let destino = { nombre: titular.nombre, whatsapp: titular.whatsapp, contactoId: titular.id };
   const { data: orgRow } = await a.from("contactos").select("tipo").eq("id", titular.id).maybeSingle();
   if ((orgRow as { tipo?: string } | null)?.tipo !== "organizacion") return destino;
 
@@ -35,7 +35,7 @@ export async function destinatarioDeTitular(
     .not("whatsapp", "is", null)
     .order("id")
     .limit(1);
-  const p = ((pers ?? []) as { nombre: string | null; apellido: string | null; whatsapp: string | null }[])[0];
-  if (p?.whatsapp) destino = { nombre: [p.nombre, p.apellido].filter(Boolean).join(" "), whatsapp: p.whatsapp };
+  const p = ((pers ?? []) as { id: number; nombre: string | null; apellido: string | null; whatsapp: string | null }[])[0];
+  if (p?.whatsapp) destino = { nombre: [p.nombre, p.apellido].filter(Boolean).join(" "), whatsapp: p.whatsapp, contactoId: p.id };
   return destino;
 }

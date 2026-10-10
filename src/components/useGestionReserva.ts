@@ -12,6 +12,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { formatearHoras, opcionesDuracionReserva } from "@/lib/horarios";
 import { validarTiempoReserva, type EstadoReserva } from "@/lib/reservas";
 import type { AccionPendiente } from "@/lib/accionPendiente";
+import type { RegistroAviso } from "@/lib/comunicaciones/avisos/tipos";
 import {
   cambiarEstadoReserva,
   reprogramarReserva,
@@ -81,7 +82,7 @@ export function efectoDestino(destino: EstadoReserva, actual: EstadoReserva): st
 
 const ESTADOS_QUE_CONSUMEN: EstadoReserva[] = ["confirmada", "reprogramada", "ausente", "realizada"];
 
-export type Aviso = { nombre: string; whatsapp: string | null; mensaje: string };
+export type Aviso = { nombre: string; whatsapp: string | null; mensaje: string; registro?: RegistroAviso };
 export type Resultado = { error?: string; mensaje?: string; avisoAlumno?: Aviso; avisoProfesor?: Aviso };
 
 export function fechaHoraCorta(fecha: string, hora: string): string {

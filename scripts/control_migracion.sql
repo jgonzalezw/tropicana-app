@@ -1087,10 +1087,13 @@ select '58. contenido de WhatsApp sin version predeterminada o sin asignacion, o
        n, case when n = 0 then 'OK' else 'REVISAR' end as estado
   from faltas;
 
-select '59. asignacion en modo modulo (no hay conexion autorizada: E5)' as control,
+select '59. asignacion en modo modulo fuera de las conectadas y autorizadas (R20 E5: N09 y N10 de reserva confirmada, WhatsApp)' as control,
        count(*) as n,
        case when count(*) = 0 then 'OK' else 'REVISAR' end as estado
-  from public.contenido_usos where modo = 'modulo';
+  from public.contenido_usos
+ where modo = 'modulo'
+   and (uso, variante, canal) not in (('reserva.confirmada.alumno', 'unica', 'whatsapp'),
+                                      ('reserva.confirmada.profesor', 'unica', 'whatsapp'));
 
 with malos as (
   select (select count(*) from (values ('anon'), ('authenticated')) a(ro),
@@ -1121,3 +1124,73 @@ select '62. version cuyo ultimo paso del historial no es su estado actual (0073)
   from public.contenido_versiones v
  where exists (select 1 from public.contenido_versiones_historial h where h.version_id = v.id)
    and (select h.a_estado from public.contenido_versiones_historial h where h.version_id = v.id order by h.id desc limit 1) <> v.estado;
+
+-- ---------------------------------------------------------------------
+-- 63-67. AVISOS REGISTRADOS (migracion 0074, R20 E4b/E5)
+--     Un aviso por evento exacto + destinatario + canal; el contenido
+--     seleccionado queda fijo; el respaldo solo tras la autorizacion del
+--     Administrador y solo por un fallo del contenido oficial; una declaracion
+--     de envio no se borra (se rectifica); nadie escribe directo.
+-- ---------------------------------------------------------------------
+select '63. accion sin aviso, aviso sin contacto o aviso con destino que no es el del contacto' as control,
+       (select count(*) from public.aviso_acciones x where not exists (select 1 from public.avisos a where a.id = x.aviso_id))
+     + (select count(*) from public.avisos a where not exists (select 1 from public.contactos c where c.id = a.contacto_id))
+     + (select count(*) from public.avisos a join public.contactos c on c.id = a.contacto_id
+         where a.destino is distinct from (case when a.canal = 'whatsapp' then c.whatsapp else c.email end)
+           and a.destino_revision = (case when a.canal = 'whatsapp' then c.whatsapp_revision else c.email_revision end)) as n,
+       case when (select count(*) from public.avisos a where not exists (select 1 from public.contactos c where c.id = a.contacto_id))
+                 + (select count(*) from public.aviso_acciones x where not exists (select 1 from public.avisos a where a.id = x.aviso_id))
+                 + (select count(*) from public.avisos a join public.contactos c on c.id = a.contacto_id
+                     where a.destino is distinct from (case when a.canal = 'whatsapp' then c.whatsapp else c.email end)
+                       and a.destino_revision = (case when a.canal = 'whatsapp' then c.whatsapp_revision else c.email_revision end)) = 0
+            then 'OK' else 'REVISAR' end as estado;
+
+select '64. aviso sin version seleccionada, o con una version que nunca fue publicada, o de otra asignacion' as control,
+       count(*) as n,
+       case when count(*) = 0 then 'OK' else 'REVISAR' end as estado
+  from public.avisos a
+  left join public.contenido_versiones v on v.id = a.version_id
+  left join public.contenido_usos u on u.id = a.asignacion_id
+ where a.origen = 'modulo'
+   and (a.version_id is null or v.publicado_en is null or u.id is null or v.contenido_id <> u.contenido_id);
+
+select '65. respaldo sin la autorizacion del Administrador, o en un aviso cuyo fallo no fue del contenido oficial' as control,
+       count(*) as n,
+       case when count(*) = 0 then 'OK' else 'REVISAR' end as estado
+  from public.avisos a
+ where a.respaldo
+   and (not exists (select 1 from public.aviso_acciones x join public.perfiles p on p.id = x.actor join public.roles r on r.id = p.rol_id
+                     where x.aviso_id = a.id and x.tipo = 'respaldo_autorizado' and r.clave = 'administrador')
+     or not exists (select 1 from public.aviso_acciones x where x.aviso_id = a.id and x.tipo = 'respaldo_usado'));
+
+select '66. rectificacion sin declaracion previa del mismo aviso, o declaracion rectificada dos veces' as control,
+       (select count(*) from public.aviso_acciones r
+         where r.tipo = 'declaracion_rectificada'
+           and not exists (select 1 from public.aviso_acciones d where d.id = r.rectifica_id and d.tipo = 'declarado_enviado' and d.aviso_id = r.aviso_id))
+     + (select count(*) from (select rectifica_id from public.aviso_acciones where tipo = 'declaracion_rectificada' group by rectifica_id having count(*) > 1) z) as n,
+       case when (select count(*) from public.aviso_acciones r
+                   where r.tipo = 'declaracion_rectificada'
+                     and not exists (select 1 from public.aviso_acciones d where d.id = r.rectifica_id and d.tipo = 'declarado_enviado' and d.aviso_id = r.aviso_id))
+                 + (select count(*) from (select rectifica_id from public.aviso_acciones where tipo = 'declaracion_rectificada' group by rectifica_id having count(*) > 1) z) = 0
+            then 'OK' else 'REVISAR' end as estado;
+
+with malos as (
+  select (select count(*) from public.contactos c
+           where c.no_contactar
+             and not exists (select 1 from public.consentimientos x where x.contacto_id = c.id and x.finalidad = 'todas' and x.otorgado = false)) as sin_procedencia,
+         (select count(*) from (values ('anon'), ('authenticated')) a(ro),
+                 (values ('public.avisos'), ('public.aviso_acciones')) b(t),
+                 (values ('insert'), ('update'), ('delete'), ('truncate')) c(p)
+           where has_table_privilege(a.ro, b.t, c.p)) as escritura_directa,
+         (select count(*) from pg_proc p
+           where p.proname in ('registrar_aviso', 'reintentar_aviso', 'registrar_aviso_accion', 'usar_respaldo_aviso', 'leer_avisos_de_evento',
+                               'acciones_de_aviso', 'puede_registrar_aviso', 'puede_operar_membresia_reserva')
+             and p.pronamespace = 'public'::regnamespace
+             and (has_function_privilege('anon', p.oid, 'execute')
+               or exists (select 1 from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+                           where a.grantee = 0 and a.privilege_type = 'EXECUTE'))) as execute_anon
+)
+select '67. no_contactar=true sin su consentimiento todas/otorgado=false (C1); escritura directa en avisos; execute de las funciones para anon/public' as control,
+       sin_procedencia + escritura_directa + execute_anon as n,
+       case when sin_procedencia + escritura_directa + execute_anon = 0 then 'OK' else 'REVISAR' end as estado
+  from malos;

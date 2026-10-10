@@ -19,7 +19,8 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { formatearHoras, opcionesDuracionReserva } from "@/lib/horarios";
 import { faltaNuevaReserva } from "@/lib/reservas";
-import AvisoWhatsapp from "@/components/AvisoWhatsapp";
+import AvisoDeReserva from "@/components/AvisoDeReserva";
+import type { RegistroAviso } from "@/lib/comunicaciones/avisos/tipos";
 import HojaLateral from "@/components/nuevo/HojaLateral";
 import { crearReserva } from "@/app/(privado)/particulares/acciones";
 
@@ -31,7 +32,7 @@ const botonTenue =
   "px-3 py-2 text-sm rounded-[var(--radio-control)] border border-[var(--borde)] hover:border-[var(--primario)] disabled:opacity-40";
 const etiqueta = "text-sm text-[var(--texto-tenue)] block mb-1";
 
-type Aviso = { nombre: string; whatsapp: string | null; mensaje: string };
+type Aviso = { nombre: string; whatsapp: string | null; mensaje: string; registro?: RegistroAviso };
 export type ResultadoNueva = { error?: string; mensaje?: string; avisoAlumno?: Aviso; avisoProfesor?: Aviso };
 
 export function PanelResultado({ r }: { r: ResultadoNueva }) {
@@ -43,10 +44,8 @@ export function PanelResultado({ r }: { r: ResultadoNueva }) {
         </p>
       )}
       {r.mensaje && <p className="text-[var(--exito)]">{r.mensaje}</p>}
-      {r.avisoAlumno && <AvisoWhatsapp nombre={r.avisoAlumno.nombre} whatsapp={r.avisoAlumno.whatsapp} mensaje={r.avisoAlumno.mensaje} />}
-      {r.avisoProfesor && (
-        <AvisoWhatsapp nombre={r.avisoProfesor.nombre} whatsapp={r.avisoProfesor.whatsapp} mensaje={r.avisoProfesor.mensaje} />
-      )}
+      {r.avisoAlumno && <AvisoDeReserva aviso={r.avisoAlumno} />}
+      {r.avisoProfesor && <AvisoDeReserva aviso={r.avisoProfesor} />}
     </div>
   );
 }

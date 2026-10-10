@@ -1,11 +1,14 @@
 ## Dónde retomar
 
+
+
 Se actualiza en el mismo commit que cierra cada carril; una sesión nueva lo lee **antes** de mirar ramas.
 
+- **R20 E4b + E5 (N09–N10) CERRADOS en dev (2026-10-10), rama `r20-e4b-n09`, PR #50 abierto, sin mergear.** 0074 aplicada en dev; N09/N10 liberadas con S05; todas las pruebas en vivo pasaron (feliz, rechazo explícito, fallo del contenido con respaldo, fallo simulado de registro). M1 leída en producción (0 `no_contactar`; 1 rechazo v1 ambiguo). **Espera de Javier:** OK para mergear el PR #50 y autorización explícita y específica para cualquier pase a producción. Dev queda con N09 v1 restaurado y un consentimiento `todas` rechazado vigente (contacto de Leidy Ortiz). Incidentes nuevos: I-015, I-016, I-017 (la tarjeta saldría solo en la hoja plegable). Detalle en `docs/relevamientos/2026-10-10-r20-e4b-e5-avisos-n09-n10.md`. Próxima migración libre: **0075**.
 - **R20 E4a en producción (2026-10-10), PR #48.** Producción en **0001–0073**: 24 contenidos en borrador, 24 asignaciones en legado, sin historial, sin conectar y sin pantallas (D-E4a-2). Detalle en `docs/PASES.md`. **No autorizado:** E4b/E4c, E5 (conectar), E6 (pantallas), liberar contenido.
 - **Carril R20 Notificaciones, plan v2 aprobado (2026-10-09), rama `r20-notificaciones` (PR #47 mergeado).** Plan en `docs/relevamientos/2026-10-09-plan-r20-notificaciones-v2.md` (la v1 queda como antecedente). Autorizado: **E2 en hitos** (H1 N09–N10 → H2 evidencia de equivalencia + encargo a Design → H3 resto de casos), solo en dev. **No autorizado:** migraciones, conectar casos, tocar consentimiento o `no_contactar`, publicar contenido oficial, producción. Decisiones abiertas: C1 `no_contactar`, C2 consentimientos v1 ambiguos, C3 edición al enviar, C4 política aplicable, C5 retención (no aprobada), C6 roles.
 - **PR #47 mergeado y en producción (2026-10-10, `11b426e`)** con autorización de Javier: solo código y docs de E2, sin migraciones; Vercel de producción en success y continuidad comprobada (acceso a `/login`, base de producción intacta en 60 migraciones, sin mensajes a contactos reales). **No se hizo en producción:** operación habitual dentro de la app ni generación de avisos (no hay credencial de producción para el agente).
-- **Siguiente paso:** E4b (avisos) y E4c (documentos) solo con aprobación de Javier. La próxima migración libre es la 0074.
+- **Siguiente paso:** E4c (documentos) y cualquier pase de E4b/E5 a producción, solo con autorización explícita y específica de Javier. Pendiente menor: comprobada la guarda del rollback 0074 (aborta con los avisos de prueba existentes, sin alterarlos); falta solo la prueba de reinstalación completa, que requeriría preparar datos nuevos. La próxima migración libre es la 0075 (la 0074 está en dev).
 - **Hecho:** E2 completo (H1, H2, H3; 21 casos, 284 variantes únicas, 0 diferencias; cierre documental de H3 aceptado el 2026-10-10 dentro del alcance de textos y condiciones sin aviso). **Revisión separada del PR #47 hecha (2026-10-10, sin hallazgos medios ni altos) y comprobación operativa en dev hecha para ventas N01–N02, clases N19–N21 y reservas particulares N09/N15/N17** (`docs/relevamientos/2026-10-10-r20-revision-separada-y-comprobacion-manual-pr47.md`, con los datos que quedaron en dev). **Cobertura operativa pendiente (no bloqueó el pase):** N03–N08, N10–N14, N16, N18 y N17/N18 fuera de plazo (cubiertos por equivalencia y lectura del diff). Las comprobaciones de datos y destinatarios reales quedan para la conexión de cada caso. Design ajusta la entrega 1 y prepara la 2.
 - **I-012 fase 4 → Certificaciones (R20 entrega 7a).** El plan viejo es antecedente archivado; rige `docs/relevamientos/2026-10-09-plan-certificaciones-v2.md`. Espera solo la base de R20 (E4) y la revisión de diseño; no depende de conectar todos los avisos.
 - **Carril I-012 Membresías CERRADO y en producción (2026-10-09).** Fases 0, 1a, 1b, 2 y RLS del Profesor (0070). Producción estaba en **0001–0070** al cierre de ese carril (hoy 0001–0073, ver E4a); `membresias_nuevas` y `menu_plegable` en `true`. Detalle en `docs/PASES.md` y `docs/ESTADO.md`.
@@ -17,9 +20,9 @@ Se actualiza en el mismo commit que cierra cada carril; una sesión nueva lo lee
 - **Caceres, Angel** retirado en producción (liquidación N° 4 de Bs. 75 abierta, por pagar en Caja). Danza Comercial y Zumba esperan profesor; avisarles y pagar la N° 4 quedan en manos de Javier.
 - **Refresh dev↔prod:** apaga `membresias_nuevas` y `menu_plegable` en dev, no copia `membresia_bonos` (control 49 da 9 en dev) y deja dev sin `sala_horario_patron`, `sala_horario_excepciones` ni `sala_tarifas`; compararlas con producción y revisar `/sala`.
 - **Dev:** `rol_visibilidad` solo tiene selector para asistencia, caja, contactos, liquidaciones y particulares. El usuario QA usa `tropicana_alto_contraste`.
-- **Próxima migración libre: 0074.** Producción nunca sin tu OK (el hook lo exige).
+- **Próxima migración libre: 0075.** Producción nunca sin tu OK (el hook lo exige).
 - **Para arrancar la sesión siguiente** (local):
   ```
-  git checkout r20-notificaciones && git pull origin r20-notificaciones
+  git checkout r20-e4b-n09 && git pull origin r20-e4b-n09
   npm run dev:limpio
   ```
