@@ -204,3 +204,6 @@ Rama `r20-e4a-contenidos`, apilada sobre `r20-notificaciones` (PR #47): necesita
 - Reinstalación probada (`scripts/armar-prueba-reinstalacion.mjs`, transacción descartada): el rollback aborta ante cualquier trabajo editorial (5 casos); en estado limpio revierte, reinstala 0071+0073 y deja estructura (145 elementos) y datos idénticos. Controles 55–62 probados con corrupción deliberada (`scripts/prueba_controles_55_62.sql`). Email/asunto modelados y probados (no se importan plantillas de email).
 - Límites conocidos: los perfiles que aprobaron/publicaron no se pueden borrar (desactivar); la importación de `asunto` (correo) no está implementada.
 - Próxima migración libre: **0074**. Sin pase a producción.
+
+## R20 — E4b + E5 · avisos registrados y N09–N10 (2026-10-10, solo dev)
+Rama `r20-e4b-n09`. Migración 0074 aplicada en dev; N09/N10 liberadas (`modo='modulo'`) con S05. Detalle, pruebas y M1 en `docs/relevamientos/2026-10-10-r20-e4b-e5-avisos-n09-n10.md`. Próxima migración libre: **0075**. Sin pase a producción.

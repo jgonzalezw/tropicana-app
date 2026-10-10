@@ -10,7 +10,7 @@
  */
 
 import { useEffect, useRef } from "react";
-import AvisoWhatsapp from "@/components/AvisoWhatsapp";
+import AvisoDeReserva from "@/components/AvisoDeReserva";
 import {
   efectoDestino,
   etiquetaPrimaria,
@@ -80,8 +80,8 @@ function ResultadoFila({ r, conAvisos }: { r: Resultado; conAvisos: boolean }) {
       )}
       {r.mensaje && <p className="n-ok">{r.mensaje}</p>}
       <div className="n-wa">
-        {conAvisos && r.avisoAlumno && <AvisoWhatsapp nombre={r.avisoAlumno.nombre} whatsapp={r.avisoAlumno.whatsapp} mensaje={r.avisoAlumno.mensaje} />}
-        {conAvisos && r.avisoProfesor && <AvisoWhatsapp nombre={r.avisoProfesor.nombre} whatsapp={r.avisoProfesor.whatsapp} mensaje={r.avisoProfesor.mensaje} />}
+        {conAvisos && r.avisoAlumno && <AvisoDeReserva aviso={r.avisoAlumno} />}
+        {conAvisos && r.avisoProfesor && <AvisoDeReserva aviso={r.avisoProfesor} />}
       </div>
     </div>
   );

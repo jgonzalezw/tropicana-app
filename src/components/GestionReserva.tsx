@@ -21,7 +21,7 @@
 import Link from "next/link";
 import { formatearHoras } from "@/lib/horarios";
 import { ETIQUETA_ESTADO_RESERVA, type EstadoReserva } from "@/lib/reservas";
-import AvisoWhatsapp from "@/components/AvisoWhatsapp";
+import AvisoDeReserva from "@/components/AvisoDeReserva";
 import type { AccionPendiente } from "@/lib/accionPendiente";
 import type { ReservaConHistorial } from "@/app/(privado)/particulares/acciones";
 import {
@@ -62,10 +62,8 @@ function PanelResultado({ r }: { r: Resultado }) {
         </p>
       )}
       {r.mensaje && <p className="text-[var(--exito)]">{r.mensaje}</p>}
-      {r.avisoAlumno && <AvisoWhatsapp nombre={r.avisoAlumno.nombre} whatsapp={r.avisoAlumno.whatsapp} mensaje={r.avisoAlumno.mensaje} />}
-      {r.avisoProfesor && (
-        <AvisoWhatsapp nombre={r.avisoProfesor.nombre} whatsapp={r.avisoProfesor.whatsapp} mensaje={r.avisoProfesor.mensaje} />
-      )}
+      {r.avisoAlumno && <AvisoDeReserva aviso={r.avisoAlumno} />}
+      {r.avisoProfesor && <AvisoDeReserva aviso={r.avisoProfesor} />}
     </div>
   );
 }

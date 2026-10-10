@@ -22,7 +22,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { tienePermiso, obtenerParametro, obtenerPerfilActual, alcancePropioDe, alcanceDe } from "@/lib/sesion";
+import { tienePermiso, obtenerParametro, obtenerPerfilActual, alcancePropioDe, alcanceDe, esAdministrador } from "@/lib/sesion";
 import { apellidoDe, nombreCompleto } from "@/lib/contactos";
 import { destinatarioDeTitular } from "@/lib/destinatarioTitular";
 import { destinatarioAviso } from "@/lib/venta/destinatarioAviso";
@@ -68,6 +68,10 @@ import { sumarDiasISO } from "@/lib/calendarioCiclo";
 import type { CursoOcupa, ExcepcionHorario, FranjaPatron } from "@/lib/sala";
 import { COLS_VIGENCIA } from "@/lib/vigencia";
 import { exigir } from "@/lib/datos";
+import { prepararAviso, refrescarAviso, avisoDelEvento, falloInesperado, type Deps as DepsAviso } from "@/lib/comunicaciones/avisos/servidor";
+import type { TipoAccionAviso } from "@/lib/comunicaciones/avisos/estado";
+import type { AvisoRegistrable, CasoAvisoReserva, EventoAviso, RegistroAviso } from "@/lib/comunicaciones/avisos/tipos";
+import type { EntradaReserva } from "@/lib/comunicaciones/predeterminados/reserva";
 
 const ISO_FECHA = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -77,7 +81,8 @@ function admin() {
   return a;
 }
 
-export type AvisoPersona = { nombre: string; whatsapp: string | null; mensaje: string };
+/** `registro`: el aviso registrado por el módulo de comunicaciones (R20 E5); sin él, el aviso sale como siempre. */
+export type AvisoPersona = { nombre: string; whatsapp: string | null; mensaje: string; registro?: RegistroAviso };
 type ResultadoAccion = {
   ok?: true;
   mensaje?: string;
@@ -168,7 +173,7 @@ async function autorizarSobre(
 async function destinatarioDeAlumno(
   a: ReturnType<typeof admin>,
   alumnoId: number
-): Promise<{ nombre: string; whatsapp: string | null } | null> {
+): Promise<{ nombre: string; whatsapp: string | null; contactoId: number } | null> {
   const { data: alumnoRow, error } = await a
     .from("alumnos")
     .select("contacto_id, es_menor, contacto:contactos(nombre, apellido, whatsapp)")
@@ -196,7 +201,7 @@ async function destinatarioDeAlumno(
  * tienen que ser tan claros como los de la inscripción.
  */
 type ContextoAviso = {
-  destinatario: { nombre: string; whatsapp: string | null } | null;
+  destinatario: { nombre: string; whatsapp: string | null; contactoId: number } | null;
   /** "tu clase particular (Plan) con Prof" / "tu alquiler de sala (Plan)". */
   tuClase: string;
   /** Lo mismo sin el profesor: para "del vie 02/10 …". */
@@ -204,7 +209,7 @@ type ContextoAviso = {
   /** "paquete" o "alquiler": cómo se llama lo que se va gastando. */
   paquete: string;
   alumnoNombre: string;
-  profesor: { nombre: string; whatsapp: string | null };
+  profesor: { nombre: string; whatsapp: string | null; contactoId: number | null };
   planNombre: string;
   contratadasMin: number;
   disponibleMin: number;
@@ -226,7 +231,7 @@ async function contextoAviso(
       "alumno_id, horas_contratadas, categoria_aplicada, contacto_id, plan:planes(nombre), " +
         "alumno:alumnos(contacto:contactos(nombre, apellido)), " +
         "titular:contactos(tipo, nombre, apellido, razon_social, whatsapp), " +
-        "profesor:profesores(contacto:contactos(nombre, apellido, whatsapp))"
+        "profesor:profesores(contacto:contactos(id, nombre, apellido, whatsapp))"
     )
     .eq("id", membresiaId)
     .maybeSingle();
@@ -238,7 +243,7 @@ async function contextoAviso(
     titular: { tipo: "persona" | "organizacion"; nombre: string | null; apellido: string | null; razon_social: string | null; whatsapp: string | null } | null;
     plan: { nombre: string } | null;
     alumno: { contacto: { nombre: string | null; apellido: string | null } | null } | null;
-    profesor: { contacto: { nombre: string | null; apellido: string | null; whatsapp: string | null } | null } | null;
+    profesor: { contacto: { id: number; nombre: string | null; apellido: string | null; whatsapp: string | null } | null } | null;
   } | null;
   if (!m) return null;
 
@@ -280,7 +285,7 @@ async function contextoAviso(
     paquete: textos.paquete,
     alumnoNombre: textos.alumnoNombre,
     // Sin profesor (alquiler): `avisos()` no arma el aviso al profesor.
-    profesor: { nombre: profesorNombre, whatsapp: pc?.whatsapp ?? null },
+    profesor: { nombre: profesorNombre, whatsapp: pc?.whatsapp ?? null, contactoId: pc?.id ?? null },
     planNombre: textos.planNombre,
     contratadasMin: saldo.contratadasMin,
     disponibleMin: saldo.disponibleMin,
@@ -295,6 +300,94 @@ async function contextoAviso(
 
 function avisos(c: ContextoAviso | null, alumno: string, profesor: string): Pick<ResultadoAccion, "avisoAlumno" | "avisoProfesor"> {
   return avisosDeReserva(c, alumno, profesor);
+}
+
+// ── Avisos registrados de una reserva confirmada (R20 · E4b/E5: N09 y N10) ──
+//
+// Con la asignación en `legado` todo sigue como siempre (`avisos()` de arriba).
+// Con `modulo`, el aviso sale de la versión liberada y queda registrado: un aviso
+// por evento exacto (la fila de `reservas_historial` de la confirmación) y
+// destinatario. La reserva ya está confirmada: nada de acá la deshace.
+
+function entradaDeAviso(c: ContextoAviso, fecha: string, hora: string, duracionMin: number, lugar: string): EntradaReserva {
+  return {
+    esAlquiler: c.paquete === "alquiler",
+    planNombre: c.planNombre,
+    profesorNombre: c.profesor.nombre,
+    alumnoNombre: c.alumnoNombre,
+    contratadasMin: c.contratadasMin,
+    disponibleMin: c.disponibleMin,
+    fecha,
+    hora,
+    duracionMin,
+    lugar,
+  };
+}
+
+/** La fila de `reservas_historial` que dejó la última confirmación de la reserva (la escribe el trigger de 0054). */
+async function historialDeConfirmacion(a: ReturnType<typeof admin>, reservaId: number): Promise<number> {
+  const r = exigir(
+    await a.from("reservas_historial").select("id").eq("reserva_id", reservaId).eq("estado_nuevo", "confirmada").order("id", { ascending: false }).limit(1),
+    "el historial de la reserva"
+  ) as { id: number }[];
+  if (!r[0]) throw new Error("La confirmación no dejó su fila en el historial de la reserva.");
+  return r[0].id;
+}
+
+async function depsAviso(a: ReturnType<typeof admin>): Promise<DepsAviso> {
+  return { a, sb: await createClient(), esAdmin: await esAdministrador() };
+}
+
+/**
+ * Los avisos N09 y N10 de una confirmación. Cada uno es independiente: lo que
+ * pase con uno no cambia al otro. Los destinatarios y los casos en que NO hay
+ * aviso (sin contexto, alquiler sin profesor) son los de siempre (`avisosDeReserva`).
+ */
+async function avisosDeConfirmacion(
+  a: ReturnType<typeof admin>,
+  c: ContextoAviso | null,
+  reserva: { id: number; membresiaId: number; fecha: string; hora: string; duracionMin: number },
+  lugar: string,
+  cuando: string
+): Promise<Pick<ResultadoAccion, "avisoAlumno" | "avisoProfesor">> {
+  const legado = avisos(
+    c,
+    c ? mensajeReservaConfirmadaAlumno(c, cuando, lugar) : "",
+    c ? mensajeReservaConfirmadaProfesor(c, cuando, lugar) : ""
+  );
+  if (!c) return legado;
+  const entrada = entradaDeAviso(c, reserva.fecha, reserva.hora, reserva.duracionMin, lugar);
+  const preparar = async (caso: CasoAvisoReserva, nombre: string, destinatario: { contactoId: number; nombre: string; whatsapp: string | null } | null, evento: EventoAviso | null, error?: string) => {
+    const e = { caso, evento: evento ?? { membresiaId: reserva.membresiaId, historialId: 0 }, destinatario, nombreDestinatario: nombre, entrada };
+    if (!evento) return falloInesperado(e, error ?? "No se pudo identificar el evento de la confirmación.");
+    try {
+      return await prepararAviso(await depsAviso(a), e);
+    } catch (err) {
+      return falloInesperado(e, (err as Error).message);
+    }
+  };
+  let evento: EventoAviso | null = null;
+  let errorEvento: string | undefined;
+  try {
+    evento = { membresiaId: reserva.membresiaId, historialId: await historialDeConfirmacion(a, reserva.id) };
+  } catch (err) {
+    errorEvento = (err as Error).message;
+  }
+  const alumno = await preparar("N09", c.destinatario?.nombre ?? "", c.destinatario, evento, errorEvento);
+  const profesor = c.profesor.nombre
+    ? await preparar(
+        "N10",
+        c.profesor.nombre,
+        c.profesor.contactoId != null ? { contactoId: c.profesor.contactoId, nombre: c.profesor.nombre, whatsapp: c.profesor.whatsapp } : null,
+        evento,
+        errorEvento
+      )
+    : null;
+  // `null` = asignación en legado (no se registra): ese aviso sale como siempre.
+  return {
+    avisoAlumno: alumno ?? legado.avisoAlumno,
+    avisoProfesor: profesor ?? legado.avisoProfesor,
+  };
 }
 
 // ── Datos para la pantalla ──────────────────────────────────────────────
@@ -1080,7 +1173,9 @@ export async function crearReserva(e: EntradaNuevaReserva): Promise<ResultadoAcc
   const solicitadaHasta =
     e.accion === "solicitar" ? new Date(ahora.getTime() + validezHoras * 60 * 60 * 1000).toISOString() : null;
 
-  const { error: errIns } = await a.from("reservas_sala").insert({
+  const { data: creada, error: errIns } = await a
+    .from("reservas_sala")
+    .insert({
     sala_id: salaId,
     tipo: ctxM.tipo,
     membresia_id: e.membresiaId,
@@ -1092,12 +1187,14 @@ export async function crearReserva(e: EntradaNuevaReserva): Promise<ResultadoAcc
     solicitada_hasta: solicitadaHasta,
     reagenda_de: e.reagendaDe ?? null,
     creado_por: perfil?.id ?? null,
-  });
-  if (errIns) {
-    if ((errIns as { code?: string }).code === "23P01")
+    })
+    .select("id")
+    .single();
+  if (errIns || !creada) {
+    if ((errIns as { code?: string } | null)?.code === "23P01")
       return { error: "La sala se acaba de ocupar con otra reserva en ese horario. Recargá e intentá de nuevo." };
-    if ((errIns as { code?: string }).code === "23505" && e.reagendaDe != null) return { error: "Esa reserva ya fue reagendada." };
-    return { error: `No se pudo crear la reserva: ${errIns.message}` };
+    if ((errIns as { code?: string } | null)?.code === "23505" && e.reagendaDe != null) return { error: "Esa reserva ya fue reagendada." };
+    return { error: `No se pudo crear la reserva: ${errIns?.message ?? "sin respuesta"}` };
   }
 
   revalidarReservas(ctxM.tipo, e.membresiaId);
@@ -1118,11 +1215,7 @@ export async function crearReserva(e: EntradaNuevaReserva): Promise<ResultadoAcc
   return {
     ok: true,
     mensaje: e.reagendaDe != null ? `Reagendada para el ${cuando}.` : `Confirmada para el ${cuando}.`,
-    ...avisos(
-      c,
-      c ? mensajeReservaConfirmadaAlumno(c, cuando, lugar) : "",
-      c ? mensajeReservaConfirmadaProfesor(c, cuando, lugar) : ""
-    ),
+    ...(await avisosDeConfirmacion(a, c, { id: creada.id as number, membresiaId: e.membresiaId, fecha: e.fecha, hora: e.hora, duracionMin: e.duracionMin }, lugar, cuando)),
   };
 }
 
@@ -1450,11 +1543,7 @@ export async function cambiarEstadoReserva(
     return {
       ok: true,
       mensaje: `Confirmada: ${cuando}.`,
-      ...avisos(
-        c,
-        c ? mensajeReservaConfirmadaAlumno(c, cuando, lugar) : "",
-        c ? mensajeReservaConfirmadaProfesor(c, cuando, lugar) : ""
-      ),
+      ...(await avisosDeConfirmacion(a, c, { id: rRow.id, membresiaId: rRow.membresia_id, fecha: rRow.fecha, hora: rRow.hora, duracionMin: rRow.duracion_min }, lugar, cuando)),
     };
   return {
     ok: true,
@@ -1918,4 +2007,126 @@ export async function cancelarAPedido(reservaId: number): Promise<ResultadoAccio
       c ? mensajeCanceladaEnPlazoProfesor(c, cuando, lugar) : ""
     ),
   };
+}
+
+// ── Acciones sobre un aviso registrado (R20 · E5, S05) ─────────────────────
+//
+// Las llama `AvisoRegistrado` (el aviso de la tarjeta). Registran con la SESIÓN
+// de quien opera: la base vuelve a verificar el acceso a la operación original.
+// El texto que se muestra y se manda es siempre el del registro: nada acá lo
+// vuelve a armar salvo un reintento (mismo registro, misma versión) o el
+// respaldo autorizado (texto anterior, acción explícita).
+
+export type RespuestaAviso = { aviso?: AvisoRegistrable; error?: string };
+
+export type AccionAviso = {
+  caso: CasoAvisoReserva;
+  evento: EventoAviso;
+  avisoId: number;
+};
+
+async function puedeRegistrarAviso(membresiaId: number): Promise<boolean> {
+  const sb = await createClient();
+  const { data, error } = await sb.rpc("puede_registrar_aviso", { p_membresia_id: membresiaId });
+  return !error && data === true;
+}
+
+/** Acciones de un aviso: abierto, copiado, declarar el envío, rectificar la declaración. */
+export async function registrarAccionAviso(
+  e: AccionAviso & { tipo: Extract<TipoAccionAviso, "abierto_whatsapp" | "copiado" | "declarado_enviado" | "declaracion_rectificada">; rectificaId?: number; motivo?: string }
+): Promise<RespuestaAviso> {
+  const sb = await createClient();
+  const { error } = await sb.rpc("registrar_aviso_accion", {
+    p_aviso_id: e.avisoId,
+    p_tipo: e.tipo,
+    p_motivo: e.motivo?.trim() || null,
+    p_rectifica_id: e.rectificaId ?? null,
+  });
+  if (error) return { error: error.message };
+  const aviso = await refrescarAviso(await depsAviso(admin()), e.caso, e.evento, "");
+  return aviso ? { aviso } : { error: "No se encontró el aviso." };
+}
+
+type ContextoDeEvento = { entrada: EntradaReserva; legado: string; destinatario: { contactoId: number; nombre: string; whatsapp: string | null } | null; nombre: string };
+
+/** Rearma, desde el evento, lo que hace falta para preparar de nuevo o para el texto anterior. */
+async function contextoDeEvento(a: ReturnType<typeof admin>, ev: EventoAviso, caso: CasoAvisoReserva): Promise<ContextoDeEvento | { error: string }> {
+  if (!(await puedeRegistrarAviso(ev.membresiaId))) return { error: "No tenés acceso a esta operación." };
+  const { data: h, error: errH } = await a
+    .from("reservas_historial")
+    .select("id, reserva_id, estado_nuevo, fecha_nueva, hora_nueva, duracion_nueva, sala_id_nuevo")
+    .eq("id", ev.historialId)
+    .maybeSingle();
+  if (errH) return { error: `No se pudo leer el evento: ${errH.message}` };
+  if (!h || h.estado_nuevo !== "confirmada") return { error: "Ese evento no es una confirmación." };
+  const { data: r, error: errR } = await a.from("reservas_sala").select("membresia_id").eq("id", h.reserva_id).maybeSingle();
+  if (errR) return { error: `No se pudo leer la reserva: ${errR.message}` };
+  if (!r || r.membresia_id !== ev.membresiaId) return { error: "Ese evento no es de esta membresía." };
+  const c = await contextoAviso(a, ev.membresiaId, true);
+  if (!c) return { error: "No se pudo leer la membresía del aviso." };
+  const cuando = horario(h.fecha_nueva, h.hora_nueva, h.duracion_nueva);
+  const lugar = (h.sala_id_nuevo != null ? c.lugar(h.sala_id_nuevo) : null) ?? "Tropicana";
+  const entrada = entradaDeAviso(c, h.fecha_nueva, h.hora_nueva, h.duracion_nueva, lugar);
+  if (caso === "N09")
+    return { entrada, legado: mensajeReservaConfirmadaAlumno(c, cuando, lugar), destinatario: c.destinatario, nombre: c.destinatario?.nombre ?? "" };
+  if (!c.profesor.nombre) return { error: "Esta membresía no tiene profesor: no hay aviso N10." };
+  return {
+    entrada,
+    legado: mensajeReservaConfirmadaProfesor(c, cuando, lugar),
+    destinatario: c.profesor.contactoId != null ? { contactoId: c.profesor.contactoId, nombre: c.profesor.nombre, whatsapp: c.profesor.whatsapp } : null,
+    nombre: c.profesor.nombre,
+  };
+}
+
+/**
+ * Reintenta preparar el aviso (o registrarlo, si el registro falló): mismo
+ * registro, MISMA versión seleccionada. Nunca cambia de contenido por su cuenta.
+ */
+export async function reintentarAvisoReserva(e: { caso: CasoAvisoReserva; evento: EventoAviso }): Promise<RespuestaAviso> {
+  const a = admin();
+  const ctx = await contextoDeEvento(a, e.evento, e.caso);
+  if ("error" in ctx) return { error: ctx.error };
+  try {
+    const aviso = await prepararAviso(await depsAviso(a), {
+      caso: e.caso,
+      evento: e.evento,
+      destinatario: ctx.destinatario,
+      nombreDestinatario: ctx.nombre,
+      entrada: ctx.entrada,
+      reintentar: true,
+    });
+    return aviso ? { aviso } : { error: "Este aviso ya no está conectado al módulo de comunicaciones." };
+  } catch (err) {
+    return { error: (err as Error).message };
+  }
+}
+
+/**
+ * El texto anterior (heredado) para un aviso cuyo contenido OFICIAL falló. Es una
+ * acción explícita, nunca automática: la autoriza el Administrador para ESE aviso
+ * (si quien hace clic lo es, queda autorizado y usado en el mismo paso, con las
+ * dos entradas en el historial). No esquiva un fallo de destinatario ni de
+ * contactabilidad: la base lo rechaza.
+ */
+export async function usarRespaldoAvisoReserva(e: AccionAviso & { motivo: string }): Promise<RespuestaAviso> {
+  const motivo = e.motivo.trim();
+  const a = admin();
+  const ctx = await contextoDeEvento(a, e.evento, e.caso);
+  if ("error" in ctx) return { error: ctx.error };
+  const deps = await depsAviso(a);
+  if (!(await avisoDelEvento(deps, e.caso, e.evento, e.avisoId))) return { error: "Ese aviso no es de este evento." };
+  const sb = deps.sb;
+  if (deps.esAdmin) {
+    const acciones = await refrescarAviso(deps, e.caso, e.evento, "");
+    const yaAutorizado = acciones?.registro?.acciones.some((x) => x.tipo === "respaldo_autorizado");
+    if (!yaAutorizado) {
+      if (!motivo) return { error: "Decí por qué se usa el texto anterior." };
+      const { error } = await sb.rpc("registrar_aviso_accion", { p_aviso_id: e.avisoId, p_tipo: "respaldo_autorizado", p_motivo: motivo, p_rectifica_id: null });
+      if (error) return { error: error.message };
+    }
+  }
+  const { error } = await sb.rpc("usar_respaldo_aviso", { p_aviso_id: e.avisoId, p_texto: ctx.legado });
+  if (error) return { error: error.message };
+  const aviso = await refrescarAviso(deps, e.caso, e.evento, ctx.nombre);
+  return aviso ? { aviso } : { error: "No se encontró el aviso." };
 }

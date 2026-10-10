@@ -60,10 +60,13 @@ select '58. contenido de WhatsApp sin version predeterminada o sin asignacion, o
 $f$;
 create or replace function pg_temp.c59() returns bigint language sql as $f$
 select n::bigint from (
-select '59. asignacion en modo modulo (no hay conexion autorizada: E5)' as control,
+select '59. asignacion en modo modulo fuera de las conectadas y autorizadas (R20 E5: N09 y N10 de reserva confirmada, WhatsApp)' as control,
        count(*) as n,
        case when count(*) = 0 then 'OK' else 'REVISAR' end as estado
-  from public.contenido_usos where modo = 'modulo'
+  from public.contenido_usos
+ where modo = 'modulo'
+   and (uso, variante, canal) not in (('reserva.confirmada.alumno', 'unica', 'whatsapp'),
+                                      ('reserva.confirmada.profesor', 'unica', 'whatsapp'))
 ) q
 $f$;
 create or replace function pg_temp.c60() returns bigint language sql as $f$
