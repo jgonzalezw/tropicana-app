@@ -410,3 +410,12 @@ producción (0060 y 0061, de H7, desde el 2026-10-02). Cuando algo quede **solo 
   - **Código:** PR #15 (`fix/i-009` → `main`), merge `29fb879`, **un solo push**. Vercel: deploy de Producción del commit `29fb879` en estado `success`.
   - **Qué llega:** mensaje de confirmación de inscripción con recibo por WhatsApp (I-001) y «Clase N de M · quedan K» con la pastilla «Última clase» en Asistencia (I-009).
   - **Verificado:** `tsc`, `lint` y `npm test` (286) antes del pase; ambos validados por Javier en dev. Pendiente de Javier: ver en producción el chip PROD con `29fb879`.
+
+- **2026-10-10 — R20 E4a: contenidos de comunicaciones (0071, 0072, 0073)** (OK explícito de Javier). Producción pasa de 0001–0070 a **0001–0073**.
+  - **Antes:** 60 migraciones registradas, sin la tabla `contenidos` ni las funciones `cambiar_estado_version` / `liberar_contenido`. Las tres migraciones son aditivas (tablas, funciones y datos nuevos): no tocan ninguna tabla existente, por eso no hay respaldo de datos previo.
+  - **Aplicadas** con el conector, en orden 0071, 0072, 0073. **Después:** 63 migraciones; 24 contenidos, 24 versiones en borrador (origen predeterminado), 24 asignaciones en legado sin versión, 0 filas de historial. Huella de datos idéntica a la de dev (`bad8dcaa…`). Controles 55–62 en 0.
+  - **Permisos:** sin escritura directa para `anon`/`authenticated` en las cinco tablas; las funciones no se ejecutan como `anon`/`public`. Solo el Administrador aprueba, publica y libera (D-E4a-1).
+  - **Sin conectar:** ningún aviso usa los contenidos, no hay pantallas, el módulo sigue oculto (D-E4a-2). Los avisos siguen saliendo del código.
+  - **Rollback:** `scripts/rollback_0071_comunicaciones.sql`; aborta si hay trabajo editorial. Probado en dev (instalación, reversión y reinstalación con los archivos reales, 11/11).
+  - **Código:** PR #48 (`r20-e4a-contenidos` → `main`).
+
