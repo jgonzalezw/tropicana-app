@@ -27,7 +27,8 @@ import { apellidoDe, nombreCompleto } from "@/lib/contactos";
 import { destinatarioDeTitular } from "@/lib/destinatarioTitular";
 import { destinatarioAviso } from "@/lib/venta/destinatarioAviso";
 import { recalcularMembresia } from "@/lib/membresias";
-import { formatearHoras, aMinutos, horaFin } from "@/lib/horarios";
+import { formatearHoras, aMinutos } from "@/lib/horarios";
+import { h, horario, saldoTexto, textosDeReserva, mensajeReservaConfirmadaAlumno, mensajeReservaConfirmadaProfesor } from "@/lib/comunicaciones/legado/reserva";
 import {
   puedeTransicionar,
   saldoMembresia,
@@ -168,21 +169,6 @@ async function destinatarioDeAlumno(
   });
 }
 
-function fechaHoraCorta(fecha: string, hora: string): string {
-  const d = new Date(`${fecha}T00:00:00`);
-  const DIAS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
-  const dd = String(d.getDate()).padStart(2, "0");
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  return `${DIAS[d.getDay()]} ${dd}/${mm} ${hora.slice(0, 5)}`;
-}
-
-/** "vie 02/10 de 15:00 a 16:00" — el mismo formato que usa la inscripción. */
-function horario(fecha: string, hora: string, duracionMin: number): string {
-  return `${fechaHoraCorta(fecha, hora).slice(0, -6)} de ${hora.slice(0, 5)} a ${horaFin(hora, duracionMin) ?? "?"}`;
-}
-
-const h = (min: number) => formatearHoras(min / 60);
-
 /**
  * Todo lo que necesita un aviso, leído DESPUÉS de escribir (el saldo ya
  * refleja el cambio). Los mensajes siguen el formato de la venta de H2
@@ -262,20 +248,20 @@ async function contextoAviso(
   });
   const pc = m.profesor?.contacto;
   const esAlquiler = m.categoria_aplicada != null;
-  const planNombre = m.plan?.nombre ?? (esAlquiler ? "alquiler de sala" : "clases particulares");
   const profesorNombre = `${pc?.nombre ?? ""} ${pc?.apellido ?? ""}`.trim();
   const alumnoNombre = esAlquiler
     ? nombreCompleto(m.titular ? { tipo: m.titular.tipo, nombre: m.titular.nombre, apellido: m.titular.apellido, razon_social: m.titular.razon_social } : null)
     : `${m.alumno?.contacto?.nombre ?? ""} ${m.alumno?.contacto?.apellido ?? ""}`.trim();
+  const textos = textosDeReserva({ esAlquiler, planNombre: m.plan?.nombre, profesorNombre, alumnoNombre });
   return {
     destinatario,
-    tuClase: esAlquiler ? `tu alquiler de sala (${planNombre})` : `tu clase particular (${planNombre}) con ${profesorNombre}`,
-    tuClaseCorta: esAlquiler ? `tu alquiler de sala (${planNombre})` : `tu clase particular (${planNombre})`,
-    paquete: esAlquiler ? "alquiler" : "paquete",
-    alumnoNombre: alumnoNombre || (esAlquiler ? "el titular" : "el alumno"),
+    tuClase: textos.tuClase,
+    tuClaseCorta: textos.tuClaseCorta,
+    paquete: textos.paquete,
+    alumnoNombre: textos.alumnoNombre,
     // Sin profesor (alquiler): `avisos()` no arma el aviso al profesor.
     profesor: { nombre: profesorNombre, whatsapp: pc?.whatsapp ?? null },
-    planNombre,
+    planNombre: textos.planNombre,
     contratadasMin: saldo.contratadasMin,
     disponibleMin: saldo.disponibleMin,
     lugar: (salaId) => {
@@ -294,8 +280,6 @@ function avisos(c: ContextoAviso | null, alumno: string, profesor: string): Pick
     avisoProfesor: c.profesor.nombre ? { nombre: c.profesor.nombre, whatsapp: c.profesor.whatsapp, mensaje: profesor } : undefined,
   };
 }
-
-const saldoTexto = (c: ContextoAviso) => `Te quedan ${h(c.disponibleMin)} h de tu ${c.paquete} de ${h(c.contratadasMin)} h.`;
 
 // ── Datos para la pantalla ──────────────────────────────────────────────
 
@@ -1120,8 +1104,8 @@ export async function crearReserva(e: EntradaNuevaReserva): Promise<ResultadoAcc
     mensaje: e.reagendaDe != null ? `Reagendada para el ${cuando}.` : `Confirmada para el ${cuando}.`,
     ...avisos(
       c,
-      `Hola! Confirmamos ${c?.tuClase}: ${cuando}, en ${lugar}. ${c ? saldoTexto(c) : ""} ¡Te esperamos!`,
-      `Hola! Se te confirmó una clase particular (${c?.planNombre}) con ${c?.alumnoNombre}: ${cuando}, en ${lugar}.`
+      c ? mensajeReservaConfirmadaAlumno(c, cuando, lugar) : "",
+      c ? mensajeReservaConfirmadaProfesor(c, cuando, lugar) : ""
     ),
   };
 }
@@ -1452,8 +1436,8 @@ export async function cambiarEstadoReserva(
       mensaje: `Confirmada: ${cuando}.`,
       ...avisos(
         c,
-        `Hola! Confirmamos ${c?.tuClase}: ${cuando}, en ${lugar}. ${c ? saldoTexto(c) : ""} ¡Te esperamos!`,
-        `Hola! Se te confirmó una clase particular (${c?.planNombre}) con ${c?.alumnoNombre}: ${cuando}, en ${lugar}.`
+        c ? mensajeReservaConfirmadaAlumno(c, cuando, lugar) : "",
+        c ? mensajeReservaConfirmadaProfesor(c, cuando, lugar) : ""
       ),
     };
   return {
