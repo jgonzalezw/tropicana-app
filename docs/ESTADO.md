@@ -206,4 +206,4 @@ Rama `r20-e4a-contenidos`, apilada sobre `r20-notificaciones` (PR #47): necesita
 - Próxima migración libre: **0074**. Sin pase a producción.
 
 ## R20 — E4b + E5 · avisos registrados y N09–N10 (2026-10-10, solo dev)
-Rama `r20-e4b-n09`. Migración 0074 aplicada en dev; N09/N10 liberadas (`modo='modulo'`) con S05. Detalle, pruebas y M1 en `docs/relevamientos/2026-10-10-r20-e4b-e5-avisos-n09-n10.md`. Próxima migración libre: **0075**. Sin pase a producción.
+Rama `r20-e4b-n09`. Migración 0074 aplicada en dev; N09/N10 liberadas (`modo='modulo'`) con S05. Detalle, pruebas y M1 en `docs/relevamientos/2026-10-10-r20-e4b-e5-avisos-n09-n10.md`. Pruebas: 45 comprobaciones SQL, controles 63–67, 831 tests, tsc, E2E feliz y cuatro pruebas en vivo de Javier (feliz, rechazo explícito, fallo del contenido con respaldo, fallo simulado de registro). PR #50. Próxima migración libre: **0075**. Sin pase a producción.
