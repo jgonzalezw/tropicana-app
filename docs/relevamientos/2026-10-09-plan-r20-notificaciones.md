@@ -1,3 +1,5 @@
+> **Reemplazado por la v2:** `2026-10-09-plan-r20-notificaciones-v2.md`. Se conserva como antecedente.
+
 # R20 · Capa interna de documentos y notificaciones — Etapa 0: inventario y plan
 
 **9 de octubre de 2026.** Este es el plan preliminar a los requisitos 1.1, *Tropicana_Requisitos_Capa_Interna_Documentos_Notificaciones*. Los contrasté con la especificación de comunicaciones 2.1, los requisitos de la plataforma 0.3, el informe de Code y el repo en `main` `4b1d4c6`.

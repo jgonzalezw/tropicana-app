@@ -179,3 +179,11 @@ Pasaron a `docs/archivo/ESTADO-2026-10.md` para que este archivo se pueda leer. 
 - **Hallazgos:** ningún aviso consulta `no_contactar`; tres reglas de destinatario distintas para un menor (dA, cA, dT); no queda registro de ningún envío; `politicas_texto` ya existe (consentimiento).
 - **Fase 4 (reporte):** plan guardado en `2026-10-09-plan-i012-fase-4-reporte.md`, en PAUSA; se apoya en la capa de R20 y no crea `membresia_eventos` por su cuenta.
 - **Próxima migración libre:** 0071 (la usa el incremento 1.3 de R20).
+
+
+## R20 — Plan v2 y autorización de E2 (2026-10-09)
+- Plan v2 en `docs/relevamientos/2026-10-09-plan-r20-notificaciones-v2.md`; la v1 queda como antecedente.
+- Recuento: 13 eventos, 21 casos de mensaje, 16 operaciones (13 con generador propio), 9 consumidores de `AvisoWhatsapp`. Variantes: se cuentan en E2.
+- Medido en dev (solo lectura): `no_contactar` en 0 de 67 contactos y nadie lo escribe; 5 consentimientos (3 otorgados, 2 rechazos), que hoy no frenan ningún aviso. Producción sin medir (M1).
+- Certificaciones pasan a entrega 7a, con plan propio; el plan viejo de la fase 4 queda archivado.
+- Autorizado: E2 en hitos, en dev. Sin migraciones, sin conectar casos, sin tocar consentimiento ni producción.

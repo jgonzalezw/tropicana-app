@@ -1,6 +1,6 @@
 # I-012 fase 4 · Reporte de la membresía (plan guardado el 2026-10-09, sin aprobar)
 
-> Carril en PAUSA, estado A. Se reconstruye sobre la capa de R20 (etapa 3): ver `2026-10-09-plan-r20-notificaciones.md`. Donde dice `politicas` y `membresia_eventos` rige ese plan.
+> **ANTECEDENTE ARCHIVADO — no ejecutable.** Rige `2026-10-09-plan-certificaciones-v2.md` (entrega 7a de R20). Quedan sin efecto: las tablas `politicas` y `membresia_eventos`, elegir la política por `vigente_desde ≤ hoy`, y registrar «Reporte enviado por WhatsApp» al tocar el botón. Siguen valiendo como insumo las respuestas sobre hoja 1, impresión/PDF y clases futuras, y el patrón `construirHTMLImpresion`.
 
 
 ## Contexto

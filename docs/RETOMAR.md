@@ -2,9 +2,9 @@
 
 Se actualiza en el mismo commit que cierra cada carril; una sesión nueva lo lee **antes** de mirar ramas.
 
-- **Carril R20 Notificaciones, Etapa 0 entregada (2026-10-09), rama `r20-notificaciones`.** Plan en `docs/relevamientos/2026-10-09-plan-r20-notificaciones.md`; sin código ni migraciones. **Espera tu OK al alcance** y las decisiones de su §10 (primer caso, roles, `no_contactar`, edición al enviar, retención, orden con la fase 4).
-- **Siguiente paso:** con el OK, incremento **1.1** (mover los textos a funciones puras con pruebas de caracterización, sin cambiar ninguno). En paralelo, el paquete para Claude Design (§9 del plan): mockups S01–S05 antes de cualquier pantalla.
-- **PAUSA, estado A: I-012 fase 4 (Reporte de la membresía).** Plan en `docs/relevamientos/2026-10-09-plan-i012-fase-4-reporte.md`; se reconstruye sobre la capa de R20 (etapa 3), así que no se arranca antes.
+- **Carril R20 Notificaciones, plan v2 aprobado (2026-10-09), rama `r20-notificaciones`.** Plan en `docs/relevamientos/2026-10-09-plan-r20-notificaciones-v2.md` (la v1 queda como antecedente). Autorizado: **E2 en hitos** (H1 N09–N10 → H2 evidencia de equivalencia + encargo a Design → H3 resto de casos), solo en dev. **No autorizado:** migraciones, conectar casos, tocar consentimiento o `no_contactar`, publicar contenido oficial, producción. Decisiones abiertas: C1 `no_contactar`, C2 consentimientos v1 ambiguos, C3 edición al enviar, C4 política aplicable, C5 retención (no aprobada), C6 roles.
+- **Siguiente paso:** E2 · H1 (referencias de N09–N10 capturadas antes de refactorizar; después funciones puras, plantilla y variantes).
+- **I-012 fase 4 → Certificaciones (R20 entrega 7a).** El plan viejo es antecedente archivado; rige `docs/relevamientos/2026-10-09-plan-certificaciones-v2.md`. Espera solo la base de R20 (E4) y la revisión de diseño; no depende de conectar todos los avisos.
 - **Carril I-012 Membresías CERRADO y en producción (2026-10-09).** Fases 0, 1a, 1b, 2 y RLS del Profesor (0070). Producción en **0001–0070**; `membresias_nuevas` y `menu_plegable` en `true`. Detalle en `docs/PASES.md` y `docs/ESTADO.md`.
 - **Proceso vigente:** se valida en dev y, si funciona, a producción; sin interruptores nuevos salvo que Javier lo pida. Siguen el respaldo `*_previo_*`, el rollback probado y los cabos cerrados.
 - **Otros candidatos, sin carril:** I-002 (corregir inscripciones, S3, D28) · reportes I-004/I-008/I-013 (pasan por Design) · H6 extensión de membresía (plan sin OK, numeración vieja) · H9 horario hábil (entra en la etapa 4 de R20).
