@@ -35,23 +35,25 @@ No encontré regresiones de comportamiento ni rutas por las que llegue a un clie
 | 2 | Baja (información) | `src/lib/comunicaciones/legado/clase.ts` (`armarAvisosReapertura`) y `asistencia/acciones.ts` | `avisaReapertura` se evalúa dos veces (en la acción para decidir la consulta del curso y dentro de `armarAvisosReapertura`). Mismo resultado. |
 | 3 | Baja (cobertura) | `particulares/acciones.ts`, `asistencia/acciones.ts`, `inscribir/acciones.ts`, `accionesAlquiler.ts` | El paso de argumentos desde la acción a cada `mensaje…` (por ejemplo, que `motivo`, `plazoHoras` o `lugar` no se crucen) solo lo verifican `tsc` y la lectura. No hay prueba automática de la acción; los tipos de varios argumentos son `string`, así que `tsc` no detecta un cruce entre ellos. En esta revisión, la lectura del diff muestra el orden correcto en las 14 llamadas de reservas. |
 
-## Comprobación manual en dev: **NO se pudo completar**
-- Se levantó `npm run dev:limpio` contra tropicana-dev (`.env.local` apunta al proyecto de dev; el servidor respondió 200 en `/login`).
-- **Primer intento:** tras `navigate`, la extensión devolvió «Can't interact with browser-internal or unparseable URLs» en dos pestañas (la primera compilación de `/login` tardó ~25 s y la pestaña seguía figurando como `chrome://newtab/`). Se paró según la regla de reintentos.
-- **Segundo intento, con el servidor ya compilado:** la extensión sí leyó `/login` (formulario con «Correo», «Contraseña», «Ingresar»).
-- **Bloqueo real: el inicio de sesión.** El usuario QA de dev necesita la contraseña de `QA_CLOUD_PASSWORD` (`.env.local`). El clasificador de permisos de la sesión **denegó leerla** («Credential Materialization»), y no se buscó otra vía para sortearlo. Sin sesión iniciada no se pudo ejecutar ninguna acción.
-- **No se creó ni modificó ningún dato en dev.**
-- El servidor quedó apagado y la pestaña creada, cerrada.
+## Comprobación operativa en dev (2026-10-10): **hecha para ventas N01–N02, clases N19–N21 y reservas particulares N09/N15/N17**
 
-| Caso | Acción | Texto visto | Resultado | Dato creado |
-|---|---|---|---|---|
-| N01–N02 inscripción | no ejecutada | — | **No comprobado** | ninguno |
-| N03 prueba | no ejecutada | — | **No comprobado** | ninguno |
-| N04–N05 particular | no ejecutada | — | **No comprobado** | ninguno |
-| N06 alquiler | no ejecutada | — | **No comprobado** | ninguno |
-| N07–N18 reservas (solicitar, confirmar, suspender, restablecer, reprogramar, cancelar) | no ejecutada | — | **No comprobado** | ninguno |
-| N19–N21 clases (suspender, restablecer) | no ejecutada | — | **No comprobado** | ninguno |
+**Cómo.** Con la autorización expresa de Javier de usar `QA_CLOUD_PASSWORD` solo para iniciar sesión en dev, se corrieron tres specs de Playwright (`e2e/r20-cableado-reservas.spec.ts`, `-clases.spec.ts`, `-ventas.spec.ts`) por el `login.setup.ts` del proyecto: la credencial la lee el proceso de pruebas desde `.env.local` y no se mostró, copió ni guardó. Cada spec acciona la pantalla real, lee el texto exacto de cada tarjeta de WhatsApp y falla si trae `{{ }}`, `undefined`, `null`, `NaN` o queda vacío. Los textos quedan en `test-results/r20-avisos-*.json` (no se versionan). Rama `r20-notificaciones`, base `df9859d`; servidor `npm run dev` contra tropicana-dev.
 
-## Qué queda pendiente y cómo cerrarlo
-- La comprobación manual operativa sigue **abierta**. Opciones: (a) que Javier inicie sesión con el usuario QA en la pestaña de Chrome conectada (o autorice a la sesión a leer `QA_CLOUD_PASSWORD`) y se repita; (b) que Javier haga el recorrido en dev con `npm run dev:limpio`, comparando el texto del botón de WhatsApp con `src/lib/comunicaciones/__referencias__/*.json`; (c) una prueba de acción con base de dev.
-- Mientras tanto, la evidencia es: revisión del diff sin hallazgos de severidad media o alta, `tsc` limpio, 791 pruebas ok e inventario completo. La comprobación de datos y destinatarios reales sigue siendo, como dice RETOMAR, de la conexión de cada caso.
+| Caso | Acción en pantalla | Texto visto (resumen) | Resultado |
+|---|---|---|---|
+| N09 reserva confirmada (alumno) | Ficha de membresía → «+ Nueva reserva» → Confirmar directo | «Hola! Confirmamos tu clase particular (…) con Natalia Salek: mar 13/10 de 08:30 a 09:30, en Tropicana (Sala principal). Te quedan 1 h de tu paquete de 2 h. ¡Te esperamos!» | **OK**, igual al texto de referencia |
+| N15 reserva reprogramada (alumno) | Reprogramar a la última franja libre | «Hola! Reprogramamos tu clase particular (…): pasa del mar 13/10 de 08:30 a 09:30 al mar 13/10 de 21:30 a 22:30, … Te quedan 1 h de tu paquete de 2 h.» | **OK** |
+| N17 cancelada a pedido, en plazo (alumno) | Cancelar la reserva vigente | «Hola! Cancelamos tu clase particular (…) del mar 13/10 de 21:30 a 22:30, como pediste. Esa hora vuelve a tu paquete: Te quedan 2 h de tu paquete de 2 h. Coordinamos una nueva fecha.» | **OK** (estructura idéntica a `reservas.json`) |
+| N19 clase suspendida (alumno) | /asistencia → curso con alumnos → «Marcar esta clase como suspendida» (motivo «E2E R20») | «Hola Bruna! Te avisamos que tu clase de Tropicoreografico del mié 7 oct quedó suspendida por E2E R20. Tu ciclo se corrió: ahora vence el mié 21 oct. …» (4 alumnos) | **OK** |
+| N20 clase suspendida (profesor) | ídem | «Hola Natalia! Te avisamos que la clase de Tropicoreografico del mié 7 oct quedó suspendida por E2E R20. No hace falta que la dictes.» | **OK** |
+| N21 clase restablecida (alumno) | «Reabrir clase (se dictó)» (corrida con otra clase: Contemporaneo jue 8 oct) | «Hola Daniela! Te avisamos que tu clase de Contemporaneo del jue 8 oct se restableció: se dicta con normalidad. Tu ciclo vuelve a vencer el jue 22 oct. …» (3 alumnos) | **OK** |
+| N01 inscripción | /inscribir → contacto «E2E-PRUEBA Venta …» → plan «CR - TU RITMO 1» → cuota entera, efectivo | «Hola! Confirmamos tu inscripción en CR - TU RITMO 1 …: Cursos: • Bachata Conexión: martes y jueves, 20:30 → 21:30 … Incluye: 1 clase. … Precio: Bs. 50,00. Pagado: Bs. 50,00 (Efectivo). Cuota saldada. ¡Te esperamos!» | **OK** |
+| N02 recibo | ídem | «Recibo de pago — sáb 10 oct / Recibimos de E2E-PRUEBA Venta …: Bs. 50,00 (Efectivo). Concepto: CR - TU RITMO 1 …» | **OK** |
+
+**No comprobado en pantalla (sin pretender cubrirlo):** N03 (prueba), N04–N05 (venta de particular), N06 (alquiler), N07–N08 (solicitada), N10, N16 y N18 (lado profesor de reservas: la pantalla de la ficha solo mostró la tarjeta del alumno), N11–N14 (suspender/restablecer reservas) y N17/N18 fuera de plazo. Para estos, la evidencia sigue siendo la equivalencia en tres vías y la lectura del diff. Ningún hallazgo nuevo de severidad media o alta; los hallazgos 1–3 de arriba no cambian.
+
+**Datos que quedaron en dev (todos marcados «E2E-PRUEBA» o con motivo «E2E R20»):**
+- Reservas: contactos/membresías «E2E-PRUEBA Prueba …» (6 de esta sesión) con reservas en «reagendar» y la membresía en «baja» (el historial de solo agregar impide borrarlas; limpieza ya conocida de `membresiaDePrueba.ts`).
+- Clases: Tropicoreografico del mié 7 oct (suspendida y reabierta) y Contemporaneo del jue 8 oct (ídem). Ambas quedaron reabiertas.
+- Ventas: contacto «E2E-PRUEBA Venta …» inscripto en «CR - TU RITMO 1» con su cuota saldada y su cobro de Bs. 50 en efectivo (membresía en «baja»); el cobro queda en caja de dev.
+- Corridas fallidas del spec de ventas y del de clases (selectores) no dejaron datos de venta; los contactos huérfanos se borraron.
