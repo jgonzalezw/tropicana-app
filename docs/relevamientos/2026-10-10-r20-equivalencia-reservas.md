@@ -3,7 +3,7 @@
 Fecha: 2026-10-10. Rama `r20-notificaciones`. Alcance: generación de texto y condiciones en que un aviso no corresponde. **No** cubre la resolución real del destinatario, del lugar ni del saldo en producción (siguen en `contextoAviso`), ni conecta ningún caso.
 
 ## Método
-1. **Referencias** capturadas del código anterior a la extracción (commit `5f7414f`, `__referencias__/reservas.json`, 157 variantes + la tabla de estados). El script `scripts/capturar-referencias-reservas.mjs` copia sin tocarlas las líneas de `particulares/acciones.ts` y la función `avisos()`, las evalúa con datos ficticios y aborta si una línea no es la esperada.
+1. **Referencias** capturadas del código anterior a la extracción (commit `5f7414f`, `__referencias__/reservas.json`, 161 variantes + la tabla de estados). El script `scripts/capturar-referencias-reservas.mjs` copia sin tocarlas las líneas de `particulares/acciones.ts` y la función `avisos()`, las evalúa con datos ficticios y aborta si una línea no es la esperada.
 2. **Funciones movidas** a `src/lib/comunicaciones/legado/reserva.ts` (`mensaje…`, `avisosDeReserva`, `avisaCambioDeEstado`). `acciones.ts` solo las llama.
 3. **Plantillas** predeterminadas y adaptador en `src/lib/comunicaciones/predeterminados/reserva.ts`, renderizadas con `plantillas.ts`.
 4. `strictEqual` / `deepStrictEqual` entre las tres salidas, sin normalizar espacios ni formatos.
@@ -39,10 +39,14 @@ Cada caso cubre particular y alquiler, lugar externo, sala o «Tropicana», sald
 - «Tu alquiler de sala (…) del … quedó suspendida» (concordancia de género tal como estaba).
 - «Te quedan …» con mayúscula después de los dos puntos.
 - Con plan o nombre faltante: «clases particulares» / «alquiler de sala» / «el alumno» / «el titular».
-- Con motivo `null`, el original imprimía «null»; el adaptador conserva `String(motivo)`.
+- Con motivo vacío imprime «()»; con `null`, «null»; el adaptador conserva `String(motivo)`.
 
-## Diferencias de condición (no de texto) que se declaran
-- Un **motivo de suspensión vacío**, que el original imprimía como «()», detiene el mensaje con la plantilla (variable obligatoria vacía). Ninguna fuente real produce un motivo vacío (lista, C5 o bloqueo siempre aportan texto); queda anotado para la ficha de N11/N12 antes de conectar el caso.
+## Motivo de suspensión vacío o nulo (corregido, 2026-10-10)
+- **Qué pasaba:** solo el camino de la **plantilla** difería: el vocabulario marcaba `reserva.motivo` como obligatoria y no vacía, y detenía el mensaje donde el original imprimía «()». La **función movida** que usa hoy la aplicación (`mensajeReservaSuspendidaAlumno/Profesor`) es un texto con interpolación y ya reproducía «()» (y «null» con nulo). La aplicación no estuvo afectada.
+- **Corrección:** `permiteVacia` en el esquema de variables y en el motor; `reserva.motivo` lo declara. El comportamiento heredado se conserva a propósito, incluido «()».
+- **Referencias nuevas** capturadas del código anterior: `*.particular.motivo_vacio` («… quedó suspendida ().») y `*.particular.motivo_nulo` («… (null).»), para los dos orígenes (estado y operativa). Total: 161 variantes.
+- **Evidencia:** los tres caminos (referencia, función movida, plantilla) coinciden en ambas variantes; prueba del motor para `permiteVacia`.
+- **Mejora posterior, separada:** validar que el motivo no llegue vacío o nulo. Ninguna fuente real lo produce (lista, C5 o bloqueo siempre aportan texto).
 
 ## Pendiente para la conexión (fuera de este informe)
 - Verificar en vivo que el destinatario registrado coincide con el del botón (dA, dT, profesor).

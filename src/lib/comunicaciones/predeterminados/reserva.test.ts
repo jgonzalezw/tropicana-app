@@ -34,7 +34,7 @@ import { CASOS_RESERVA as CASOS, ESQUEMA_RESERVA, variablesReserva, type Entrada
 const leer = (nombre: string) => JSON.parse(readFileSync(new URL(`../__referencias__/${nombre}`, import.meta.url), "utf8"));
 
 const vocabulario = (usadas: readonly string[]) => ({
-  variables: ESQUEMA_RESERVA.filter((v) => usadas.includes(v.nombre)).map((v) => ({ nombre: v.nombre, obligatoria: true })),
+  variables: ESQUEMA_RESERVA.filter((v) => usadas.includes(v.nombre)).map((v) => ({ nombre: v.nombre, obligatoria: true, permiteVacia: v.permiteVacia })),
 });
 const plantilla = (clave: string, vars: Record<string, string>) =>
   renderizar(CASOS[clave].plantilla, vars, vocabulario(CASOS[clave].variables));

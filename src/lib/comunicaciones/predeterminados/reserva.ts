@@ -19,7 +19,7 @@
  *  - Se reproducen las rarezas del original («Hola!» sin coma, «a ?» sin duración,
  *    «Tu alquiler … quedó suspendida», «Te quedan…» tras los dos puntos).
  *  - Obligatoria significa obligatoria EN ESA PLANTILLA: todas las variables que
- *    usa. Un motivo vacío, que el original imprimía como «()», acá detiene el mensaje.
+ *    usa. `reserva.motivo` permite vacío: el original imprimía «()» y se conserva.
  */
 import { h, horario, textosDeReserva } from "../legado/reserva.ts";
 
@@ -49,6 +49,8 @@ export type VariableDePlantilla = {
   descripcion: string;
   fuente: string;
   tipo: "texto";
+  /** Si el dato puede estar vacío y se imprime así (heredado). */
+  permiteVacia?: boolean;
   formato: string;
   ejemplo: string;
   ausencia: string;
@@ -134,8 +136,9 @@ const v = (
   fuente: string,
   formato: string,
   ejemplo: string,
-  ausencia: string
-): VariableDePlantilla => ({ nombre, descripcion, fuente, tipo: "texto", formato, ejemplo, ausencia });
+  ausencia: string,
+  permiteVacia?: boolean
+): VariableDePlantilla => ({ nombre, descripcion, fuente, tipo: "texto", formato, ejemplo, ausencia, ...(permiteVacia ? { permiteVacia } : {}) });
 
 export const ESQUEMA_RESERVA: VariableDePlantilla[] = [
   v("reserva.tu_clase", "Qué se confirma, con el profesor si es una clase particular.", "membresía: tipo (alquiler o particular), plan y profesor",
@@ -154,7 +157,7 @@ export const ESQUEMA_RESERVA: VariableDePlantilla[] = [
     "nombre del lugar externo, «Tropicana (Sala)» o «Tropicana»", "Tropicana (Sala 1)", "«Tropicana»."),
   v("reserva.motivo", "Por qué se suspendió.", "catálogo de motivos, cierre de sala (C5) o bloqueo",
     "texto compuesto por la acción: «etiqueta», «etiqueta (glosa)» o «etiqueta — glosa»", "feriado nacional",
-    "Si faltara, el mensaje no se genera."),
+    "Vacío se imprime «()» y nulo «null», como el código anterior (heredado; una validación mejor es un cambio posterior).", true),
   v("reserva.plazo_horas", "Horas de anticipación del plazo de cancelación.", "parametros.reserva_cancelacion_plazo_horas",
     "número entero", "8", "Si faltara el parámetro, la acción usa 8."),
   v("alumno.nombre", "Nombre del alumno (o del titular, en un alquiler).", "contactos del alumno o del titular", "nombre y apellido", "Ana Pérez",

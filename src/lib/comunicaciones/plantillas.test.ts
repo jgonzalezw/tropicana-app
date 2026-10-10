@@ -44,3 +44,10 @@ test("condición o lista con el tipo equivocado fallan", () => {
   assert.throws(() => renderizar("{{#si hay}}x{{/si}}", { hay: "si" }), ErrorPlantilla);
   assert.throws(() => renderizar("{{#cada xs}}{{.}}{{/cada}}", { xs: "a" }), ErrorPlantilla);
 });
+
+test("permiteVacia: una variable obligatoria puede imprimirse vacía solo si el esquema lo permite", () => {
+  const con = { variables: [{ nombre: "m", obligatoria: true, permiteVacia: true }] };
+  const sin = { variables: [{ nombre: "m", obligatoria: true }] };
+  assert.equal(renderizar("({{m}})", { m: "" }, con), "()");
+  assert.throws(() => renderizar("({{m}})", { m: "" }, sin), /obligatoria y está vacía/);
+});

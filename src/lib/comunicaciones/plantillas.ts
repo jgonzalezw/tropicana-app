@@ -22,7 +22,8 @@ export class ErrorPlantilla extends Error {
 
 export type Valor = string | boolean | string[];
 export type Datos = Record<string, Valor>;
-export type VariableEsquema = { nombre: string; obligatoria?: boolean };
+/** `permiteVacia`: el dato puede ser un texto vacío y se imprime tal cual (comportamiento heredado). */
+export type VariableEsquema = { nombre: string; obligatoria?: boolean; permiteVacia?: boolean };
 export type Vocabulario = { variables: VariableEsquema[]; condiciones?: string[]; listas?: string[] };
 
 const FILTROS: Record<string, (s: string) => string> = {
@@ -153,7 +154,7 @@ export function renderizar(plantilla: string, datos: Datos, vocabulario?: Vocabu
     if (e.length) throw new ErrorPlantilla(e.join("; "));
   }
   const nodos = parsear(plantilla);
-  const obligatorias = new Set((vocabulario?.variables ?? []).filter((x) => x.obligatoria).map((x) => x.nombre));
+  const noVacias = new Set((vocabulario?.variables ?? []).filter((x) => x.obligatoria && !x.permiteVacia).map((x) => x.nombre));
 
   function texto(ns: Nodo[], item: string | null): string {
     let out = "";
@@ -168,7 +169,7 @@ export function renderizar(plantilla: string, datos: Datos, vocabulario?: Vocabu
           if (v === undefined) throw new ErrorPlantilla(`Falta el dato «${n.nombre}»`);
           throw new ErrorPlantilla(`«${n.nombre}» no es un texto`);
         }
-        if (v === "" && obligatorias.has(n.nombre)) throw new ErrorPlantilla(`«${n.nombre}» es obligatoria y está vacía`);
+        if (v === "" && noVacias.has(n.nombre)) throw new ErrorPlantilla(`«${n.nombre}» es obligatoria y está vacía`);
         out += n.filtros.reduce((s, f) => FILTROS[f](s), v);
       } else if (n.t === "si") {
         const c = datos[n.cond];

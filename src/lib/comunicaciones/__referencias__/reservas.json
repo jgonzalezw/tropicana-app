@@ -1556,6 +1556,80 @@
       }
     }
   },
+  "suspendida_estado.particular.motivo_vacio": {
+    "entrada": {
+      "esAlquiler": false,
+      "planNombre": "Paquete 10 h",
+      "profesorNombre": "Mario Rojas",
+      "alumnoNombre": "Ana Pérez",
+      "destinatarioNombre": "Luis Pérez (tutor)",
+      "destinatarioWhatsapp": "+59171234567",
+      "profesorWhatsapp": "+59178901234",
+      "contratadasMin": 600,
+      "disponibleMin": 450,
+      "fecha": "2026-10-02",
+      "hora": "15:00:00",
+      "duracionMin": 60,
+      "lugar": "Tropicana (Sala 1)",
+      "motivo": "",
+      "plazoHoras": 8,
+      "anterior": {
+        "fecha": "2026-10-01",
+        "hora": "18:00:00",
+        "duracionMin": 90
+      },
+      "caso": "suspendida_estado"
+    },
+    "resultado": {
+      "avisoAlumno": {
+        "nombre": "Luis Pérez (tutor)",
+        "whatsapp": "+59171234567",
+        "mensaje": "Hola! Tu clase particular (Paquete 10 h) del vie 02/10 de 15:00 a 16:00 quedó suspendida (). Esa hora vuelve a tu paquete: Te quedan 7.5 h de tu paquete de 10 h. Coordinamos una nueva fecha."
+      },
+      "avisoProfesor": {
+        "nombre": "Mario Rojas",
+        "whatsapp": "+59178901234",
+        "mensaje": "Hola! La clase particular (Paquete 10 h) con Ana Pérez del vie 02/10 de 15:00 a 16:00, en Tropicana (Sala 1), quedó suspendida ()."
+      }
+    }
+  },
+  "suspendida_estado.particular.motivo_nulo": {
+    "entrada": {
+      "esAlquiler": false,
+      "planNombre": "Paquete 10 h",
+      "profesorNombre": "Mario Rojas",
+      "alumnoNombre": "Ana Pérez",
+      "destinatarioNombre": "Luis Pérez (tutor)",
+      "destinatarioWhatsapp": "+59171234567",
+      "profesorWhatsapp": "+59178901234",
+      "contratadasMin": 600,
+      "disponibleMin": 450,
+      "fecha": "2026-10-02",
+      "hora": "15:00:00",
+      "duracionMin": 60,
+      "lugar": "Tropicana (Sala 1)",
+      "motivo": null,
+      "plazoHoras": 8,
+      "anterior": {
+        "fecha": "2026-10-01",
+        "hora": "18:00:00",
+        "duracionMin": 90
+      },
+      "caso": "suspendida_estado"
+    },
+    "resultado": {
+      "avisoAlumno": {
+        "nombre": "Luis Pérez (tutor)",
+        "whatsapp": "+59171234567",
+        "mensaje": "Hola! Tu clase particular (Paquete 10 h) del vie 02/10 de 15:00 a 16:00 quedó suspendida (null). Esa hora vuelve a tu paquete: Te quedan 7.5 h de tu paquete de 10 h. Coordinamos una nueva fecha."
+      },
+      "avisoProfesor": {
+        "nombre": "Mario Rojas",
+        "whatsapp": "+59178901234",
+        "mensaje": "Hola! La clase particular (Paquete 10 h) con Ana Pérez del vie 02/10 de 15:00 a 16:00, en Tropicana (Sala 1), quedó suspendida (null)."
+      }
+    }
+  },
   "suspendida_operativa.particular.base": {
     "entrada": {
       "esAlquiler": false,
@@ -2387,6 +2461,80 @@
         "nombre": "Mario Rojas",
         "whatsapp": "+59178901234",
         "mensaje": "Hola! La clase particular (Paquete 10 h) con Ana Pérez del vie 02/10 de 15:00 a 16:00, en Tropicana (Sala 1), quedó suspendida (Mantenimiento — pintura)."
+      }
+    }
+  },
+  "suspendida_operativa.particular.motivo_vacio": {
+    "entrada": {
+      "esAlquiler": false,
+      "planNombre": "Paquete 10 h",
+      "profesorNombre": "Mario Rojas",
+      "alumnoNombre": "Ana Pérez",
+      "destinatarioNombre": "Luis Pérez (tutor)",
+      "destinatarioWhatsapp": "+59171234567",
+      "profesorWhatsapp": "+59178901234",
+      "contratadasMin": 600,
+      "disponibleMin": 450,
+      "fecha": "2026-10-02",
+      "hora": "15:00:00",
+      "duracionMin": 60,
+      "lugar": "Tropicana (Sala 1)",
+      "motivo": "",
+      "plazoHoras": 8,
+      "anterior": {
+        "fecha": "2026-10-01",
+        "hora": "18:00:00",
+        "duracionMin": 90
+      },
+      "caso": "suspendida_operativa"
+    },
+    "resultado": {
+      "avisoAlumno": {
+        "nombre": "Luis Pérez (tutor)",
+        "whatsapp": "+59171234567",
+        "mensaje": "Hola! Tu clase particular (Paquete 10 h) del vie 02/10 de 15:00 a 16:00 quedó suspendida (). Esa hora vuelve a tu paquete: Te quedan 7.5 h de tu paquete de 10 h. Coordinamos una nueva fecha."
+      },
+      "avisoProfesor": {
+        "nombre": "Mario Rojas",
+        "whatsapp": "+59178901234",
+        "mensaje": "Hola! La clase particular (Paquete 10 h) con Ana Pérez del vie 02/10 de 15:00 a 16:00, en Tropicana (Sala 1), quedó suspendida ()."
+      }
+    }
+  },
+  "suspendida_operativa.particular.motivo_nulo": {
+    "entrada": {
+      "esAlquiler": false,
+      "planNombre": "Paquete 10 h",
+      "profesorNombre": "Mario Rojas",
+      "alumnoNombre": "Ana Pérez",
+      "destinatarioNombre": "Luis Pérez (tutor)",
+      "destinatarioWhatsapp": "+59171234567",
+      "profesorWhatsapp": "+59178901234",
+      "contratadasMin": 600,
+      "disponibleMin": 450,
+      "fecha": "2026-10-02",
+      "hora": "15:00:00",
+      "duracionMin": 60,
+      "lugar": "Tropicana (Sala 1)",
+      "motivo": null,
+      "plazoHoras": 8,
+      "anterior": {
+        "fecha": "2026-10-01",
+        "hora": "18:00:00",
+        "duracionMin": 90
+      },
+      "caso": "suspendida_operativa"
+    },
+    "resultado": {
+      "avisoAlumno": {
+        "nombre": "Luis Pérez (tutor)",
+        "whatsapp": "+59171234567",
+        "mensaje": "Hola! Tu clase particular (Paquete 10 h) del vie 02/10 de 15:00 a 16:00 quedó suspendida (null). Esa hora vuelve a tu paquete: Te quedan 7.5 h de tu paquete de 10 h. Coordinamos una nueva fecha."
+      },
+      "avisoProfesor": {
+        "nombre": "Mario Rojas",
+        "whatsapp": "+59178901234",
+        "mensaje": "Hola! La clase particular (Paquete 10 h) con Ana Pérez del vie 02/10 de 15:00 a 16:00, en Tropicana (Sala 1), quedó suspendida (null)."
       }
     }
   },

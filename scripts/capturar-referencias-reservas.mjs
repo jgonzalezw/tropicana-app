@@ -163,6 +163,8 @@ for (const caso of Object.keys(CASOS)) {
     add("particular.motivo_cierre_de_sala", { motivo: "un cierre de sala" });
     add("particular.motivo_con_glosa", { motivo: "Cierre de sala (Feriado)" });
     add("particular.motivo_bloqueo", { motivo: "Mantenimiento — pintura" });
+    add("particular.motivo_vacio", { motivo: "" });
+    add("particular.motivo_nulo", { motivo: null });
   }
   if (caso.startsWith("cancelada")) {
     add("particular.plazo_1h", { plazoHoras: 1 });
