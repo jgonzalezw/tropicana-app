@@ -84,6 +84,15 @@ for (const [archivo, ns] of Object.entries(PLANTILLAS)) {
   for (const n of ns) if (!new RegExp(`["']?${n}(\\.[a-z_]+)?["']?\\s*:`).test(t)) errores.push(`${n}: sin plantilla en ${archivo}`);
 }
 
+// E4a: cada caso N01–N21 tiene su contenido importado en las migraciones generadas.
+const importados = readdirSync("supabase/migrations")
+  .filter((f) => /_comunicaciones_predeterminados_.*\.sql$/.test(f))
+  .flatMap((f) => [...readFileSync(join("supabase/migrations", f), "utf8").matchAll(/^-- @contenido (N\d\d)\./gm)].map((m) => m[1]));
+for (let i = 1; i <= 21; i++) {
+  const n = "N" + String(i).padStart(2, "0");
+  if (!importados.includes(n)) errores.push(`${n}: sin contenido importado en las migraciones de predeterminados`);
+}
+
 console.log(`Consumidores de AvisoWhatsapp: ${usan.length} (inventario: ${CONSUMIDORES.length})`);
 console.log(`Operaciones de entrada halladas: ${Object.keys(donde).length} de ${OPERACIONES.length}`);
 console.log("Caso\tvariantes\treferencias");

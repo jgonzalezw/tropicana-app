@@ -193,3 +193,14 @@ Pasaron a `docs/archivo/ESTADO-2026-10.md` para que este archivo se pueda leer. 
 - Motivo de suspensión vacío o nulo: la función movida ya imprimía «()»/«null»; solo la plantilla lo detenía. Corregido con `permiteVacia` y referencias nuevas; la validación mejor queda como cambio posterior.
 - `npm run inventario:avisos` (`scripts/inventario-avisos.mjs`): falla si aparece un consumidor de `AvisoWhatsapp` fuera de los 9, falta una de las 16 operaciones o un caso sin referencias o plantilla.
 - `tsc` limpio, `npm test` 791/791, e2e de humo 14/14 (membresías 1a y reprogramar/cancelar/reagendar). Sin migraciones, sin conectar casos, sin tocar consentimiento ni producción.
+
+
+## R20 — E4a · contenidos, versiones y asignaciones (2026-10-10, solo dev)
+Rama `r20-e4a-contenidos`, apilada sobre `r20-notificaciones` (PR #47): necesita los `predeterminados/*.ts` de E2. No conecta operaciones, no activa contenido oficial, sin pantallas.
+- **Migraciones 0071 (estructura), 0072 (importación generada) y 0073 (historial editorial de versiones: cada cambio de estado, incluido el retorno de `en_revision` a `borrador`, con actor, fecha y motivo) aplicadas en dev.** 24 contenidos / 24 asignaciones (`legado`) / 24 versiones en `borrador`. Texto verificado igual al código.
+- Estados `borrador→en_revision→aprobado→publicado→retirado` con tabla de transiciones; aprobar ≠ publicar ≠ liberar; solo Administrador (D-E4a-1); historial permanente (D-E4a-3); módulo oculto hasta E6 (D-E4a-2).
+- Hash canónico (SHA-256, claves ordenadas, texto exacto) calculado solo en `contenidos/hash.ts`. Importación generada con prueba de deriva: cambiar un predeterminado rompe `npm test` y `contenidos:generar -- --verificar` hasta generar una migración nueva (solo versiones nuevas en borrador).
+- Pruebas: 807 tests; `scripts/prueba_0071_contenidos.sql` (55 comprobaciones con roles, transacción descartada); controles 55–60 = 0; rollback probado en transacción descartada (`scripts/rollback_0071_comunicaciones.sql`, aborta ante trabajo editorial).
+- Reinstalación probada (`scripts/armar-prueba-reinstalacion.mjs`, transacción descartada): el rollback aborta ante cualquier trabajo editorial (5 casos); en estado limpio revierte, reinstala 0071+0073 y deja estructura (145 elementos) y datos idénticos. Controles 55–62 probados con corrupción deliberada (`scripts/prueba_controles_55_62.sql`). Email/asunto modelados y probados (no se importan plantillas de email).
+- Límites conocidos: los perfiles que aprobaron/publicaron no se pueden borrar (desactivar); la importación de `asunto` (correo) no está implementada.
+- Próxima migración libre: **0074**. Sin pase a producción.
