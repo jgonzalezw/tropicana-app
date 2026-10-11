@@ -130,9 +130,11 @@ notify pgrst, 'reload schema';
 
 -- ROLLBACK (probar fila por fila contra los respaldos):
 --   delete from public.sala_tarifas;
---   insert into public.sala_tarifas select * from public.sala_tarifas_previo_i018;
 --   delete from public.sala_horas_paquete
 --    where id not in (select id from public.sala_horas_paquete_previo_i018);
+--   insert into public.sala_tarifas overriding system value
+--     select * from public.sala_tarifas_previo_i018;
+-- (probado en dev el 2026-10-10: 0 diferencias contra los respaldos.)
 -- =====================================================================
 -- FIN 0078
 -- =====================================================================
