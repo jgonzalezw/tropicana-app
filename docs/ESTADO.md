@@ -207,3 +207,10 @@ Rama `r20-e4a-contenidos`, apilada sobre `r20-notificaciones` (PR #47): necesita
 
 ## R20 — E4b + E5 · avisos registrados y N09–N10 (2026-10-10, solo dev)
 Rama `r20-e4b-n09`. Migración 0074 aplicada en dev; N09/N10 liberadas (`modo='modulo'`) con S05. Detalle, pruebas y M1 en `docs/relevamientos/2026-10-10-r20-e4b-e5-avisos-n09-n10.md`. Pruebas: 45 comprobaciones SQL, controles 63–67, 831 tests, tsc, E2E feliz y cuatro pruebas en vivo de Javier (feliz, rechazo explícito, fallo del contenido con respaldo, fallo simulado de registro). PR #50. Próxima migración libre: **0075**. Sin pase a producción.
+
+## I-018 (S1) — Tarifas oficiales de alquiler de sala (2026-10-10)
+- **Qué cambió:** `sala_tarifas` y `sala_horas_paquete` pasaron de 12 filas de prueba (solo 1 h, suma 720) a las tarifas oficiales: 8 tramos × 4 perfiles × 3 tamaños = 96 precios generales (`sala_id` nulo), de `Alquiler de Sala.xlsx`, validados por Javier. Sobrescribe los de 1 h. No se cargó la celda suelta «Hora Base».
+- **Migración:** `0078_sala_tarifas_oficiales_i018` (numeración fuera de secuencia a propósito: 0075–0077 reservadas a R20 E4c). Respaldos `sala_tarifas_previo_i018` y `sala_horas_paquete_previo_i018`.
+- **Probado:** dev (96 filas, suma 19265) → validación de Javier → producción (mismo resultado; 18 reservas de sala sin cambios). Rollback probado en dev: 0 diferencias. Esa prueba encontró un fallo (faltaba `overriding system value`), corregido en el archivo.
+- **Git:** PR #51 mergeado en `main` (solo migración y docs); rama `fix/i-018` borrada.
+- **Producción hoy:** 0001–0073 más la 0078. Próxima migración libre para E4c: 0075.
